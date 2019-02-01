@@ -25,17 +25,17 @@
       double precision :: rg = 8.3d-3   ! kJ mol^-1 K^-1
       double precision :: rg2 = 8.2d-2  ! L mol^-1 atm K^-1
       
-C       double precision :: po2i = 0.21d0 ! atm
-      double precision :: po2i = 0.6d-1 ! atm
-C       double precision :: pco2i = 10.0d0**(-2.5d0) ! atm
-      double precision :: pco2i = 10.0d0**(-1.0d0) ! atm
+      double precision :: po2i = 0.21d0 ! atm
+C       double precision :: po2i = 0.6d-1 ! atm
+      double precision :: pco2i = 10.0d0**(-2.5d0) ! atm
+C       double precision :: pco2i = 10.0d0**(-1.0d0) ! atm
       double precision :: ci = 0d0 
       double precision :: c2i = 0d0
       double precision :: so4i = 0d0
       double precision :: nai = 0d0
       
-C       double precision :: redsldi = 0.56d0 ! wt%
-      double precision :: redsldi = 1.12d0 ! wt%
+      double precision :: redsldi = 0.56d0 ! wt%
+C       double precision :: redsldi = 1.12d0 ! wt%
       double precision :: silwti = 30d0 ! wt%
       
       double precision sat(nz), poro(nz), torg(nz), tora(nz), deff(nz)
@@ -45,8 +45,8 @@ C       double precision :: redsldi = 0.56d0 ! wt%
       double precision :: sati = 0.50d0
       double precision :: satup = 0.10d0
       
-      double precision :: zsat = 30d0
-C       double precision :: zsat = 5d0
+C       double precision :: zsat = 30d0
+      double precision :: zsat = 1d0
       
       double precision :: dfe2 = 1.7016d-2 ! m^2 yr^-1 ! at 15 C; Li and Gregory 
       double precision :: dfe3 = 1.5664d-2 ! m^2 yr^-1 ! at 15 C; Li and Gregory
@@ -55,8 +55,8 @@ C       double precision :: zsat = 5d0
       
       double precision, parameter :: w = 5.0d-5 ! m yr^-1, uplift rate
       double precision, parameter :: vcnst = 1.0d1 ! m yr^-1, advection
-      double precision, parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
-C       double precision, parameter :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)
+C       double precision, parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
+      double precision, parameter :: qin = 2d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)
       double precision v(nz), q
       
       double precision :: hr = 1d5 ! m^2 m^-3, reciprocal of hydraulic radius
@@ -115,7 +115,7 @@ C       integer, parameter :: nrec = 22
       integer reclis(nrec)
       double precision rectime(nrec)
       character(3) chr
-      character(256) runname,workdir
+      character(256) runname,workdir, chrz(3), chrq(3)
       integer irec, iter, idum, iter2
       
       double precision :: swad = 1.0d0! 1.0 when advection included 0.0d0 when not
@@ -196,6 +196,11 @@ C       logical :: O2_evolution = .true.
       
 C       rectime =rectime/1d1
 C       rectime =rectime*1d1
+
+      write(chrq(1),'(i0)') int(qin/(10d0**(floor(log10(qin)))))
+      write(chrq(2),'(i0)') floor(log10(qin))
+      chrq(3) = trim(adjustl(chrq(1)))//'E'//trim(adjustl(chrq(2)))
+      write(chrz(3),'(i0)') int(zsat)
       
       vmax = vmax * 1d0  !!  vmax is increased by a factor of 100 (cf., soil respiration in Liu and Zhou 2006)
       
@@ -208,8 +213,21 @@ C       enddo
       write(workdir,*) 'C:/cygwin64/home/YK/PyWeath/'      
 C       write(workdir,*) write(workdir,*) '/home/latruffe/PyWeath/'         
       write(runname,*) 'Fe2+SO4+sil+ph_wet_iter'
-     $   //'---q5e-3_z30_w5e-5_msx2_S1e5'
-     $   //'_co21e-1-o26e-2'
+     $   //'---q'//trim(adjustl(chrq(3)))//'_z'
+     $   //trim(adjustl(chrz(3)))//'_w5e-5_msx1_S1e5'
+C      $   //'_co21e-1-o26e-2'
+#ifdef pyweath
+      write(runname,*) 'Fe2+SO4_wet_iter'
+     $   //'---q'//trim(adjustl(chrq(3)))//'_z'
+     $   //trim(adjustl(chrz(3)))//'_w5e-5_msx1_S1e5'
+C      $   //'_co21e-1-o26e-2'
+#endif
+#ifdef silweath
+      write(runname,*) 'sil+ph_wet_iter'
+     $   //'---q'//trim(adjustl(chrq(3)))//'_z'
+     $   //trim(adjustl(chrz(3)))//'_w5e-5_msx1_S1e5'
+C      $   //'_co21e-1-o26e-2'
+#endif
       
       call system ('mkdir -p '//trim(adjustl(runname)))
       
@@ -2761,7 +2779,7 @@ C        print *, (so4x(iz),iz=1,nz, spc)
        
       !!!  =-=-=-=-=-=-=-=-=- END of SO4 calculation  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 #endif       
-       
+#ifndef pyweath       
       !!! =-=-=-=-=-=-=-=-=- START of calculation for Na and albite  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
       
       error = 1d4
@@ -3369,8 +3387,7 @@ C          go to 100
       if (flgback) then 
         flgback = .false. 
         go to 100
-      endif 
-      
+      endif     
       
 #ifdef pHiter
       error2 = maxval( abs(pro-prox)/pro)
@@ -3393,7 +3410,9 @@ C          flgback = .true.
       enddo     
 ! ######################## end of pH iteration #######################
 #endif
-      
+
+#endif  
+      !  endif of ifndef pyweath
 
        print *,'o2:', (po2x(iz),iz=1,nz, spc)
        print *,'fe2:', (cx(iz),iz=1,nz, spc)
