@@ -56,7 +56,7 @@ C       double precision :: zsat = 30d0
       double precision, parameter :: w = 5.0d-5 ! m yr^-1, uplift rate
       double precision, parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 C       double precision, parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
-      double precision, parameter :: qin = 2d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)
+      double precision :: qin = 1d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
       double precision v(nz), q
       
       double precision :: hr = 1d5 ! m^2 m^-3, reciprocal of hydraulic radius
@@ -115,7 +115,7 @@ C       integer, parameter :: nrec = 22
       integer reclis(nrec)
       double precision rectime(nrec)
       character(3) chr
-      character(256) runname,workdir, chrz(3), chrq(3)
+      character(256) runname,workdir, chrz(3), chrq(3),base,fname
       integer irec, iter, idum, iter2
       
       double precision :: swad = 1.0d0! 1.0 when advection included 0.0d0 when not
@@ -165,7 +165,7 @@ C       integer, parameter :: nrec = 22
       double precision silflxsum,naflxsum
       double precision dummy, zdum(nz)
       
-      double precision :: maxdt = 10d0
+      double precision :: maxdt = 100d0
       
       integer izdum
 C       logical :: pre_calc = .false.
@@ -192,10 +192,60 @@ C      $   ,31d6,32d6,33d6,34d6,35d6,36d6,37d6,38d6,39d6,40d6,41d6,42d6/
 C       logical :: O2_evolution = .true.
 
       logical :: flgback = .false.
+      double precision :: zab(3), zpy(3) 
+      integer :: oxj
       !-------------------------
       
-C       rectime =rectime/1d1
+C       rectime =rectime/1d4
 C       rectime =rectime*1d1
+
+#if var1==1
+      qin=10d0**(-3.0d0)
+#elif var1==2
+      qin=10d0**(-2.8d0)
+#elif var1==3
+      qin=10d0**(-2.6d0)
+#elif var1==4
+      qin=10d0**(-2.4d0)
+#elif var1==5
+      qin=10d0**(-2.2d0)
+#elif var1==6
+      qin=10d0**(-2.0d0)
+#elif var1==7
+      qin=10d0**(-1.8d0)
+#elif var1==8
+      qin=10d0**(-1.6d0)
+#elif var1==9
+      qin=10d0**(-1.4d0)
+#elif var1==10
+      qin=10d0**(-1.2d0)
+#elif var1==11
+      qin=10d0**(-1.0d0)
+#endif
+
+#if var2==1
+      zsat=1d0
+#elif var2==2
+      zsat=5d0
+#elif var2==3
+      zsat=10d0
+#elif var2==4
+      zsat=15
+#elif var2==5
+      zsat=20d0
+#elif var2==6
+      zsat=25d0
+#elif var2==7
+      zsat=30d0
+#elif var2==8
+      zsat=35d0
+#elif var2==9
+      zsat=40d0
+#elif var2==10
+      zsat=45d0
+#elif var2==11
+      zsat=50d0
+#endif
 
       write(chrq(1),'(i0)') int(qin/(10d0**(floor(log10(qin)))))
       write(chrq(2),'(i0)') floor(log10(qin))
@@ -210,23 +260,27 @@ C       do irec = 1,nrec
 C         rectime(irec) = 19d6 + irec*1d6
 C       enddo
       
-      write(workdir,*) 'C:/cygwin64/home/YK/PyWeath/'      
+      write(workdir,*) 'C:/cygwin64/home/YK/PyWeath/'     
+      write(base,*) '_w5e-5_msx1_S1e5'     
 C       write(workdir,*) write(workdir,*) '/home/latruffe/PyWeath/'         
       write(runname,*) 'Fe2+SO4+sil+ph_wet_iter'
      $   //'---q'//trim(adjustl(chrq(3)))//'_z'
-     $   //trim(adjustl(chrz(3)))//'_w5e-5_msx1_S1e5'
+     $   //trim(adjustl(chrz(3)))//trim(adjustl(base))
 C      $   //'_co21e-1-o26e-2'
 #ifdef pyweath
       write(runname,*) 'Fe2+SO4_wet_iter'
      $   //'---q'//trim(adjustl(chrq(3)))//'_z'
-     $   //trim(adjustl(chrz(3)))//'_w5e-5_msx1_S1e5'
+     $   //trim(adjustl(chrz(3)))//trim(adjustl(base))
 C      $   //'_co21e-1-o26e-2'
 #endif
 #ifdef silweath
       write(runname,*) 'sil+ph_wet_iter'
      $   //'---q'//trim(adjustl(chrq(3)))//'_z'
-     $   //trim(adjustl(chrz(3)))//'_w5e-5_msx1_S1e5'
+     $   //trim(adjustl(chrz(3)))//trim(adjustl(base))
 C      $   //'_co21e-1-o26e-2'
+      open(401,file=trim(adjustl(workdir))//'sense-ab'
+     $ //trim(adjustl(base))//'.txt',
+     $ action='write',status='unknown')
 #endif
       
       call system ('mkdir -p '//trim(adjustl(runname)))
@@ -471,14 +525,15 @@ C       print *,msili;stop
         ms = msx
         c2 = c2x
       endif
-      
+
+#ifdef display      
       Print *,'==== printing read data (1) ===='
       print *, (po2(iz),iz=1,Nz,50)
       print *, (c(iz),iz=1,Nz,50)
       print *, (c2(iz),iz=1,Nz,50)
       print *, (ms(iz),iz=1,Nz,50)
       print *, ''
-      
+#endif      
 C       c = cth
 C       c2 = c2th
       
@@ -494,12 +549,12 @@ C       do iz = 1,21
         if (dummy==time) exit
       enddo
       close(255)
-      
+#ifdef display      
       print *,'**** printing read data (2) *****'
       print *, 'dummy,o2in, o2out, po2i,msi,zrxn'
       print *, dummy,o2in, o2out, po2i,msi,zrxn
       print *, '~~~ End reading ~~~'
-      
+#endif      
       endif
       
       
@@ -530,7 +585,9 @@ C       enddo
 !! @@@@@@@@@@@@@@@   start of time integration  @@@@@@@@@@@@@@@@@@@@@@
       
  100  do while (it<nt)
+#ifdef display 
       print *, it, time
+#endif
       if (time>rectime(nrec)) exit
       
       if (waterfluc == 1d0) then
@@ -2504,9 +2561,9 @@ C         dt = dt/1.05d0
 
       end do 
       
-      
+#ifdef display      
       print *, 'error',error,info,nel
-      
+#endif      
       iter = iter + 1
       
 !       if (iter>=50) then
@@ -3365,9 +3422,9 @@ C           end if
 
       end do 
       
-      
+#ifdef display      
       print *, 'error',error,info,nel
-      
+#endif      
       iter = iter + 1
       
 !       if (iter>=50) then
@@ -3391,9 +3448,11 @@ C          go to 100
       
 #ifdef pHiter
       error2 = maxval( abs(pro-prox)/pro)
+#ifdef display
       print*,"=========pH iteration========"
       print*,"iter2,error2",iter2,error2
       print*,"============================="
+#endif
       iter2 = iter2 + 1
       
       pro = prox
@@ -3413,7 +3472,7 @@ C          flgback = .true.
 
 #endif  
       !  endif of ifndef pyweath
-
+#ifdef display
        print *,'o2:', (po2x(iz),iz=1,nz, spc)
        print *,'fe2:', (cx(iz),iz=1,nz, spc)
        print *,'py:', (msx(iz),iz=1,nz, spc)
@@ -3422,7 +3481,7 @@ C          flgback = .true.
        print *, 'na:', (nax(iz),iz=1,nz, spc)
        print *, 'sil:', (msilx(iz),iz=1,nz, spc)
        print *, 'ph:', (prox(iz),iz=1,nz, spc)
-      
+#endif      
       pyoxflx =0d0 
       feoxflx = 0d0
       respflx = 0d0
@@ -4580,5 +4639,71 @@ C       if (any(it==reclis)) then
       
       close(95)
       close(97)
+      
+      zpy = 0d0
+      zab = 0d0
+      
+      do iz=1,nz    
+         if ( zpy(1)==0d0 .and. 
+     $    ms(iz)>=0.1d0*msi+0.9d0*ms(1)) 
+     $    zpy(1) = z(iz)    
+         if ( zpy(2)==0d0 .and. 
+     $    ms(iz)>=0.5d0*msi+0.5d0*ms(1)) 
+     $    zpy(2) = z(iz)    
+         if ( zpy(3)==0d0 .and. 
+     $   ms(iz)>=0.9d0*msi+0.1d0*ms(1)) 
+     $    zpy(3) = z(iz)    
+         if ( zab(1)==0d0 .and. 
+     $   msil(iz)>=0.1d0*msili+0.9d0*msil(1)) 
+     $    zab(1) = z(iz)    
+         if ( zab(2)==0d0 .and. 
+     $    msil(iz)>=0.5d0*msili+0.5d0*msil(1)) 
+     $    zab(2) = z(iz)    
+         if ( zab(3)==0d0 .and. 
+     $    msil(iz)>=0.9d0*msili+0.1d0*msil(1)) 
+     $    zab(3) = z(iz)    
+      enddo
+      
+      fname=trim(adjustl(workdir))//'sense'
+     $ //trim(adjustl(base))//'.txt'
+      open(20,file=trim(adjustl(fname)),
+     $ action='write',status='unknown',access='append')
+      write(20,*) qin,zsat,zpy(1:3),zab(1:3)
+      close(20)
+#ifdef pyweath 
+      fname=trim(adjustl(workdir))//'sense-py'
+     $ //trim(adjustl(base))//'.txt'
+      open(400,file=trim(adjustl(fname)),
+     $ action='write',status='unknown',access='append')
+      write(400,*) qin,zsat,zpy(1:3)
+      close(400)
+#endif      
+#ifdef silweath 
+      fname=trim(adjustl(workdir))//'sense-ab'
+     $ //trim(adjustl(base))//'.txt'
+      open(401,file=trim(adjustl(fname)),
+     $ action='write',status='unknown',access='append')
+      write(401,*) qin,zsat,zab(1:3)
+      close(401)
+#endif
         
       end
+      
+      subroutine checkfile(fname,oxj)
+      implicit none
+      character(*),intent(in)::fname
+      integer,intent(out)::oxj
+ 
+      open(998,file=trim(fname),status='old',err=999)
+      close(998)
+      write(6,'(3A)')"file '",fname,"' exist"
+      oxj=1
+      return
+ 
+  999 continue
+      close(998)
+      write(6,'(3A)')"file '",fname,"' don't exist"
+      oxj=0
+
+      return
+      end subroutine checkfile
