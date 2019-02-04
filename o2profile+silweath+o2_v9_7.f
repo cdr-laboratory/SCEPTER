@@ -34,8 +34,8 @@ C       double precision :: pco2i = 10.0d0**(-1.0d0) ! atm
       double precision :: so4i = 0d0
       double precision :: nai = 0d0
       
-      double precision :: redsldi = 0.56d0 ! wt%
-C       double precision :: redsldi = 1.12d0 ! wt%
+C       double precision :: redsldi = 0.56d0 ! wt%
+      double precision :: redsldi = 1.12d0 ! wt%
       double precision :: silwti = 30d0 ! wt%
       
       double precision sat(nz), poro(nz), torg(nz), tora(nz), deff(nz)
@@ -221,6 +221,16 @@ C       rectime =rectime*1d1
       qin=10d0**(-1.2d0)
 #elif var1==11
       qin=10d0**(-1.0d0)
+#elif var1==12
+      qin=10d0**(-0.8d0)
+#elif var1==13
+      qin=10d0**(-0.6d0)
+#elif var1==14
+      qin=10d0**(-0.4d0)
+#elif var1==15
+      qin=10d0**(-0.2d0)
+#elif var1==16
+      qin=10d0**(0.0d0)
 #endif
 
 #if var2==1
@@ -261,7 +271,7 @@ C         rectime(irec) = 19d6 + irec*1d6
 C       enddo
       
       write(workdir,*) 'C:/cygwin64/home/YK/PyWeath/'     
-      write(base,*) '_w5e-5_msx1_S1e5'     
+      write(base,*) '_w5e-5_msx2_S1e5'     
 C       write(workdir,*) write(workdir,*) '/home/latruffe/PyWeath/'         
       write(runname,*) 'Fe2+SO4+sil+ph_wet_iter'
      $   //'---q'//trim(adjustl(chrq(3)))//'_z'
@@ -278,9 +288,6 @@ C      $   //'_co21e-1-o26e-2'
      $   //'---q'//trim(adjustl(chrq(3)))//'_z'
      $   //trim(adjustl(chrz(3)))//trim(adjustl(base))
 C      $   //'_co21e-1-o26e-2'
-      open(401,file=trim(adjustl(workdir))//'sense-ab'
-     $ //trim(adjustl(base))//'.txt',
-     $ action='write',status='unknown')
 #endif
       
       call system ('mkdir -p '//trim(adjustl(runname)))
