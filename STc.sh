@@ -1,7 +1,10 @@
 #!/bin/bash -e
+rm ./run/*.*
 a=1
+# a=12
 c=1
-while [ $a -lt 12 ]
+# while [ $a -lt 12 ]
+while [ $a -lt 17 ]
 do 
   # echo $a
   b=1
@@ -15,9 +18,9 @@ do
       # continue
     # fi
     gfortran -cpp -Dpyweath -Dvar1=${a} -Dvar2=${b} -o run${c} o2profile+silweath+o2_v9_7.f -lopenblas -g -fcheck=all 
-    if [[ -f ~/./run/run${c} ]]; then
-      rm ./run/run${c}
-    fi
+    # if [[ -f ~/./run/run${c} ]]; then
+      # rm ./run/run${c}
+    # fi
     cp run${c} ./run
     rm run${c}
     b=`expr $b + 1`
