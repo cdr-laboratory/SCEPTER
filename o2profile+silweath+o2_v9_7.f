@@ -5,6 +5,7 @@
       !! from ver 9 deterministic pH calculation; pH is not iteratively sought 
       !! from ver 9.5 pH is iteratively calculated to be consistent with pyrite; for the case excluding aqueous Fe2 oxidation 
       !! from ver 9.6 calculation is conducted within the whole domain 
+      !! checking branch
       implicit none
       
       !-----------------------------
@@ -51,8 +52,8 @@ C       double precision :: silwti = 15d0 ! wt%
       double precision :: sati = 0.50d0
       double precision :: satup = 0.10d0
       
-C       double precision :: zsat = 30d0
-      double precision :: zsat = 5d0
+      double precision :: zsat = 30d0
+C       double precision :: zsat = 5d0
       
       double precision :: dfe2 = 1.7016d-2 ! m^2 yr^-1 ! at 15 C; Li and Gregory 
       double precision :: dfe3 = 1.5664d-2 ! m^2 yr^-1 ! at 15 C; Li and Gregory
