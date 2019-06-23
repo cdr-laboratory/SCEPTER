@@ -9,7 +9,7 @@
       
       !-----------------------------
       
-      double precision :: ztot = 60.0d0 ! m
+      double precision :: ztot = 300.0d0 ! m
       double precision dz
       integer, parameter :: nz = 300 
       double precision z(nz)
@@ -34,9 +34,15 @@ C       double precision :: pco2i = 10.0d0**(-1.0d0) ! atm
       double precision :: so4i = 0d0
       double precision :: nai = 0d0
       
-C       double precision :: redsldi = 0.56d0 ! wt%
-      double precision :: redsldi = 1.12d0 ! wt%
+      double precision :: redsldi = 0.56d0 ! wt%
+C       double precision :: redsldi = 1.12d0 ! wt%
+C       double precision :: redsldi = 2.8d0 ! wt%
+C       double precision :: redsldi = 2.24d0 ! wt%
+C       double precision :: redsldi = 3.36d0 ! wt%
+      
       double precision :: silwti = 30d0 ! wt%
+C       double precision :: silwti = 24d0 ! wt%
+C       double precision :: silwti = 15d0 ! wt%
       
       double precision sat(nz), poro(nz), torg(nz), tora(nz), deff(nz)
       double precision :: dgas = 6.09d2 ! m^2 yr^-1
@@ -46,7 +52,7 @@ C       double precision :: redsldi = 0.56d0 ! wt%
       double precision :: satup = 0.10d0
       
 C       double precision :: zsat = 30d0
-      double precision :: zsat = 1d0
+      double precision :: zsat = 5d0
       
       double precision :: dfe2 = 1.7016d-2 ! m^2 yr^-1 ! at 15 C; Li and Gregory 
       double precision :: dfe3 = 1.5664d-2 ! m^2 yr^-1 ! at 15 C; Li and Gregory
@@ -54,13 +60,16 @@ C       double precision :: zsat = 30d0
       double precision :: dna  = 3.19d-2   ! m^2 yr^-1 ! at 15 C; Li and Gregory 
       
       double precision, parameter :: w = 5.0d-5 ! m yr^-1, uplift rate
+C       double precision, parameter :: w = 1.0d-4 ! m yr^-1, uplift rate
+      
       double precision, parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 C       double precision, parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
-      double precision :: qin = 1d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
+
+      double precision :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)
       double precision v(nz), q
       
       double precision :: hr = 1d5 ! m^2 m^-3, reciprocal of hydraulic radius
-C       double precision :: hr = 2d5 ! m^2 m^-3, reciprocal of hydraulic radius
+C       double precision :: hr = 1d4 ! m^2 m^-3, reciprocal of hydraulic radius
       
       double precision po2(nz), redsld(nz), redaq(nz), ms(nz), c(nz)
       double precision po2x(nz), msx(nz), cx(nz)
@@ -165,7 +174,7 @@ C       integer, parameter :: nrec = 22
       double precision silflxsum,naflxsum
       double precision dummy, zdum(nz)
       
-      double precision :: maxdt = 100d0
+      double precision :: maxdt = 10d0
       
       integer izdum
 C       logical :: pre_calc = .false.
@@ -197,7 +206,7 @@ C       logical :: O2_evolution = .true.
       !-------------------------
       
 C       rectime =rectime/1d4
-C       rectime =rectime*1d1
+C       rectime =rectime/2d0
 
 #if var1==1
       qin=10d0**(-3.0d0)
@@ -271,7 +280,7 @@ C         rectime(irec) = 19d6 + irec*1d6
 C       enddo
       
       write(workdir,*) 'C:/cygwin64/home/YK/PyWeath/'     
-      write(base,*) '_w5e-5_msx2_S1e5'     
+      write(base,*) '_w1e-5_msx1_msil%100_S1e5_z300'     
 C       write(workdir,*) write(workdir,*) '/home/latruffe/PyWeath/'         
       write(runname,*) 'Fe2+SO4+sil+ph_wet_iter'
      $   //'---q'//trim(adjustl(chrq(3)))//'_z'

@@ -17,7 +17,7 @@ do
       # c=`expr $c + 1`
       # continue
     # fi
-    gfortran -cpp -Dpyweath -Dvar1=${a} -Dvar2=${b} -o run${c} o2profile+silweath+o2_v9_7.f -lopenblas -g -fcheck=all 
+    gfortran -cpp -Dsilweath -Dvar1=${a} -Dvar2=${b} -o run${c} o2profile+silweath+o2_v9_7.f -lopenblas -g -fcheck=all 
     # if [[ -f ~/./run/run${c} ]]; then
       # rm ./run/run${c}
     # fi
