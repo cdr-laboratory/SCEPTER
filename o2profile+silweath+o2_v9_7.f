@@ -5,12 +5,14 @@
       !! from ver 9 deterministic pH calculation; pH is not iteratively sought 
       !! from ver 9.5 pH is iteratively calculated to be consistent with pyrite; for the case excluding aqueous Fe2 oxidation 
       !! from ver 9.6 calculation is conducted within the whole domain 
-      !! checking branch
+      !! adding HCO3 profile recording
+      !! adding calcium profile to examine the effect of CaCO3 dissolution
+      !! allowing porosity & surface area change       
       implicit none
       
       !-----------------------------
       
-      double precision :: ztot = 300.0d0 ! m
+      double precision :: ztot = 60.0d0 ! m
       double precision dz
       integer, parameter :: nz = 300 
       double precision z(nz)
@@ -26,22 +28,23 @@
       double precision :: rg = 8.3d-3   ! kJ mol^-1 K^-1
       double precision :: rg2 = 8.2d-2  ! L mol^-1 atm K^-1
       
-      double precision :: po2i = 0.21d0 ! atm
+      double precision :: po2i = 0.21d0 ! atm **default
 C       double precision :: po2i = 0.6d-1 ! atm
-      double precision :: pco2i = 10.0d0**(-2.5d0) ! atm
+      double precision :: pco2i = 10.0d0**(-2.5d0) ! atm **default 
 C       double precision :: pco2i = 10.0d0**(-1.0d0) ! atm
       double precision :: ci = 0d0 
       double precision :: c2i = 0d0
       double precision :: so4i = 0d0
       double precision :: nai = 0d0
       
-      double precision :: redsldi = 0.56d0 ! wt%
-C       double precision :: redsldi = 1.12d0 ! wt%
-C       double precision :: redsldi = 2.8d0 ! wt%
-C       double precision :: redsldi = 2.24d0 ! wt%
-C       double precision :: redsldi = 3.36d0 ! wt%
+C       double precision :: redsldi = 0.56d0 ! wt%  **default 
+C       double precision :: redsldi = 1.12d0 ! wt%  x2
+      double precision :: redsldi = 2.8d0 ! wt%   x5
+C       double precision :: redsldi = 2.24d0 ! wt%  x4
+C       double precision :: redsldi = 3.36d0 ! wt%  x6
       
-      double precision :: silwti = 30d0 ! wt%
+      double precision :: silwti = 30d0 ! wt%  **default
+C       double precision :: silwti = 45d0 ! wt%  
 C       double precision :: silwti = 24d0 ! wt%
 C       double precision :: silwti = 15d0 ! wt%
       
@@ -52,7 +55,8 @@ C       double precision :: silwti = 15d0 ! wt%
       double precision :: sati = 0.50d0
       double precision :: satup = 0.10d0
       
-      double precision :: zsat = 30d0
+C       double precision :: zsat = 30d0  ! water table depth [m] ** default 
+      double precision :: zsat = 50d0  ! water table depth [m] 
 C       double precision :: zsat = 5d0
       
       double precision :: dfe2 = 1.7016d-2 ! m^2 yr^-1 ! at 15 C; Li and Gregory 
@@ -60,17 +64,21 @@ C       double precision :: zsat = 5d0
       double precision :: dso4 = 2.54d-2   ! m^2 yr^-1 ! at 15 C; Li and Gregory 
       double precision :: dna  = 3.19d-2   ! m^2 yr^-1 ! at 15 C; Li and Gregory 
       
-      double precision, parameter :: w = 5.0d-5 ! m yr^-1, uplift rate
+      double precision, parameter :: w = 5.0d-5 ! m yr^-1, uplift rate ** default 
 C       double precision, parameter :: w = 1.0d-4 ! m yr^-1, uplift rate
       
       double precision, parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 C       double precision, parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
 
-      double precision :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)
+      double precision :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)  ** default
+C       double precision :: qin = 2d-1 ! m yr^-1 
       double precision v(nz), q
       
-      double precision :: hr = 1d5 ! m^2 m^-3, reciprocal of hydraulic radius
+C       double precision :: hr = 1d5 ! m^2 m^-3, reciprocal of hydraulic radius  ** default 
 C       double precision :: hr = 1d4 ! m^2 m^-3, reciprocal of hydraulic radius
+      double precision :: hri = 1d5
+      
+      double precision :: hr(nz)
       
       double precision po2(nz), redsld(nz), redaq(nz), ms(nz), c(nz)
       double precision po2x(nz), msx(nz), cx(nz)
@@ -82,13 +90,19 @@ C       double precision :: hr = 1d4 ! m^2 m^-3, reciprocal of hydraulic radius
       double precision so4(nz), so4x(nz)
       double precision na(nz), nax(nz), naeq(nz), silsat(nz) 
       double precision pro(nz), prox(nz), dumreal(nz), dprodna(nz)
+      double precision hco3(nz), ca(nz), co2(nz), co3(nz), dic(nz)
+      double precision porox(nz), dporodta(nz),dporodtg(nz)
+      
+      double precision :: caeq = 1d-3  ! mol/L equilibrium Ca conc. 
+      double precision :: delca = 0.5d0  ! m reaction front width  
+      double precision :: zca = 50d0   ! m depth of reaction front for calcite          
       
       double precision koxa(nz), kdis(nz), koxs(nz),koxs2(nz)
       double precision koxai(nz), kdisi(nz), koxsi(nz),koxs2i(nz)
       double precision ksil(nz) 
       
       double precision kho, ucv
-      double precision kco2,k1, keqsil, kw
+      double precision kco2,k1, keqsil, kw, k2, kcceq
       
       integer iz, ie, it, ie2
       
@@ -151,8 +165,9 @@ C       integer, parameter :: nrec = 22
       double precision prepo2
       double precision :: stoxs = 15.0d0/4.0d0  ! 15/4 py => Fe-oxide + sulfate; 7/2 py => Fe++ + sulfate
       double precision :: stoxa = 1.0d0/4.0d0  ! stoichiomety of oxidation in aq
-      double precision :: swoxa = 0.0d0   ! switch for oxidation in aq
+      double precision :: swoxa = 1.0d0   ! switch for oxidation in aq
       double precision :: swoxs2 = 1.0d0  ! switch for oxidation in solid phase
+      double precision :: swoxall = 0d0   ! switch when oncly consider overall oxidation, i.e., 15/4 py => Fe-oxide + sulfate
       
       double precision :: swbr = 0.0d0  ! switch for biological respiration
       double precision :: vmax = 0.71d0 ! mol m^-3, yr^-1, max soil respiration, Wood et al. (1993)
@@ -281,21 +296,24 @@ C         rectime(irec) = 19d6 + irec*1d6
 C       enddo
       
       write(workdir,*) 'C:/cygwin64/home/YK/PyWeath/'     
-      write(base,*) '_w1e-5_msx1_msil%100_S1e5_z300'     
+      write(base,*) '_w1e-5_msx5_msil%100_S1e5_z60_feox_v2'     
+#ifdef test 
+      write(base,*) '_test'
+#endif 
 C       write(workdir,*) write(workdir,*) '/home/latruffe/PyWeath/'         
       write(runname,*) 'Fe2+SO4+sil+ph_wet_iter'
-     $   //'---q'//trim(adjustl(chrq(3)))//'_z'
+     $   //'---q'//trim(adjustl(chrq(3)))//'_zsat'
      $   //trim(adjustl(chrz(3)))//trim(adjustl(base))
 C      $   //'_co21e-1-o26e-2'
 #ifdef pyweath
       write(runname,*) 'Fe2+SO4_wet_iter'
-     $   //'---q'//trim(adjustl(chrq(3)))//'_z'
+     $   //'---q'//trim(adjustl(chrq(3)))//'_zsat'
      $   //trim(adjustl(chrz(3)))//trim(adjustl(base))
 C      $   //'_co21e-1-o26e-2'
 #endif
 #ifdef silweath
       write(runname,*) 'sil+ph_wet_iter'
-     $   //'---q'//trim(adjustl(chrq(3)))//'_z'
+     $   //'---q'//trim(adjustl(chrq(3)))//'_zsat'
      $   //trim(adjustl(chrz(3)))//trim(adjustl(base))
 C      $   //'_co21e-1-o26e-2'
 #endif
@@ -388,8 +406,13 @@ C       end do
       
       dz=z(2)-z(1)
       
+      if (swoxall==1d0) swoxa = 0d0
+      
       stoxs = stoxs - swoxa*stoxa
-            
+#ifdef poroevol 
+      stoxs = stoxs - (1d0-swoxall)*stoxa  ! 15/4 if overall oxidation is considered (swoxall = 1)
+                                           ! 7/2  if pyrite oxidation and aqFe2+ oxidation is separately considered (swoxall = 0)
+#endif 
 C       print *, stoxs
             
       do irec=1,nrec
@@ -403,6 +426,25 @@ C       sat = min(1.0d0,0.90d0*(z-ztot/2d0)/ztot/2d0 + 1.d0)
 C       zsat = ztot/6.0d0
 C       zsat = 5d0
       sat = min(1.0d0,(1d0-satup)*z/zsat + satup)
+#ifdef satconvex 
+      sat = min(1.0d0, satup+(1d0-satup)*(z/zsat)**2d0)
+#endif 
+#ifdef satconcave 
+      sat = min(1.0d0, 1d0-(1d0-satup)*(1d0-z/zsat)**2d0)
+      do iz=1,nz
+         if (z(iz)>=zsat) sat(iz)=1d0
+      enddo 
+#endif 
+C       zca = zsat 
+      ca = 0d0
+#ifdef carbonate
+      ca = min(caeq,max(0d0,caeq*(z-zca)/delca))
+#endif 
+C       do iz=1,nz
+C         print*,z(iz),ca(iz)
+C       enddo 
+C       stop
+      hr = hri
       v = vcnst
       v = qin/poroi/sat
       poro = poroi
@@ -437,7 +479,9 @@ C       zsat = 5d0
      
       kco2 = 10.0d0**(-1.34d0)  ! 15C Kanzaki Murakami 2015
       k1 = 10.0d0**(-6.42d0)  ! 15C Kanzaki Murakami 2015
+      k2 = 10d0**(-10.43d0)      ! 15C Kanzaki Murakami 2015
       kw = 10.0d0**(-14.35d0)  ! 15C Kanzaki Murakami 2015
+      kcceq = 10d0**(-8.43d0)  ! 15C Kanzaki Murakami 2015
       
       pro = sqrt(kco2*k1*pco2i+kw)
       
@@ -654,7 +698,6 @@ C       if (time >1d4) maxdt = 10d0
       do while (error2 > tol ) 
 #endif
       
-      
       koxsi = 10.0d0**(-8.19d0)*60.0d0*60.0d0*24.0d0*365.0d0  !! excluding the term (po2**0.5)
      $   *(kho)**(0.50d0)/(pro**0.11d0) ! mol m^-2 yr^-1, Williamson and Rimstidt (1994)
      
@@ -671,7 +714,7 @@ C       if (time >1d4) maxdt = 10d0
       if (O2_evolution) then 
       pyrxn = 0d0
       do iz=1,nz
-      pyrxn(iz)=koxs(iz)*poro(iz)*hr*23.94d0*1d-6*ms(iz)*
+      pyrxn(iz)=koxs(iz)*poro(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $  po2(iz)**0.50d0
      $  *merge(0.0d0,1.0d0,po2(iz)<po2th)
       enddo
@@ -744,7 +787,9 @@ C       msil(nz) = msili
       nax = na
       msilx = msil
       
-      prox = pro
+      prox = pro  
+      
+      porox = poro
       
       error = 1d4
       iter=0
@@ -903,10 +948,10 @@ C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
      $   *(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))
      $   *(c(iz)-c(iz-1))/(dz**2d0)
 C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
-     $  +15d0*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  +15d0*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*c(iz)**(-0.40d0)
      $    *1d-3
-     $  +koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*po2(iz)**0.50d0
+     $  +koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*po2(iz)**0.50d0
      $   *1d-3
      $             )
      $             )
@@ -921,10 +966,10 @@ C      $   +dfe2/poro(iz)/sat(iz)
 C      $   *(poro(iz+1)*sat(iz+1)*tora(iz+1)-poro(iz)*sat(iz)*tora(iz))
 C      $   *(c(iz)-ci)/(dz**2d0)
 C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
-     $  +15d0*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  +15d0*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*c(iz)**(-0.40d0)
      $    *1d-3
-     $  +koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*po2(iz)**0.50d0
+     $  +koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*po2(iz)**0.50d0
      $   *1d-3
      $             )
      $             )
@@ -945,10 +990,10 @@ C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
      $   *(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))
      $   *(so4(iz)-so4(iz-1))/(dz**2d0)
 C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
-     $  +2d0*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  +2d0*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*c(iz)**(-0.40d0)
      $    *1d-3
-     $  +2d0*koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*po2(iz)**0.50d0
+     $  +2d0*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*po2(iz)**0.50d0
      $   *1d-3
      $             )
      $             )
@@ -963,10 +1008,10 @@ C      $   +dso4/poro(iz)/sat(iz)
 C      $   *(poro(iz+1)*sat(iz+1)*tora(iz+1)-poro(iz)*sat(iz)*tora(iz))
 C      $   *(so4(iz)-so4i)/(dz**2d0)
 C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
-     $  +2d0*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  +2d0*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*c(iz)**(-0.40d0)
      $    *1d-3
-     $  +2d0*koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*po2(iz)**0.50d0
+     $  +2d0*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*po2(iz)**0.50d0
      $   *1d-3
      $             )
      $             )
@@ -987,7 +1032,7 @@ C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
      $   *(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))
      $   *(na(iz)-na(iz-1))/(dz**2d0)
 C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
-     $  +ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)*1d-3
+     $  +ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*1d-3
      $             )
      $             )
       else 
@@ -1001,7 +1046,7 @@ C      $   +dna/poro(iz)/sat(iz)
 C      $   *(poro(iz+1)*sat(iz+1)*tora(iz+1)-poro(iz)*sat(iz)*tora(iz))
 C      $   *(na(iz)-nai)/(dz**2d0)
 C      $   -(v(iz)-v(iz-1))*c2(iz)/dz
-     $  +ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)*1d-3
+     $  +ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*1d-3
      $             )
      $             )
       endif 
@@ -1054,12 +1099,12 @@ C       stop
           amx(row,row) = (1.0d0/dt    !  z
      $      + w/dz *(1.0d0-swex)   
      $     + (1.0d0-frex)*
-     $  koxs(iz)*poro(iz)*hr*23.94d0*1d-6
+     $  koxs(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $   *merge(0d0,po2x(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))
      $
      $    + (1.0d0-frex)*merge(0.0d0,
-     $      + koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $      + koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $   cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))
      $                )
@@ -1075,22 +1120,22 @@ C      $       *msx(iz+1)      ! z + dz
      $      -w*(msx(iz+1)-msx(iz))/dz*(1.0d0-swex) 
      $      -w*(ms(iz+1)-ms(iz))/dz*swex/dt*dt2*swpe
      $     + (1.0d0-frex)*
-     $      koxs(iz)*poro(iz)*hr
+     $      koxs(iz)*poro(iz)*hr(iz)
      $          *23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $    ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))
      $     + frex*
-     $      koxs(iz)*poro(iz)*hr
+     $      koxs(iz)*poro(iz)*hr(iz)
      $          *23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))
      $       
      $   + (1.0d0-frex)*merge(0.0d0,
-     $   koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $   koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $      cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))
      $   + frex*merge(0.0d0,
-     $   koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $   koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $      c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))
      $                       )
@@ -1101,12 +1146,12 @@ C      $       *msx(iz+1)      ! z + dz
           amx(row,row) = (1.0d0/dt 
      $      + w/dz*(1.0d0-swex)
      $    + (1.0d0-frex)*
-     $     koxs(iz)*poro(iz)*hr*23.94d0*1d-6
+     $     koxs(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $   *merge(0d0,po2x(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))
      $         
      $     + (1.0d0-frex)*merge(0.0d0,
-     $    koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $    koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $          cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))
      $               )
@@ -1118,22 +1163,22 @@ C      $        *msx(iz)
      $      -w*(msi-msx(iz))/dz*(1.0d0-swex)
      $      -w*(msi-ms(iz))/dz*swex*dt2/dt*swpe
      $      + (1.0d0-frex)*
-     $      koxs(iz)*poro(iz)*hr
+     $      koxs(iz)*poro(iz)*hr(iz)
      $             *23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $    ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))
      $      + frex*
-     $      koxs(iz)*poro(iz)*hr
+     $      koxs(iz)*poro(iz)*hr(iz)
      $             *23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))
      $          
      $    + (1.0d0-frex)*merge(0.0d0,
-     $      koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $      koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $          cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))
      $    + frex*merge(0.0d0,
-     $      koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $      koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $          c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))
      $                       )
@@ -1144,7 +1189,7 @@ C         if (iz /= 1) then
         
           amx(row,row + 2 ) = (
      $    + (1.0d0-frex)*merge(0.0d0,
-     $   koxs(iz)*poro(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)*poro(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $     *0.50d0*(po2x(iz)**(-0.50d0)),
      $       po2x(iz) <po2th.or.isnan(po2x(iz)**(-0.50d0)))
      $               )
@@ -1153,7 +1198,7 @@ C         if (iz /= 1) then
       
           amx(row,row  + 1 ) = (
      $    + (1.0d0-frex)*merge(0.0d0,
-     $     koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $     koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *msx(iz)*c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-1.40d0),
      $        cx(iz)<cth
      $   .or.isnan(c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-1.40d0)))
@@ -1163,7 +1208,7 @@ C         if (iz /= 1) then
           
           amx(row,row  + 3 ) = (
      $    + (1.0d0-frex)*merge(0.0d0,
-     $    koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $    koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $      *msx(iz)*(0.93d0)*c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0),
      $      (c2x(iz)<c2th).or.(cx(iz)<cth)
      $   .or.isnan(c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0)))
@@ -1183,6 +1228,7 @@ C         end if
         
           amx(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dfe2*tora(iz)*(-2d0)
      $    /(dz**2d0)
      $   -dfe2/poro(iz)/sat(iz)
@@ -1192,7 +1238,8 @@ C         end if
 C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))/dz
      $  + (1.0d0-frex)*koxa(iz)*po2x(iz)
      $  + (1.0d0-frex)*merge(0.0d0,
-     $  -(15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  -(15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-0.40d0-1.0d0),
      $     cx(iz)<cth
      $  .or.isnan(c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-0.40d0-1.0d0)))
@@ -1221,6 +1268,7 @@ C      $    *cx(iz)
      
           ymx(row) = (
      $  (cx(iz)-c(iz))/dt 
+     $  +dporodta(iz) *cx(iz)
      $   +(1d0-swex)*(-dfe2*tora(iz)*(cx(iz+1)+cx(iz-1)-2d0*cx(iz))
      $    /(dz**2d0)
      $   -dfe2/poro(iz)/sat(iz)
@@ -1238,20 +1286,24 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      $  + (1.0d0-frex)*koxa(iz)*cx(iz)*po2x(iz)
      $  + frex*koxa(iz)*c(iz)*po2(iz)
      $  - (1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2x(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
+     $           (1d0-swoxall)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -1261,6 +1313,7 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
         
           amx(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dfe2*tora(iz)*(-2d0)
      $    /(dz**2d0)
 C      $   -dfe2/poro(iz)/sat(iz)
@@ -1271,7 +1324,8 @@ C      $   *(1d0)/(dz**2d0)
 C      $  + (v(iz)-v(iz-1))/dz*(1.0d0-swex)
      $  + koxa(iz)*po2x(iz)*(1.0d0-frex)
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-0.40d0-1.0d0),
      $     cx(iz)<cth
      $  .or.isnan(c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-0.40d0-1.0d0)))
@@ -1289,6 +1343,7 @@ C      $   *cx(iz)
      
           ymx(row) = (
      $  (cx(iz)-c(iz))/dt 
+     $  +dporodta(iz)*cx(iz) 
      $   +(1d0-swex)*(-dfe2*tora(iz)*(cx(iz+1)+ci-2d0*cx(iz))
      $    /(dz**2d0)
 C      $   -dfe2/poro(iz)/sat(iz)
@@ -1308,20 +1363,24 @@ C      $  + (v(iz)-v(iz-1))*c(iz)/dz*swex
      $  + koxa(iz)*cx(iz)*po2x(iz)*(1.0d0-frex)
      $  + koxa(iz)*c(iz)*po2(iz)*frex
      $  - (1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2x(iz)**0.50d0
      $    ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
+     $           (1d0-swoxall)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -1331,6 +1390,7 @@ C      $  + (v(iz)-v(iz-1))*c(iz)/dz*swex
         
           amx(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dfe2*tora(iz)*(-1d0)
      $    /(dz**2d0)
      $   -dfe2/poro(iz)/sat(iz)
@@ -1340,7 +1400,8 @@ C      $  + (v(iz)-v(iz-1))*c(iz)/dz*swex
 C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))/dz
      $  + (1.0d0-frex)*koxa(iz)*po2x(iz)
      $  + (1.0d0-frex)*merge(0.0d0,
-     $  -(15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  -(15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-0.40d0-1.0d0),
      $     cx(iz)<cth)*1d-3
      $                       )
@@ -1360,6 +1421,7 @@ C      $    *cx(iz)
      
           ymx(row) = (
      $  (cx(iz)-c(iz))/dt 
+     $  +dporodta(iz) *cx(iz)
      $   +(1d0-swex)*(-dfe2*tora(iz)*(cx(iz-1)-1d0*cx(iz))
      $    /(dz**2d0)
      $   -dfe2/poro(iz)/sat(iz)
@@ -1377,20 +1439,24 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      $  + (1.0d0-frex)*koxa(iz)*cx(iz)*po2x(iz)
      $  + frex*koxa(iz)*c(iz)*po2(iz)
      $  - (1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2x(iz)**0.50d0
      $     ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
+     $           (1d0-swoxall)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -1403,7 +1469,8 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
         amx(row,row+1) = (
      $   + (1.0d0-frex)*merge(0.0d0,koxa(iz)*cx(iz),po2x(iz)<po2th)
      $   - (1.0d0-frex)*merge(0.0d0,
-     $  koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*0.50d0
+     $  koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*0.50d0
+     $           *(1d0-swoxall)
      $    *po2x(iz)**(-0.50d0),
      $   po2x(iz) <po2th.or.isnan(po2x(iz)**(-0.50d0)))*1d-3 
      $                    )
@@ -1412,7 +1479,8 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
       
         amx(row,row+2) = (
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $   (0.93d0)*c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0),
      $    (c2x(iz)<c2th).or.(cx(iz)<cth)
      $  .or.isnan(c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0)))*1d-3
@@ -1429,12 +1497,14 @@ C         if (iz /= nz) then
         
           amx(row,row  - 1) = (     
      $   - (1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2x(iz)**(0.50d0),
      $    po2x(iz) <po2th.or. isnan(po2x(iz)**(0.50d0)))*1d-3 
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $     cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $                            )
@@ -1453,6 +1523,7 @@ C         end if
         
           amx(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dfe3*tora(iz)*(-2d0)
      $    /(dz**2d0)
      $   -dfe3/poro(iz)/sat(iz)
@@ -1461,7 +1532,7 @@ C         end if
      $   + v(iz)/dz *(1.0d0-swex)
 C      $  + (v(iz)-v(iz-1))/dz*(1.0d0-swex)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           (0.93d0)*c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0),
      $   (c2x(iz)<c2th).or.(cx(iz)<cth)
      $  .or.isnan(c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0)))*1d-3
@@ -1490,6 +1561,7 @@ C      $      *c2x(iz+1)
      
           ymx(row) = (
      $  (c2x(iz)-c2(iz))/dt 
+     $  +dporodta(iz) *c2x(iz)
      $   +(1d0-swex)*(-dfe3*tora(iz)*(c2x(iz+1)+c2x(iz-1)-2d0*c2x(iz))
      $    /(dz**2d0)
      $   -dfe3/poro(iz)/sat(iz)
@@ -1507,11 +1579,11 @@ C      $  + (v(iz)-v(iz-1))*c2(iz)/dz*swex
      $  - (1.0d0-frex)*koxa(iz)*cx(iz)*po2x(iz)
      $  - frex*koxa(iz)*c(iz)*po2(iz)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  +frex*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -1521,6 +1593,7 @@ C      $  + (v(iz)-v(iz-1))*c2(iz)/dz*swex
         
           amx(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dfe3*tora(iz)*(-2d0)
      $    /(dz**2d0)
 C      $   -dfe3/poro(iz)/sat(iz)
@@ -1530,7 +1603,7 @@ C      $   *(1d0)/(dz**2d0)
      $   + v(iz)/dz*(1.0d0-swex)
 C      $  + (v(iz)-v(iz-1))/dz*(1.0d0-swex)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $   (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           (0.93d0)*c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0),
      $     (c2x(iz)<c2th).or.(cx(iz)<cth)
      $ .or.isnan(c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0)))*1d-3
@@ -1547,6 +1620,7 @@ C      $      *c2x(iz+1)
      
           ymx(row) = (
      $  (c2x(iz)-c2(iz))/dt 
+     $  +dporodta(iz) *c2x(iz)
      $   +(1d0-swex)*(-dfe3*tora(iz)*(c2x(iz+1)+c2i-2d0*c2x(iz))
      $    /(dz**2d0)
 C      $   -dfe3/poro(iz)/sat(iz)
@@ -1566,11 +1640,11 @@ C      $  + (v(iz)-v(iz-1))*c2(iz)/dz*swex
      $  - (1.0d0-frex)*koxa(iz)*cx(iz)*po2x(iz)
      $  - frex*koxa(iz)*c(iz)*po2(iz)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $   (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  +frex*merge(0.0d0,
-     $   (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -1580,6 +1654,7 @@ C      $  + (v(iz)-v(iz-1))*c2(iz)/dz*swex
         
           amx(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dfe3*tora(iz)*(-1d0)
      $    /(dz**2d0)
      $   -dfe3/poro(iz)/sat(iz)
@@ -1588,7 +1663,7 @@ C      $  + (v(iz)-v(iz-1))*c2(iz)/dz*swex
      $   + v(iz)/dz *(1.0d0-swex)
 C      $  + (v(iz)-v(iz-1))/dz*(1.0d0-swex)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           (0.93d0)*c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0),
      $   (c2x(iz)<c2th).or.(cx(iz)<cth)
      $  .or.isnan(c2x(iz)**(0.93d0-1.0d0)*cx(iz)**(-0.40d0)))
@@ -1611,6 +1686,7 @@ C      $      *c2x(iz-1)
      
           ymx(row) = (
      $  (c2x(iz)-c2(iz))/dt 
+     $  +dporodta(iz) *c2x(iz)
      $   +(1d0-swex)*(-dfe3*tora(iz)*(c2x(iz-1)-1d0*c2x(iz))
      $    /(dz**2d0)
      $   -dfe3/poro(iz)/sat(iz)
@@ -1628,11 +1704,11 @@ C      $  + (v(iz)-v(iz-1))*c2(iz)/dz*swex
      $  - (1.0d0-frex)*koxa(iz)*cx(iz)*po2x(iz)
      $  - frex*koxa(iz)*c(iz)*po2(iz)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  +frex*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -1651,7 +1727,7 @@ C      $    *po2x(iz)
         amx(row,row-2) = (
      $   - (1.0d0-frex)*koxa(iz)*po2x(iz)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $   (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $       c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-0.40d0-1.0d0),
      $    cx(iz)<cth.or.
      $  isnan(c2x(iz)**0.93d0*(-0.40d0)*cx(iz)**(-0.40d0-1.0d0)))*1d-3
@@ -1668,7 +1744,7 @@ C         if (iz /= nz) then
         
           amx(row,row  - 3) = (
      $   +(1.0d0-frex)*merge(0.0d0,
-     $    (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*
+     $    (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $      cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $                            )
@@ -1687,6 +1763,7 @@ C         end if
         
           amx(row,row) = (
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt
+     $  +dporodtg(iz) 
      $ +(1.0d0-frex)*
      $  2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas
      $  +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0)
@@ -1706,7 +1783,7 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),
      $  po2x(iz)<po2th)
      $  +(1.0d0-frex)*merge(0.d0,
-     $   stoxs*koxs(iz)*poro(iz)*hr
+     $   stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0),
      $   po2x(iz)<po2th.or.isnan(msx(iz)*0.50d0*po2x(iz)**(-0.50d0)))
      $  +(1.0d0-frex)*merge(0.0d0,
@@ -1717,7 +1794,7 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
 !      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)
 !      $  
 !      $  +
-!      $   stoxs*koxs(iz)*poro(iz)*hr
+!      $   stoxs*koxs(iz)*poro(iz)*hr(iz)
 !      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0)
 !      $   
 !      $  +
@@ -1751,7 +1828,7 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),
      $  po2x(iz)<po2th)
      $  +(1.0d0-frex)*merge(0.d0,
-     $   stoxs*koxs(iz)*poro(iz)*hr
+     $   stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0),
      $   po2x(iz)<po2th.or.isnan(msx(iz)*0.50d0*po2x(iz)**(-0.50d0)))
      $  +(1.0d0-frex)*merge(0.0d0,
@@ -1777,6 +1854,7 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
           ymx(row) = (
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)
      $       *(po2x(iz)-po2(iz))/dt
+     $  +dporodtg(iz) *po2x(iz)
      $  -(1.0d0-frex)*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas
      $    +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)
      $       *(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0)
@@ -1811,7 +1889,7 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
 !      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz),
 !      $  po2x(iz)<po2th)
 !      $  +merge(0.0d0,
-!      $  stoxs*koxs(iz)*poro(iz)*hr
+!      $  stoxs*koxs(iz)*poro(iz)*hr(iz)
 !      $      *23.94d0*1d-6*msx(iz)*po2x(iz)**(0.50d0),
 !      $  po2x(iz) < po2th)
 !      $  +merge(0.0d0,
@@ -1824,12 +1902,12 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*c(iz)*po2(iz)
      $  
      $  +(1.0d0-frex)*
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2(iz)**(0.50d0)
      $     ,(po2x(iz) <po2th).or.(isnan(po2(iz)**(0.50d0))))
      $  +(frex)*
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**(0.50d0)
      $     ,(po2x(iz) <po2th).or.(isnan(po2(iz)**(0.50d0))))
@@ -1850,6 +1928,7 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
         
           amx(row,row) = (
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt
+     $  +dporodtg(iz) 
      $  +(1.0d0-frex)*
      $ 1.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas
      $  +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0)
@@ -1867,7 +1946,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),
      $  po2x(iz) <po2th)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0),
      $   po2x(iz) <po2th.or.isnan(po2x(iz)**(-0.50d0)))
      $  +(1.0d0-frex)*merge(0.0d0,
@@ -1878,7 +1957,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
 !      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)
 !      $  
 !      $  +
-!      $  stoxs*koxs(iz)*poro(iz)*hr
+!      $  stoxs*koxs(iz)*poro(iz)*hr(iz)
 !      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0)
 !      $   
 !      $  +
@@ -1910,7 +1989,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),
      $  po2x(iz) <po2th),
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0),
      $   po2x(iz) <po2th.or.isnan(po2x(iz)**(-0.50d0))),
      $  +(1.0d0-frex)*merge(0.0d0,
@@ -1948,6 +2027,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
           ymx(row) = (
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)
      $       *(po2x(iz)-po2(iz))/dt
+     $  +dporodtg(iz) *po2x(iz)
      $  -(1.0d0-frex)*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas
      $    +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)
      $       *(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0)
@@ -1982,7 +2062,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
 !      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz),
 !      $  po2x(iz) < po2th)
 !      $  +merge(0.0d0,
-!      $  stoxs*koxs(iz)*poro(iz)*hr
+!      $  stoxs*koxs(iz)*poro(iz)*hr(iz)
 !      $      *23.94d0*1d-6*msx(iz)*po2x(iz)**(0.50d0),
 !      $  po2x(iz) < po2th)
 !      $  +merge(0.0d0,
@@ -1994,7 +2074,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      $   *merge(0d0,po2x(iz),po2x(iz)<po2th.or.isnan(po2x(iz)))
      $  
      $  +(1.0d0-frex)*
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6
      $   *merge(0d0,msx(iz)*po2x(iz)**(0.50d0),po2x(iz) <po2th
      $        .or.isnan(msx(iz)*po2x(iz)**(0.50d0)))
@@ -2007,7 +2087,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      $  stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*c(iz)*po2(iz)
      $  
      $  +(frex)*
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6
      $   *merge(0d0,ms(iz)*po2(iz)**(0.50d0),po2x(iz) <po2th
      $       .or.isnan(ms(iz)*po2(iz)**(0.50d0)))
@@ -2024,6 +2104,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
         
           amx(row,row) = (
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt
+     $  +dporodtg(iz) 
      $  +(1.0d0-frex)*
      $  2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas
      $  +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0)
@@ -2042,7 +2123,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
      $   stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),
      $   po2x(iz) <po2th)
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0),
      $    po2x(iz) <po2th.or.isnan(po2x(iz)**(-0.50d0)))
      $  +(1.0d0-frex)*merge(0.0d0,
@@ -2053,7 +2134,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
 !      $   stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)
 !      $   
 !      $  +
-!      $  stoxs*koxs(iz)*poro(iz)*hr
+!      $  stoxs*koxs(iz)*poro(iz)*hr(iz)
 !      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0)
 !      $    
 !      $  +
@@ -2086,7 +2167,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
      $   stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),
      $   po2x(iz) <po2th),
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)*0.50d0*po2x(iz)**(-0.50d0),
      $    po2x(iz) <po2th.or.isnan(po2x(iz)**(-0.50d0))),
      $  +(1.0d0-frex)*merge(0.0d0,
@@ -2143,6 +2224,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(1d0)/dz
           ymx(row) = (
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)
      $       *(po2x(iz)-po2(iz))/dt
+     $  +dporodtg(iz) *po2x(iz)
      $  -(1.0d0-frex)*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas
      $    +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)
      $       *(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0)
@@ -2178,7 +2260,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
 !      $   stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz),
 !      $   po2x(iz) < po2th)
 !      $  +merge(0.0d0,
-!      $   stoxs*koxs(iz)*poro(iz)*hr*sat(iz)
+!      $   stoxs*koxs(iz)*poro(iz)*hr(iz)*sat(iz)
 !      $      *23.94d0*1d-6*msx(iz)*po2x(iz)**(0.50d0),
 !      $   po2x(iz) < po2th)
 !      $  +merge(0.0d0,
@@ -2189,7 +2271,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      $   stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)
      &     *merge(0d0,po2x(iz),po2x(iz)<po2th.or.isnan(po2x(iz)))
      $  +(1.0d0-frex)*
-     $   stoxs*koxs(iz)*poro(iz)*hr
+     $   stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**(0.50d0),po2x(iz) <po2th
      $    .or.isnan(po2x(iz)**(0.50d0)))
@@ -2201,7 +2283,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      $  +(frex)*
      $   stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*c(iz)*po2(iz)
      $  +(frex)*
-     $   stoxs*koxs(iz)*poro(iz)*hr
+     $   stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**(0.50d0)
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**(0.50d0)))
@@ -2237,11 +2319,11 @@ C         if (iz /= nz) then
           
           amx(row,row  - 2) = (
 !      $      +merge(0.0d0,
-!      $   koxs(iz)*poro(iz)*hr
+!      $   koxs(iz)*poro(iz)*hr(iz)
 !      $      *23.94d0*1d-6*po2x(iz)**(0.50d0),
 !      $     po2x(iz)< po2th)
      
-     $   (1.0d0-frex)*koxs(iz)*poro(iz)*hr*stoxs
+     $   (1.0d0-frex)*koxs(iz)*poro(iz)*hr(iz)*stoxs
      $      *23.94d0*1d-6
      $   *merge(0d0,po2x(iz)**(0.50d0),
      $   po2x(iz) <po2th.or.isnan(po2x(iz)**(0.50d0)))
@@ -2253,7 +2335,7 @@ C         if (iz /= nz) then
         
          if (isnan(amx(row,row - 2))) then 
            print*,'nan in oxygen for pyrite',iz,
-     $   (1.0d0-frex)*koxs(iz)*poro(iz)*hr*stoxs
+     $   (1.0d0-frex)*koxs(iz)*poro(iz)*hr(iz)*stoxs
      $      *23.94d0*1d-6
      $   *merge(0d0,po2x(iz)**(0.50d0),
      $   po2x(iz) <po2th.or.isnan(po2x(iz)**(0.50d0)))
@@ -2333,7 +2415,7 @@ C         end if
 !       end if
       
       if (any(isnan(amx)).or.any(isnan(ymx))) then 
-        print*,'error in mtx'
+        print*,'error in mtx py'
         print*,'any(isnan(amx)),any(isnan(ymx))'
         print*,any(isnan(amx)),any(isnan(ymx))
         
@@ -2355,6 +2437,9 @@ C         end if
             enddo
           enddo
         endif
+        
+        dt = dt/10d0
+        go to 100
         
         stop
       endif
@@ -2589,7 +2674,10 @@ C         dt = dt/1.05d0
 
        if (iter > 300) then
          dt = dt/1.01d0
-         if (dt==0d0) stop
+         if (dt==0d0) then 
+           print *, 'dt==0d0; stop'
+           stop
+         endif 
 C          go to 100 
        end if
       
@@ -2612,6 +2700,7 @@ C       do while ((.not.isnan(error)).and.(error > tol))
         
           amx2(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz)  
      $   +(1d0-swex)*(-dso4*tora(iz)*(-2d0)
      $    /(dz**2d0)
      $   -dso4/poro(iz)/sat(iz)
@@ -2652,20 +2741,20 @@ C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))*so4x(iz)/dz
      $  + swex*v(iz)*(so4(iz)-so4(iz-1))/dz
 C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      $  - 2d0*(1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - 2d0*frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -2675,6 +2764,7 @@ C      $    *merge(0.0d0,1.0d0,so4x(iz)<so4th)   ! commented out (is this necess
         
           amx2(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dso4*tora(iz)*(-2d0)
      $    /(dz**2d0)
 C      $   -dso4/poro(iz)/sat(iz)
@@ -2706,20 +2796,20 @@ C      $  + (v(iz)-v(iz-1))*so4x(iz)/dz*(1.0d0-swex)
      $  + v(iz)*(so4(iz)-so4i)/dz*swex
 C      $  + (v(iz)-v(iz-1))*so4(iz)/dz*swex
      $  - 2d0*(1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $    ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - 2d0*frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -2729,6 +2819,7 @@ C      $    *merge(0.0d0,1.0d0,so4x(iz)<so4th)   ! commented out (is this necess
         
           amx2(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dso4*tora(iz)*(-1d0)
      $    /(dz**2d0)
      $   -dso4/poro(iz)/sat(iz)
@@ -2762,20 +2853,20 @@ C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))*so4x(iz)/dz
      $  + swex*v(iz)*(so4(iz)-so4(iz-1))/dz
 C      $  + swex*(v(iz)-v(iz-1))*so4(iz)/dz
      $  - 2d0*(1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $     ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - 2d0*frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )
@@ -2836,7 +2927,13 @@ C      $    *merge(0.0d0,1.0d0,so4x(iz)<so4th)   ! commented out (is this necess
 C           if (so4x(iz)/=0d0) emx2(row) = abs(ymx2(row)/so4x(iz)) 
           so4x(iz) = ymx2(row)
         else
+          if ((.not.isnan(ymx2(row))).and.(abs(ymx2(row))<=tol)) then
+          so4x(iz) = 0d0
+          else 
+          print *,'so4 nan? or negative; stop'
+          print*,iz,ymx2(row)
           stop
+          endif 
           so4x(iz) = 0d0
         endif
 
@@ -2872,15 +2969,15 @@ C       prox = 1d-1
       
       if (it ==0) then 
       prox(:) = 0.5d0* (
-     $   -1d0*(2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) 
-     $ + sqrt((2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
+     $   -1d0*(2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:)) 
+     $ + sqrt((2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
      $ + 4d0*kco2*k1*pco2i)
      $                          )
       else 
       
       prox(:) = 0.5d0* (
-     $   -1d0*(nax(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) 
-     $ + sqrt((nax(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
+     $   -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) 
+     $ + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
      $ + 4d0*kco2*k1*pco2i)
      $                          )
       
@@ -2894,17 +2991,17 @@ C       prox = 1d-1
 C       if (iter/=0) then 
       
       prox(:) = 0.5d0* (
-     $   -1d0*(nax(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) 
-     $ + sqrt((nax(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
+     $   -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) 
+     $ + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
      $ + 4d0*kco2*k1*pco2i)
      $                          )
       
       dprodna(:) = 0.5d0* (
      $   -1d0 
      $ + 0.5d0/sqrt(
-     $  (nax(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
+     $  (nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
      $ + 4d0*kco2*k1*pco2i)*2d0
-     $  *(nax(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))
+     $  *(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))
      $                          )
       
 C       endif
@@ -2918,7 +3015,7 @@ C       endif
           amx3(row,row) = (1.0d0/dt    !  z
      $      + w/dz *(1.0d0-swex)   
      $     + (1.0d0-frex)*
-     $  ksil(iz)*poro(iz)*hr*100.07d0*1d-6
+     $  ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
@@ -2937,13 +3034,13 @@ C      $      *1d-10
      $      -w*(msilx(iz+1)-msilx(iz))/dz*(1.0d0-swex) 
      $      -w*(msil(iz+1)-msil(iz))/dz*swex/dt*dt2*swpe
      $     + (1.0d0-frex)*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $          *100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $     + frex*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $          *100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
@@ -2957,7 +3054,7 @@ C      $      *1d-10
           amx3(row,row) = (1.0d0/dt 
      $      + w/dz*(1.0d0-swex)
      $    + (1.0d0-frex)*
-     $     ksil(iz)*poro(iz)*hr*100.07d0*1d-6
+     $     ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
@@ -2971,13 +3068,13 @@ C      $      *1d-10
      $      -w*(msili-msilx(iz))/dz*(1.0d0-swex)
      $      -w*(msili-msil(iz))/dz*swex*dt2/dt*swpe
      $      + (1.0d0-frex)*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $             *100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $      + frex*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $             *100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
@@ -2991,13 +3088,13 @@ C         if (iz /= 1) then
       
           amx3(row,row + 1 ) = (
      $    + (1.0d0-frex)*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $          *100.07d0*1d-6*msilx(iz)
      $   *(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $    + (1.0d0-frex)*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $          *100.07d0*1d-6*msilx(iz)
      $   *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz)
      $   *merge(0d0,1d0
@@ -3009,7 +3106,7 @@ C      $      *1d-10
       
 C           amx3(row,row-nsp3 + 2 ) = (
 C      $    + (1.0d0-frex)*
-C      $      ksil(iz)*poro(iz)*hr
+C      $      ksil(iz)*poro(iz)*hr(iz)
 C      $          *100.07d0*1d-6*msilx(iz)
 C      $   *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)
 C      $   *merge(0d0,1d0
@@ -3031,6 +3128,7 @@ C         end if
         
           amx3(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dna*tora(iz)*(-2d0)
      $    /(dz**2d0)
      $   -dna/poro(iz)/sat(iz)
@@ -3039,14 +3137,14 @@ C         end if
      $   + v(iz)/dz*(1.0d0-swex)
 C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))/dz
      $  + (1.0d0-frex)*(
-     $  -(1.0d0)*ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $  -(1.0d0)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           )
      $   *1d-3
      $  + (1.0d0-frex)*(
-     $  -(1.0d0)*ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $  -(1.0d0)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
@@ -3076,6 +3174,7 @@ C      $    *cx(iz)
      
           ymx3(row) = (
      $  (nax(iz)-na(iz))/dt 
+     $  +dporodta(iz) *nax(iz)
      $   +(1d0-swex)*(-dna*tora(iz)*(nax(iz+1)+nax(iz-1)-2d0*nax(iz))
      $    /(dz**2d0)
      $   -dna/poro(iz)/sat(iz)
@@ -3091,13 +3190,13 @@ C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))*cx(iz)/dz
      $  + swex*v(iz)*(na(iz)-na(iz-1))/dz
 C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      $  - (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           *1d-3
      $  - frex*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msil(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)
@@ -3109,6 +3208,7 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
         
           amx3(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dna*tora(iz)*(-2d0)
      $    /(dz**2d0)
 C      $   -dna/poro(iz)/sat(iz)
@@ -3118,13 +3218,13 @@ C      $   *(1d0)/(dz**2d0)
      $   + v(iz)/dz*(1.0d0-swex)
 C      $  + (v(iz)-v(iz-1))/dz*(1.0d0-swex)
      $  -(1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           *1d-3
      $  -(1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
@@ -3142,6 +3242,7 @@ C      $   *cx(iz)
      
           ymx3(row) = (
      $  (nax(iz)-na(iz))/dt 
+     $  +dporodta(iz) *nax(iz)
      $   +(1d0-swex)*(-dna*tora(iz)*(nax(iz+1)+nai-2d0*nax(iz))
      $    /(dz**2d0)
 C      $   -dna/poro(iz)/sat(iz)
@@ -3159,13 +3260,13 @@ C      $  + (v(iz)-v(iz-1))*cx(iz)/dz*(1.0d0-swex)
      $  + v(iz)*(na(iz)-nai)/dz*swex
 C      $  + (v(iz)-v(iz-1))*c(iz)/dz*swex
      $  - (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           *1d-3
      $  - frex*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msil(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)
@@ -3177,6 +3278,7 @@ C      $  + (v(iz)-v(iz-1))*c(iz)/dz*swex
         
           amx3(row,row) = (
      $  1.0d0/dt 
+     $  +dporodta(iz) 
      $   +(1d0-swex)*(-dna*tora(iz)*(-1d0)
      $    /(dz**2d0)
      $   -dna/poro(iz)/sat(iz)
@@ -3184,14 +3286,14 @@ C      $  + (v(iz)-v(iz-1))*c(iz)/dz*swex
      $   *(1d0)/(dz**2d0))
      $   + v(iz)/dz*(1.0d0-swex)
 C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))/dz
-     $  + (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $  - (1.0d0-frex)*
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           *1d-3
-     $  + (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $  - (1.0d0-frex)*
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
@@ -3213,6 +3315,7 @@ C      $    *cx(iz)
      
           ymx3(row) = (
      $  (nax(iz)-na(iz))/dt 
+     $  +dporodta(iz) *nax(iz)
      $   +(1d0-swex)*(-dna*tora(iz)*(nax(iz-1)-1d0*nax(iz))
      $    /(dz**2d0)
      $   -dna/poro(iz)/sat(iz)
@@ -3228,13 +3331,13 @@ C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))*cx(iz)/dz
      $  + swex*v(iz)*(na(iz)-na(iz-1))/dz
 C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      $  - (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           *1d-3
      $  - frex*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msil(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)
@@ -3246,7 +3349,7 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
         
 C           amx3(row,row + 1) = (     
 C      $   - (1.0d0-frex)*
-C      $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+C      $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
 C      $   *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)
 C      $   *merge(0d0,1d0
 C      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
@@ -3259,7 +3362,7 @@ C         if (iz /= nz) then
         
           amx3(row,row  - 1) = (     
      $   - (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*1d0
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*1d0
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
@@ -3395,13 +3498,18 @@ C         dt = dt/1.05d0
       endif
       
       prox(:) = 0.5d0* (
-     $   -1d0*(nax(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) 
-     $ + sqrt((nax(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
+     $   -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) 
+     $ + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0 
      $ + 4d0*kco2*k1*pco2i)
      $                          )
       
       naeq = (keqsil *prox/4d0)**(1d0/3d0)
       silsat = nax/naeq
+      
+      co2 = kco2*pco2i
+      hco3 = k1*co2/prox
+      co3 = k2*hco3/prox
+      dic = co2 + hco3 + co3
 
 !       print *, (po2x(iz),iz=1,nz, spc)
 !       print *, (cx(iz),iz=1,nz, spc)
@@ -3450,13 +3558,39 @@ C           end if
 
        if (iter > 300) then
          dt = dt/1.01d0
-         if (dt==0d0) stop
+         if (dt==0d0) then 
+           print *, 'dt==0d0; stop'
+           stop
+         endif 
 C          go to 100
          flgback = .true.
        end if
       
       
       enddo
+      
+      dporodtg = 0d0
+      dporodta = 0d0
+#ifdef poroevol    
+      poro = poroi + (msili-msilx)*(100.07d0 -  0.5d0*99.52d0)*1d-6 
+     & +(msi-msx)*(23.94d0*(1d0-swoxall)+(23.94d0-20.82d0)*swoxall)*1d-6
+      v = qin/poro/sat
+      torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
+      tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+      deff = torg*dgas + tora*daq
+      dporodtg = (
+     $   (ucv*poro*(1.0d0-sat)*1d3+poro*sat*kho*1d3)
+     $   -(ucv*porox*(1.0d0-sat)*1d3+porox*sat*kho*1d3)
+     $       )/dt
+      dporodta = (poro*sat-porox*sat)/dt/(poro*sat)
+      hr = hri
+#ifdef surfevol1 
+      hr = hri*((1d0-poro)/(1d0-poroi))**(2d0/3d0)
+#endif 
+#ifdef surfevol2 
+      hr = hri*(poro/poroi)**(2d0/3d0)
+#endif 
+#endif 
       
       if (flgback) then 
         flgback = .false. 
@@ -3478,7 +3612,10 @@ C       pro = sqrt(prox*pro)
        if (iter2 > 300) then
 C          dt = dt/1.01d0
          dt = dt/10d0
-         if (dt==0d0) stop
+         if (dt==0d0) then 
+           print *. 'dt==0d0; stop'
+           stop
+         endif 
 C          go to 100
 C          flgback = .true.
        end if
@@ -3490,15 +3627,31 @@ C          flgback = .true.
 #endif  
       !  endif of ifndef pyweath
 #ifdef display
+       print *
+       print *,'-=-=-=-=-=-= o2 & pyrite -=-=-=-=-=-=-='
        print *,'o2:', (po2x(iz),iz=1,nz, spc)
        print *,'fe2:', (cx(iz),iz=1,nz, spc)
        print *,'py:', (msx(iz),iz=1,nz, spc)
        print *, 'fe3:', (c2x(iz),iz=1,nz, spc)
        print *, 'so4:', (so4x(iz),iz=1,nz, spc)
+       print *
+       print *,'-=-=-=-=-=-= Na & albite -=-=-=-=-=-=-='
        print *, 'na:', (nax(iz),iz=1,nz, spc)
        print *, 'sil:', (msilx(iz),iz=1,nz, spc)
-       print *, 'ph:', (prox(iz),iz=1,nz, spc)
-#endif      
+       print *
+       print *,'-=-=-=-=-=-= pH -=-=-=-=-=-=-='
+       print *, 'ph:', (-log10(prox(iz)),iz=1,nz, spc)
+       print *
+#endif 
+
+     
+C       ca = 0d0
+C #ifdef carbonate
+C       caeq = 0.5d0*(kcceq/co3(nz)+ caeq)
+C       caeq = min(caeq,1d-2)
+C       ca = min(caeq,max(0d0,caeq*(z-zca)/delca))
+C #endif 
+
       pyoxflx =0d0 
       feoxflx = 0d0
       respflx = 0d0
@@ -3539,6 +3692,7 @@ C          flgback = .true.
           o2tflx = o2tflx +(
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)
      $       *(po2x(iz)-po2(iz))/dt
+     $    +dporodtg(iz)*po2x(iz)  
      $   )*dz
           
           diflx = diflx  + (
@@ -3586,12 +3740,12 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      
           pyoxflx = pyoxflx  + (
      $  +(1.0d0-frex)*
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2(iz)**(0.50d0)
      $     ,(po2x(iz) <po2th).or.(isnan(po2(iz)**(0.50d0))))
      $  +(frex)*
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**(0.50d0)
      $     ,(po2x(iz) <po2th).or.(isnan(po2(iz)**(0.50d0))))
@@ -3612,6 +3766,7 @@ C      $ poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
           o2tflx = o2tflx  + (
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)
      $       *(po2x(iz)-po2(iz))/dt
+     $    +dporodtg(iz)*po2x(iz)  
      $    )*dz
       
           diflx = diflx  + (
@@ -3660,12 +3815,12 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      
           pyoxflx = pyoxflx  + (
      $  +(1.0d0-frex)*
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6
      $   *merge(0d0,msx(iz)*po2x(iz)**(0.50d0),po2x(iz) <po2th
      $        .or.isnan(msx(iz)*po2x(iz)**(0.50d0)))
      $  +(frex)*
-     $  stoxs*koxs(iz)*poro(iz)*hr
+     $  stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6
      $   *merge(0d0,ms(iz)*po2(iz)**(0.50d0),po2x(iz) <po2th
      $       .or.isnan(ms(iz)*po2(iz)**(0.50d0)))
@@ -3686,6 +3841,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
           o2tflx = o2tflx +  (
      $   (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)
      $       *(po2x(iz)-po2(iz))/dt
+     $    +dporodtg(iz)*po2x(iz)  
      $               )*dz
      
           diflx = diflx   + (
@@ -3734,12 +3890,12 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      
           pyoxflx = pyoxflx  + (
      $  +(1.0d0-frex)*
-     $   stoxs*koxs(iz)*poro(iz)*hr
+     $   stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**(0.50d0),po2x(iz) <po2th
      $    .or.isnan(po2x(iz)**(0.50d0)))
      $  +(frex)*
-     $   stoxs*koxs(iz)*poro(iz)*hr
+     $   stoxs*koxs(iz)*poro(iz)*hr(iz)
      $      *23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**(0.50d0)
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**(0.50d0)))
@@ -3777,12 +3933,12 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
           
           pyox1flx = pyox1flx + (
      $     + (1.0d0-frex)*
-     $      koxs(iz)*poro(iz)*hr
+     $      koxs(iz)*poro(iz)*hr(iz)
      $          *23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $    ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))
      $     + frex*
-     $      koxs(iz)*poro(iz)*hr
+     $      koxs(iz)*poro(iz)*hr(iz)
      $          *23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))
@@ -3790,11 +3946,11 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      
           pyox2flx = pyox2flx + (
      $   + (1.0d0-frex)*merge(0.0d0,
-     $   koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $   koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $      cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))
      $   + frex*merge(0.0d0,
-     $   koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $   koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $      c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))
      $              )*dz
@@ -3812,12 +3968,12 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
           
           pyox1flx = pyox1flx + (
      $      + (1.0d0-frex)*
-     $      koxs(iz)*poro(iz)*hr
+     $      koxs(iz)*poro(iz)*hr(iz)
      $             *23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $    ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))
      $      + frex*
-     $      koxs(iz)*poro(iz)*hr
+     $      koxs(iz)*poro(iz)*hr(iz)
      $             *23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))
@@ -3825,11 +3981,11 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
      
          pyox2flx = pyox2flx + (
      $    + (1.0d0-frex)*merge(0.0d0,
-     $      koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $      koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $          cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))
      $    + frex*merge(0.0d0,
-     $      koxs2(iz)*poro(iz)*hr*23.94d0*1d-6
+     $      koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6
      $         *ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $          c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))
      $                   ) *dz
@@ -3845,6 +4001,7 @@ C      $  poro(iz)*sat(iz)*(v(iz)-v(iz-1))*kho*1d3*(po2(iz))/dz
           
           fetflx(1) = fetflx(1) + (
      $  (cx(iz)-c(iz))/dt 
+     $    +dporodta(iz)*cx(iz)  
      $           )*dz*poro(iz)*sat(iz)*1d3
       
           fediflx(1) = fediflx(1) + (
@@ -3873,22 +4030,26 @@ C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))*cx(iz)/dz
      
           fepy1flx(1) = fepy1flx(1) + (
      $  - (1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2x(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $                 )*dz*poro(iz)*sat(iz)*1d3
      
           fepy2flx(1) = fepy2flx(1) + (
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
+     $           (1d0-swoxall)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                   )*dz*poro(iz)*sat(iz)*1d3
@@ -3897,6 +4058,7 @@ C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))*cx(iz)/dz
         
           fetflx(1) = fetflx(1) + (
      $  (cx(iz)-c(iz))/dt 
+     $    +dporodta(iz)*cx(iz)  
      $          )*dz*poro(iz)*sat(iz)*1d3
       
           fediflx(1) = fediflx(1) + (
@@ -3927,22 +4089,26 @@ C      $  + (v(iz)-v(iz-1))*cx(iz)/dz*(1.0d0-swex)
      
           fepy1flx(1) = fepy1flx(1) + (
      $  - (1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2x(iz)**0.50d0
      $    ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $              )*dz*poro(iz)*sat(iz)*1d3
      
           fepy2flx(1) = fepy2flx(1) + (
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
+     $           (1d0-swoxall)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $              )*dz*poro(iz)*sat(iz)*1d3
@@ -3951,6 +4117,7 @@ C      $  + (v(iz)-v(iz-1))*cx(iz)/dz*(1.0d0-swex)
           
           fetflx(1) = fetflx(1) + (
      $  (cx(iz)-c(iz))/dt 
+     $    +dporodta(iz)*cx(iz)  
      $           )*dz*poro(iz)*sat(iz)*1d3
       
           fediflx(1) = fediflx(1) + (
@@ -3979,22 +4146,26 @@ C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))*cx(iz)/dz
      
           fepy1flx(1) = fepy1flx(1) + (
      $  - (1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2x(iz)**0.50d0
      $     ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
+     $           *(1d0-swoxall)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $                 )*dz*poro(iz)*sat(iz)*1d3
      
           fepy2flx(1) = fepy2flx(1) + (
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
+     $           (1d0-swoxall)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (15.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (15.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
+     $           (1d0-swoxall)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                   )*dz*poro(iz)*sat(iz)*1d3
@@ -4013,6 +4184,7 @@ C      $  + (1.0d0-swex)*(v(iz)-v(iz-1))*cx(iz)/dz
         
           fetflx(2) = fetflx(2) + (
      $  (c2x(iz)-c2(iz))/dt 
+     $    +dporodta(iz)*c2x(iz)  
      $  )*dz*poro(iz)*sat(iz)*1d3
       
           fediflx(2) = fediflx(2) + (
@@ -4041,11 +4213,11 @@ C      $  + (v(iz)-v(iz-1))*c2x(iz)/dz*(1.0d0-swex)
      
           fepy2flx(2) = fepy2flx(2) + (
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  +frex*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )*dz*poro(iz)*sat(iz)*1d3
@@ -4055,6 +4227,7 @@ C      $  + (v(iz)-v(iz-1))*c2x(iz)/dz*(1.0d0-swex)
           
           fetflx(2) = fetflx(2) + (
      $  (c2x(iz)-c2(iz))/dt 
+     $    +dporodta(iz)*c2x(iz)  
      &           )*dz*poro(iz)*sat(Iz)*1d3
       
           fediflx(2) = fediflx(2) + (
@@ -4085,11 +4258,11 @@ C      $  + (v(iz)-v(iz-1))*c2x(iz)/dz*(1.0d0-swex)
      
           fepy2flx(2) = fepy2flx(2) + (
      $  +(1.0d0-frex)*merge(0.0d0,
-     $   (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  +frex*merge(0.0d0,
-     $   (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                )*dz*poro(iz)*sat(iz)*1d3
@@ -4099,6 +4272,7 @@ C      $    *merge(0.0d0,1.0d0,c2x(iz)<c2th)
         
           fetflx(2) = fetflx(2) + (
      $  (c2x(iz)-c2(iz))/dt 
+     $    +dporodta(iz)*c2x(iz)  
      $  )*dz*poro(iz)*sat(iz)*1d3
       
           fediflx(2) = fediflx(2) + (
@@ -4127,11 +4301,11 @@ C      $  + (v(iz)-v(iz-1))*c2x(iz)/dz*(1.0d0-swex)
      
           fepy2flx(2) = fepy2flx(2) + (
      $  +(1.0d0-frex)*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  +frex*merge(0.0d0,
-     $  (14.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $  (14.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )*dz*poro(iz)*sat(iz)*1d3
@@ -4159,13 +4333,13 @@ C      $  + (v(iz)-v(iz-1))*c2x(iz)/dz*(1.0d0-swex)
           
           sildisflx = sildisflx + (
      $     + (1.0d0-frex)*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $          *100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $     + frex*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $          *100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
@@ -4185,13 +4359,13 @@ C      $  + (v(iz)-v(iz-1))*c2x(iz)/dz*(1.0d0-swex)
          
           sildisflx = sildisflx + (
      $      + (1.0d0-frex)*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $             *100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $      + frex*
-     $      ksil(iz)*poro(iz)*hr
+     $      ksil(iz)*poro(iz)*hr(iz)
      $             *100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
@@ -4210,6 +4384,7 @@ C      $  + (v(iz)-v(iz-1))*c2x(iz)/dz*(1.0d0-swex)
      
           natflx = natflx + (
      $  (nax(iz)-na(iz))/dt
+     $    +dporodta(iz)*nax(iz)  
      $                       )*dz*poro(iz)*sat(iz)*1d3
      
           naadvflx = naadvflx + (
@@ -4234,13 +4409,13 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      
           nadisflx = nadisflx + (
      $  - (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           *1d-3
      $  - frex*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msil(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)
@@ -4251,6 +4426,7 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      
           natflx = natflx + (
      $  (nax(iz)-na(iz))/dt 
+     $    +dporodta(iz)*nax(iz)  
      $                       )*dz*poro(iz)*sat(iz)*1d3
      
           naadvflx = naadvflx + (
@@ -4277,13 +4453,13 @@ C      $   *(na(iz)-nai)/(dz**2d0)
      
           nadisflx = nadisflx + (
      $  - (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           *1d-3
      $  - frex*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msil(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)
@@ -4294,6 +4470,7 @@ C      $   *(na(iz)-nai)/(dz**2d0)
      
           natflx = natflx + (
      $  (nax(iz)-na(iz))/dt 
+     $    +dporodta(iz)*nax(iz)  
      $                       )*dz*poro(iz)*sat(iz)*1d3   ! commented out (is this necessary?)
      
           naadvflx = naadvflx + (
@@ -4318,13 +4495,13 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      
           nadisflx = nadisflx + (
      $  - (1.0d0-frex)*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msilx(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)
      $           *1d-3
      $  - frex*
-     $   ksil(iz)/sat(iz)*hr*100.07d0*1d-6*msil(iz)
+     $   ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)
      $   *(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil)
      $   *merge(0d0,1d0
      $  ,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)
@@ -4342,6 +4519,7 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      
           so4tflx = so4tflx+ (
      $  (so4x(iz)-so4(iz))/dt
+     $    +dporodta(iz)*so4x(iz)  
      $                       )*dz*poro(iz)*sat(iz)*1d3
      
      
@@ -4359,20 +4537,20 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      
           so4disflx = so4disflx+ (
      $  - 2d0*(1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - 2d0*frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )*dz*poro(iz)*sat(iz)*1d3
@@ -4381,6 +4559,7 @@ C      $  + swex*(v(iz)-v(iz-1))*c(iz)/dz
      
           so4tflx = so4tflx+ (
      $  (so4x(iz)-so4(iz))/dt 
+     $    +dporodta(iz)*so4x(iz) 
      $                       )*dz*poro(iz)*sat(iz)*1d3
      
           so4diflx = so4diflx+ (
@@ -4400,20 +4579,20 @@ C      $  + (v(iz)-v(iz-1))*so4(iz)/dz*swex
      
           so4disflx = so4disflx+ (
      $  - 2d0*(1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $    ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - 2d0*frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )*dz*poro(iz)*sat(iz)*1d3
@@ -4422,6 +4601,7 @@ C      $  + (v(iz)-v(iz-1))*so4(iz)/dz*swex
      
           so4tflx = so4tflx + (
      $  (so4x(iz)-so4(iz))/dt 
+     $    +dporodta(iz)*so4x(iz) 
      $                       )*dz*poro(iz)*sat(iz)*1d3
      
           so4diflx = so4diflx + (
@@ -4440,20 +4620,20 @@ C      $  + swex*(v(iz)-v(iz-1))*so4(iz)/dz
      
           so4disflx = so4disflx + (
      $  - 2d0*(1.0d0-frex)*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $   *merge(0d0,po2x(iz)**0.50d0
      $     ,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3
      $  - 2d0*frex*
-     $   koxs(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)
+     $   koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)
      $   *merge(0d0,po2(iz)**0.50d0
      $   ,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3
      $   
      $  -(1.0d0-frex)*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $           c2x(iz)**0.93d0*cx(iz)**(-0.40d0),
      $    cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3
      $  -frex*merge(0.0d0,
-     $   (2.0d0)*koxs2(iz)/sat(iz)*hr*23.94d0*1d-6*ms(iz)*
+     $   (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*
      $           c2(iz)**0.93d0*c(iz)**(-0.40d0),
      $    c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3
      $                       )*dz*poro(iz)*sat(iz)*1d3
@@ -4464,6 +4644,14 @@ C      $  + swex*(v(iz)-v(iz-1))*so4(iz)/dz
       
       so4flxsum = so4tflx + so4diflx + so4advflx + so4disflx 
       
+      
+      if (swoxa==1d0) then 
+          do iz=1,nz 
+             if (c2x(iz)<c2th) c2x(iz)=c2th*1d-1
+             if (cx(iz)<cth) cx(iz)=cth*1d-1
+             if (msx(iz)<msth) msx(iz)=msth*1d-1
+          enddo 
+      endif 
       
       po2 = po2x
       c = cx
@@ -4502,17 +4690,17 @@ C       if (any(it==reclis)) then
         
         do iz = 1, Nz
           write (58,*) z(iz),
-     $ koxs(iz)*poro(iz)*hr*23.94d0*1d-6*msx(iz)
+     $ koxs(iz)*poro(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $  *po2x(iz)**0.50d0
      $  *merge(0.0d0,1.0d0,po2x(iz)<po2th),
      $ merge(0.0d0,
-     $      + koxs2(iz)*poro(iz)*hr*23.94d0*1d-6*msx(iz)
+     $      + koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $         *c2x(iz)**0.93d0*cx(iz)**(-0.40d0),cx(iz)<cth)
      $  *merge(0.0d0,1.0d0,c2x(iz)<c2th),
      $  poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz)
      $  *merge(0.0d0,1.0d0,po2x(iz)<po2th.or.cx(iz)<cth)
      $  , swbr*vmax*po2x(iz)/(po2x(iz)+mo2)
-     $  ,ksil(iz)*poro(iz)*hr
+     $  ,ksil(iz)*poro(iz)*hr(iz)
      $             *100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
@@ -4524,8 +4712,8 @@ C       if (any(it==reclis)) then
      $     ,ms(iz)/maxval(ms(:)),c2(iz)/maxval(c2(:))
      $     , so4(iz)/maxval(so4(:)), na(iz)/maxval(na(:))
      $     , msil(iz)/maxval(msil(:)), pro(iz)/maxval(pro(:))
-     $     , silsat(iz),time
-          write(30,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz)
+     $     , silsat(iz),co2(iz),hco3(iz),co3(iz),dic(iz),time
+          write(30,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz),hr(iz)
         end do
         irec=irec+1
         
@@ -4603,17 +4791,17 @@ C       if (any(it==reclis)) then
         
       do iz = 1, Nz
         write (58,*) z(iz),
-     $ koxs(iz)*poro(iz)*hr*23.94d0*1d-6*msx(iz)*
+     $ koxs(iz)*poro(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*
      $  po2x(iz)**0.50d0
      $  *merge(0.0d0,1.0d0,po2x(iz)<po2th),
      $ merge(0.0d0,
-     $      + koxs2(iz)*poro(iz)*hr*23.94d0*1d-6*msx(iz)
+     $      + koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6*msx(iz)
      $         *c2x(iz)**0.93d0*cx(iz)**(-0.40d0),cx(iz)<cth)
      $  *merge(0.0d0,1.0d0,c2x(iz)<c2th),
      $  poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz)
      $  *merge(0.0d0,1.0d0,po2x(iz)<po2th.or.cx(iz)<cth)
      $  , swbr*vmax*po2x(iz)/(po2x(iz)+mo2)
-     $  ,ksil(iz)*poro(iz)*hr
+     $  ,ksil(iz)*poro(iz)*hr(iz)
      $             *100.07d0*1d-6*msilx(iz)
      $   *(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil)
      $   *merge(0d0,1d0
@@ -4625,8 +4813,8 @@ C       if (any(it==reclis)) then
      $   ,ms(iz)/maxval(ms(:)),c2(iz)/maxval(c2(:))
      $   ,so4(iz)/maxval(so4(:)),na(iz)/maxval(na(:))
      $   ,msil(iz)/maxval(msil(:)),pro(iz)/maxval(pro(:))
-     $   ,silsat(iz), time
-          write(30,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz)
+     $   ,silsat(iz), co2(iz),hco3(iz),co3(iz),dic(iz),time
+          write(30,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz),hr(iz)
       end do
       
       
