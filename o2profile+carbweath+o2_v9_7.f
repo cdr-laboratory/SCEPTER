@@ -310,7 +310,7 @@ C       do irec = 1,nrec
 C         rectime(irec) = 19d6 + irec*1d6
 C       enddo
       
-      write(workdir,*) 'C:/cygwin64/home/YK/PyWeath/'     
+      write(workdir,*) '../pyweath_output/'     
       write(base,*) '_w1e-5_msx5_mcarb%100_S1e5_z60'     
 #ifdef test 
       write(base,*) '_test'
@@ -333,8 +333,9 @@ C      $   //'_co21e-1-o26e-2'
 C      $   //'_co21e-1-o26e-2'
 #endif
       
-      call system ('mkdir -p '//trim(adjustl(runname)))
-      
+      call system ('mkdir -p '//trim(adjustl(workdir)) 
+     $   //trim(adjustl(runname)))
+     
 C       if (.not.read_data) call system ('rm '//trim(adjustl(workdir))//
 C      $   trim(adjustl(runname))//
 C      $    '/*')
