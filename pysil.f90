@@ -299,7 +299,7 @@ mo2 = mo2*po2i/0.21d0     !! mo2 is assumed to proportional to po2i
 
 
 write(workdir,*) '../pyweath_output/'     
-write(base,*) '_w1e-5_msx5_msil%100_S1e5_z60_v2'     
+write(base,*) '_w1e-5_msx5_msil%100_S1e5_z60_v4'     
 #ifdef test 
 write(base,*) '_test'
 #endif     
@@ -961,183 +961,11 @@ call pyweath_1D( &
     ) 
 !!!!!!!!!!!!!!!!!!!!!!!!  so4 calculation start !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-amx2=0.0d0
-ymx2=0.0d0
-
-do iz = 1, nz
-
-    row = iz
-
-    if (.not.((iz == 1).or.(iz==nz))) then
-
-        amx2(row,row) = ( &
-            & 1.0d0/dt &
-            & +dporodta(iz)   &
-            & +(1d0-swex)*(-dso4*tora(iz)*(-2d0)/(dz**2d0) &
-            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
-            & *(1d0)/(dz**2d0)) &
-            & + v(iz)/dz*(1.0d0-swex) &
-            & )
-
-        amx2(row,row-1) = ( &
-            & +(1d0-swex)*(-dso4*tora(iz)*(1d0)/(dz**2d0) &
-            & -dso4/poro(iz)/sat(iz) &
-            & *(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
-            & *(-1d0)/(dz**2d0)) &
-            & - (1.0d0-swex)*v(iz)/dz &
-            & )
-
-        amx2(row,row+1) = ( &
-            & +(1d0-swex)*(-dso4*tora(iz)*(1d0)/(dz**2d0)) &
-            & )
-
-        ymx2(row) = ( &
-            & (-so4(iz))/dt & 
-            & +swex*(-dso4*tora(iz)*(so4(iz+1)+so4(iz-1)-2d0*so4(iz))/(dz**2d0) &
-            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
-            & *(so4(iz)-so4(iz-1))/(dz**2d0)) &
-            & + swex*v(iz)*(so4(iz)-so4(iz-1))/dz &
-            & - 2d0*(1.0d0-frex)*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz) &
-            & *merge(0d0,po2x(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3 &
-            & - 2d0*frex*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz) &
-            & *merge(0d0,po2(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3 &
-            & -(1.0d0-frex)*merge(0.0d0 &
-            & ,(2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0), &
-            & cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3 &
-            & -frex*merge(0.0d0, &
-            & (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0), &
-            & c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3 &
-            & )
-
-    else if (iz == 1) then
-
-        amx2(row,row) = ( &
-            & 1.0d0/dt  &
-            & +dporodta(iz)  &
-            & +(1d0-swex)*(-dso4*tora(iz)*(-2d0)/(dz**2d0)) &
-            & + v(iz)/dz*(1.0d0-swex) &
-            & )
-
-        amx2(row,row+1) = ( &
-            & +(1d0-swex)*(-dso4*tora(iz)*(1d0)/(dz**2d0)) &
-            & )
-
-        ymx2(row) = ( &
-            & (-so4(iz))/dt  &
-            & +swex*(-dso4*tora(iz)*(so4(iz+1)+so4i-2d0*so4(iz))/(dz**2d0)) &
-            & + v(iz)*(so4(iz)-so4i)/dz*swex &
-            & - 2d0*(1.0d0-frex)*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz) &
-            & *merge(0d0,po2x(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3 &
-            & - 2d0*frex*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz) &
-            & *merge(0d0,po2(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3 &
-            & -(1.0d0-frex)*merge(0.0d0 &
-            & ,(2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0), &
-            & cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3 &
-            & -frex*merge(0.0d0, &
-            & (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0), &
-            & c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3 &
-            & )
-
-    else if (iz == nz) then
-
-        amx2(row,row) = ( &
-            & 1.0d0/dt  &
-            & +dporodta(iz)  &
-            & +(1d0-swex)*(-dso4*tora(iz)*(-1d0)/(dz**2d0) &
-            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(1d0)/(dz**2d0)) &
-            & + v(iz)/dz*(1.0d0-swex) &
-            & )
-
-        amx2(row,row-1) = ( &
-            & +(1d0-swex)*(-dso4*tora(iz)*(1d0)/(dz**2d0) &
-            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(-1d0)/(dz**2d0)) &
-            & - (1.0d0-swex)*v(iz)/dz &
-            & )
-
-        ymx2(row) = ( &
-            & (-so4(iz))/dt  &
-            & +swex*(-dso4*tora(iz)*(so4(iz-1)-1d0*so4(iz))/(dz**2d0) &
-            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(so4(iz)-so4(iz-1))/(dz**2d0)) &
-            & + swex*v(iz)*(so4(iz)-so4(iz-1))/dz &
-            & - 2d0*(1.0d0-frex)*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz) &
-            & *merge(0d0,po2x(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3 &
-            & - 2d0*frex*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz) &
-            & *merge(0d0,po2(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3 &
-            & -(1.0d0-frex)*merge(0.0d0, &
-            & (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0), &
-            & cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3 &
-            & -frex*merge(0.0d0, &
-            & (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0), &
-            & c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3 &
-            & )
-
-    end if 
-
-end do  ! ==============================
-
-ymx2=-1.0d0*ymx2
-
-if (any(isnan(amx2)).or.any(isnan(ymx2))) then 
-    print*,'error in mtx'
-    print*,'any(isnan(amx2)),any(isnan(ymx2))'
-    print*,any(isnan(amx2)),any(isnan(ymx2))
-
-    if (any(isnan(ymx2))) then 
-        do ie = 1,(nz)
-            if (isnan(ymx2(ie))) then 
-                print*,'NAN is here...',ie
-            endif
-        enddo
-    endif
-
-
-    if (any(isnan(amx2))) then 
-        do ie = 1,(nz)
-            do ie2 = 1,(nz)
-                if (isnan(amx2(ie,ie2))) then 
-                    print*,'NAN is here...',ie,ie2
-                endif
-            enddo
-        enddo
-    endif
-
-    stop
-endif
-
-call DGESV((Nz),int(1),amx2,(Nz),IPIV2,ymx2,(Nz),INFO) 
-
-if (any(isnan(ymx2))) then
-    print*,'error in soultion'
-endif
-
-do iz = 1, nz
-    row = iz
-
-    if (isnan(ymx2(row))) then 
-        print *,'nan at', iz,z(iz),zrxn,'so4'
-        if (z(iz)<zrxn) then 
-            ymx2(row)=0d0
-            so4x(iz) = 0.1d0*so4th
-        endif
-    endif
-
-    if ((.not.isnan(ymx2(row))).and.(ymx2(row)>=0d0)) then 
-        so4x(iz) = ymx2(row)
-    else
-        if ((.not.isnan(ymx2(row))).and.(abs(ymx2(row))<=tol)) then
-            so4x(iz) = 0d0
-        else 
-            print *,'so4 nan? or negative; stop'
-            print*,iz,ymx2(row)
-            stop
-        endif 
-        so4x(iz) = 0d0
-    endif
-
-    if (O2_evolution .and. swoxa==0d0) then  ! ignoring so4
-        ymx2(row)=0d0
-    endif
-end do 
+call pyweath_1D_SO4( &
+    & nz,c,c2,po2,ms,hr,po2th,poro,z,dz,koxs2,koxs,dso4,sat,dporodta  &! input
+    & ,cth,tora,v,tol,zrxn,dt,cx,c2x,po2x,msx,so4,swoxa,O2_evolution,so4i,so4th &! input
+    & ,so4x &! output
+    & )
 
 !!!  =-=-=-=-=-=-=-=-=- END of SO4 calculation  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 #endif       
@@ -3566,6 +3394,216 @@ endsubroutine pyweath_1D
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine pyweath_1D_SO4( &
+    & nz,c,c2,po2,ms,hr,po2th,poro,z,dz,koxs2,koxs,dso4,sat,dporodta  &! input
+    & ,cth,tora,v,tol,zrxn,dt,cx,c2x,po2x,msx,so4,swoxa,O2_evolution,so4i,so4th &! input
+    & ,so4x &! output
+    & )
+    
+implicit none 
+
+integer,intent(in)::nz
+logical,intent(in)::O2_evolution
+real(kind=8),intent(in)::po2th,dz,dso4,cth,tol,zrxn,dt,swoxa,so4i,so4th
+real(kind=8),dimension(nz),intent(in)::c,c2,po2,ms,hr,poro,z,koxs2,koxs,sat,dporodta,tora,v,cx,c2x,po2x,msx,so4
+real(kind=8),dimension(nz),intent(out)::so4x
+
+integer iz,row,ie,ie2
+
+real(kind=8)::swex = 0.0d0 ! switch for explicit
+real(kind=8)::frex = 0.0d0 ! fraction of explicit
+
+real(kind=8) amx2(nz,nz),ymx2(nz)
+integer ipiv2(nz)
+integer info
+
+external DGESV
+
+
+amx2=0.0d0
+ymx2=0.0d0
+
+do iz = 1, nz
+
+    row = iz
+
+    if (.not.((iz == 1).or.(iz==nz))) then
+
+        amx2(row,row) = ( &
+            & 1.0d0/dt &
+            & +dporodta(iz)   &
+            & +(1d0-swex)*(-dso4*tora(iz)*(-2d0)/(dz**2d0) &
+            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+            & *(1d0)/(dz**2d0)) &
+            & + v(iz)/dz*(1.0d0-swex) &
+            & )
+
+        amx2(row,row-1) = ( &
+            & +(1d0-swex)*(-dso4*tora(iz)*(1d0)/(dz**2d0) &
+            & -dso4/poro(iz)/sat(iz) &
+            & *(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+            & *(-1d0)/(dz**2d0)) &
+            & - (1.0d0-swex)*v(iz)/dz &
+            & )
+
+        amx2(row,row+1) = ( &
+            & +(1d0-swex)*(-dso4*tora(iz)*(1d0)/(dz**2d0)) &
+            & )
+
+        ymx2(row) = ( &
+            & (-so4(iz))/dt & 
+            & +swex*(-dso4*tora(iz)*(so4(iz+1)+so4(iz-1)-2d0*so4(iz))/(dz**2d0) &
+            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+            & *(so4(iz)-so4(iz-1))/(dz**2d0)) &
+            & + swex*v(iz)*(so4(iz)-so4(iz-1))/dz &
+            & - 2d0*(1.0d0-frex)*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz) &
+            & *merge(0d0,po2x(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3 &
+            & - 2d0*frex*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz) &
+            & *merge(0d0,po2(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3 &
+            & -(1.0d0-frex)*merge(0.0d0 &
+            & ,(2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0), &
+            & cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3 &
+            & -frex*merge(0.0d0, &
+            & (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0), &
+            & c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3 &
+            & )
+
+    else if (iz == 1) then
+
+        amx2(row,row) = ( &
+            & 1.0d0/dt  &
+            & +dporodta(iz)  &
+            & +(1d0-swex)*(-dso4*tora(iz)*(-2d0)/(dz**2d0)) &
+            & + v(iz)/dz*(1.0d0-swex) &
+            & )
+
+        amx2(row,row+1) = ( &
+            & +(1d0-swex)*(-dso4*tora(iz)*(1d0)/(dz**2d0)) &
+            & )
+
+        ymx2(row) = ( &
+            & (-so4(iz))/dt  &
+            & +swex*(-dso4*tora(iz)*(so4(iz+1)+so4i-2d0*so4(iz))/(dz**2d0)) &
+            & + v(iz)*(so4(iz)-so4i)/dz*swex &
+            & - 2d0*(1.0d0-frex)*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz) &
+            & *merge(0d0,po2x(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3 &
+            & - 2d0*frex*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz) &
+            & *merge(0d0,po2(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3 &
+            & -(1.0d0-frex)*merge(0.0d0 &
+            & ,(2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0), &
+            & cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3 &
+            & -frex*merge(0.0d0, &
+            & (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0), &
+            & c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3 &
+            & )
+
+    else if (iz == nz) then
+
+        amx2(row,row) = ( &
+            & 1.0d0/dt  &
+            & +dporodta(iz)  &
+            & +(1d0-swex)*(-dso4*tora(iz)*(-1d0)/(dz**2d0) &
+            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(1d0)/(dz**2d0)) &
+            & + v(iz)/dz*(1.0d0-swex) &
+            & )
+
+        amx2(row,row-1) = ( &
+            & +(1d0-swex)*(-dso4*tora(iz)*(1d0)/(dz**2d0) &
+            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(-1d0)/(dz**2d0)) &
+            & - (1.0d0-swex)*v(iz)/dz &
+            & )
+
+        ymx2(row) = ( &
+            & (-so4(iz))/dt  &
+            & +swex*(-dso4*tora(iz)*(so4(iz-1)-1d0*so4(iz))/(dz**2d0) &
+            & -dso4/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(so4(iz)-so4(iz-1))/(dz**2d0)) &
+            & + swex*v(iz)*(so4(iz)-so4(iz-1))/dz &
+            & - 2d0*(1.0d0-frex)*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz) &
+            & *merge(0d0,po2x(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2x(iz)**0.50d0))*1d-3 &
+            & - 2d0*frex*koxs(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz) &
+            & *merge(0d0,po2(iz)**0.50d0,po2x(iz) <po2th.or.isnan(po2(iz)**0.50d0))*1d-3 &
+            & -(1.0d0-frex)*merge(0.0d0, &
+            & (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0), &
+            & cx(iz)<cth.or.isnan(c2x(iz)**0.93d0*cx(iz)**(-0.40d0)))*1d-3 &
+            & -frex*merge(0.0d0, &
+            & (2.0d0)*koxs2(iz)/sat(iz)*hr(iz)*23.94d0*1d-6*ms(iz)*c2(iz)**0.93d0*c(iz)**(-0.40d0), &
+            & c(iz)<cth.or.isnan(c2(iz)**0.93d0*c(iz)**(-0.40d0)))*1d-3 &
+            & )
+
+    end if 
+
+end do  ! ==============================
+
+ymx2=-1.0d0*ymx2
+
+if (any(isnan(amx2)).or.any(isnan(ymx2))) then 
+    print*,'error in mtx'
+    print*,'any(isnan(amx2)),any(isnan(ymx2))'
+    print*,any(isnan(amx2)),any(isnan(ymx2))
+
+    if (any(isnan(ymx2))) then 
+        do ie = 1,(nz)
+            if (isnan(ymx2(ie))) then 
+                print*,'NAN is here...',ie
+            endif
+        enddo
+    endif
+
+
+    if (any(isnan(amx2))) then 
+        do ie = 1,(nz)
+            do ie2 = 1,(nz)
+                if (isnan(amx2(ie,ie2))) then 
+                    print*,'NAN is here...',ie,ie2
+                endif
+            enddo
+        enddo
+    endif
+
+    stop
+endif
+
+call DGESV((Nz),int(1),amx2,(Nz),IPIV2,ymx2,(Nz),INFO) 
+
+if (any(isnan(ymx2))) then
+    print*,'error in soultion'
+endif
+
+do iz = 1, nz
+    row = iz
+
+    if (isnan(ymx2(row))) then 
+        print *,'nan at', iz,z(iz),zrxn,'so4'
+        if (z(iz)<zrxn) then 
+            ymx2(row)=0d0
+            so4x(iz) = 0.1d0*so4th
+        endif
+    endif
+
+    if ((.not.isnan(ymx2(row))).and.(ymx2(row)>=0d0)) then 
+        so4x(iz) = ymx2(row)
+    else
+        if ((.not.isnan(ymx2(row))).and.(abs(ymx2(row))<=tol)) then
+            so4x(iz) = 0d0
+        else 
+            print *,'so4 nan? or negative; stop'
+            print*,iz,ymx2(row)
+            stop
+        endif 
+        so4x(iz) = 0d0
+    endif
+
+    if (O2_evolution .and. swoxa==0d0) then  ! ignoring so4
+        ymx2(row)=0d0
+    endif
+end do 
+
+endsubroutine pyweath_1D_SO4
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine checkfile(fname,oxj)
 implicit none
