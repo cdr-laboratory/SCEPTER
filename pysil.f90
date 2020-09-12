@@ -972,9 +972,6 @@ call pyweath_1D_SO4( &
 #ifndef pyweath       
 !!! =-=-=-=-=-=-=-=-=- START of calculation for Na and albite  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-error = 1d4
-iter = 0
-
 #ifdef silweath
 so4x = so4th
 cx = cth 
@@ -984,381 +981,13 @@ if (it == 0 .and. iter == 0) nax(1:) = 1.0d2
 
 #endif      
 
-if (it ==0) then 
-    prox(:) = 0.5d0* (  &
-        & -1d0*(2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))  &
-        & + sqrt((2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2i) &
-        & )
-else 
+call abweath_1D( &
+    & nz,na,msil,hr,poro,z,dz,w,ksil,keqsil,msilth,dna,sat,dporodta,pro,msili  &! input
+    & ,kco2,k1,k2,dt2,nath,tora,v,tol,nsp3,zrxn,it,cx,c2x,so4x,ca,pco2i,nai &! input
+    & ,iter,error,dt,flgback &! inout
+    & ,nax,prox,co2,hco3,co3,naeq,silsat,dic,msilx &! output
+    & )
 
-    prox(:) = 0.5d0* ( &
-        & -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
-        & + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2i) &
-        & )
-
-endif
-
-do while ((.not.isnan(error)).and.(error > tol))
-
-    amx3=0.0d0
-    ymx3=0.0d0 
-
-    prox(:) = 0.5d0* ( &
-        & -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
-        & + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2i) &
-        & )
-
-    dprodna(:) = 0.5d0* ( &
-        &  -1d0  &
-        & + 0.5d0/sqrt( &
-        & (nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2i)*2d0 &
-        & *(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) &
-        & )
-
-    do iz = 1, nz  !================================
-
-        row = nsp3*(iz-1)+1
-
-        if (iz/=nz) then
-
-            amx3(row,row) = (1.0d0/dt     &
-                & + w/dz *(1.0d0-swex)    &
-                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-                & ) &
-                & * merge(1.0d0,msilx(iz),msilx(iz)<msth)
-
-            amx3(row,row+nsp3) = (-w/dz)*(1.0d0-swex) *merge(1.0d0,msilx(iz+1),msilx(iz)<msilth)
-
-            ymx3(row) = ( &
-                & (msilx(iz)-msil(iz))/dt &
-                & -w*(msilx(iz+1)-msilx(iz))/dz*(1.0d0-swex)  &
-                & -w*(msil(iz+1)-msil(iz))/dz*swex/dt*dt2*swpe &
-                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-                & + frex*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0) &
-                & ) &
-                & *merge(0.0d0,1d0,msilx(iz)<msilth)
-
-        else if (iz==nz) then
-
-            amx3(row,row) = (1.0d0/dt  &
-                & + w/dz*(1.0d0-swex) &
-                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-                & ) &
-                & *merge(1.0d0,msilx(iz),msilx(iz)<msilth)
-
-            ymx3(row) = ( &
-                & (msilx(iz)-msil(iz))/dt &
-                & -w*(msili-msilx(iz))/dz*(1.0d0-swex) &
-                & -w*(msili-msil(iz))/dz*swex*dt2/dt*swpe &
-                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-                & + frex*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0) &
-                & ) &
-                & *merge(0.0d0,1d0,msilx(iz)<msilth)
-
-        end if 
-
-        amx3(row,row + 1 ) = ( &
-            & + (1.0d0-frex)* &
-            & ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil) &
-            & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-            & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz) &
-            & *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz) &
-            & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-            & ) &
-            & *nax(iz) &
-            & *merge(0.0d0,1d0,msilx(iz)<msilth)
-
-    end do  !================================
-
-    do iz = 1, nz
-
-        row = nsp3*(iz-1)+2
-
-        if (.not.((iz == 1).or.(iz==nz))) then
-
-            amx3(row,row) = ( &
-                & 1.0d0/dt  &
-                & +dporodta(iz)  &
-                & +(1d0-swex)*(-dna*tora(iz)*(-2d0)/(dz**2d0) &
-                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(1d0)/(dz**2d0)) &
-                & + v(iz)/dz*(1.0d0-swex) &
-                & + (1.0d0-frex)*( &
-                & -(1.0d0)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-                & )*1d-3 &
-                & + (1.0d0-frex)*( &
-                & -(1.0d0)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz) &
-                & *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-                & )*1d-3 &
-                & ) &
-                & *merge(1.0d0,nax(iz),nax(iz)<nath)
-
-            amx3(row,row-nsp3) = ( &
-                & +(1d0-swex)*(-dna*tora(iz)*(1d0)/(dz**2d0) &
-                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(-1d0)/(dz**2d0)) &
-                & - (1.0d0-swex)*v(iz)/dz &
-                & ) &
-                & *nax(iz-1) &
-                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
-
-            amx3(row,row+nsp3) = ( &
-                & +(1d0-swex)*(-dna*tora(iz)*(1d0)/(dz**2d0)) &
-                & ) &
-                & *nax(iz+1) &
-                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
-
-            ymx3(row) = ( &
-                & (nax(iz)-na(iz))/dt  &
-                & +dporodta(iz) *nax(iz) &
-                & +(1d0-swex)*(-dna*tora(iz)*(nax(iz+1)+nax(iz-1)-2d0*nax(iz))/(dz**2d0) &
-                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(nax(iz)-nax(iz-1))/(dz**2d0)) &
-                & +swex*(-dna*tora(iz)*(na(iz+1)+na(iz-1)-2d0*na(iz))/(dz**2d0) &
-                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(na(iz)-na(iz-1))/(dz**2d0)) &
-                & + (1.0d0-swex)*v(iz)*(nax(iz)-nax(iz-1))/dz &
-                & + swex*v(iz)*(na(iz)-na(iz-1))/dz &
-                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
-                & - frex*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)*1d-3 &
-                & ) &
-                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
-
-        else if (iz == 1) then
-
-            amx3(row,row) = ( &
-                & 1.0d0/dt  &
-                & +dporodta(iz)  &
-                & +(1d0-swex)*(-dna*tora(iz)*(-2d0)/(dz**2d0)) &
-                & + v(iz)/dz*(1.0d0-swex) &
-                & -(1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
-                & -(1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)&
-                & *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
-                & ) &
-                & *merge(1.0d0,nax(iz),nax(iz)<nath)
-
-            amx3(row,row+nsp3) = ( &
-                & +(1d0-swex)*(-dna*tora(iz)*(1d0)/(dz**2d0)) &
-                & ) &
-                & *nax(iz+1) &
-                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
-
-            ymx3(row) = ( &
-                & (nax(iz)-na(iz))/dt  &
-                & +dporodta(iz) *nax(iz) &
-                & +(1d0-swex)*(-dna*tora(iz)*(nax(iz+1)+nai-2d0*nax(iz))/(dz**2d0)) &
-                & +swex*(-dna*tora(iz)*(na(iz+1)+nai-2d0*na(iz))/(dz**2d0)) &
-                & + v(iz)*(nax(iz)-nai)/dz*(1.0d0-swex) &
-                & + v(iz)*(na(iz)-nai)/dz*swex &
-                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
-                & - frex*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)*1d-3 &
-                & ) &
-                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
-
-        else if (iz == nz) then
-
-            amx3(row,row) = ( &
-                & 1.0d0/dt  &
-                & +dporodta(iz)  &
-                & +(1d0-swex)*(-dna*tora(iz)*(-1d0)/(dz**2d0) &
-                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(1d0)/(dz**2d0)) &
-                & + v(iz)/dz*(1.0d0-swex) &
-                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
-                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz) &
-                & *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
-                & ) &
-                & *merge(1.0d0,nax(iz),nax(iz)<nath)
-
-            amx3(row,row-nsp3) = ( &
-                & +(1d0-swex)*(-dna*tora(iz)*(1d0)/(dz**2d0) &
-                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(-1d0)/(dz**2d0)) &
-                & - (1.0d0-swex)*v(iz)/dz &
-                & ) &
-                & *nax(iz-1) &
-                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
-
-            ymx3(row) = ( &
-                & (nax(iz)-na(iz))/dt  &
-                & +dporodta(iz) *nax(iz) &
-                & +(1d0-swex)*(-dna*tora(iz)*(nax(iz-1)-1d0*nax(iz))/(dz**2d0) &
-                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(nax(iz)-nax(iz-1))/(dz**2d0)) &
-                & +swex*(-dna*tora(iz)*(na(iz-1)-1d0*na(iz))/(dz**2d0) &
-                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(na(iz)-na(iz-1))/(dz**2d0)) &
-                & + (1.0d0-swex)*v(iz)*(nax(iz)-nax(iz-1))/dz &
-                & + swex*v(iz)*(na(iz)-na(iz-1))/dz &
-                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
-                & - frex*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)*1d-3 &
-                & ) &
-                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
-
-        end if 
-
-        amx3(row,row  - 1) = (     & 
-            & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*1d0*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-            & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3  &
-            & ) &
-            & *msilx(iz) &
-            & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
-        
-    end do  ! ==============================
-
-    ymx3=-1.0d0*ymx3
-
-    if (any(isnan(amx3)).or.any(isnan(ymx3))) then 
-        print*,'error in mtx'
-        print*,'any(isnan(amx3)),any(isnan(ymx3))'
-        print*,any(isnan(amx3)),any(isnan(ymx3))
-
-        if (any(isnan(ymx3))) then 
-            do ie = 1,nsp3*(nz)
-                if (isnan(ymx3(ie))) then 
-                    print*,'NAN is here...',ie
-                endif
-            enddo
-        endif
-
-
-        if (any(isnan(amx3))) then 
-            do ie = 1,nsp3*(nz)
-                do ie2 = 1,nsp3*(nz)
-                    if (isnan(amx3(ie,ie2))) then 
-                        print*,'NAN is here...',ie,ie2
-                    endif
-                enddo
-            enddo
-        endif
-
-        stop
-    endif
-
-    call DGESV(nsp3*(Nz),int(1),amx3,nsp3*(Nz),IPIV3,ymx3,nsp3*(Nz),INFO) 
-
-    if (any(isnan(ymx3))) then
-        print*,'error in soultion'
-    endif
-
-    do iz = 1, nz
-        row = 1 + nsp3*(iz-1)
-
-        if (isnan(ymx3(row))) then 
-            print *,'nan at', iz,z(iz),'albite'
-            if (z(iz)<zrxn) then 
-                ymx3(row)=0d0
-            endif
-        endif
-
-        if ((.not.isnan(ymx3(row))).and.ymx3(row) >10d0) then 
-            msilx(iz) = msilx(iz)*1.5d0
-        else if (ymx3(row) < -10d0) then 
-            msilx(iz) = msilx(iz)*0.50d0
-        else   
-            msilx(iz) = msilx(iz)*exp(ymx3(row))
-        endif
-
-    end do
-
-    do iz = 1, nz
-        row = 2 + nsp3*(iz-1)
-
-        if (isnan(ymx3(row))) then 
-            print *,'nan at', iz,z(iz),'Na'
-            if (z(iz)<zrxn) then 
-                ymx3(row)=0d0
-                nax(iz) = 0.1d0*nath
-            endif
-        endif
-
-        if ((.not.isnan(ymx3(row))).and.ymx3(row) >1d0) then 
-            nax(iz) = nax(iz)*1.5d0
-        else if (ymx3(row) < -1d0) then 
-            nax(iz) = nax(iz)*0.50d0
-        else
-            nax(iz) = nax(iz)*exp(ymx3(row))
-        endif
-    end do 
-
-    error = maxval(exp(abs(ymx3))) - 1.0d0
-
-    if (isnan(error).or.info/=0 .or. any(isnan(nax)) .or. any(isnan(msilx))) then 
-        error = 1d3
-        print *, '!! error is NaN; values are returned to those before iteration with reducing dt'
-        print*, 'isnan(error), info/=0,any(isnan(nax)),any(isnan(msilx)))'
-        print*,isnan(error),info/=0,any(isnan(nax)),any(isnan(msilx))
-        stop
-        nax = na
-        msilx = msil
-        prox = pro
-        iter = iter + 1
-        cycle
-    endif
-
-    prox(:) = 0.5d0* ( &
-        & -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
-        & + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2i) &
-        & )
-
-    naeq = (keqsil *prox/4d0)**(1d0/3d0)
-    silsat = nax/naeq
-
-    co2 = kco2*pco2i
-    hco3 = k1*co2/prox
-    co3 = k2*hco3/prox
-    dic = co2 + hco3 + co3
-
-    do iz = 1, nz
-        row = 1 + nsp3*(iz-1)
-
-        if (msilx(iz) < 0.0d0) then
-            msilx(iz) = msilx(iz)/exp(ymx3(row))*0.5d0
-            error = 1.0d0
-        end if
-    end do
-
-    do iz = 1, nz
-        row = 2 + nsp3*(iz-1)
-
-        if (nax(iz) < 0.0d0) then
-            nax(iz) = nax(iz)/exp(ymx3(row))*0.5d0
-            error = 1.0d0
-        end if
-
-    end do 
-
-#ifdef display      
-    print *, 'ab error',error,info,nel
-#endif      
-    iter = iter + 1
-
-    if (iter > 300) then
-        dt = dt/1.01d0
-        if (dt==0d0) then 
-            print *, 'dt==0d0; stop'
-            stop
-        endif 
-        flgback = .true.
-    end if
-
-
-enddo
 
 dporodtg = 0d0
 dporodta = 0d0
@@ -3599,6 +3228,425 @@ do iz = 1, nz
 end do 
 
 endsubroutine pyweath_1D_SO4
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine abweath_1D( &
+    & nz,na,msil,hr,poro,z,dz,w,ksil,keqsil,msilth,dna,sat,dporodta,pro,msili  &! input
+    & ,kco2,k1,k2,dt2,nath,tora,v,tol,nsp3,zrxn,it,cx,c2x,so4x,ca,pco2i,nai &! input
+    & ,iter,error,dt,flgback &! inout
+    & ,nax,prox,co2,hco3,co3,naeq,silsat,dic,msilx &! output
+    & )
+    
+implicit none 
+
+integer,intent(in)::nz,nsp3
+real(kind=8),intent(in)::dz,w,msilth,dt2,tol,zrxn,dna,nath,pco2i,kco2,k1,k2,msili,nai,keqsil
+real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,dporodta,tora,v,na,msil,ksil,cx,c2x,so4x,ca,pro
+real(kind=8),dimension(nz),intent(out)::nax,prox,co2,hco3,co3,naeq,silsat,dic,msilx
+integer,intent(inout)::iter,it
+logical,intent(inout)::flgback
+real(kind=8),intent(inout)::error,dt
+
+integer iz,row,nmx,ie,ie2
+
+real(kind=8)::swex = 0.0d0 ! switch for explicit
+real(kind=8)::frex = 0.0d0 ! fraction of explicit
+real(kind=8)::swpe = 0.0d0 ! physical erosion
+real(kind=8)::swad = 1.0d0 ! 1.0 when advection included 0.0d0 when not
+real(kind=8),dimension(nz)::dprodna
+
+real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
+integer ipiv3(nsp3*nz)
+integer info
+
+external DGESV
+
+
+
+error = 1d4
+iter = 0
+
+if (it ==0) then 
+    prox(:) = 0.5d0* (  &
+        & -1d0*(2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        & + sqrt((2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i) &
+        & )
+else 
+
+    prox(:) = 0.5d0* ( &
+        & -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        & + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i) &
+        & )
+
+endif
+
+do while ((.not.isnan(error)).and.(error > tol))
+
+    amx3=0.0d0
+    ymx3=0.0d0 
+
+    prox(:) = 0.5d0* ( &
+        & -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        & + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i) &
+        & )
+
+    dprodna(:) = 0.5d0* ( &
+        &  -1d0  &
+        & + 0.5d0/sqrt( &
+        & (nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i)*2d0 &
+        & *(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) &
+        & )
+
+    do iz = 1, nz  !================================
+
+        row = nsp3*(iz-1)+1
+
+        if (iz/=nz) then
+
+            amx3(row,row) = (1.0d0/dt     &
+                & + w/dz *(1.0d0-swex)    &
+                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+                & ) &
+                & * merge(1.0d0,msilx(iz),msilx(iz)<msilth)
+
+            amx3(row,row+nsp3) = (-w/dz)*(1.0d0-swex) *merge(1.0d0,msilx(iz+1),msilx(iz)<msilth)
+
+            ymx3(row) = ( &
+                & (msilx(iz)-msil(iz))/dt &
+                & -w*(msilx(iz+1)-msilx(iz))/dz*(1.0d0-swex)  &
+                & -w*(msil(iz+1)-msil(iz))/dz*swex/dt*dt2*swpe &
+                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+                & + frex*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0) &
+                & ) &
+                & *merge(0.0d0,1d0,msilx(iz)<msilth)
+
+        else if (iz==nz) then
+
+            amx3(row,row) = (1.0d0/dt  &
+                & + w/dz*(1.0d0-swex) &
+                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+                & ) &
+                & *merge(1.0d0,msilx(iz),msilx(iz)<msilth)
+
+            ymx3(row) = ( &
+                & (msilx(iz)-msil(iz))/dt &
+                & -w*(msili-msilx(iz))/dz*(1.0d0-swex) &
+                & -w*(msili-msil(iz))/dz*swex*dt2/dt*swpe &
+                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+                & + frex*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0) &
+                & ) &
+                & *merge(0.0d0,1d0,msilx(iz)<msilth)
+
+        end if 
+
+        amx3(row,row + 1 ) = ( &
+            & + (1.0d0-frex)* &
+            & ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil) &
+            & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+            & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz) &
+            & *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz) &
+            & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+            & ) &
+            & *nax(iz) &
+            & *merge(0.0d0,1d0,msilx(iz)<msilth)
+
+    end do  !================================
+
+    do iz = 1, nz
+
+        row = nsp3*(iz-1)+2
+
+        if (.not.((iz == 1).or.(iz==nz))) then
+
+            amx3(row,row) = ( &
+                & 1.0d0/dt  &
+                & +dporodta(iz)  &
+                & +(1d0-swex)*(-dna*tora(iz)*(-2d0)/(dz**2d0) &
+                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(1d0)/(dz**2d0)) &
+                & + v(iz)/dz*(1.0d0-swex) &
+                & + (1.0d0-frex)*( &
+                & -(1.0d0)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+                & )*1d-3 &
+                & + (1.0d0-frex)*( &
+                & -(1.0d0)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz) &
+                & *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+                & )*1d-3 &
+                & ) &
+                & *merge(1.0d0,nax(iz),nax(iz)<nath)
+
+            amx3(row,row-nsp3) = ( &
+                & +(1d0-swex)*(-dna*tora(iz)*(1d0)/(dz**2d0) &
+                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(-1d0)/(dz**2d0)) &
+                & - (1.0d0-swex)*v(iz)/dz &
+                & ) &
+                & *nax(iz-1) &
+                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
+
+            amx3(row,row+nsp3) = ( &
+                & +(1d0-swex)*(-dna*tora(iz)*(1d0)/(dz**2d0)) &
+                & ) &
+                & *nax(iz+1) &
+                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
+
+            ymx3(row) = ( &
+                & (nax(iz)-na(iz))/dt  &
+                & +dporodta(iz) *nax(iz) &
+                & +(1d0-swex)*(-dna*tora(iz)*(nax(iz+1)+nax(iz-1)-2d0*nax(iz))/(dz**2d0) &
+                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(nax(iz)-nax(iz-1))/(dz**2d0)) &
+                & +swex*(-dna*tora(iz)*(na(iz+1)+na(iz-1)-2d0*na(iz))/(dz**2d0) &
+                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(na(iz)-na(iz-1))/(dz**2d0)) &
+                & + (1.0d0-swex)*v(iz)*(nax(iz)-nax(iz-1))/dz &
+                & + swex*v(iz)*(na(iz)-na(iz-1))/dz &
+                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
+                & - frex*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)*1d-3 &
+                & ) &
+                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
+
+        else if (iz == 1) then
+
+            amx3(row,row) = ( &
+                & 1.0d0/dt  &
+                & +dporodta(iz)  &
+                & +(1d0-swex)*(-dna*tora(iz)*(-2d0)/(dz**2d0)) &
+                & + v(iz)/dz*(1.0d0-swex) &
+                & -(1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
+                & -(1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)&
+                & *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
+                & ) &
+                & *merge(1.0d0,nax(iz),nax(iz)<nath)
+
+            amx3(row,row+nsp3) = ( &
+                & +(1d0-swex)*(-dna*tora(iz)*(1d0)/(dz**2d0)) &
+                & ) &
+                & *nax(iz+1) &
+                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
+
+            ymx3(row) = ( &
+                & (nax(iz)-na(iz))/dt  &
+                & +dporodta(iz) *nax(iz) &
+                & +(1d0-swex)*(-dna*tora(iz)*(nax(iz+1)+nai-2d0*nax(iz))/(dz**2d0)) &
+                & +swex*(-dna*tora(iz)*(na(iz+1)+nai-2d0*na(iz))/(dz**2d0)) &
+                & + v(iz)*(nax(iz)-nai)/dz*(1.0d0-swex) &
+                & + v(iz)*(na(iz)-nai)/dz*swex &
+                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
+                & - frex*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)*1d-3 &
+                & ) &
+                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
+
+        else if (iz == nz) then
+
+            amx3(row,row) = ( &
+                & 1.0d0/dt  &
+                & +dporodta(iz)  &
+                & +(1d0-swex)*(-dna*tora(iz)*(-1d0)/(dz**2d0) &
+                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(1d0)/(dz**2d0)) &
+                & + v(iz)/dz*(1.0d0-swex) &
+                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(-4d0*3d0*nax(iz)**2d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
+                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz) &
+                & *(-4d0*nax(iz)**3d0*(-1d0)/(prox(iz)**2d0)/keqsil)*dprodna(iz) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
+                & ) &
+                & *merge(1.0d0,nax(iz),nax(iz)<nath)
+
+            amx3(row,row-nsp3) = ( &
+                & +(1d0-swex)*(-dna*tora(iz)*(1d0)/(dz**2d0) &
+                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(-1d0)/(dz**2d0)) &
+                & - (1.0d0-swex)*v(iz)/dz &
+                & ) &
+                & *nax(iz-1) &
+                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
+
+            ymx3(row) = ( &
+                & (nax(iz)-na(iz))/dt  &
+                & +dporodta(iz) *nax(iz) &
+                & +(1d0-swex)*(-dna*tora(iz)*(nax(iz-1)-1d0*nax(iz))/(dz**2d0) &
+                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(nax(iz)-nax(iz-1))/(dz**2d0)) &
+                & +swex*(-dna*tora(iz)*(na(iz-1)-1d0*na(iz))/(dz**2d0) &
+                & -dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(na(iz)-na(iz-1))/(dz**2d0)) &
+                & + (1.0d0-swex)*v(iz)*(nax(iz)-nax(iz-1))/dz &
+                & + swex*v(iz)*(na(iz)-na(iz-1))/dz &
+                & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3 &
+                & - frex*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0)*1d-3 &
+                & ) &
+                & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
+
+        end if 
+
+        amx3(row,row  - 1) = (     & 
+            & - (1.0d0-frex)*ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*1d0*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+            & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0)*1d-3  &
+            & ) &
+            & *msilx(iz) &
+            & *merge(0.0d0,1.0d0,nax(iz)<nath)   ! commented out (is this necessary?)
+        
+    end do  ! ==============================
+
+    ymx3=-1.0d0*ymx3
+
+    if (any(isnan(amx3)).or.any(isnan(ymx3))) then 
+        print*,'error in mtx'
+        print*,'any(isnan(amx3)),any(isnan(ymx3))'
+        print*,any(isnan(amx3)),any(isnan(ymx3))
+
+        if (any(isnan(ymx3))) then 
+            do ie = 1,nsp3*(nz)
+                if (isnan(ymx3(ie))) then 
+                    print*,'NAN is here...',ie
+                endif
+            enddo
+        endif
+
+
+        if (any(isnan(amx3))) then 
+            do ie = 1,nsp3*(nz)
+                do ie2 = 1,nsp3*(nz)
+                    if (isnan(amx3(ie,ie2))) then 
+                        print*,'NAN is here...',ie,ie2
+                    endif
+                enddo
+            enddo
+        endif
+
+        stop
+    endif
+
+    call DGESV(nsp3*(Nz),int(1),amx3,nsp3*(Nz),IPIV3,ymx3,nsp3*(Nz),INFO) 
+
+    if (any(isnan(ymx3))) then
+        print*,'error in soultion'
+    endif
+
+    do iz = 1, nz
+        row = 1 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'albite'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >10d0) then 
+            msilx(iz) = msilx(iz)*1.5d0
+        else if (ymx3(row) < -10d0) then 
+            msilx(iz) = msilx(iz)*0.50d0
+        else   
+            msilx(iz) = msilx(iz)*exp(ymx3(row))
+        endif
+
+    end do
+
+    do iz = 1, nz
+        row = 2 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'Na'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                nax(iz) = 0.1d0*nath
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >1d0) then 
+            nax(iz) = nax(iz)*1.5d0
+        else if (ymx3(row) < -1d0) then 
+            nax(iz) = nax(iz)*0.50d0
+        else
+            nax(iz) = nax(iz)*exp(ymx3(row))
+        endif
+    end do 
+
+    error = maxval(exp(abs(ymx3))) - 1.0d0
+
+    if (isnan(error).or.info/=0 .or. any(isnan(nax)) .or. any(isnan(msilx))) then 
+        error = 1d3
+        print *, '!! error is NaN; values are returned to those before iteration with reducing dt'
+        print*, 'isnan(error), info/=0,any(isnan(nax)),any(isnan(msilx)))'
+        print*,isnan(error),info/=0,any(isnan(nax)),any(isnan(msilx))
+        stop
+        nax = na
+        msilx = msil
+        prox = pro
+        iter = iter + 1
+        cycle
+    endif
+
+    prox(:) = 0.5d0* ( &
+        & -1d0*(nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        & + sqrt((nax(:)+2d0*ca(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i) &
+        & )
+
+    naeq = (keqsil *prox/4d0)**(1d0/3d0)
+    silsat = nax/naeq
+
+    co2 = kco2*pco2i
+    hco3 = k1*co2/prox
+    co3 = k2*hco3/prox
+    dic = co2 + hco3 + co3
+
+    do iz = 1, nz
+        row = 1 + nsp3*(iz-1)
+
+        if (msilx(iz) < 0.0d0) then
+            msilx(iz) = msilx(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+    end do
+
+    do iz = 1, nz
+        row = 2 + nsp3*(iz-1)
+
+        if (nax(iz) < 0.0d0) then
+            nax(iz) = nax(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+
+    end do 
+
+#ifdef display      
+    print *, 'ab error',error,info
+#endif      
+    iter = iter + 1
+
+    if (iter > 300) then
+        dt = dt/1.01d0
+        if (dt==0d0) then 
+            print *, 'dt==0d0; stop'
+            stop
+        endif 
+        flgback = .true.
+    end if
+
+
+enddo
+
+endsubroutine abweath_1D
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
