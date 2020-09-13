@@ -44,10 +44,15 @@ real(kind=8) :: redsldi = 2.8d0 ! wt%   x5
 ! real(kind=8) :: redsldi = 2.24d0 ! wt%  x4
 ! real(kind=8) :: redsldi = 3.36d0 ! wt%  x6
 
-real(kind=8) :: silwti = 30d0 ! wt%  **default
+! real(kind=8) :: silwti = 30d0 ! wt%  **default
 ! real(kind=8) :: silwti = 45d0 ! wt%  
 ! real(kind=8) :: silwti = 24d0 ! wt%
-! real(kind=8) :: silwti = 15d0 ! wt%
+real(kind=8) :: silwti = 1d-10 ! wt%
+
+! real(kind=8)::rainsil = 0d0 ! mol m-2 yr-1 ** default
+real(kind=8)::rainsil = 1d-1 ! 
+
+real(kind=8)::zsupp = 1d0
 
 real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz), deff(nz)
 real(kind=8) :: dgas = 6.09d2 ! m^2 yr^-1
@@ -100,7 +105,7 @@ real(kind=8) :: zca = 50d0   ! m depth of reaction front for calcite
 
 real(kind=8) koxa(nz), kdis(nz), koxs(nz),koxs2(nz)
 real(kind=8) koxai(nz), kdisi(nz), koxsi(nz),koxs2i(nz)
-real(kind=8) ksil(nz) 
+real(kind=8) ksil(nz), msilsupp(nz) 
 
 real(kind=8) kho, ucv
 real(kind=8) kco2,k1, keqsil, kw, k2, kcceq
@@ -299,7 +304,7 @@ mo2 = mo2*po2i/0.21d0     !! mo2 is assumed to proportional to po2i
 
 
 write(workdir,*) '../pyweath_output/'     
-write(base,*) '_w1e-5_msx5_msil%100_S1e5_z60_v4'     
+write(base,*) '_w1e-5_msx5_msil%100_S1e5_z60_v5'     
 #ifdef test 
 write(base,*) '_test'
 #endif     
@@ -476,6 +481,8 @@ elseif (tc==25d0) then
     keqsil = 3.080792422d0 - 0.5d0* 7.434511289d0   ! albite + H+ + 0.5H2O --> 0.5 kaolinite + Na+ + 2 SiO2(aq)  
     keqsil = 10.0d0**(keqsil)
 endif       
+
+msilsupp = rainsil*exp(-z/zsupp)/zsupp
 
 !       print *,keqsil;stop
 
@@ -982,7 +989,7 @@ if (it == 0 .and. iter == 0) nax(1:) = 1.0d2
 #endif      
 
 call abweath_1D( &
-    & nz,na,msil,hr,poro,z,dz,w,ksil,keqsil,msilth,dna,sat,dporodta,pro,msili  &! input
+    & nz,na,msil,hr,poro,z,dz,w,ksil,keqsil,msilth,dna,sat,dporodta,pro,msili,msilsupp  &! input
     & ,kco2,k1,k2,dt2,nath,tora,v,tol,nsp3,zrxn,it,cx,c2x,so4x,ca,pco2i,nai &! input
     & ,iter,error,dt,flgback &! inout
     & ,nax,prox,co2,hco3,co3,naeq,silsat,dic,msilx &! output
@@ -3235,7 +3242,7 @@ endsubroutine pyweath_1D_SO4
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine abweath_1D( &
-    & nz,na,msil,hr,poro,z,dz,w,ksil,keqsil,msilth,dna,sat,dporodta,pro,msili  &! input
+    & nz,na,msil,hr,poro,z,dz,w,ksil,keqsil,msilth,dna,sat,dporodta,pro,msili,msilsupp  &! input
     & ,kco2,k1,k2,dt2,nath,tora,v,tol,nsp3,zrxn,it,cx,c2x,so4x,ca,pco2i,nai &! input
     & ,iter,error,dt,flgback &! inout
     & ,nax,prox,co2,hco3,co3,naeq,silsat,dic,msilx &! output
@@ -3245,7 +3252,7 @@ implicit none
 
 integer,intent(in)::nz,nsp3
 real(kind=8),intent(in)::dz,w,msilth,dt2,tol,zrxn,dna,nath,pco2i,kco2,k1,k2,msili,nai,keqsil
-real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,dporodta,tora,v,na,msil,ksil,cx,c2x,so4x,ca,pro
+real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,dporodta,tora,v,na,msil,ksil,cx,c2x,so4x,ca,pro,msilsupp
 real(kind=8),dimension(nz),intent(out)::nax,prox,co2,hco3,co3,naeq,silsat,dic,msilx
 integer,intent(inout)::iter,it
 logical,intent(inout)::flgback
@@ -3309,7 +3316,28 @@ do while ((.not.isnan(error)).and.(error > tol))
 
         row = nsp3*(iz-1)+1
 
-        if (iz/=nz) then
+        if (iz==nz) then
+
+            amx3(row,row) = (1.0d0/dt  &
+                & + w/dz*(1.0d0-swex) &
+                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+                & ) &
+                & *merge(1.0d0,msilx(iz),msilx(iz)<msilth)
+
+            ymx3(row) = ( &
+                & (msilx(iz)-msil(iz))/dt &
+                & -w*(msili-msilx(iz))/dz*(1.0d0-swex) &
+                & -w*(msili-msil(iz))/dz*swex*dt2/dt*swpe &
+                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+                & + frex*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
+                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0) &
+                & -msilsupp(iz)  &
+                & ) &
+                & *merge(0.0d0,1d0,msilx(iz)<msilth)
+
+        else
 
             amx3(row,row) = (1.0d0/dt     &
                 & + w/dz *(1.0d0-swex)    &
@@ -3328,26 +3356,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
                 & + frex*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
                 & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0) &
-                & ) &
-                & *merge(0.0d0,1d0,msilx(iz)<msilth)
-
-        else if (iz==nz) then
-
-            amx3(row,row) = (1.0d0/dt  &
-                & + w/dz*(1.0d0-swex) &
-                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-                & ) &
-                & *merge(1.0d0,msilx(iz),msilx(iz)<msilth)
-
-            ymx3(row) = ( &
-                & (msilx(iz)-msil(iz))/dt &
-                & -w*(msili-msilx(iz))/dz*(1.0d0-swex) &
-                & -w*(msili-msil(iz))/dz*swex*dt2/dt*swpe &
-                & + (1.0d0-frex)*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
-                & + frex*ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msil(iz)*(1d0-4d0*na(iz)**3d0/pro(iz)/keqsil) &
-                & *merge(0d0,1d0,1d0-4d0*na(iz)**3d0/pro(iz)/keqsil < 0d0) &
+                & -msilsupp(iz)  &
                 & ) &
                 & *merge(0.0d0,1d0,msilx(iz)<msilth)
 
