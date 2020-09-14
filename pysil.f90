@@ -13,9 +13,9 @@ implicit none
 
 !-----------------------------
 
-real(kind=8) :: ztot = 60.0d0 ! m
+real(kind=8) :: ztot = 20.0d0 ! m
 real(kind=8) dz
-integer, parameter :: nz = 300 
+integer, parameter :: nz = 100 
 real(kind=8) z(nz)
 real(kind=8) ze(nz+1)
 real(kind=8) :: ph = 5.0d0
@@ -40,7 +40,11 @@ real(kind=8) :: nai = 0d0
 real(kind=8) :: mgi = 0d0
 real(kind=8) :: sii = 0d0
 
-real(kind=8) :: mvfo = 43.79d9 ! cm3/mol; molar volume of Fo; Robie et al. 1978
+real(kind=8) :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
+real(kind=8) :: mvab = 100.07d0 ! cm3/mol; molar volume of Ab; Robie et al. 1978
+
+real(kind=8) :: mwtfo = 140.694d0 ! g/mol; molar volume of Fo; Robie et al. 1978
+real(kind=8) :: mwtab = 262.225d0 ! g/mol; molar volume of Ab; Robie et al. 1978
 
 ! real(kind=8) :: redsldi = 0.56d0 ! wt%  **default 
 ! real(kind=8) :: redsldi = 1.12d0 ! wt%  x2
@@ -53,10 +57,13 @@ real(kind=8) :: silwti = 30d0 ! wt%  **default
 ! real(kind=8) :: silwti = 24d0 ! wt%
 ! real(kind=8) :: silwti = 1d-10 ! wt%
 
-! real(kind=8)::rainsil = 0d0 ! mol m-2 yr-1 ** default
-real(kind=8)::rainsil = 1d-1 !   corresponding to 14.0708 g fo m-2 yr-1
+real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
+! real(kind=8)::rainpowder = 0.5d2 !  g/m2/yr corresponding to 0.5 t/ha/yr (0.5x1e3x1e3/1e4)
 
-real(kind=8)::zsupp = 1d0
+real(kind=8)::rainfrc_fo = 0.12d0 ! rain wt fraction for Fo (Beering et al 2020)
+real(kind=8)::rainfrc_ab = 0.172d0 ! rain wt fraction for Ab; assuming 0.43 for La and 0.4 of wt of La is Ab (Beering et al 2020)
+
+real(kind=8)::zsupp = 0.3d0 !  e-folding decrease
 
 real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz), deff(nz)
 real(kind=8) :: dgas = 6.09d2 ! m^2 yr^-1
@@ -77,7 +84,7 @@ real(kind=8) :: dmg  = 0.017218079d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory
 real(kind=8) :: dsi  = 0.03689712d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory 
 
 real(kind=8), parameter :: w = 5.0d-5 ! m yr^-1, uplift rate ** default 
-! real(kind=8), parameter :: w = 1.0d-4 ! m yr^-1, uplift rate
+! real(kind=8), parameter :: w = 1.0d-5 ! m yr^-1, uplift rate
 
 real(kind=8), parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 ! real(kind=8), parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
@@ -96,9 +103,8 @@ real(kind=8) po2(nz), redsld(nz), redaq(nz), ms(nz), c(nz)
 real(kind=8) po2x(nz), msx(nz), cx(nz)
 real(kind=8) msi
 real(kind=8) msili
-real(kind=8) mfoi
-real(kind=8) msil(nz),msilx(nz)
-real(kind=8) mfo(nz),mfox(nz)
+real(kind=8) mfoi,mabi
+real(kind=8),dimension(nz)::msil,msilx,mfo,mfox,mab,mabx
 
 real(kind=8) c2(nz), c2x(nz),ctmp, po2tmp
 real(kind=8) so4(nz), so4x(nz)
@@ -116,9 +122,10 @@ real(kind=8) koxa(nz), kdis(nz), koxs(nz),koxs2(nz)
 real(kind=8) koxai(nz), kdisi(nz), koxsi(nz),koxs2i(nz)
 real(kind=8) ksil(nz), msilsupp(nz)
 real(kind=8) kfo(nz), mfosupp(nz), omega_fo(nz) 
+real(kind=8) kab(nz), mabsupp(nz), omega_ab(nz) 
 
 real(kind=8) kho, ucv
-real(kind=8) kco2,k1, keqsil, kw, k2, kcceq, keqfo
+real(kind=8) kco2,k1, keqsil, kw, k2, kcceq, keqfo, keqab, keqgb
 
 integer iz, ie, it, ie2
 
@@ -180,6 +187,7 @@ real(kind=8) :: sith = 1.0d-20
 real(kind=8) :: msth = 1.0d-300
 real(kind=8) :: msilth = 1.0d-300
 real(kind=8) :: mfoth = 1.0d-300
+real(kind=8) :: mabth = 1.0d-300
 
 real(kind=8) prepo2
 real(kind=8) :: stoxs = 15.0d0/4.0d0  ! 15/4 py => Fe-oxide + sulfate; 7/2 py => Fe++ + sulfate
@@ -213,10 +221,10 @@ real(kind=8) dummy, zdum(nz)
 
 integer,parameter :: nflx = 6
 integer  iflx
-real(kind=8),dimension(nflx,nz)::flx_fo,flx_mg,flx_si 
+real(kind=8),dimension(nflx,nz)::flx_fo,flx_mg,flx_si,flx_ab,flx_na
 
-real(kind=8) :: maxdt = 10d0
-! real(kind=8) :: maxdt = 0.2d0 ! for basalt exp?
+! real(kind=8) :: maxdt = 10d0
+real(kind=8) :: maxdt = 0.2d0 ! for basalt exp?
 
 integer izdum
 ! logical :: pre_calc = .false.
@@ -249,7 +257,8 @@ integer :: oxj
 real(kind=8), parameter:: infinity = huge(0d0)
 !-------------------------
 
-! rectime =rectime/1d4
+! rectime =rectime/1d4 
+rectime =rectime/1d3 ! better with basalt exp?
 ! rectime =rectime/2d0
 ! rectime=rectime*3d0 
 
@@ -322,7 +331,7 @@ mo2 = mo2*po2i/0.21d0     !! mo2 is assumed to proportional to po2i
 
 
 write(workdir,*) '../pyweath_output/'     
-write(base,*) '_basalt_test'     
+write(base,*) '_basalt_test_cpl_high_rain'     
 #ifdef test 
 write(base,*) '_test'
 #endif     
@@ -358,6 +367,10 @@ open(58, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-re
 open(59, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(siflx).txt',  &
     & status='unknown', action = 'write')
 open(60, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(foflx).txt',  &
+    & status='unknown', action = 'write')
+open(61, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(naflx2).txt',  &
+    & status='unknown', action = 'write')
+open(62, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(abflx).txt',  &
     & status='unknown', action = 'write')
 
 open(71, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(o2flx-alltime).txt',  &
@@ -500,6 +513,9 @@ ksil = 1.31d-9*1d4  ! mol/m2/yr  ! from Li et al., 2014
 keqsil = 3.412182823d0 - 0.5d0* 8.310989613d0   ! albite + H+ + 0.5H2O --> 0.5 kaolinite + Na+ + 2 SiO2(aq)  
 keqsil = 10.0d0**(keqsil)
 
+kab = ksil
+keqab = keqsil
+
 kfo = -10.64d0  ! mol/m2/sec ! from Beering et al 2020 (only neutral weathering)
 kfo = 10d0**(kfo)*60d0*60d0*24d0*365d0 ! mol/m2/yr 
 ! kfo = ksil
@@ -518,7 +534,6 @@ elseif (tc==25d0) then
     keqsil = 10.0d0**(keqsil)
 endif       
 
-msilsupp = rainsil*exp(-z/zsupp)/zsupp
 
 !       print *,keqsil;stop
 
@@ -538,6 +553,9 @@ msili = silwti*1d-2/262.2d0*2.7d0*(1.0d0-poroi)*1d6
 ! 262.2 g mol^-1 and 100.07 cm^3 mol^-1 (Robie et al., 1967) for albite and 2.7 g cm^-3 for solid density
 
 msil = msili
+
+mabi = msili
+mab = mabi
 
 mfoi = 1d-10
 
@@ -809,6 +827,8 @@ six = si
 mgx = mg
 mfox = mfo
 
+mabx = mab
+
 prox = pro  
 
 porox = poro
@@ -818,7 +838,9 @@ iter=0
 
 
 
-mfosupp = rainsil*exp(-z/zsupp)/zsupp
+mfosupp = rainpowder*rainfrc_fo/mwtfo*exp(-z/zsupp)/zsupp 
+mabsupp = rainpowder*rainfrc_ab/mwtab*exp(-z/zsupp)/zsupp 
+
 msilsupp = 0d0
 
 
@@ -897,6 +919,8 @@ if (pre_calc) then
     enddo
 
 
+    ! pause
+
     if (swoxa == 1d0) then 
 
         do iz = 1, nz
@@ -919,6 +943,9 @@ if (pre_calc) then
                     & ) &
                     & )
             end if
+        enddo
+
+        do iz = 1, nz
 
             if (cx(iz)>=cth) cycle
 
@@ -942,7 +969,9 @@ if (pre_calc) then
                     & ) &
                     & )
             endif
-
+        enddo
+        
+        do iz = 1, nz
             if (so4x(iz)>=so4th) cycle
 
             if (iz/=nz) ctmp = so4(iz+1)
@@ -964,71 +993,78 @@ if (pre_calc) then
                     & ) &
                     & )
             endif 
+        enddo
+    endif 
 
-            if (nax(iz)>=nath) cycle
+    do iz = 1, nz
 
-            if (iz/=nz) ctmp = na(iz+1)
-            if (iz==nz) ctmp = na(iz)
-            if (iz/=1) then 
-                nax(iz) = max(0.0d0, &
-                    & na(iz) +dt*(-v(iz)*(na(iz)-na(iz-1))/dz+dna*tora(iz)*(ctmp+na(iz-1)-2d0*na(iz))/(dz**2d0) &
-                    & +dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
-                    & *(na(iz)-na(iz-1))/(dz**2d0) &
-                    & +ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*1d-3 &
-                    & ) &
-                    & )
-            else 
-                nax(iz) = max(0.0d0, &
-                    & na(iz) + dt*(-v(iz)*(na(iz)-nai)/dz+dna*tora(iz)*(ctmp+nai-2d0*na(iz))/(dz**2d0) &
-                    & +ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*1d-3 &
-                    & ) &
-                    & )
-            endif 
+        if (nax(iz)>=nath) cycle
 
-            if (mgx(iz)>=mgth) cycle
-
-            if (iz/=nz) ctmp = mg(iz+1)
-            if (iz==nz) ctmp = mg(iz)
-            if (iz/=1) then 
-                mgx(iz) = max(0.0d0, &
-                    & mg(iz) +dt*(-v(iz)*(mg(iz)-mg(iz-1))/dz+dmg*tora(iz)*(ctmp+mg(iz-1)-2d0*mg(iz))/(dz**2d0) &
-                    & +dmg/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
-                    & *(mg(iz)-mg(iz-1))/(dz**2d0) &
-                    & +2d0*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*1d-3 &
-                    & ) &
-                    & )
-            else 
-                mgx(iz) = max(0.0d0, &
-                    & mg(iz) + dt*(-v(iz)*(mg(iz)-mgi)/dz+dmg*tora(iz)*(ctmp+mgi-2d0*mg(iz))/(dz**2d0) &
-                    & +2d0*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*1d-3 &
-                    & ) &
-                    & )
-            endif 
-
-            if (six(iz)>=sith) cycle
-
-            if (iz/=nz) ctmp = si(iz+1)
-            if (iz==nz) ctmp = si(iz)
-            if (iz/=1) then 
-                six(iz) = max(0.0d0, &
-                    & si(iz) +dt*(-v(iz)*(si(iz)-si(iz-1))/dz+dsi*tora(iz)*(ctmp+si(iz-1)-2d0*si(iz))/(dz**2d0) &
-                    & +dsi/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
-                    & *(si(iz)-si(iz-1))/(dz**2d0) &
-                    & +kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*1d-3 &
-                    & ) &
-                    & )
-            else 
-                six(iz) = max(0.0d0, &
-                    & si(iz) + dt*(-v(iz)*(si(iz)-sii)/dz+dsi*tora(iz)*(ctmp+sii-2d0*si(iz))/(dz**2d0) &
-                    & +kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*1d-3 &
-                    & ) &
-                    & )
-            endif 
+        if (iz/=nz) ctmp = na(iz+1)
+        if (iz==nz) ctmp = na(iz)
+        if (iz/=1) then 
+            nax(iz) = max(0.0d0, &
+                & na(iz) +dt*(-v(iz)*(na(iz)-na(iz-1))/dz+dna*tora(iz)*(ctmp+na(iz-1)-2d0*na(iz))/(dz**2d0) &
+                & +dna/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                & *(na(iz)-na(iz-1))/(dz**2d0) &
+                & +ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*1d-3 &
+                & ) &
+                & )
+        else 
+            nax(iz) = max(0.0d0, &
+                & na(iz) + dt*(-v(iz)*(na(iz)-nai)/dz+dna*tora(iz)*(ctmp+nai-2d0*na(iz))/(dz**2d0) &
+                & +ksil(iz)/sat(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*1d-3 &
+                & ) &
+                & )
+        endif 
+    enddo
             
-        end do
+    do iz = 1, nz
 
-    end if 
+        if (mgx(iz)>=mgth) cycle
 
+        if (iz/=nz) ctmp = mg(iz+1)
+        if (iz==nz) ctmp = mg(iz)
+        if (iz/=1) then 
+            mgx(iz) = max(0.0d0, &
+                & mg(iz) +dt*(-v(iz)*(mg(iz)-mg(iz-1))/dz+dmg*tora(iz)*(ctmp+mg(iz-1)-2d0*mg(iz))/(dz**2d0) &
+                & +dmg/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                & *(mg(iz)-mg(iz-1))/(dz**2d0) &
+                & +2d0*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*1d-3 &
+                & ) &
+                & )
+        else 
+            mgx(iz) = max(0.0d0, &
+                & mg(iz) + dt*(-v(iz)*(mg(iz)-mgi)/dz+dmg*tora(iz)*(ctmp+mgi-2d0*mg(iz))/(dz**2d0) &
+                & +2d0*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*1d-3 &
+                & ) &
+                & )
+        endif 
+    enddo
+            
+            
+    do iz = 1, nz
+        if (six(iz)>=sith) cycle
+
+        if (iz/=nz) ctmp = si(iz+1)
+        if (iz==nz) ctmp = si(iz)
+        if (iz/=1) then 
+            six(iz) = max(0.0d0, &
+                & si(iz) +dt*(-v(iz)*(si(iz)-si(iz-1))/dz+dsi*tora(iz)*(ctmp+si(iz-1)-2d0*si(iz))/(dz**2d0) &
+                & +dsi/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                & *(si(iz)-si(iz-1))/(dz**2d0) &
+                & +kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*1d-3 &
+                & ) &
+                & )
+        else 
+            six(iz) = max(0.0d0, &
+                & si(iz) + dt*(-v(iz)*(si(iz)-sii)/dz+dsi*tora(iz)*(ctmp+sii-2d0*si(iz))/(dz**2d0) &
+                & +kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*1d-3 &
+                & ) &
+                & )
+        endif 
+            
+    end do
 
     if (any(isnan(po2x)).or.any(isnan(cx)).or.any(isnan(c2x))) then 
         print*, 'error in precalc'
@@ -1090,18 +1126,25 @@ endif
 
 #endif      
 
-call abweath_1D( &
-    & nz,na,msil,hr,poro,z,dz,w,ksil,keqsil,msilth,dna,sat,dporodta,pro,msili,msilsupp  &! input
-    & ,kco2,k1,k2,dt2,nath,tora,v,tol,nsp3,zrxn,it,cx,c2x,so4x,ca,pco2i,nai,mgx &! input
-    & ,iter,error,dt,flgback &! inout
-    & ,nax,prox,co2,hco3,co3,naeq,silsat,dic,msilx &! output
-    & )
+! call abweath_1D( &
+    ! & nz,na,msil,hr,poro,z,dz,w,ksil,keqsil,msilth,dna,sat,dporodta,pro,msili,msilsupp  &! input
+    ! & ,kco2,k1,k2,dt2,nath,tora,v,tol,nsp3,zrxn,it,cx,c2x,so4x,ca,pco2i,nai,mgx &! input
+    ! & ,iter,error,dt,flgback &! inout
+    ! & ,nax,prox,co2,hco3,co3,naeq,silsat,dic,msilx &! output
+    ! & )
 
-call basaltweath_1D( &
-    & nz,mfo,mg,si,hr,poro,z,dz,w,kfo,keqfo,mfoth,dmg,dsi,sat,dporodta,pro,mfoi,mfosupp  &! input
-    & ,kco2,k1,k2,mgth,sith,tora,v,tol,zrxn,it,nax,cx,c2x,so4x,ca,pco2i,mgi,sii,mvfo,nflx &! input
+! call basaltweath_1D( &
+    ! & nz,mfo,mg,si,hr,poro,z,dz,w,kfo,keqfo,mfoth,dmg,dsi,sat,dporodta,pro,mfoi,mfosupp  &! input
+    ! & ,kco2,k1,k2,mgth,sith,tora,v,tol,zrxn,it,nax,cx,c2x,so4x,ca,pco2i,mgi,sii,mvfo,nflx &! input
+    ! & ,iter,error,dt,flgback &! inout
+    ! & ,mgx,six,prox,co2,hco3,co3,dic,mfox,omega_fo,flx_fo,flx_mg,flx_si &! output
+    ! & )
+    
+call silicate_dis_1D( &
+    & nz,mfo,mab,na,mg,si,hr,poro,z,dz,w,kfo,kab,keqfo,keqab,mfoth,mabth,dmg,dsi,dna,sat,dporodta,pro,mfoi,mabi,mfosupp,mabsupp  &! input
+    & ,kco2,k1,k2,mgth,sith,nath,tora,v,tol,zrxn,it,cx,c2x,so4x,ca,pco2i,mgi,sii,nai,mvfo,mvab,nflx &! input
     & ,iter,error,dt,flgback &! inout
-    & ,mgx,six,prox,co2,hco3,co3,dic,mfox,omega_fo,flx_fo,flx_mg,flx_si &! output
+    & ,mgx,six,nax,prox,co2,hco3,co3,dic,mfox,mabx,omega_fo,omega_ab,flx_fo,flx_mg,flx_si,flx_ab,flx_na &! output
     & )
 
 
@@ -1161,24 +1204,27 @@ enddo
 #ifdef display
 print *
 print *,'-=-=-=-=-=-= o2 & pyrite -=-=-=-=-=-=-='
-print *,'o2:', (po2x(iz),iz=1,nz, spc)
-print *,'fe2:', (cx(iz),iz=1,nz, spc)
-print *,'py:', (msx(iz),iz=1,nz, spc)
-print *, 'fe3:', (c2x(iz),iz=1,nz, spc)
-print *, 'so4:', (so4x(iz),iz=1,nz, spc)
+print *,'o2:', (po2x(iz),iz=1,nz, nz/5)
+print *,'fe2:', (cx(iz),iz=1,nz, nz/5)
+print *,'py:', (msx(iz),iz=1,nz, nz/5)
+print *, 'fe3:', (c2x(iz),iz=1,nz, nz/5)
+print *, 'so4:', (so4x(iz),iz=1,nz, nz/5)
 print *
 print *,'-=-=-=-=-=-= Na & albite -=-=-=-=-=-=-='
-print *, 'na:', (nax(iz),iz=1,nz, spc)
-print *, 'sil:', (msilx(iz),iz=1,nz, spc)
+print *, 'na:', (nax(iz),iz=1,nz, nz/5)
+print *, 'sil:', (msilx(iz),iz=1,nz, nz/5)
 print *
-print *,'-=-=-=-=-=-= Mg, Si & forsterite -=-=-=-=-=-=-='
-print *, 'mg:', (mgx(iz),iz=1,nz, spc)
-print *, 'si:', (six(iz),iz=1,nz, spc)
-print *, 'fo:', (mfox(iz),iz=1,nz, spc)
-print *, 'omega_fo:', (omega_fo(iz),iz=1,nz, spc)
+print *,'-=-=-=-=-=-= Mg, Si, Na, Fo, Ab -=-=-=-=-=-=-='
+print *, 'mg:', (mgx(iz),iz=1,nz, nz/5)
+print *, 'si:', (six(iz),iz=1,nz, nz/5)
+print *, 'si:', (nax(iz),iz=1,nz, nz/5)
+print *, 'fo:', (mfox(iz),iz=1,nz, nz/5)
+print *, 'ab:', (mabx(iz),iz=1,nz, nz/5)
+print *, 'omega_fo:', (omega_fo(iz),iz=1,nz, nz/5)
+print *, 'omega_ab:', (omega_ab(iz),iz=1,nz, nz/5)
 print *
 print *,'-=-=-=-=-=-= pH -=-=-=-=-=-=-='
-print *, 'ph:', (-log10(prox(iz)),iz=1,nz, spc)
+print *, 'ph:', (-log10(prox(iz)),iz=1,nz, nz/5)
 print *
 #endif 
 
@@ -1891,6 +1937,7 @@ msil = msilx
 mg = mgx
 si = six
 mfo = mfox
+mab = mabx
 pro = prox
 
 if (time>=rectime(irec+1)) then
@@ -1942,12 +1989,16 @@ if (time>=rectime(irec+1)) then
     do iflx = 1,nflx
         flx_mg(iflx,:) = flx_mg(iflx,:)*dz*poro(:)*sat(:)*1d3
         flx_si(iflx,:) = flx_si(iflx,:)*dz*poro(:)*sat(:)*1d3
+        flx_na(iflx,:) = flx_na(iflx,:)*dz*poro(:)*sat(:)*1d3
         flx_fo(iflx,:) = flx_fo(iflx,:)*dz
+        flx_ab(iflx,:) = flx_ab(iflx,:)*dz
     enddo 
     
     write(58,*) time,(sum(flx_mg(iflx,:)),iflx=1,nflx)
     write(59,*) time,(sum(flx_si(iflx,:)),iflx=1,nflx)
     write(60,*) time,(sum(flx_fo(iflx,:)),iflx=1,nflx)
+    write(61,*) time,(sum(flx_na(iflx,:)),iflx=1,nflx)
+    write(62,*) time,(sum(flx_ab(iflx,:)),iflx=1,nflx)
 
     write(95,*) time, o2in, o2out, po2i,msi,zrxn, zsat
 
@@ -4369,6 +4420,771 @@ do while ((.not.isnan(error)).and.(error > tol))
 enddo
 
 endsubroutine basaltweath_1D
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine silicate_dis_1D( &
+    & nz,mfo,mab,na,mg,si,hr,poro,z,dz,w,kfo,kab,keqfo,keqab,mfoth,mabth,dmg,dsi,dna,sat,dporodta,pro,mfoi,mabi,mfosupp,mabsupp  &! input
+    & ,kco2,k1,k2,mgth,sith,nath,tora,v,tol,zrxn,it,cx,c2x,so4x,ca,pco2i,mgi,sii,nai,mvfo,mvab,nflx &! input
+    & ,iter,error,dt,flgback &! inout
+    & ,mgx,six,nax,prox,co2,hco3,co3,dic,mfox,mabx,omega_fo,omega_ab,flx_fo,flx_mg,flx_si,flx_ab,flx_na &! output
+    & )
+    
+implicit none 
+
+integer,intent(in)::nz,nflx
+real(kind=8),intent(in)::dz,w,mfoth,tol,zrxn,dmg,dsi,mgth,sith,pco2i,kco2,k1,k2,mfoi,mgi,sii,keqfo,mvfo,keqab,mabth,dna,mabi,nath &
+    & ,nai,mvab
+real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,dporodta,tora,v,mfo,kfo,cx,c2x,so4x,ca,pro,mfosupp,mg,si,mab,na,kab,mabsupp
+real(kind=8),dimension(nz),intent(out)::mgx,six,prox,co2,hco3,co3,dic,mfox,omega_fo,nax,mabx,omega_ab
+real(kind=8),dimension(nflx,nz),intent(out)::flx_fo,flx_mg,flx_si,flx_ab,flx_na
+integer,intent(inout)::iter,it
+logical,intent(inout)::flgback
+real(kind=8),intent(inout)::error,dt
+
+integer,parameter::nsp3 = 5
+integer iz,row,nmx,ie,ie2,isp
+integer::itflx,iadv,idif,irxn_fo,irain,ires
+data itflx,iadv,idif,irxn_fo,irain,ires/1,2,3,4,5,6/
+
+real(kind=8),dimension(nz)::dprodna,dprodmg,domega_fo_dmg,domega_fo_dsi,domega_ab_dsi,domega_ab_dna
+real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp,st_fo,st_ab &
+    & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp
+
+real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
+integer ipiv3(nsp3*nz)
+integer info
+
+external DGESV
+
+! print *, mgx
+! print *, six
+! print *, mfosupp
+! stop
+
+error = 1d4
+iter = 0
+
+if (it ==0) then 
+    prox(:) = 0.5d0* (  &
+        & -1d0*(2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        & + sqrt((2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i) &
+        & )
+else 
+
+    prox(:) = 0.5d0* ( &
+        & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i) &
+        & )
+
+endif
+
+do while ((.not.isnan(error)).and.(error > tol))
+
+    amx3=0.0d0
+    ymx3=0.0d0 
+    
+    flx_fo = 0d0
+    flx_mg = 0d0
+    flx_si = 0d0
+    flx_ab = 0d0
+    flx_na = 0d0
+
+    prox(:) = 0.5d0* ( &
+        & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i) &
+        & )
+
+    dprodna(:) = 0.5d0* ( &
+        &  -1d0  &
+        & + 0.5d0/sqrt( &
+        & (nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i)*2d0 &
+        & *(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) &
+        & )
+
+    dprodmg(:) = 0.5d0* ( &
+        &  -2d0  &
+        & + 0.5d0/sqrt( &
+        & (nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i)*2d0 &
+        & *(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))*2d0 &
+        & )
+    
+    ! Fo + 4H+ = 2Mg2+ + SiO2(aq) + 2H2O 
+    omega_fo(:) = mgx(:)**2d0*six(:)/(prox(:)**4d0)/keqfo
+    domega_fo_dmg(:) = 2d0*mgx(:)*six(:)/(prox(:)**4d0)/keqfo+ 2d0*mgx(:)*six(:)*(-4d0)/(prox(:)**5d0)*dprodmg(:)/keqfo
+    domega_fo_dsi(:) = mgx(:)**2d0/(prox(:)**4d0)/keqfo
+    
+    ! omega_fo(:) = mg(:)**2d0*si(:)/(pro(:)**4d0)/keqfo
+    ! domega_fo_dmg(:) = 0d0
+    ! domega_fo_dsi(:) = 0d0
+    
+    ! print *,omega_fo
+    ! print *,domega_fo_dmg
+    ! print *,domega_fo_dsi
+    ! stop
+    
+    ! Ab + H+ + 0.5H2O --> 0.5 kaolinite + Na+ + 2 SiO2(aq)
+    omega_ab(:) = nax(:)*six(:)**2d0/prox(:)/keqab
+    domega_ab_dna(:) = six(:)**2d0/prox(:)/keqab + nax(:)*six(:)**2d0*(-1d0)/(prox(:)**2d0)/keqab*dprodna(:)
+    domega_ab_dsi(:) = nax(:)*(2d0)*six(:)/prox(:)/keqab
+
+    do iz = 1, nz  !================================
+        
+        do isp = 1, 2
+        
+            row = nsp3*(iz-1)+isp
+            
+            if (isp==1) then 
+                k_tmp = kfo(iz)
+                mv_tmp = mvfo
+                omega_tmp = omega_fo(iz)
+                m_tmp = mfox(iz)
+                mth_tmp = mfoth 
+                mi_tmp = mfoi
+                mp_tmp = mfox(min(nz,iz+1))
+                msupp_tmp = mfosupp(iz)
+                mprev_tmp = mfo(iz)
+            elseif (isp==2)then 
+                k_tmp = kab(iz)
+                mv_tmp = mvab
+                omega_tmp = omega_ab(iz)
+                m_tmp = mabx(iz)
+                mth_tmp = mabth 
+                mi_tmp = mabi
+                mp_tmp = mabx(min(nz,iz+1))
+                msupp_tmp = mabsupp(iz)
+                mprev_tmp = mab(iz)
+            endif 
+
+            if (iz==nz) then
+
+                amx3(row,row) = (1.0d0/dt  &
+                    & + w/dz  &
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & ) &
+                    & *merge(1.0d0,m_tmp,m_tmp<mth_tmp)
+
+                ymx3(row) = ( &
+                    & (m_tmp-mprev_tmp)/dt &
+                    & -w*(mi_tmp-m_tmp)/dz &
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & -msupp_tmp  &
+                    & ) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                
+                if (isp==1) then 
+                    flx_fo(iadv,iz) = (&
+                        & -w*(mi_tmp-m_tmp)/dz &
+                        & )
+                elseif (isp==2) then 
+                    flx_ab(iadv,iz) = (&
+                        & -w*(mi_tmp-m_tmp)/dz &
+                        & )
+                endif 
+
+            else
+
+                amx3(row,row) = (1.0d0/dt     &
+                    & + w/dz    &
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & ) &
+                    & * merge(1.0d0,m_tmp,m_tmp<mth_tmp)
+
+                amx3(row,row+nsp3) = (-w/dz) *merge(1.0d0,mp_tmp,m_tmp<mth_tmp)
+
+                ymx3(row) = ( &
+                    & (m_tmp-mprev_tmp)/dt &
+                    & -w*(mp_tmp-m_tmp)/dz  &
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & -msupp_tmp  &
+                    & ) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                
+                if (isp==1) then 
+                    flx_fo(iadv,iz) = (&
+                        & -w*(mp_tmp-m_tmp)/dz  &
+                        & )
+                elseif (isp==2) then 
+                    flx_ab(iadv,iz) = (&
+                        & -w*(mp_tmp-m_tmp)/dz  &
+                        & )
+                endif 
+
+            end if 
+            
+            if (isp==1) then 
+                amx3(row,row + 2 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_fo_dmg(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+
+                amx3(row,row + 3 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_fo_dsi(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                flx_fo(itflx,iz) = (&
+                    & (m_tmp-mprev_tmp)/dt &
+                    & )
+                    
+                flx_fo(irxn_fo,iz) = (&
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & )
+                    
+                flx_fo(irain,iz) = (&
+                    & -msupp_tmp  &
+                    & )
+                flx_fo(ires,iz) = sum(flx_fo(:,iz))
+                
+            elseif (isp==2) then 
+                amx3(row,row + 3 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ab_dna(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+
+                amx3(row,row + 2 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ab_dsi(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                flx_ab(itflx,iz) = (&
+                    & (m_tmp-mprev_tmp)/dt &
+                    & )
+                    
+                flx_ab(irxn_fo,iz) = (&
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp < 0d0) &
+                    & )
+                    
+                flx_ab(irain,iz) = (&
+                    & -msupp_tmp  &
+                    & )
+                flx_ab(ires,iz) = sum(flx_ab(:,iz))
+            endif 
+        enddo 
+    end do  !================================
+
+    do iz = 1, nz
+        
+        do isp = 1, 3
+
+            row = nsp3*(iz-1)+2 + isp
+            
+            if (isp==1) then ! mg 
+                d_tmp = dmg
+                caq_tmp = mgx(iz)
+                caq_tmp_prev = mg(iz)
+                caq_tmp_p = mgx(min(nz,iz+1))
+                caq_tmp_n = mgx(max(1,iz-1))
+                caqth_tmp = mgth
+                caqi_tmp = mgi
+                st_fo = 2d0
+                st_ab = 0d0
+                rxn_tmp = st_fo*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(1d0-omega_fo(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)*1d-3 
+                drxndisp_tmp = st_fo*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dmg(iz)) & 
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)*1d-3
+            elseif (isp==2) then  ! si
+                d_tmp = dsi
+                caq_tmp = six(iz)
+                caq_tmp_prev = si(iz)
+                caq_tmp_p = six(min(nz,iz+1))
+                caq_tmp_n = six(max(1,iz-1))
+                caqth_tmp = sith
+                caqi_tmp = sii
+                st_fo = 1d0
+                st_ab = 2d0
+                rxn_tmp = st_fo*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(1d0-omega_fo(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)*1d-3 &
+                    & + st_ab*kab(iz)/sat(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)*1d-3 
+                drxndisp_tmp = st_fo*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dsi(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)*1d-3 &
+                    & + st_ab*kab(iz)/sat(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dsi(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)*1d-3 
+            elseif (isp==3) then  ! na
+                d_tmp = dna
+                caq_tmp = nax(iz)
+                caq_tmp_prev = na(iz)
+                caq_tmp_p = nax(min(nz,iz+1))
+                caq_tmp_n = nax(max(1,iz-1))
+                caqth_tmp = nath
+                caqi_tmp = nai
+                st_fo = 0d0
+                st_ab = 1d0
+                rxn_tmp = st_ab*kab(iz)/sat(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)*1d-3 
+                drxndisp_tmp = st_ab*kab(iz)/sat(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dna(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)*1d-3 
+            endif 
+
+            if (.not.((iz == 1).or.(iz==nz))) then
+
+                amx3(row,row) = ( &
+                    & 1.0d0/dt  &
+                    & +dporodta(iz)  &
+                    & +(-d_tmp*tora(iz)*(-2d0)/(dz**2d0) &
+                    & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(1d0)/(dz**2d0)) &
+                    & + v(iz)/dz  &
+                    & -drxndisp_tmp &
+                    & ) &
+                    & *merge(1.0d0,caq_tmp,caq_tmp<caqth_tmp)
+
+                amx3(row,row-nsp3) = ( &
+                    & +(-d_tmp*tora(iz)*(1d0)/(dz**2d0) &
+                    & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(-1d0)/(dz**2d0)) &
+                    & - v(iz)/dz &
+                    & ) &
+                    & *caq_tmp_n &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+
+                amx3(row,row+nsp3) = ( &
+                    & +(-d_tmp*tora(iz)*(1d0)/(dz**2d0)) &
+                    & ) &
+                    & *caq_tmp_p &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+
+                ymx3(row) = ( &
+                    & (caq_tmp-caq_tmp_prev)/dt  &
+                    & +dporodta(iz) *caq_tmp &
+                    & +(-d_tmp*tora(iz)*(caq_tmp_p+caq_tmp_n-2d0*caq_tmp)/(dz**2d0) &
+                    & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                    & *(caq_tmp-caq_tmp_n)/(dz**2d0)) &
+                    & + v(iz)*(caq_tmp-caq_tmp_n)/dz &
+                    & - rxn_tmp &
+                    & ) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                
+                if (isp==1) then 
+                    flx_mg(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caq_tmp_n)/dz &
+                        & ) 
+                    flx_mg(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_p+caq_tmp_n-2d0*caq_tmp)/(dz**2d0) &
+                        & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                        & *(caq_tmp-caq_tmp_n)/(dz**2d0)) &
+                        & ) 
+                elseif (isp==2) then 
+                    flx_si(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caq_tmp_n)/dz &
+                        & ) 
+                    flx_si(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_p+caq_tmp_n-2d0*caq_tmp)/(dz**2d0) &
+                        & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                        & *(caq_tmp-caq_tmp_n)/(dz**2d0)) &
+                        & ) 
+                elseif (isp==3) then 
+                    flx_na(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caq_tmp_n)/dz &
+                        & ) 
+                    flx_na(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_p+caq_tmp_n-2d0*caq_tmp)/(dz**2d0) &
+                        & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                        & *(caq_tmp-caq_tmp_n)/(dz**2d0)) &
+                        & ) 
+                endif 
+
+            else if (iz == 1) then
+
+                amx3(row,row) = ( &
+                    & 1.0d0/dt  &
+                    & +dporodta(iz)  &
+                    & +(-d_tmp*tora(iz)*(-2d0)/(dz**2d0)) &
+                    & + v(iz)/dz &
+                    & - drxndisp_tmp &
+                    & ) &
+                    & *merge(1.0d0,caq_tmp,caq_tmp<caqth_tmp)
+
+                amx3(row,row+nsp3) = ( &
+                    & +(-d_tmp*tora(iz)*(1d0)/(dz**2d0)) &
+                    & ) &
+                    & *caq_tmp_p &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+
+                ymx3(row) = ( &
+                    & (caq_tmp-caq_tmp_prev)/dt  &
+                    & +dporodta(iz) *caq_tmp &
+                    & +(-d_tmp*tora(iz)*(caq_tmp_p+caqi_tmp-2d0*caq_tmp)/(dz**2d0)) &
+                    & + v(iz)*(caq_tmp-caqi_tmp)/dz &
+                    & - rxn_tmp &
+                    & ) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                
+                if (isp==1) then 
+                    flx_mg(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caqi_tmp)/dz &
+                        & ) 
+                    flx_mg(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_p+caqi_tmp-2d0*caq_tmp)/(dz**2d0)) &
+                        & ) 
+                elseif (isp==2) then 
+                    flx_si(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caqi_tmp)/dz &
+                        & ) 
+                    flx_si(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_p+caqi_tmp-2d0*caq_tmp)/(dz**2d0)) &
+                        & ) 
+                elseif (isp==3) then 
+                    flx_na(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caqi_tmp)/dz &
+                        & ) 
+                    flx_na(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_p+caqi_tmp-2d0*caq_tmp)/(dz**2d0)) &
+                        & ) 
+                endif 
+
+            else if (iz == nz) then
+
+                amx3(row,row) = ( &
+                    & 1.0d0/dt  &
+                    & +dporodta(iz)  &
+                    & +(-d_tmp*tora(iz)*(-1d0)/(dz**2d0) &
+                    & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(1d0)/(dz**2d0)) &
+                    & + v(iz)/dz &
+                    & - drxndisp_tmp &
+                    & ) &
+                    & *merge(1.0d0,caq_tmp,caq_tmp<caqth_tmp)
+
+                amx3(row,row-nsp3) = ( &
+                    & +(-d_tmp*tora(iz)*(1d0)/(dz**2d0) &
+                    & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1))*(-1d0)/(dz**2d0)) &
+                    & - v(iz)/dz &
+                    & ) &
+                    & *caq_tmp_n &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+
+                ymx3(row) = ( &
+                    & (caq_tmp-caq_tmp_prev)/dt  &
+                    & +dporodta(iz) *caq_tmp &
+                    & +(-d_tmp*tora(iz)*(caq_tmp_n-1d0*caq_tmp)/(dz**2d0) &
+                    & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                    & *(caq_tmp-caq_tmp_n)/(dz**2d0)) &
+                    & + v(iz)*(caq_tmp-caq_tmp_n)/dz &
+                    & - rxn_tmp &
+                    & ) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                
+                if (isp==1) then 
+                    flx_mg(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caq_tmp_n)/dz &
+                        & ) 
+                    flx_mg(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_n-1d0*caq_tmp)/(dz**2d0) &
+                        & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                        & *(caq_tmp-caq_tmp_n)/(dz**2d0)) &
+                        & ) 
+                elseif (isp==2) then 
+                    flx_si(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caq_tmp_n)/dz &
+                        & ) 
+                    flx_si(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_n-1d0*caq_tmp)/(dz**2d0) &
+                        & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                        & *(caq_tmp-caq_tmp_n)/(dz**2d0)) &
+                        & ) 
+                elseif (isp==3) then 
+                    flx_na(iadv,iz) = (&
+                        & + v(iz)*(caq_tmp-caq_tmp_n)/dz &
+                        & ) 
+                    flx_na(idif,iz) = (&
+                        & +(-d_tmp*tora(iz)*(caq_tmp_n-1d0*caq_tmp)/(dz**2d0) &
+                        & -d_tmp/poro(iz)/sat(iz)*(poro(iz)*sat(iz)*tora(iz)-poro(iz-1)*sat(iz-1)*tora(iz-1)) &
+                        & *(caq_tmp-caq_tmp_n)/(dz**2d0)) &
+                        & ) 
+                endif 
+
+
+            end if 
+            
+            amx3(row,row  - isp - 1) = (     & 
+                & - st_fo*kfo(iz)/sat(iz)*hr(iz)*mvfo*1d-6*1d0*(1d0-omega_fo(iz)) &
+                & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)*1d-3  &
+                & ) &
+                & *mfox(iz) &
+                & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+            amx3(row,row  - isp ) = (     & 
+                & - st_ab*kab(iz)/sat(iz)*hr(iz)*mvab*1d-6*1d0*(1d0-omega_ab(iz)) &
+                & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)*1d-3  &
+                & ) &
+                & *mabx(iz) &
+                & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+            if (isp==1) then 
+                flx_mg(itflx,iz) = (&
+                    & (caq_tmp-caq_tmp_prev)/dt  &
+                    & +dporodta(iz) *caq_tmp &
+                    & ) 
+                flx_mg(irxn_fo,iz) = (&
+                    & - rxn_tmp &
+                    & ) 
+                flx_mg(ires,iz) = sum(flx_mg(:,iz))
+            elseif (isp==2) then 
+                flx_si(itflx,iz) = (&
+                    & (caq_tmp-caq_tmp_prev)/dt  &
+                    & +dporodta(iz) *caq_tmp &
+                    & ) 
+                flx_si(irxn_fo,iz) = (&
+                    & - rxn_tmp &
+                    & ) 
+                flx_si(ires,iz) = sum(flx_si(:,iz))
+            elseif (isp==3) then 
+                flx_na(itflx,iz) = (&
+                    & (caq_tmp-caq_tmp_prev)/dt  &
+                    & +dporodta(iz) *caq_tmp &
+                    & ) 
+                flx_na(irxn_fo,iz) = (&
+                    & - rxn_tmp &
+                    & ) 
+                flx_na(ires,iz) = sum(flx_na(:,iz))
+            endif 
+        
+        enddo 
+        
+    end do  ! ==============================
+    
+    ymx3=-1.0d0*ymx3
+
+    if (any(isnan(amx3)).or.any(isnan(ymx3))) then 
+    ! if (.true.) then 
+        print*,'error in mtx'
+        print*,'any(isnan(amx3)),any(isnan(ymx3))'
+        print*,any(isnan(amx3)),any(isnan(ymx3))
+
+        if (any(isnan(ymx3))) then 
+            do ie = 1,nsp3*(nz)
+                if (isnan(ymx3(ie))) then 
+                    print*,'NAN is here...',ie
+                endif
+            enddo
+        endif
+
+
+        if (any(isnan(amx3))) then 
+            do ie = 1,nsp3*(nz)
+                do ie2 = 1,nsp3*(nz)
+                    if (isnan(amx3(ie,ie2))) then 
+                        print*,'NAN is here...',ie,ie2
+                    endif
+                enddo
+            enddo
+        endif
+        
+        open(unit=11,file='amx.txt',status = 'replace')
+        open(unit=12,file='ymx.txt',status = 'replace')
+        do ie = 1,nsp3*(nz)
+            write(11,*) (amx3(ie,ie2),ie2 = 1,nsp3*nz)
+            write(12,*) ymx3(ie)
+        enddo 
+        close(11)
+        close(12)       
+
+        stop
+    endif
+
+    call DGESV(nsp3*(Nz),int(1),amx3,nsp3*(Nz),IPIV3,ymx3,nsp3*(Nz),INFO) 
+
+    if (any(isnan(ymx3))) then
+        print*,'error in soultion'
+    endif
+
+    do iz = 1, nz
+        row = 1 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'Fo'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >10d0) then 
+            mfox(iz) = mfox(iz)*1.5d0
+        else if (ymx3(row) < -10d0) then 
+            mfox(iz) = mfox(iz)*0.50d0
+        else   
+            mfox(iz) = mfox(iz)*exp(ymx3(row))
+        endif
+        
+        row = 2 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'Ab'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >10d0) then 
+            mabx(iz) = mabx(iz)*1.5d0
+        else if (ymx3(row) < -10d0) then 
+            mabx(iz) = mabx(iz)*0.50d0
+        else   
+            mabx(iz) = mabx(iz)*exp(ymx3(row))
+        endif
+        
+        row = 3 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'mg'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                mgx(iz) = 0.1d0*mgth
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >1d0) then 
+            mgx(iz) = mgx(iz)*1.5d0
+        else if (ymx3(row) < -1d0) then 
+            mgx(iz) = mgx(iz)*0.50d0
+        else
+            mgx(iz) = mgx(iz)*exp(ymx3(row))
+        endif
+        
+        row = 4 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'si'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                six(iz) = 0.1d0*sith
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >1d0) then 
+            six(iz) = six(iz)*1.5d0
+        else if (ymx3(row) < -1d0) then 
+            six(iz) = six(iz)*0.50d0
+        else
+            six(iz) = six(iz)*exp(ymx3(row))
+        endif
+        
+        row = 5 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'na'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                nax(iz) = 0.1d0*nath
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >1d0) then 
+            nax(iz) = nax(iz)*1.5d0
+        else if (ymx3(row) < -1d0) then 
+            nax(iz) = nax(iz)*0.50d0
+        else
+            nax(iz) = nax(iz)*exp(ymx3(row))
+        endif
+        
+    end do 
+
+    error = maxval(exp(abs(ymx3))) - 1.0d0
+
+    if (isnan(error).or.info/=0 .or. any(isnan(mgx)) .or. any(isnan(six)) &
+        & .or. any(isnan(nax)) .or. any(isnan(mfox)).or. any(isnan(mabx))) then 
+        error = 1d3
+        print *, '!! error is NaN; values are returned to those before iteration with reducing dt'
+        print*, 'isnan(error), info/=0,any(isnan(mgx)),any(isnan(mfox)))'
+        print*,isnan(error),info/=0,any(isnan(mgx)),any(isnan(six)),any(isnan(mfox)),any(isnan(nax)),any(isnan(mabx))
+        stop
+        mgx = mg
+        six = si
+        nax = na
+        mfox = mfo
+        mabx = mab
+        prox = pro
+        iter = iter + 1
+        cycle
+    endif
+
+    prox(:) = 0.5d0* ( &
+        & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        & + 4d0*kco2*k1*pco2i) &
+        & )
+
+    co2 = kco2*pco2i
+    hco3 = k1*co2/prox
+    co3 = k2*hco3/prox
+    dic = co2 + hco3 + co3
+
+    do iz = 1, nz
+        row = 1 + nsp3*(iz-1)
+
+        if (mfox(iz) < 0.0d0) then
+            mfox(iz) = mfox(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 2 + nsp3*(iz-1)
+
+        if (mabx(iz) < 0.0d0) then
+            mabx(iz) = mabx(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 3 + nsp3*(iz-1)
+
+        if (mgx(iz) < 0.0d0) then
+            mgx(iz) = mgx(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 4 + nsp3*(iz-1)
+
+        if (six(iz) < 0.0d0) then
+            six(iz) = six(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 5 + nsp3*(iz-1)
+
+        if (nax(iz) < 0.0d0) then
+            nax(iz) = nax(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+
+    end do 
+
+#ifdef display      
+    print *, 'silicate_dis error',error,info
+#endif      
+    iter = iter + 1
+
+    if (iter > 300) then
+        dt = dt/1.01d0
+        if (dt==0d0) then 
+            print *, 'dt==0d0; stop'
+            stop
+        endif 
+        flgback = .true.
+    end if
+    
+enddo
+
+endsubroutine silicate_dis_1D
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
