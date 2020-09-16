@@ -59,6 +59,7 @@ real(kind=8) :: silwti = 30d0 ! wt%  **default
 
 real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
 ! real(kind=8)::rainpowder = 0.5d2 !  g/m2/yr corresponding to 0.5 t/ha/yr (0.5x1e3x1e3/1e4)
+! real(kind=8)::rainpowder = 10d2 !  g/m2/yr corresponding to 10 t/ha/yr (0.5x1e3x1e3/1e4)
 
 real(kind=8)::rainfrc_fo = 0.12d0 ! rain wt fraction for Fo (Beering et al 2020)
 real(kind=8)::rainfrc_ab = 0.172d0 ! rain wt fraction for Ab; assuming 0.43 for La and 0.4 of wt of La is Ab (Beering et al 2020)
@@ -84,7 +85,7 @@ real(kind=8) :: dmg  = 0.017218079d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory
 real(kind=8) :: dsi  = 0.03689712d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory 
 
 real(kind=8), parameter :: w = 5.0d-5 ! m yr^-1, uplift rate ** default 
-! real(kind=8), parameter :: w = 1.0d-5 ! m yr^-1, uplift rate
+! real(kind=8), parameter :: w = 1.0d-4 ! m yr^-1, uplift rate
 
 real(kind=8), parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 ! real(kind=8), parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
@@ -331,7 +332,7 @@ mo2 = mo2*po2i/0.21d0     !! mo2 is assumed to proportional to po2i
 
 
 write(workdir,*) '../pyweath_output/'     
-write(base,*) '_basalt_test_cpl_high_rain'     
+write(base,*) '_basalt_test_cpl_high-rain'     
 #ifdef test 
 write(base,*) '_test'
 #endif     
@@ -1961,11 +1962,13 @@ if (time>=rectime(irec+1)) then
             & poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz) &
             & *merge(0.0d0,1.0d0,po2x(iz)<po2th.or.cx(iz)<cth) &
             & , swbr*vmax*po2x(iz)/(po2x(iz)+mo2) &
-            & ,ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-            & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+            & ,kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
+            & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) &
+            & ,kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(1d0-omega_fo(iz)) &
+            & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0) &
             & ,time
-        write (22,*) z(iz),po2(iz),c(iz),ms(iz),c2(iz), so4(iz),na(iz),mg(iz),si(iz),msil(iz),mfo(iz),pro(iz) &
-            & ,silsat(iz), omega_fo(iz),time
+        write (22,*) z(iz),po2(iz),c(iz),ms(iz),c2(iz), so4(iz),na(iz),mg(iz),si(iz),mab(iz),mfo(iz),-log10(pro(iz)) &
+            & ,omega_ab(iz), omega_fo(iz),time
         write (29,*) z(iz),po2(iz)/maxval(po2(:)),c(iz)/maxval(c(:)),ms(iz)/maxval(ms(:)),c2(iz)/maxval(c2(:)) &
             & , so4(iz)/maxval(so4(:)), na(iz)/maxval(na(:)), msil(iz)/maxval(msil(:)), pro(iz)/maxval(pro(:)) &
             & , silsat(iz),co2(iz),hco3(iz),co3(iz),dic(iz),time
@@ -2021,7 +2024,7 @@ time = time + dt
 end do
 
 write(chr,'(i3.3)') irec+1
-open (58, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(rate)-'//chr//'.txt', &
+open (28, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(rate)-'//chr//'.txt', &
     & status='replace')
 open (22, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res-'//chr//'.txt', &
     & status='replace')
@@ -2032,18 +2035,20 @@ open(30, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-bs
     & status='replace')
 
 do iz = 1, Nz
-    write (58,*) z(iz), &
+    write (28,*) z(iz), &
         & koxs(iz)*poro(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*po2x(iz)**0.50d0*merge(0.0d0,1.0d0,po2x(iz)<po2th), &
         & merge(0.0d0, &
         & + koxs2(iz)*poro(iz)*hr(iz)*23.94d0*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0),cx(iz)<cth) &
         & *merge(0.0d0,1.0d0,c2x(iz)<c2th), &
         & poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz)*merge(0.0d0,1.0d0,po2x(iz)<po2th.or.cx(iz)<cth) &
         & , swbr*vmax*po2x(iz)/(po2x(iz)+mo2) &
-        & ,ksil(iz)*poro(iz)*hr(iz)*100.07d0*1d-6*msilx(iz)*(1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil) &
-        & *merge(0d0,1d0,1d0-4d0*nax(iz)**3d0/prox(iz)/keqsil < 0d0) &
+        & ,kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
+        & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) &
+        & ,kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(1d0-omega_fo(iz)) &
+        & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0) &
         & ,time
-    write (22,*) z(iz),po2(iz),c(iz),ms(iz),c2(iz), so4(iz),na(iz),mg(iz),si(iz),msil(iz),mfo(iz),pro(iz) &
-        & ,silsat(iz), omega_fo(iz),time
+    write (22,*) z(iz),po2(iz),c(iz),ms(iz),c2(iz), so4(iz),na(iz),mg(iz),si(iz),mab(iz),mfo(iz),-log10(pro(iz)) &
+        & ,omega_ab(iz), omega_fo(iz),time
     write (29,*) z(iz),po2(iz)/maxval(po2(:)),c(iz)/maxval(c(:)),ms(iz)/maxval(ms(:)),c2(iz)/maxval(c2(:)) &
         & ,so4(iz)/maxval(so4(:)),na(iz)/maxval(na(:)),msil(iz)/maxval(msil(:)),pro(iz)/maxval(pro(:)) &
         & ,silsat(iz), co2(iz),hco3(iz),co3(iz),dic(iz),time
@@ -2053,7 +2058,7 @@ end do
 
 write(65,*) time, o2tflx, diflx, advflx, pyoxflx, feoxflx, respflx,o2flxsum
 
-close(58)
+close(28)
 close(22)
 close(29)
 close(30)
@@ -2065,6 +2070,11 @@ close(69)
 close(55)
 close(56)
 close(57)
+close(58)
+close(59)
+close(60)
+close(61)
+close(62)
 
 close(71)
 close(73)
