@@ -101,7 +101,7 @@ real(kind=8) :: hri = 1d5
 real(kind=8) :: hr(nz)
 
 real(kind=8) po2(nz), redsld(nz), redaq(nz), ms(nz), c(nz)
-real(kind=8) po2x(nz), msx(nz), cx(nz)
+real(kind=8) po2x(nz), msx(nz), cx(nz),resp(nz)
 real(kind=8) msi
 real(kind=8) msili
 real(kind=8) mfoi,mabi
@@ -113,7 +113,7 @@ real(kind=8) na(nz), nax(nz), naeq(nz), silsat(nz)
 real(kind=8) pro(nz), prox(nz), dumreal(nz), dprodna(nz)
 real(kind=8) hco3(nz), ca(nz), co2(nz), co3(nz), dic(nz)
 real(kind=8) porox(nz), dporodta(nz),dporodtg(nz)
-real(kind=8) mg(nz),mgx(nz), si(nz), six(nz)
+real(kind=8) mg(nz),mgx(nz), si(nz), six(nz),pco2(nz),pco2x(nz)
 
 real(kind=8) :: caeq = 1d-3  ! mol/L equilibrium Ca conc. 
 real(kind=8) :: delca = 0.5d0  ! m reaction front width  
@@ -222,7 +222,7 @@ real(kind=8) dummy, zdum(nz)
 
 integer,parameter :: nflx = 6
 integer  iflx
-real(kind=8),dimension(nflx,nz)::flx_fo,flx_mg,flx_si,flx_ab,flx_na
+real(kind=8),dimension(nflx,nz)::flx_fo,flx_mg,flx_si,flx_ab,flx_na,flx_o2
 
 ! real(kind=8) :: maxdt = 10d0
 real(kind=8) :: maxdt = 0.2d0 ! for basalt exp?
@@ -429,6 +429,7 @@ if (tc/=15d0) then
 endif 
 
 po2 = po2i
+pco2 = pco2i
 ! po2 = po2th
 sat = sati
 ! sat = min(1.0d0,0.90d0*(z-ztot/2d0)/ztot/2d0 + 1.d0)
@@ -831,6 +832,7 @@ endif
 !       msil(nz) = msili
 
 po2x = po2
+pco2x = pco2
 cx = c
 msx = ms
 
@@ -1169,6 +1171,12 @@ call silicate_dis_1D( &
     & ,mgx,six,nax,prox,co2,hco3,co3,dic,mfox,mabx,omega_fo,omega_ab,flx_fo,flx_mg,flx_si,flx_ab,flx_na &! output
     & )
 
+call oxygen_resp_1D( &
+    & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
+    & ,kho,tora,torg,daq,dgas,v,mo2,tol,runname,workdir,zrxn,ucv,vmax  &! inpput
+    & ,iter,error,dt &! inout
+    & ,po2x,flx_o2,resp &! output
+    & ) 
 
 dporodtg = 0d0
 dporodta = 0d0
@@ -2008,14 +2016,6 @@ if (initial_ss .and. time>=rectime(irec+1)) then
     close(22)
     close(29)
     close(30)
-
-    write(65,*) time, o2tflx, diflx, advflx, pyoxflx, feoxflx, respflx,o2flxsum 
-    write(67,*) time, fetflx(1),fediflx(1), feadvflx(1),feox2flx(1), fepy1flx(1), fepy2flx(1),feflxsum(1)
-    write(68,*) time, fetflx(2),fediflx(2), feadvflx(2),feox2flx(2), fepy1flx(2), fepy2flx(2),feflxsum(2) 
-    write(69,*) time, pytflx, pyadvflx, pyox1flx, pyox2flx,pyflxsum        
-    write(56,*) time, siltflx, siladvflx, sildisflx,silflxsum        
-    write(55,*) time, natflx, naadvflx, nadiflx, nadisflx,naflxsum        
-    write(57,*) time, so4tflx, so4advflx, so4diflx, so4disflx,so4flxsum
     
     do iflx = 1,nflx
         flx_mg(iflx,:) = flx_mg(iflx,:)*dz*poro(:)*sat(:)*1d3
@@ -2023,7 +2023,17 @@ if (initial_ss .and. time>=rectime(irec+1)) then
         flx_na(iflx,:) = flx_na(iflx,:)*dz*poro(:)*sat(:)*1d3
         flx_fo(iflx,:) = flx_fo(iflx,:)*dz
         flx_ab(iflx,:) = flx_ab(iflx,:)*dz
+        flx_o2(iflx,:) = flx_o2(iflx,:)*dz
     enddo 
+
+    ! write(65,*) time, o2tflx, diflx, advflx, pyoxflx, feoxflx, respflx,o2flxsum 
+    write(65,*) time, (sum(flx_o2(iflx,:)),iflx=1,nflx) 
+    write(67,*) time, fetflx(1),fediflx(1), feadvflx(1),feox2flx(1), fepy1flx(1), fepy2flx(1),feflxsum(1)
+    write(68,*) time, fetflx(2),fediflx(2), feadvflx(2),feox2flx(2), fepy1flx(2), fepy2flx(2),feflxsum(2) 
+    write(69,*) time, pytflx, pyadvflx, pyox1flx, pyox2flx,pyflxsum        
+    write(56,*) time, siltflx, siladvflx, sildisflx,silflxsum        
+    write(55,*) time, natflx, naadvflx, nadiflx, nadisflx,naflxsum        
+    write(57,*) time, so4tflx, so4advflx, so4diflx, so4disflx,so4flxsum
     
     write(58,*) time,(sum(flx_mg(iflx,:)),iflx=1,nflx)
     write(59,*) time,(sum(flx_si(iflx,:)),iflx=1,nflx)
@@ -2036,7 +2046,8 @@ if (initial_ss .and. time>=rectime(irec+1)) then
 end if
 
 
-write(71,*) time, o2tflx, diflx, advflx, pyoxflx, feoxflx, respflx,o2flxsum
+! write(71,*) time, o2tflx, diflx, advflx, pyoxflx, feoxflx, respflx,o2flxsum
+write(71,*) time,(sum(flx_o2(iflx,:)),iflx=1,nflx)
 write(73,*) time, fetflx(1),fediflx(1), feadvflx(1), feox2flx(1), fepy1flx(1), fepy2flx(1),feflxsum(1)
 write(74,*) time, fetflx(2),fediflx(2), feadvflx(2), feox2flx(2), fepy1flx(2), fepy2flx(2),feflxsum(2)
 write(75,*) time, pytflx, pyadvflx, pyox1flx, pyox2flx,pyflxsum      
@@ -2084,7 +2095,7 @@ do iz = 1, Nz
 end do
 
 
-write(65,*) time, o2tflx, diflx, advflx, pyoxflx, feoxflx, respflx,o2flxsum
+write(65,*) time, (sum(flx_o2(iflx,:)),iflx=1,nflx) 
 
 close(28)
 close(22)
@@ -3253,34 +3264,30 @@ endsubroutine pyweath_1D
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine oxygen_resp_1D( &
-    & nz,nflx,c,c2,ci,c2i,po2,po2i,ms,msi,hr,po2th,poro,z,dz,w,koxs2,koxs,msth,dfe2,dfe3,sat,dporodta,dporodtg  &! input
-    & ,kho,koxa,dt2,cth,c2th,stoxa,tora,torg,daq,dgas,v,swbr,mo2,stoxs,tol,runname,workdir,zrxn,it &! input
-    & ,swoxa,swoxall,ucv,vmax  &! inpput
+    & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
+    & ,kho,tora,torg,daq,dgas,v,mo2,tol,runname,workdir,zrxn,ucv,vmax  &! inpput
     & ,iter,error,dt &! inout
-    & ,po2x &! output
-    ) 
+    & ,po2x,flx_o2,resp &! output
+    & ) 
 ! only oxygen + soil respiration 
 implicit none 
 
 integer,intent(in)::nz,nflx
-real(kind=8),intent(in)::ci,c2i,po2i,msi,po2th,dz,w,msth,dfe2,dfe3,kho,dt2,cth,c2th,stoxa,daq,dgas &
-    & ,swbr,mo2,stoxs,tol,zrxn,swoxa,swoxall,ucv,vmax
-real(kind=8),dimension(nz),intent(in)::c,c2,po2,ms,hr,poro,z,koxs2,koxs,sat,dporodta,dporodtg &
-    & ,tora,torg,v,koxa
+real(kind=8),intent(in)::po2i,po2th,dz,kho,daq,dgas,mo2,tol,zrxn,ucv,vmax
+real(kind=8),dimension(nz),intent(in)::po2,poro,z,sat,dporodtg,tora,torg,v
 character(256),intent(in)::runname,workdir
-real(kind=8),dimension(nz),intent(out)::po2x 
-integer,intent(inout)::iter,it
+real(kind=8),dimension(nz),intent(out)::po2x,resp
+real(kind=8),dimension(nflx,nz),intent(out)::flx_o2
+integer,intent(inout)::iter
 real(kind=8),intent(inout)::error,dt
 
 integer iz,row,nmx,ie,ie2
 
-real(kind=8)::swex = 0.0d0 ! switch for explicit
-real(kind=8)::frex = 0.0d0 ! fraction of explicit
-real(kind=8)::swpe = 0.0d0 ! physical erosion
-real(kind=8)::swad = 1.0d0! 1.0 when advection included 0.0d0 when not
 real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8),dimension(nz)::dresp_dpo2
 
-real(kind=8),dimension(nz)::resp,dresp_dpo2
+integer::itflx,iadv,idif,iresp,irain,ires
+data itflx,iadv,idif,iresp,irain,ires/1,2,3,4,5,6/
 
 integer,parameter:: nsp = 1
 real(kind=8) amx(nsp*nz,nsp*nz),ymx(nsp*nz)
@@ -3289,19 +3296,26 @@ integer info
 
 external DGESV
 
+! print*,'here oxygen_resp_1D'
+! pause
 
 nmx = nsp*nz
+
+error = 1d4
 
 do while ((.not.isnan(error)).and.(error > tol))
 
     amx=0.0d0
     ymx=0.0d0
     
-    dresp_dpo2 = merge(0.0d0, &
-        & swbr*vmax*mo2/(po2x+mo2)**2.0d0, &
-        & (po2x <po2th).or.(isnan(mo2/(po2x+mo2)**2.0d0)))
-    resp = swbr*vmax &
+    flx_o2 = 0d0
+    
+    resp = vmax &
         & *merge(0d0,po2x/(po2x+mo2),(po2x <po2th).or.(isnan(po2x/(po2x+mo2))))
+    
+    dresp_dpo2 = merge(0.0d0, &
+        & vmax*mo2/(po2x+mo2)**2.0d0, &
+        & (po2x <po2th).or.(isnan(mo2/(po2x+mo2)**2.0d0)))
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    pO2    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     do iz = 1, nz
@@ -3329,12 +3343,18 @@ do while ((.not.isnan(error)).and.(error > tol))
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt &
                 & +dporodtg(iz) *po2x(iz) &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & *(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2i)/dz &
                 & +resp(iz) &
                 & ) &
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
+            
+            flx_o2(idif,iz) = ( &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & *(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
+                & )
+            flx_o2(iadv,iz) = +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2i)/dz
 
         else if (iz == nz) then
 
@@ -3365,8 +3385,8 @@ do while ((.not.isnan(error)).and.(error > tol))
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt &
                 & +dporodtg(iz) *po2x(iz) &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & *(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0) &
                 & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
                 & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
                 & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
@@ -3375,6 +3395,16 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & +resp(iz)  &
                 & ) &
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
+            
+            flx_o2(idif,iz) = ( &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & *(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
+                & ) 
+            flx_o2(iadv,iz) = poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz 
 
         else
 
@@ -3412,8 +3442,8 @@ do while ((.not.isnan(error)).and.(error > tol))
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt  &
                 & +dporodtg(iz) *po2x(iz) &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & *(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0) &
                 & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
                 & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
                 & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
@@ -3422,12 +3452,30 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & +resp(iz) &
                 & ) &
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
+            
+            flx_o2(idif,iz) = ( &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & *(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
+                & ) 
+            flx_o2(iadv,iz) = +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz
 
         end if 
+        
+        flx_o2(itflx,iz) = ( &
+            & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt  &
+            & +dporodtg(iz) *po2x(iz) &
+            & ) 
+        flx_o2(iresp,iz) = resp(iz)
+        flx_o2(ires,iz) = sum(flx_o2(:,iz))
 
     end do 
 
     ymx=-1.0d0*ymx
+    ! pause
 
     if (any(isnan(amx)).or.any(isnan(ymx))) then 
         print*,'**** error in mtx py ***********'
@@ -3501,7 +3549,7 @@ do while ((.not.isnan(error)).and.(error > tol))
     end do
 
     error = maxval(exp(abs(ymx))) - 1.0d0
-
+    ! pause
     if (isnan(error).or.info/=0 .or. any(isnan(po2x))) then 
         error = 1d3
         print *, '!! error is NaN; values are returned to those before iteration with reducing dt'
@@ -3534,7 +3582,8 @@ do while ((.not.isnan(error)).and.(error > tol))
     end do 
 
 #ifdef display      
-    print *, 'py error',error,info
+    print *, 'o2 error',error,info
+    ! pause
 #endif      
     iter = iter + 1
 
@@ -3547,6 +3596,15 @@ do while ((.not.isnan(error)).and.(error > tol))
     end if
 
 end do
+
+#ifdef display
+print *
+print *,'-=-=-=-=-=-= o2  -=-=-=-=-=-=-='
+print *,'o2:', (po2x(iz),iz=1,nz,nz/5)
+print *,'resp:', (resp(iz),iz=1,nz,nz/5)
+print *,'dresp_dpo2:', (dresp_dpo2(iz),iz=1,nz,nz/5)
+! pause
+#endif
 
 endsubroutine oxygen_resp_1D
 
