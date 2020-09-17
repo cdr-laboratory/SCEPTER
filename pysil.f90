@@ -1,4 +1,4 @@
-program o2profile
+program weathering
 !! try to calculate o2 profile in a simple system
 !! full implicit method
 !! from ver 8 reflecting ph change in next step of pyrite weathering and assuming always wet surface 
@@ -57,9 +57,9 @@ real(kind=8) :: silwti = 30d0 ! wt%  **default
 ! real(kind=8) :: silwti = 24d0 ! wt%
 ! real(kind=8) :: silwti = 1d-10 ! wt%
 
-real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
+! real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
 ! real(kind=8)::rainpowder = 0.5d2 !  g/m2/yr corresponding to 0.5 t/ha/yr (0.5x1e3x1e3/1e4)
-! real(kind=8)::rainpowder = 10d2 !  g/m2/yr corresponding to 10 t/ha/yr (0.5x1e3x1e3/1e4)
+real(kind=8)::rainpowder = 10d2 !  g/m2/yr corresponding to 10 t/ha/yr (0.5x1e3x1e3/1e4)
 
 real(kind=8)::rainfrc_fo = 0.12d0 ! rain wt fraction for Fo (Beering et al 2020)
 real(kind=8)::rainfrc_ab = 0.172d0 ! rain wt fraction for Ab; assuming 0.43 for La and 0.4 of wt of La is Ab (Beering et al 2020)
@@ -234,6 +234,8 @@ logical :: pre_calc = .true.
 logical :: read_data = .false.
 ! logical :: read_data = .true.
 
+logical :: initial_ss = .false.
+
 data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
 ! data rectime /-1d6,0d6,1d6,2d6,3d6,4d6,5d6,6d6,7d6,8d6
@@ -332,7 +334,7 @@ mo2 = mo2*po2i/0.21d0     !! mo2 is assumed to proportional to po2i
 
 
 write(workdir,*) '../pyweath_output/'     
-write(base,*) '_basalt_test_cpl_high-rain'     
+write(base,*) '_basalt_test_cpl_mid-rain_poroevol_surf2'     
 #ifdef test 
 write(base,*) '_test'
 #endif     
@@ -466,9 +468,11 @@ si = 0d0
 pro = 10.0d0**(-ph)
 
 dt = maxdt
-dt = 1d-2  
-dt = 1d-6 ! for basalt exp?
-
+if (.not.initial_ss) then 
+    dt = 1d-2  
+else
+    dt = 1d-6 ! for basalt exp?
+endif 
 
 if (swex == 1.0d0) then 
 
@@ -684,7 +688,20 @@ zlis = 0
 #ifdef display 
 print *, 'it, time = ',it, time
 #endif
-if (time>rectime(nrec)) exit
+! if (time>rectime(nrec)) exit
+if (initial_ss.and.time>rectime(nrec)) exit
+    
+if (.not.initial_ss .and. time > ztot/w*2d0) then 
+    initial_ss = .true.
+    time = 0
+    dt = 1d-6
+endif 
+
+if (.not.initial_ss) then 
+    maxdt = 1d2
+else 
+    maxdt = 0.2d0
+endif 
 
 if (waterfluc == 1d0) then
 
@@ -838,9 +855,13 @@ error = 1d4
 iter=0
 
 
-
-mfosupp = rainpowder*rainfrc_fo/mwtfo*exp(-z/zsupp)/zsupp 
-mabsupp = rainpowder*rainfrc_ab/mwtab*exp(-z/zsupp)/zsupp 
+if (initial_ss) then 
+    mfosupp = rainpowder*rainfrc_fo/mwtfo*exp(-z/zsupp)/zsupp 
+    mabsupp = rainpowder*rainfrc_ab/mwtab*exp(-z/zsupp)/zsupp 
+else 
+    mfosupp = 0d0
+    mabsupp = 0d0
+endif 
 
 msilsupp = 0d0
 
@@ -1152,8 +1173,8 @@ call silicate_dis_1D( &
 dporodtg = 0d0
 dporodta = 0d0
 #ifdef poroevol    
-poro = poroi + (msili-msilx)*(100.07d0 -  0.5d0*99.52d0)*1d-6  &
-    & +(msi-msx)*(23.94d0*(1d0-swoxall)+(23.94d0-20.82d0)*swoxall)*1d-6
+poro = poroi + (mabi-mabx)*(mvab -  0.5d0*99.52d0)*1d-6  &
+    & +(mfoi-mfox)*mvfo*1d-6
 v = qin/poro/sat
 torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
 tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
@@ -1168,7 +1189,14 @@ hr = hri
 hr = hri*((1d0-poro)/(1d0-poroi))**(2d0/3d0)
 #endif 
 #ifdef surfevol2 
-hr = hri*(poro/poroi)**(2d0/3d0)
+hr = hri*(poro/poroi)**(2d0/3d0)  ! SA increases with porosity 
+#endif 
+#ifdef display
+print *
+print *,'-=-=-=-=-=-= Porosity & SA -=-=-=-=-=-=-='
+print *, 'phi:', (poro(iz),iz=1,nz, nz/5)
+print *, 'SA:', (hr(iz),iz=1,nz, nz/5)
+print *
 #endif 
 #endif 
 
@@ -1941,7 +1969,7 @@ mfo = mfox
 mab = mabx
 pro = prox
 
-if (time>=rectime(irec+1)) then
+if (initial_ss .and. time>=rectime(irec+1)) then
     write(chr,'(i3.3)') irec+1
     open (28, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(rate)-'//chr//'.txt',  &
         & status='replace')
@@ -2099,6 +2127,7 @@ do iz=1,nz
     if ( zab(3)==0d0 .and. msil(iz)>=0.9d0*msili+0.1d0*msil(1)) zab(3) = z(iz)    
 enddo
 
+#ifdef sense
 fname=trim(adjustl(workdir))//'sense'//trim(adjustl(base))//'.txt'
 open(20,file=trim(adjustl(fname)),action='write',status='unknown',access='append')
 write(20,*) qin,zsat,zpy(1:3),zab(1:3)
@@ -2115,8 +2144,9 @@ open(401,file=trim(adjustl(fname)),action='write',status='unknown',access='appen
 write(401,*) qin,zsat,zab(1:3)
 close(401)
 #endif
+#endif 
 
-endprogram o2profile
+endprogram weathering
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -3216,6 +3246,309 @@ do while ((.not.isnan(error)).and.(error > tol))
 end do
 
 endsubroutine pyweath_1D
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine oxygen_resp_1D( &
+    & nz,nflx,c,c2,ci,c2i,po2,po2i,ms,msi,hr,po2th,poro,z,dz,w,koxs2,koxs,msth,dfe2,dfe3,sat,dporodta,dporodtg  &! input
+    & ,kho,koxa,dt2,cth,c2th,stoxa,tora,torg,daq,dgas,v,swbr,mo2,stoxs,tol,runname,workdir,zrxn,it &! input
+    & ,swoxa,swoxall,ucv,vmax  &! inpput
+    & ,iter,error,dt &! inout
+    & ,po2x &! output
+    ) 
+! only oxygen + soil respiration 
+implicit none 
+
+integer,intent(in)::nz,nflx
+real(kind=8),intent(in)::ci,c2i,po2i,msi,po2th,dz,w,msth,dfe2,dfe3,kho,dt2,cth,c2th,stoxa,daq,dgas &
+    & ,swbr,mo2,stoxs,tol,zrxn,swoxa,swoxall,ucv,vmax
+real(kind=8),dimension(nz),intent(in)::c,c2,po2,ms,hr,poro,z,koxs2,koxs,sat,dporodta,dporodtg &
+    & ,tora,torg,v,koxa
+character(256),intent(in)::runname,workdir
+real(kind=8),dimension(nz),intent(out)::po2x 
+integer,intent(inout)::iter,it
+real(kind=8),intent(inout)::error,dt
+
+integer iz,row,nmx,ie,ie2
+
+real(kind=8)::swex = 0.0d0 ! switch for explicit
+real(kind=8)::frex = 0.0d0 ! fraction of explicit
+real(kind=8)::swpe = 0.0d0 ! physical erosion
+real(kind=8)::swad = 1.0d0! 1.0 when advection included 0.0d0 when not
+real(kind=8),parameter::infinity = huge(0d0)
+
+real(kind=8),dimension(nz)::resp,dresp_dpo2
+
+integer,parameter:: nsp = 1
+real(kind=8) amx(nsp*nz,nsp*nz),ymx(nsp*nz)
+integer ipiv(nsp*nz)
+integer info
+
+external DGESV
+
+
+nmx = nsp*nz
+
+do while ((.not.isnan(error)).and.(error > tol))
+
+    amx=0.0d0
+    ymx=0.0d0
+    
+    dresp_dpo2 = merge(0.0d0, &
+        & swbr*vmax*mo2/(po2x+mo2)**2.0d0, &
+        & (po2x <po2th).or.(isnan(mo2/(po2x+mo2)**2.0d0)))
+    resp = swbr*vmax &
+        & *merge(0d0,po2x/(po2x+mo2),(po2x <po2th).or.(isnan(po2x/(po2x+mo2))))
+    
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    pO2    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    do iz = 1, nz
+
+        row = 1 + nsp*(iz-1)
+
+        if (iz == 1) then
+
+            amx(row,row) = ( &
+                & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt &
+                & +dporodtg(iz)  &
+                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
+                & +dresp_dpo2(iz) &
+                & ) &
+                & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
+
+            amx(row,row+nsp) = ( &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & ) &
+                & *merge(0.0d0,po2x(iz+1),po2x(iz)<po2th)
+
+            ymx(row) = ( &
+                & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt &
+                & +dporodtg(iz) *po2x(iz) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
+                & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2i)/dz &
+                & +resp(iz) &
+                & ) &
+                & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
+
+        else if (iz == nz) then
+
+            amx(row,row) = ( &
+                & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt &
+                & +dporodtg(iz)  &
+                & +(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(1.0d0)/(dz**2.0d0) &
+                & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
+                & +dresp_dpo2(iz) &
+                & ) &
+                & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
+
+            amx(row,row-nsp) = ( &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq &
+                & -poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(-1.0d0)/(dz**2.0d0) &
+                & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(-1.0d0)/dz &
+                & ) &
+                & *merge(0.0d0,po2x(iz-1),po2x(iz)<po2th)
+
+            ymx(row) = ( &
+                & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt &
+                & +dporodtg(iz) *po2x(iz) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
+                & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz &
+                & +resp(iz)  &
+                & ) &
+                & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
+
+        else
+
+            amx(row,row) = ( &
+                & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt & 
+                & +dporodtg(iz)  &
+                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & *(1.0d0)/(dz**2.0d0) &
+                & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
+                & +dresp_dpo2(iz) &
+                & ) &
+                & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
+
+            amx(row,row+nsp) = ( &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & ) &
+                & *merge(0.0d0,po2x(iz+1),po2x(iz)<po2th)
+
+            amx(row,row-nsp) = ( &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas)  &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq &
+                & -poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(-1.0d0)/(dz**2.0d0) &
+                & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(-1.0d0)/dz &
+                & ) &
+                & *merge(0.0d0,po2x(iz-1),po2x(iz)<po2th)
+
+            ymx(row) = ( &
+                & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt  &
+                & +dporodtg(iz) *po2x(iz) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
+                & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz &
+                & +resp(iz) &
+                & ) &
+                & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
+
+        end if 
+
+    end do 
+
+    ymx=-1.0d0*ymx
+
+    if (any(isnan(amx)).or.any(isnan(ymx))) then 
+        print*,'**** error in mtx py ***********'
+        print*,'any(isnan(amx)),any(isnan(ymx))'
+        print*,any(isnan(amx)),any(isnan(ymx))
+
+        if (any(isnan(ymx))) then 
+            open(unit=25,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/ymx_pre.txt',  &
+                & status='unknown', action = 'write')
+            do ie = 1,nmx
+                write(25,*) ymx(ie)
+                if (isnan(ymx(ie))) then 
+                    print*,'NAN is here...',ie,mod(ie,300)
+                endif
+            enddo
+            close(25)
+        endif
+
+
+        if (any(isnan(amx))) then 
+            open(unit=25,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/amx.txt',  &
+                & status='unknown', action = 'write')
+            do ie = 1,nmx
+                write(25,*) (amx(ie,ie2),ie2=1,nmx)
+                do ie2 = 1,nmx
+                    if (isnan(amx(ie,ie2))) then 
+                        print*,'NAN is here...',ie,mod(ie,nz),ie2,mod(ie2,nz)
+                    endif
+                enddo
+            enddo
+            close(25)
+        endif
+
+        stop
+    endif
+
+    call DGESV(nmx,int(1),amx,nmx,IPIV,ymx,nmx,INFO) 
+
+    if (any(isnan(ymx))) then
+        print*,'error in soultion'
+        open(unit=25,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/ymx_aft.txt',  &
+        & status='unknown', action = 'write')
+        do ie = 1,nmx
+            write(25,*) ymx(ie)
+            if (isnan(ymx(ie))) then 
+                print*,'NAN is here...',ie,mod(ie,300)
+            endif
+        enddo
+        close(25)
+        stop
+    endif
+
+    do iz = 1, nz
+        row = 1 + nsp*(iz-1)
+
+        if (isnan(ymx(row))) then 
+            print *,'nan at', iz,z(iz),zrxn,'pyrite'
+            if (z(iz)<zrxn) then 
+                ymx(row)=0d0
+            endif
+        endif
+
+        if (ymx(row) >10d0) then 
+            po2x(iz) = po2x(iz)*1.5d0
+        else if (ymx(row) < -10d0) then 
+            po2x(iz) = po2x(iz)*0.50d0
+        else   
+            po2x(iz) = po2x(iz)*exp(ymx(row))
+        endif
+
+    end do
+
+    error = maxval(exp(abs(ymx))) - 1.0d0
+
+    if (isnan(error).or.info/=0 .or. any(isnan(po2x))) then 
+        error = 1d3
+        print *, '!! error is NaN; values are returned to those before iteration with reducing dt'
+        print*,isnan(error), info/=0,any(isnan(po2x))
+        print*,isnan(error),info/=0,any(isnan(po2x))
+        stop
+        po2x =po2
+        iter = iter + 1
+        cycle
+    endif
+
+    if (any(abs(po2x)>infinity)) then 
+        error = 1d3 
+        print*, '**** ERROR; values are ininity'
+        do iz=1,nz
+            if (abs(po2x(iz))>infinity) po2x(iz)=po2(iz)
+        enddo 
+        iter = iter + 1
+        cycle
+    endif 
+
+    do iz = 1, nz
+        row = 1 + nsp*(iz-1)
+
+        if (po2x(iz) < 0.0d0) then
+            po2x(iz) = po2x(iz)/exp(ymx(row))*0.5d0
+            error = 1.0d0
+        end if
+
+    end do 
+
+#ifdef display      
+    print *, 'py error',error,info
+#endif      
+    iter = iter + 1
+
+    if (iter > 300) then
+        dt = dt/1.01d0
+        if (dt==0d0) then 
+            print *, 'dt==0d0; stop'
+            stop
+        endif 
+    end if
+
+end do
+
+endsubroutine oxygen_resp_1D
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
