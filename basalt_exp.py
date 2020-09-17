@@ -2,11 +2,21 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import glob
+import glob,os
 import subprocess
 
 outdir = '../pyweath_output/'
-runname = 'sil+ph_wet_iter---q1E-1_zsat5_basalt_test_cpl_high-rain'
+
+simlist = os.listdir(outdir)
+intlist = [int(i+1) for i in range(len(simlist))]
+simlist_show = [str(intlist[i])+'--'+simlist[i] for i in range(len(simlist))]
+simlist_show_2='\n'.join(simlist_show)
+str_tmp = raw_input('What is your simulation?: choose from the list below\n'+simlist_show_2+'\n')
+for i in intlist:
+    if eval(str_tmp)== i: 
+        runname = simlist[i-1]
+        break
+
 simlist = glob.glob(outdir+runname+'/o2profile-res-01*.txt')
 datalist = []
 for i in simlist:
@@ -60,7 +70,7 @@ numplt = [
     ,[(7,':',mgchar),(6,'-',nachar)]
     ,[(11,'-','pH')]
     ,[(6,':','Forsterite'),(5,'-','Albite')]
-    ,[(1,':',porochar),(2,'dashdot',satchar),(3,'--',advchar),(4,'-',diffchar)]
+    ,[(1,':',porochar),(5,'-','SA')]
     ]
     
 xlabels = [
@@ -69,8 +79,11 @@ xlabels = [
     ,'mol L'+r'${^{-1}}$'
     ,'pH'
     ,'mol m'+r'${^{-3}}$'+' yr'+r'${^{-1}}$'
-    ,'m'+' yr'+r'${^{-1}}$'+ ', m'+r'${^2}$'+' yr'+r'${^{-1}}$' + ' or m' +r'${^3}$'+' m'+r'${^{-3}}$'
+    ,'10'+r'${^6}$'+' m'+r'${^2}$'+' m'+r'${^{-3}}$' + ' or m' +r'${^3}$'+' m'+r'${^{-3}}$'
     ]
+
+for base in baselist:
+    base[:,5] = base[:,5]/1e6
 
 for k in range(nx*ny):
     i = k%nx
@@ -93,7 +106,7 @@ for k in range(nx*ny):
                     axes[j][i].plot(datalist[o][:,p[0]],datalist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]))
     axes[j][i].invert_yaxis()
     axes[j][i].set_xlabel(xlabels[k])
-    if k==5:axes[j][i].set_xscale('log')
+    # if k==5:axes[j][i].set_xscale('log')
     if i==0:axes[j][i].set_ylabel('Depth (m)')
     axes[j][i].legend()
 
