@@ -11,7 +11,7 @@ simlist = os.listdir(outdir)
 intlist = [int(i+1) for i in range(len(simlist))]
 simlist_show = [str(intlist[i])+'--'+simlist[i] for i in range(len(simlist))]
 simlist_show_2='\n'.join(simlist_show)
-str_tmp = raw_input('What is your simulation?: choose from the list below\n'+simlist_show_2+'\n')
+str_tmp = input('What is your simulation?: choose from the list below\n'+simlist_show_2+'\n')
 for i in intlist:
     if eval(str_tmp)== i: 
         runname = simlist[i-1]
@@ -87,8 +87,8 @@ for base in baselist:
     base[:,5] = base[:,5]/1e6
 
 for k in range(nx*ny):
-    i = k%nx
-    j = (k-i)/nx
+    i = int(k%nx)
+    j = int((k-i)/nx)
     for o in range(len(datalist)):
         for p in numplt[k]:
             if o==0:
