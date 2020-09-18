@@ -37,7 +37,7 @@ for i in range(len(datalist)):
     agelist.append(datalist[i][0,datalist[i].shape[1]-1])
 
 c = np.array(agelist)
-mymap = mpl.colors.LinearSegmentedColormap.from_list('mycolors',['black','red'])
+mymap = mpl.colors.LinearSegmentedColormap.from_list('mycolors',['0.3','g'])
 mymap = mpl.cm.jet
 norm = mpl.colors.Normalize(vmin=c.min(), vmax=c.max())
 cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mymap)
@@ -51,7 +51,8 @@ ny =2
 
 axes = [[plt.subplot2grid((ny,nx), (j,i)) for i in range(nx)] for j in range(ny)]
 
-po2char = 'pO'+r'$\mathregular{_2}$'
+po2char = r'$\it{p}\rm{O}_2^{\rm{soil}}$'
+pco2char = r'$\it{p}\rm{CO}_2^{\rm{soil}}$'
 omegaabchar = r'$\mathregular{\Omega_{\rm{ab}}}$'
 omegafochar = r'$\mathregular{\Omega_{\rm{fo}}}$'
 fe2char = 'Fe(II)'
@@ -69,7 +70,7 @@ numplt = [
     ,[(13,':',omegafochar),(12,'-',omegaabchar)]
     ,[(7,':',mgchar),(6,'-',nachar)]
     ,[(11,'-','pH')]
-    ,[(6,':','Forsterite'),(5,'-','Albite')]
+    ,[(1,':',po2char),(14,'-',pco2char)]
     ,[(1,':',porochar),(5,'-','SA')]
     ]
     
@@ -78,7 +79,7 @@ xlabels = [
     ,'dimensionless'
     ,'mol L'+r'${^{-1}}$'
     ,'pH'
-    ,'mol m'+r'${^{-3}}$'+' yr'+r'${^{-1}}$'
+    ,'atm'
     ,'10'+r'${^6}$'+' m'+r'${^2}$'+' m'+r'${^{-3}}$' + ' or m' +r'${^3}$'+' m'+r'${^{-3}}$'
     ]
 
@@ -92,14 +93,14 @@ for k in range(nx*ny):
         for p in numplt[k]:
             if o==0:
                 if k==4:
-                    axes[j][i].plot(ratelist[o][:,p[0]],ratelist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]),label = p[2])
+                    axes[j][i].plot(datalist[o][:,p[0]],datalist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]),label = p[2])
                 elif k==5:
                     axes[j][i].plot(baselist[o][:,p[0]],baselist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]),label = p[2])
                 else:
                     axes[j][i].plot(datalist[o][:,p[0]],datalist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]),label = p[2])
             else:
                 if k==4:
-                    axes[j][i].plot(ratelist[o][:,p[0]],ratelist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]))
+                    axes[j][i].plot(datalist[o][:,p[0]],datalist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]))
                 elif k==5:
                     axes[j][i].plot(baselist[o][:,p[0]],baselist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]))
                 else:
