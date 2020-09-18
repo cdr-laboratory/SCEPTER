@@ -226,7 +226,7 @@ real(kind=8) dummy, zdum(nz)
 integer,parameter :: nflx = 6
 integer  iflx
 real(kind=8),dimension(nflx,nz)::flx_fo,flx_mg,flx_si,flx_ab,flx_na,flx_o2,flx_co2
-
+real(kind=8),dimension(nz)::dis_fo,dis_ab
 ! real(kind=8) :: maxdt = 10d0
 real(kind=8) :: maxdt = 0.2d0 ! for basalt exp?
 
@@ -516,7 +516,13 @@ elseif (tc==25d0) then
 
 endif 
 
-pro = sqrt(kco2*k1*pco2+kw)
+! pro = sqrt(kco2*k1*pco2+kw)
+call calc_pH( &
+    & nz,na+2d0*(mg+ca-so4),pco2,kw,kco2,k1,k2 &! input 
+    & ,pro &! output
+    & ) 
+! print*,-log10(pro)
+! stop
 khco2i = kco2*(1d0+k1/sqrt(kco2*k1*pco2i)+k2/kco2/pco2i)
 
 ksil = 1.31d-9*1d4  ! mol/m2/yr  ! from Li et al., 2014
@@ -1171,9 +1177,10 @@ endif
     
 call silicate_dis_1D( &
     & nz,mfo,mab,na,mg,si,hr,poro,z,dz,w,kfo,kab,keqfo,keqab,mfoth,mabth,dmg,dsi,dna,sat,dporodta,pro,mfoi,mabi,mfosupp,mabsupp  &! input
-    & ,kco2,k1,k2,mgth,sith,nath,tora,v,tol,zrxn,it,cx,c2x,so4x,ca,pco2x,mgi,sii,nai,mvfo,mvab,nflx &! input
+    & ,kco2,k1,k2,mgth,sith,nath,tora,v,tol,zrxn,it,cx,c2x,so4x,ca,pco2x,mgi,sii,nai,mvfo,mvab,nflx,kw &! input
     & ,iter,error,dt,flgback &! inout
     & ,mgx,six,nax,prox,co2,hco3,co3,dic,mfox,mabx,omega_fo,omega_ab,flx_fo,flx_mg,flx_si,flx_ab,flx_na &! output
+    & ,dis_fo,dis_ab &! output
     & )
 
 call oxygen_resp_1D( &
@@ -5200,19 +5207,20 @@ endsubroutine basaltweath_1D
 
 subroutine silicate_dis_1D( &
     & nz,mfo,mab,na,mg,si,hr,poro,z,dz,w,kfo,kab,keqfo,keqab,mfoth,mabth,dmg,dsi,dna,sat,dporodta,pro,mfoi,mabi,mfosupp,mabsupp  &! input
-    & ,kco2,k1,k2,mgth,sith,nath,tora,v,tol,zrxn,it,cx,c2x,so4x,ca,pco2x,mgi,sii,nai,mvfo,mvab,nflx &! input
+    & ,kco2,k1,k2,mgth,sith,nath,tora,v,tol,zrxn,it,cx,c2x,so4x,ca,pco2x,mgi,sii,nai,mvfo,mvab,nflx,kw &! input
     & ,iter,error,dt,flgback &! inout
     & ,mgx,six,nax,prox,co2,hco3,co3,dic,mfox,mabx,omega_fo,omega_ab,flx_fo,flx_mg,flx_si,flx_ab,flx_na &! output
+    & ,dis_fo,dis_ab &! output
     & )
     
 implicit none 
 
 integer,intent(in)::nz,nflx
 real(kind=8),intent(in)::dz,w,mfoth,tol,zrxn,dmg,dsi,mgth,sith,kco2,k1,k2,mfoi,mgi,sii,keqfo,mvfo,keqab,mabth,dna,mabi,nath &
-    & ,nai,mvab
+    & ,nai,mvab,kw
 real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,dporodta,tora,v,mfo,kfo,cx,c2x,so4x,ca,pro,mfosupp,mg,si,mab,na,kab,mabsupp &
     & ,pco2x 
-real(kind=8),dimension(nz),intent(out)::mgx,six,prox,co2,hco3,co3,dic,mfox,omega_fo,nax,mabx,omega_ab
+real(kind=8),dimension(nz),intent(out)::mgx,six,prox,co2,hco3,co3,dic,mfox,omega_fo,nax,mabx,omega_ab,dis_fo,dis_ab
 real(kind=8),dimension(nflx,nz),intent(out)::flx_fo,flx_mg,flx_si,flx_ab,flx_na
 integer,intent(inout)::iter,it
 logical,intent(inout)::flgback
@@ -5226,6 +5234,14 @@ data itflx,iadv,idif,irxn_fo,irain,ires/1,2,3,4,5,6/
 real(kind=8),dimension(nz)::dprodna,dprodmg,domega_fo_dmg,domega_fo_dsi,domega_ab_dsi,domega_ab_dna
 real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp,st_fo,st_ab &
     & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp
+real(kind=8)::k1_fo = 10d0**(-6.85d0), E1_fo = 51.7d0, n1_fo = 0.5d0, k2_fo = 10d0**(-12.41d0),E2_fo = 38d0 &
+    & ,k3_fo = 10d0**(-21.2d0),E3_fo = 94.1d0,n3_fo = -0.82d0  &
+    & ,k1_ab = 10d0**(-10.16d0), E1_ab = 65d0, n1_ab = 0.457d0, k2_ab = 10d0**(-12.56d0),E2_ab = 69.8d8 &
+    & ,k3_ab = 10d0**(-15.60d0),E3_ab = 71d0, n3_ab = -0.572d0 &
+    & ,k1_an = 10d0**(-3.5d0),E1_an = 16.6d0,n1_an = 1.411d0,k2_an = 10d0**(-9.12d0), E2_an = 17.8d0 
+
+real(kind=8),parameter::sec2yr = 60d0*60d0*60d0*24d0*365d0
+real(kind=8)::dconc = 1d-6
 
 real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
 integer ipiv3(nsp3*nz)
@@ -5242,19 +5258,26 @@ error = 1d4
 iter = 0
 
 if (it ==0) then 
-    prox(:) = 0.5d0* (  &
-        & -1d0*(2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))  &
-        & + sqrt((2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2x(:)) &
-        & )
+    ! prox(:) = 0.5d0* (  &
+        ! & -1d0*(2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        ! & + sqrt((2d0*cx(:)+2d0*ca(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        ! & + 4d0*kco2*k1*pco2x(:)) &
+        ! & )
+    call calc_pH( &
+        & nz,2d0*(cx+ca-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2 &! input 
+        & ,prox &! output
+        & ) 
 else 
 
-    prox(:) = 0.5d0* ( &
-        & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
-        & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2x(:)) &
-        & )
-
+    ! prox(:) = 0.5d0* ( &
+        ! & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        ! & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        ! & + 4d0*kco2*k1*pco2x(:)) &
+        ! & )
+    call calc_pH( &
+        & nz,nax+2d0*(cx+ca+mgx-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2 &! input 
+        & ,prox &! output
+        & ) 
 endif
 
 do while ((.not.isnan(error)).and.(error > tol))
@@ -5274,21 +5297,35 @@ do while ((.not.isnan(error)).and.(error > tol))
         & + 4d0*kco2*k1*pco2x(:)) &
         & )
 
-    dprodna(:) = 0.5d0* ( &
-        &  -1d0  &
-        & + 0.5d0/sqrt( &
-        & (nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2x(:))*2d0 &
-        & *(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) &
-        & )
+    ! dprodna(:) = 0.5d0* ( &
+        ! &  -1d0  &
+        ! & + 0.5d0/sqrt( &
+        ! & (nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        ! & + 4d0*kco2*k1*pco2x(:))*2d0 &
+        ! & *(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:)) &
+        ! & )
 
-    dprodmg(:) = 0.5d0* ( &
-        &  -2d0  &
-        & + 0.5d0/sqrt( &
-        & (nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2x(:))*2d0 &
-        & *(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))*2d0 &
-        & )
+    ! dprodmg(:) = 0.5d0* ( &
+        ! &  -2d0  &
+        ! & + 0.5d0/sqrt( &
+        ! & (nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        ! & + 4d0*kco2*k1*pco2x(:))*2d0 &
+        ! & *(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))*2d0 &
+        ! & )
+    call calc_pH( &
+        & nz,nax+2d0*(cx+ca+mgx-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2 &! input 
+        & ,prox &! output
+        & ) 
+    call calc_pH( &
+        & nz,nax+dconc+2d0*(cx+ca+mgx-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2 &! input 
+        & ,dprodna &! output
+        & ) 
+    call calc_pH( &
+        & nz,nax+2d0*(cx+ca+mgx+dconc-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2 &! input 
+        & ,dprodmg &! output
+        & ) 
+    dprodna = (dprodna-prox)/dconc
+    dprodmg = (dprodmg-prox)/dconc
     
     ! Fo + 4H+ = 2Mg2+ + SiO2(aq) + 2H2O 
     omega_fo(:) = mgx(:)**2d0*six(:)/(prox(:)**4d0)/keqfo
@@ -5892,11 +5929,15 @@ do while ((.not.isnan(error)).and.(error > tol))
         cycle
     endif
 
-    prox(:) = 0.5d0* ( &
-        & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
-        & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        & + 4d0*kco2*k1*pco2x(:)) &
-        & )
+    ! prox(:) = 0.5d0* ( &
+        ! & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        ! & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        ! & + 4d0*kco2*k1*pco2x(:)) &
+        ! & )
+    call calc_pH( &
+        & nz,nax+2d0*(cx+ca+mgx-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2 &! input 
+        & ,prox &! output
+        & ) 
 
     co2 = kco2*pco2x
     hco3 = k1*co2/prox
@@ -5958,6 +5999,57 @@ do while ((.not.isnan(error)).and.(error > tol))
 enddo
 
 endsubroutine silicate_dis_1D
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calc_pH( &
+    & nz,netcat,pco2x,kw,kco2,k1,k2 &! input 
+    & ,prox &! output
+    & ) 
+! solving charge balance:
+! [H+] + ZX[Xz+] - ZY[YZ-] - [HCO3] - 2[CO32-] - [OH-] = 0
+! [H+] + ZX[Xz+] - ZY[YZ-] - k1kco2pCO2/[H+] - 2k2k1kco2pCO2/[H+]^2 - kw/[H+] = 0
+! [H+]^3 + (ZX[Xz+] - ZY[YZ-])[H+]^2 - (k1kco2pCO2+kw)[H+] - 2k2k1kco2pCO2  = 0
+! NetCat is defined as (ZX[Xz+] - ZY[YZ-])
+! [H+]^3 + NetCat[H+]^2 - (k1kco2pCO2+kw)[H+] - 2k2k1kco2pCO2  = 0
+implicit none
+integer,intent(in)::nz
+real(kind=8),intent(in)::kw,kco2,k1,k2
+real(kind=8),dimension(nz),intent(in)::netcat,pco2x
+real(kind=8),dimension(nz),intent(out)::prox
+
+real(kind=8),dimension(nz)::df,f
+real(kind=8) error,tol
+integer iter,iz
+
+error = 1d4
+tol = 1d-6
+
+prox = 1d0 
+iter = 0
+! print*,'calc_pH'
+do while (error > tol)
+    f = prox**3d0 + netcat*prox**2d0 - (k1*kco2*pco2x+kw)*prox - 2d0*k2*k1*kco2*pco2x 
+    df = 3d0*prox**2d0 + 2d0*netcat*prox - (k1*kco2*pco2x+kw)
+    df = df*prox
+    prox = prox*exp( -f/df )
+    error = maxval(abs(exp( -f/df )-1d0))
+    ! print*, iter,error
+    ! print*,  (-log10(prox(iz)),iz=1,nz,nz/5)
+    ! print*,  (-log10(f(iz)),iz=1,nz,nz/5)
+    ! print*,  (-log10(df(iz)),iz=1,nz,nz/5)
+    ! pause
+    ! stop
+    iter = iter + 1
+enddo 
+
+! print *, (-log10(prox(iz)),iz=1,nz,nz/5)
+! pause
+
+endsubroutine calc_pH
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
