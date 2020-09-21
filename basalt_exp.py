@@ -17,17 +17,17 @@ for i in intlist:
         runname = simlist[i-1]
         break
 
-simlist = glob.glob(outdir+runname+'/o2profile-res-01*.txt')
+simlist = glob.glob(outdir+runname+'/o2profile-res-0*.txt')
 datalist = []
 for i in simlist:
     datalist.append(np.loadtxt(i))
 
-simlist = glob.glob(outdir+runname+'/o2profile-res(rate)-01*.txt')
+simlist = glob.glob(outdir+runname+'/o2profile-res(rate)-0*.txt')
 ratelist = []
 for i in simlist:
     ratelist.append(np.loadtxt(i))
 
-simlist = glob.glob(outdir+runname+'/o2profile-bsd-01*.txt')
+simlist = glob.glob(outdir+runname+'/o2profile-bsd-0*.txt')
 baselist = []
 for i in simlist:
     baselist.append(np.loadtxt(i))
@@ -38,7 +38,7 @@ for i in range(len(datalist)):
 
 c = np.array(agelist)
 mymap = mpl.colors.LinearSegmentedColormap.from_list('mycolors',['0.3','g'])
-mymap = mpl.cm.jet
+mymap = mpl.cm.turbo
 norm = mpl.colors.Normalize(vmin=c.min(), vmax=c.max())
 cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mymap)
 cmap.set_array([])
@@ -79,12 +79,17 @@ xlabels = [
     ,'dimensionless'
     ,'mol L'+r'${^{-1}}$'
     ,'pH'
-    ,'atm'
+    # ,'ppmv (CO'+r'$_2$'+') or '+u'$‰$'+ ' (O'+r'$_2$'+')'
+    ,'PAL'
     ,'10'+r'${^6}$'+' m'+r'${^2}$'+' m'+r'${^{-3}}$' + ' or m' +r'${^3}$'+' m'+r'${^{-3}}$'
     ]
 
 for base in baselist:
     base[:,5] = base[:,5]/1e6
+    
+for data in datalist:
+    data[:,1] = data[:,1]/0.21
+    data[:,14] = data[:,14]/(10**-3.5)
 
 for k in range(nx*ny):
     i = int(k%nx)
@@ -109,10 +114,10 @@ for k in range(nx*ny):
     axes[j][i].set_xlabel(xlabels[k])
     # if k==5:axes[j][i].set_xscale('log')
     if i==0:axes[j][i].set_ylabel('Depth (m)')
-    axes[j][i].legend()
+    axes[j][i].legend(loc = 'lower center')
 
 
-cbaxes = fig.add_axes([0.88, 0.175, 0.01, 0.75]) 
+cbaxes = fig.add_axes([0.88, 0.175, 0.02, 0.75]) 
 # cticks = [500,400,300,200,100,0]
 cbar = fig.colorbar(cmap, cax = cbaxes, orientation = 'vertical')
 cbar.set_label('Time (yr)', rotation=90)
