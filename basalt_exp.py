@@ -56,6 +56,7 @@ pco2char = r'$\it{p}\rm{CO}_2^{\rm{soil}}$'
 omegaabchar = r'$\mathregular{\Omega_{\rm{ab}}}$'
 omegaanchar = r'$\mathregular{\Omega_{\rm{an}}}$'
 omegafochar = r'$\mathregular{\Omega_{\rm{fo}}}$'
+omegaccchar = r'$\mathregular{\Omega_{\rm{cc}}}$'
 fe2char = 'Fe(II)'
 fe3char = 'Fe(III)'
 so4char = 'Sulfate'
@@ -69,11 +70,11 @@ advchar = r'$\mathregular{\it{v}}$'
 diffchar = r'$\mathregular{\it{D}}$'
 
 numplt = [
-    [(12,':','Forsterite'),(10,'-','Albite'),(11,'--','Anorthite')]
-    ,[(13,'-',omegaabchar),(14,':',omegafochar),(15,'--',omegaanchar)]
+    [(12,':','Forsterite'),(10,'-','Albite'),(11,'-.','Anorthite'),(13,'--','Calcite')]
+    ,[(14,'-',omegaabchar),(15,':',omegafochar),(16,'-.',omegaanchar),(17,'--',omegaccchar)]
     ,[(8,'--',mgchar),(6,':',nachar),(7,'-',cachar),(9,'-.',sichar)]
-    ,[(17,'-','pH')]
-    ,[(1,':',po2char),(16,'-',pco2char)]
+    ,[(19,'-','pH')]
+    ,[(1,':',po2char),(18,'-',pco2char)]
     ,[(1,':',porochar),(5,'-','SA')]
     ]
     
@@ -92,7 +93,7 @@ for base in baselist:
     
 for data in datalist:
     data[:,1] = data[:,1]/0.21
-    data[:,16] = data[:,16]/(10**-3.5)
+    data[:,18] = data[:,18]/(10**-3.5)
 
 for k in range(nx*ny):
     i = int(k%nx)
