@@ -86,7 +86,10 @@ real(kind=8) :: dgas = 6.09d2 ! m^2 yr^-1
 real(kind=8) :: daq = 5.49d-2 ! m^2 yr^-1
 real(kind=8) :: dgasc = 441.504d0 ! m^2 yr^-1 (Assuming 0.14 cm2/sec)
 real(kind=8) :: daqc = 0.022459852 ! m^2 yr^-1 (for C32- from Li and Gregory 1974)
-real(kind=8) :: poroi = 0.1d0
+
+real(kind=8) :: poroi = 0.1d0 !*** default
+! real(kind=8) :: poroi = 0.25d0
+
 real(kind=8) :: sati = 0.50d0
 real(kind=8) :: satup = 0.10d0
 
@@ -906,15 +909,8 @@ do while (it<nt)
 
     error_co2 = 1d4
     iter_co2 = 0 
+#ifdef two_way
     do while (error_co2> 1e-3) 
-        ! call silicate_dis_1D( &
-            ! & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
-            ! & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp  &! input
-            ! & ,kco2,k1,k2,mgth,sith,nath,cath,tora,v,tol,zrxn,it,cx,c2x,so4x,pco2x,mgi,sii,nai,cai,mvfo,mvab,mvan,mvcc,nflx,kw &! input
-            ! & ,iter,error,dt,flgback &! inout
-            ! & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
-            ! & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc &! output
-            ! & )
         call silicate_dis_1D_v2( &
             & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
             & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp,poroprev  &! input
@@ -924,13 +920,6 @@ do while (it<nt)
             & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
             & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca &! output
             & )
-
-        ! call oxygen_resp_1D( &
-            ! & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
-            ! & ,kho,tora,torg,daq,dgas,v,mo2,tol,runname,workdir,zrxn,ucv,vmax  &! inpput
-            ! & ,iter,error,dt &! inout
-            ! & ,po2x,flx_o2,resp &! output
-            ! & ) 
             
         call oxygen_resp_1D_v2( &
             & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
@@ -942,24 +931,12 @@ do while (it<nt)
         pco2x_prev = pco2x
         preccc = flx_cc(4,:)
         ! preccc = 0d0
-        ! call CO2_1D( &
-            ! & nz,nflx,pco2,pco2i,pco2th,poro,z,dz,sat,dporodtgc,v  &! input
-            ! & ,kco2,k1,k2,tora,torg,daqc,dgasc,resp,tol,runname,workdir,zrxn,ucv,prox,khco2i,flx_cc(4,:)  &! inpput
-            ! & ,iter,error,dt &! inout
-            ! & ,pco2x,flx_co2,khco2 &! output
-            ! & )
         call CO2_1D_v2_1( &
             & nz,nflx,pco2,pco2i,pco2th,poro,z,dz,sat,dporodtgc,v  &! input
             & ,kco2,k1,k2,tora,torg,daqc,dgasc,resp,tol,runname,workdir,zrxn,ucv,prox,khco2i,preccc,poroprev,pro  &! inpput
             & ,dt,flgback &! inout
             & ,pco2x,flx_co2 &! output
             & ) 
-        ! call CO2_1D_v3( &
-            ! & nz,nflx,pco2,pco2i,pco2th,poro,z,dz,sat,dporodtgc,v  &! input
-            ! & ,kco2,k1,k2,tora,torg,daqc,dgasc,resp,tol,runname,workdir,zrxn,ucv,prox,khco2i,flx_cc(4,:),poroprev,pro  &! inpput
-            ! & ,dt &! inout
-            ! & ,pco2x,flx_co2 &! output
-            ! & ) 
         error_co2 = 0d0
         if (co2_iteration) then
             do iz = 1,nz
@@ -976,7 +953,7 @@ do while (it<nt)
             go to 100
         endif 
     enddo 
-    
+#endif 
     ! call silicate_dis_co2_1D( &
         ! & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
         ! & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp,resp,poroprev,daqc,dgasc  &! input
@@ -986,6 +963,23 @@ do while (it<nt)
         ! & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
         ! & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,pco2x,flx_co2,khco2x &! output
         ! & )
+            
+    call oxygen_resp_1D_v2( &
+        & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
+        & ,kho,tora,torg,daq,dgas,v,mo2,tol,runname,workdir,zrxn,ucv,vmax,poroprev  &! inpput
+        & ,dt,flgback &! inout
+        & ,po2x,flx_o2,resp &! output
+        & ) 
+    call silicate_dis_co2_1D_v2( &
+        & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
+        & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp,poroprev  &! input
+        & ,kco2,k1,k2,mgth,sith,nath,cath,tora,v,tol,zrxn,it,cx,c2x,so4x,mgi,sii,nai,cai,mvfo,mvab,mvan,mvcc,nflx,kw &! input
+        & ,k1si,k2si,kcca,keqcca,authig,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,pco2,pco2i,khco2i,ucv,torg,dgasc,daqc &! input 
+        & ,pco2th,resp &! intput
+        & ,iter,error,dt,flgback &! inout
+        & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
+        & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca,pco2x,flx_co2 &! output
+        & )
 
     ! if (iter > 75) then
         ! maxdt = maxdt/2d0
