@@ -118,15 +118,15 @@ real(kind=8) v(nz), q
 
 ! real(kind=8) :: hr = 1d5 ! m^2 m^-3, reciprocal of hydraulic radius  ** default 
 ! real(kind=8) :: hr = 1d4 ! m^2 m^-3, reciprocal of hydraulic radius
-real(kind=8) :: hri = 1d5
+real(kind=8) :: hrii = 1d5
 
-real(kind=8) :: hr(nz)
+real(kind=8) :: p80 = 10d-6 ! m 
 
-real(kind=8) msi,msili,mfoi,mabi,mani,mcci,ctmp,po2tmp
+real(kind=8) msi,msili,mfoi,mabi,mani,mcci,ctmp,po2tmp,ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save
 real(kind=8),dimension(nz)::msil,msilx,mfo,mfox,mab,mabx,man,manx,mcc,mccx &
     & ,po2,redsld,ms,c,po2x,msx,cx,resp,c2,c2x,so4,so4x,na,nax,naeq,silsat &
     & ,pro,prox,hco3,ca,co2,co3,dic,cax,porox,dporodta,dporodtg,dporodtgc,khco2  &
-    & ,mg,mgx,si,six,pco2,pco2x,poroprev,khco2x,pco2x_prev,torgprev,toraprev
+    & ,mg,mgx,si,six,pco2,pco2x,poroprev,khco2x,pco2x_prev,torgprev,toraprev,hr,rough,hri
 
 real(kind=8) :: caeq = 1d-3  ! mol/L equilibrium Ca conc. 
 real(kind=8) :: delca = 0.5d0  ! m reaction front width  
@@ -194,11 +194,14 @@ real(kind=8) :: maxdt = 0.2d0 ! for basalt exp?
 ! logical :: pre_calc = .false.
 logical :: pre_calc = .true.
 
-! logical :: read_data = .false.
-logical :: read_data = .true.
+logical :: read_data = .false.
+! logical :: read_data = .true.
 
-! logical :: initial_ss = .false.
-logical :: initial_ss = .true.
+logical :: initial_ss = .false.
+! logical :: initial_ss = .true.
+
+! logical :: incld_rough = .false.
+logical :: incld_rough = .true.
 
 logical :: rain_wave = .false.
 ! logical :: rain_wave = .true.
@@ -326,6 +329,9 @@ base = trim(adjustl(base))//'_pevol'
 base = trim(adjustl(base))//'_sevol1'
 #elif defined(surfevol2)
 base = trim(adjustl(base))//'_sevol2'
+#elif defined(surfssa)
+write(chrrain,'(E10.2)') p80
+base = trim(adjustl(base))//'_ssa-'//trim(adjustl(chrrain))
 #endif 
 
 #ifndef regulargrid
@@ -335,6 +341,11 @@ base = trim(adjustl(base))//'_irr'
 if (rain_wave)then 
     write(chrrain,'(E10.2)') wave_tau
     base = trim(adjustl(base))//'_rwave-'//trim(adjustl(chrrain))
+endif 
+
+if (incld_rough)then 
+    write(chrrain,'(E10.2)') p80
+    base = trim(adjustl(base))//'_rough-'//trim(adjustl(chrrain))
 endif 
 #ifdef test 
 write(base,*) '_test'
@@ -434,13 +445,35 @@ ca = 0d0
 ca = min(caeq,max(0d0,caeq*(z-zca)/delca))
 #endif 
 
-hr = hri
+rough = 1d0
+if (incld_rough) then 
+    rough = 10d0**(3.3d0)*p80**0.33d0 ! from Navarre-Sitchler and Brantley (2007)
+endif 
+
+ssa_cmn = -4.4528d0*log10(p80*1d6) + 11.578d0
+
+hri = hrii
+
+hr = hri*rough
 v = vcnst
 v = qin/poroi/sat
 poro = poroi
 torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
 tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
 deff = torg*dgas + tora*daq
+
+#ifdef surfssa
+hri = ssa_cmn*1d6/poro
+mvab_save = mvab
+mvan_save = mvan
+mvcc_save = mvcc
+mvfo_save = mvfo
+mvab = mwtab 
+mvan = mwtan 
+mvcc = mwtcc 
+mvfo = mwtfo 
+#endif 
+
 c(1) = 0.0d0
 c(2:) = 0.0d0
 c2(1) = 0.0d0
@@ -1002,10 +1035,22 @@ do while (it<nt)
     poroprev = poro
     torgprev = torg
     toraprev = tora
+#ifdef surfssa
+    mvab = mvab_save 
+    mvan = mvan_save 
+    mvcc = mvcc_save 
+    mvfo = mvfo_save 
+#endif 
     poro = poroi + (mabi-mabx)*(mvab -  0.5d0*99.52d0)*1d-6  &
         & +(mfoi-mfox)*(mvfo)*1d-6 &
         & +(mani-manx)*(mvan - mvkaol)*1d-6 &
         & +(mcci-mccx)*(mvcc )*1d-6 
+#ifdef surfssa
+    mvab = mwtab 
+    mvan = mwtan 
+    mvcc = mwtcc 
+    mvfo = mwtfo 
+#endif 
     if (any(poro<0d0)) then 
         print*,'negative porosity: stop'
         print*,poro
@@ -1026,12 +1071,12 @@ do while (it<nt)
         & -(ucv*porox*(1.0d0-sat)*1d3+porox*sat*khco2*1d3) &
         & )/dt
     dporodta = (poro*sat-porox*sat)/dt/(poro*sat)
-    hr = hri
+    hr = hri*rough
 #ifdef surfevol1 
-    hr = hri*((1d0-poro)/(1d0-poroi))**(2d0/3d0)
+    hr = hri*rough*((1d0-poro)/(1d0-poroi))**(2d0/3d0)
 #endif 
 #ifdef surfevol2 
-    hr = hri*(poro/poroi)**(2d0/3d0)  ! SA increases with porosity 
+    hr = hri*rough*(poro/poroi)**(2d0/3d0)  ! SA increases with porosity 
 #endif 
 #ifdef display
     print *
