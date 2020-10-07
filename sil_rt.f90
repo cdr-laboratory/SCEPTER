@@ -3480,3 +3480,2203 @@ do while ((.not.isnan(error)).and.(error > tol))
 enddo
 
 endsubroutine silicate_dis_co2_1D_v2
+
+
+
+
+
+
+
+
+
+
+
+
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine alsilicate_dis_co2_1D_v2( &
+    & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
+    & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp,poroprev  &! input
+    & ,kco2,k1,k2,mgth,sith,nath,cath,tora,v,tol,zrxn,it,cx,c2x,so4x,mgi,sii,nai,cai,mvfo,mvab,mvan,mvcc,nflx,kw &! input
+    & ,k1si,k2si,kcca,keqcca,authig,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,pco2,pco2i,khco2i,ucv,torg,dgasc,daqc &! input 
+    & ,pco2th,resp,k1al,k2al,k3al,k4al,keqka,kka,al,mvka,ali,mkai,alth,mkath,dal,mkasupp,mka &! intput
+    & ,iter,error,dt,flgback &! inout
+    & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
+    & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca,pco2x,flx_co2,alx,flx_ka,flx_al,omega_ka,mkax &! output
+    & )
+    
+implicit none 
+
+integer,intent(in)::nz,nflx
+real(kind=8),intent(in)::w,mfoth,tol,zrxn,dmg,dsi,mgth,sith,kco2,k1,k2,mfoi,mgi,sii,keqfo,mvfo,keqab,mabth,dna,mabi,nath &
+    & ,nai,mvab,kw,keqan,manth,dca,mani,cath,cai,mvan,keqcc,mccth,mcci,mvcc,k1si,k2si,keqcca,authig,k1mg,k1mgco3,k1mghco3 &
+    & ,k1ca,k1caco3,k1cahco3,pco2i,khco2i,ucv,dgasc,daqc,pco2th,k1al,k2al,k3al,k4al,keqka,mvka,ali,mkai,alth,mkath,dal
+real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,dporodta,tora,v,mfo,kfo,cx,c2x,so4x,ca,pro,mfosupp,mg,si,mab,na,kab,mabsupp &
+    & ,man,kan,mansupp,mcc,kcc,mccsupp,poroprev,dz,kcca,pco2,torg,resp,kka,al,mkasupp,mka
+real(kind=8),dimension(nz),intent(inout)::mgx,six,mfox,nax,mabx,cax,manx,mccx,pco2x,alx,mkax
+real(kind=8),dimension(nz),intent(out)::prox,co2,hco3,co3,dic,omega_fo,omega_ab,omega_an,omega_cc,omega_cca,omega_ka
+real(kind=8),dimension(nflx,nz),intent(out)::flx_fo,flx_mg,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,flx_co2,flx_ka,flx_al
+integer,intent(inout)::iter,it
+logical,intent(inout)::flgback
+real(kind=8),intent(inout)::error,dt
+
+integer,parameter::nsp3 = 11
+integer iz,row,nmx,ie,ie2,isp,iflx
+integer::itflx,iadv,idif,irxn_fo,irain,ires
+data itflx,iadv,idif,irxn_fo,irain,ires/1,2,3,4,5,6/
+
+real(kind=8),dimension(nz)::dprodna,dprodmg,domega_fo_dmg,domega_fo_dsi,domega_ab_dsi,domega_ab_dna,domega_ab_dmg,domega_fo_dna &
+    & ,domega_ab_dca,domega_fo_dca,domega_an_dsi,domega_an_dna,domega_an_dmg,domega_an_dca,dprodca,domega_cc_dca,domega_cc_dna &
+    & ,domega_cc_dsi,domega_cc_dmg,dprodsi,domega_fo_dpro,domega_ab_dpro,domega_an_dpro,domega_cc_dpro &
+    & ,domega_cca_dmg,domega_cca_dca,domega_cca_dna,domega_cca_dsi,domega_cca_dpro,dprodpco2,domega_fo_dpco2,domega_ab_dpco2 &
+    & ,domega_an_dpco2,domega_cc_dpco2,domega_cca_dpco2,dkhco2_dpro,dkhco2_dpco2,dpreccc_dpco2,preccc,khco2,khco2x,alpha,alphaprev &
+    & ,dalpha_dpco2,edif,dedif_dpco2,dalpha_dna,dalpha_dsi,dalpha_dmg,dalpha_dca,dedif_dca,dedif_dmg,dedif_dsi,dedif_dna &
+    & ,dkhco2_dca,dkhco2_dna,dkhco2_dsi,dkhco2_dmg,dpreccc_dca,dpreccc_dna,dpreccc_dsi,dpreccc_dmg,dpreccc_dmcc,dprodall &
+    & ,domega_fo_dal,domega_ka_dal,domega_ka_dsi,domega_ka_dpco2,domega_ka_dpro,domega_ka_dna,domega_ka_dca,domega_ka_dmg  &
+    & ,domega_ab_dal,domega_an_dal,domega_cc_dal,domega_cca_dal,dalpha_dal,dkhco2_dal,dedif_dal,dpreccc_dal,dprodal
+real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp,st_fo,st_ab &
+    & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp,st_an,omega_tmp_th,st_cc &
+    & ,edif_tmp,edif_tmp_n,edif_tmp_p,st_cca,edifi,khco2n_tmp,pco2n_tmp,edifn_tmp,st_ka
+real(kind=8)::k1_fo = 10d0**(-6.85d0), E1_fo = 51.7d0, n1_fo = 0.5d0, k2_fo = 10d0**(-12.41d0),E2_fo = 38d0 &
+    & ,k3_fo = 10d0**(-21.2d0),E3_fo = 94.1d0,n3_fo = -0.82d0  &
+    & ,k1_ab = 10d0**(-10.16d0), E1_ab = 65d0, n1_ab = 0.457d0, k2_ab = 10d0**(-12.56d0),E2_ab = 69.8d8 &
+    & ,k3_ab = 10d0**(-15.60d0),E3_ab = 71d0, n3_ab = -0.572d0 &
+    & ,k1_an = 10d0**(-3.5d0),E1_an = 16.6d0,n1_an = 1.411d0,k2_an = 10d0**(-9.12d0), E2_an = 17.8d0 
+
+real(kind=8),parameter::sec2yr = 60d0*60d0*60d0*24d0*365d0
+real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8)::dconc = 1d-14
+real(kind=8)::threshold = 10d0
+! real(kind=8)::threshold = 100d0
+real(kind=8),dimension(nz)::disonly ! for cc [1---yes, 0---no]
+real(kind=8),dimension(nz)::disonly_ka ! for ka [1---yes, 0---no]
+! real(kind=8)::disonly = 1d0 ! for cc 
+! real(kind=8)::authig = 0d0 ! for cc whether to include authigenesis [1---yes, 0---no]
+! real(kind=8)::authig = 1d0 ! 
+
+integer,parameter :: iter_max = 100
+
+real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
+integer ipiv3(nsp3*nz)
+integer info
+
+external DGESV
+
+! print *, mgx
+! print *, six
+! print *, mfosupp
+! stop
+
+if (any(isnan(tora)))then 
+    print*,tora
+endif 
+
+error = 1d4
+iter = 0
+
+if (it ==0) then 
+
+    ! call calc_pH_v3( &
+        ! & nz,cx,cx,cx,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        ! & ,prox &! output
+        ! & ) 
+    call calc_pH_v4( &
+        & nz,cx,cx,cx,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx,k1al,k2al,k3al,k4al &! input
+        & ,prox &! output
+        & ) 
+else 
+
+    ! call calc_pH_v3( &
+        ! & nz,nax,mgx,cax,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        ! & ,prox &! output
+        ! & ) 
+    call calc_pH_v4( &
+        & nz,nax,mgx,cax,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx,k1al,k2al,k3al,k4al &! input
+        & ,prox &! output
+        & ) 
+endif
+
+! print *, 'starting silciate calculation'
+
+do while ((.not.isnan(error)).and.(error > tol))
+
+    amx3=0.0d0
+    ymx3=0.0d0 
+    
+    flx_fo = 0d0
+    flx_mg = 0d0
+    flx_si = 0d0
+    flx_ab = 0d0
+    flx_na = 0d0
+    flx_an = 0d0
+    flx_ca = 0d0
+    flx_al = 0d0
+    flx_cc = 0d0
+    flx_ka = 0d0
+    flx_co2 = 0d0
+
+    call calc_pH_v4( &
+        & nz,nax,mgx,cax,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx,k1al,k2al,k3al,k4al &! input
+        & ,prox &! output
+        & ) 
+    call calc_pH_v4( &
+        & nz,nax,mgx+dconc,cax,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx,k1al,k2al,k3al,k4al &! input
+        & ,dprodmg &! output
+        & ) 
+    call calc_pH_v4( &
+        & nz,nax+dconc,mgx,cax,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,alx,k1al,k2al,k3al,k4al &! input 
+        & ,dprodna &! output
+        & ) 
+    call calc_pH_v4( &
+        & nz,nax,mgx,cax+dconc,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx,k1al,k2al,k3al,k4al &! input
+        & ,dprodca &! output
+        & ) 
+    call calc_pH_v4( &
+        & nz,nax,mgx,cax,so4x,pco2x,kw,kco2,k1,k2,six+dconc,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx,k1al,k2al,k3al,k4al &! input
+        & ,dprodsi &! output
+        & ) 
+    call calc_pH_v4( &
+        & nz,nax,mgx,cax,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx+dconc,k1al,k2al,k3al,k4al &! input
+        & ,dprodal &! output
+        & ) 
+    call calc_pH_v4( &
+        & nz,nax,mgx,cax,so4x,pco2x+dconc,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx,k1al,k2al,k3al,k4al &! input
+        & ,dprodpco2 &! output
+        & ) 
+    dprodna = (dprodna-prox)/dconc
+    dprodmg = (dprodmg-prox)/dconc
+    dprodsi = (dprodsi-prox)/dconc
+    dprodca = (dprodca-prox)/dconc
+    dprodal = (dprodal-prox)/dconc
+    dprodpco2 = (dprodpco2-prox)/dconc
+    
+    ! Fo + 4H+ = 2Mg2+ + SiO2(aq) + 2H2O 
+    
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! inpuy
+        & ,pco2x,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'fo' &! input 
+        & ,omega_fo &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx+dconc,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'fo' &! input 
+        & ,domega_fo_dmg &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &!input
+        & ,pco2x,cax,mgx,six+dconc,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'fo' &! input 
+        & ,domega_fo_dsi &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax+dconc,prox,alx,k1al,k2al,k3al,k4al,keqka,'fo' &! input 
+        & ,domega_fo_dna &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax+dconc,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'fo' &! input 
+        & ,domega_fo_dca &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox,alx+dconc,k1al,k2al,k3al,k4al,keqka,'fo' &! input 
+        & ,domega_fo_dal &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax,prox+dconc,alx,k1al,k2al,k3al,k4al,keqka,'fo' &! input 
+        & ,domega_fo_dpro &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x+dconc,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'fo' &! input 
+        & ,domega_fo_dpco2 &! output
+        & )
+    domega_fo_dmg = (domega_fo_dmg-omega_fo)/dconc
+    domega_fo_dsi = (domega_fo_dsi-omega_fo)/dconc
+    domega_fo_dna = (domega_fo_dna-omega_fo)/dconc
+    domega_fo_dca = (domega_fo_dca-omega_fo)/dconc
+    domega_fo_dal = (domega_fo_dal-omega_fo)/dconc
+    domega_fo_dpro = (domega_fo_dpro-omega_fo)/dconc
+    domega_fo_dpco2 = (domega_fo_dpco2-omega_fo)/dconc
+    
+    domega_fo_dmg = domega_fo_dmg + domega_fo_dpro*dprodmg
+    domega_fo_dca = domega_fo_dca + domega_fo_dpro*dprodca
+    domega_fo_dna = domega_fo_dna + domega_fo_dpro*dprodna
+    domega_fo_dsi = domega_fo_dsi + domega_fo_dpro*dprodsi
+    domega_fo_dal = domega_fo_dal + domega_fo_dpro*dprodal
+    domega_fo_dpco2 = domega_fo_dpco2 + domega_fo_dpro*dprodpco2
+    
+    ! Ab + H+ + 0.5H2O --> 0.5 kaolinite + Na+ + 2 SiO2(aq)
+    
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ab' &! input 
+        & ,omega_ab &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx+dconc,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ab' &! input 
+        & ,domega_ab_dmg &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six+dconc,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ab' &! input 
+        & ,domega_ab_dsi &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax+dconc,prox,alx,k1al,k2al,k3al,k4al,keqka,'ab' &! input 
+        & ,domega_ab_dna &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax+dconc,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ab' &! input 
+        & ,domega_ab_dca &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax,prox,alx+dconc,k1al,k2al,k3al,k4al,keqka,'ab' &! input 
+        & ,domega_ab_dal &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax,prox+dconc,alx,k1al,k2al,k3al,k4al,keqka,'ab' &! input 
+        & ,domega_ab_dpro &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x+dconc,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ab' &! input 
+        & ,domega_ab_dpco2 &! output
+        & )
+    domega_ab_dmg = (domega_ab_dmg-omega_ab)/dconc
+    domega_ab_dsi = (domega_ab_dsi-omega_ab)/dconc
+    domega_ab_dna = (domega_ab_dna-omega_ab)/dconc
+    domega_ab_dca = (domega_ab_dca-omega_ab)/dconc
+    domega_ab_dal = (domega_ab_dal-omega_ab)/dconc
+    domega_ab_dpro = (domega_ab_dpro-omega_ab)/dconc
+    domega_ab_dpco2 = (domega_ab_dpco2-omega_ab)/dconc
+    
+    domega_ab_dmg = domega_ab_dmg + domega_ab_dpro*dprodmg
+    domega_ab_dca = domega_ab_dca + domega_ab_dpro*dprodca
+    domega_ab_dna = domega_ab_dna + domega_ab_dpro*dprodna
+    domega_ab_dsi = domega_ab_dsi + domega_ab_dpro*dprodsi
+    domega_ab_dal = domega_ab_dal + domega_ab_dpro*dprodal
+    domega_ab_dpco2 = domega_ab_dpco2 + domega_ab_dpro*dprodpco2
+    
+    ! An + 2H+ + H2O = kaolinite + Ca2+ 
+    
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'an' &! input 
+        & ,omega_an &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx+dconc,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'an' &! input 
+        & ,domega_an_dmg &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six+dconc,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'an' &! input 
+        & ,domega_an_dsi &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax+dconc,prox,alx,k1al,k2al,k3al,k4al,keqka,'an' &! input 
+        & ,domega_an_dna &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax+dconc,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'an' &! input 
+        & ,domega_an_dca &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox,alx+dconc,k1al,k2al,k3al,k4al,keqka,'an' &! input 
+        & ,domega_an_dal &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox+dconc,alx,k1al,k2al,k3al,k4al,keqka,'an' &! input 
+        & ,domega_an_dpro &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x+dconc,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'an' &! input 
+        & ,domega_an_dpco2 &! output
+        & )
+    domega_an_dmg = (domega_an_dmg-omega_an)/dconc
+    domega_an_dsi = (domega_an_dsi-omega_an)/dconc
+    domega_an_dna = (domega_an_dna-omega_an)/dconc
+    domega_an_dca = (domega_an_dca-omega_an)/dconc
+    domega_an_dal = (domega_an_dal-omega_an)/dconc
+    domega_an_dpro = (domega_an_dpro-omega_an)/dconc
+    domega_an_dpco2 = (domega_an_dpco2-omega_an)/dconc
+    
+    domega_an_dmg = domega_an_dmg + domega_an_dpro*dprodmg
+    domega_an_dca = domega_an_dca + domega_an_dpro*dprodca
+    domega_an_dna = domega_an_dna + domega_an_dpro*dprodna
+    domega_an_dsi = domega_an_dsi + domega_an_dpro*dprodsi
+    domega_an_dal = domega_an_dal + domega_an_dpro*dprodal
+    domega_an_dpco2 = domega_an_dpco2 + domega_an_dpro*dprodpco2
+    
+    ! Kaolinite + 6H+ = 2Al3+ + 2SiO2 
+    
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ka' &! input 
+        & ,omega_ka &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx+dconc,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ka' &! input 
+        & ,domega_ka_dmg &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six+dconc,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ka' &! input 
+        & ,domega_ka_dsi &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax+dconc,prox,alx,k1al,k2al,k3al,k4al,keqka,'ka' &! input 
+        & ,domega_ka_dna &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax+dconc,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ka' &! input 
+        & ,domega_ka_dca &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox,alx+dconc,k1al,k2al,k3al,k4al,keqka,'ka' &! input 
+        & ,domega_ka_dal &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox+dconc,alx,k1al,k2al,k3al,k4al,keqka,'ka' &! input 
+        & ,domega_ka_dpro &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x+dconc,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'ka' &! input 
+        & ,domega_ka_dpco2 &! output
+        & )
+    domega_ka_dmg = (domega_ka_dmg-omega_ka)/dconc
+    domega_ka_dsi = (domega_ka_dsi-omega_ka)/dconc
+    domega_ka_dna = (domega_ka_dna-omega_ka)/dconc
+    domega_ka_dca = (domega_ka_dca-omega_ka)/dconc
+    domega_ka_dal = (domega_ka_dal-omega_ka)/dconc
+    domega_ka_dpro = (domega_ka_dpro-omega_ka)/dconc
+    domega_ka_dpco2 = (domega_ka_dpco2-omega_ka)/dconc
+    
+    domega_ka_dmg = domega_ka_dmg + domega_ka_dpro*dprodmg
+    domega_ka_dca = domega_ka_dca + domega_ka_dpro*dprodca
+    domega_ka_dna = domega_ka_dna + domega_ka_dpro*dprodna
+    domega_ka_dsi = domega_ka_dsi + domega_ka_dpro*dprodsi
+    domega_ka_dal = domega_ka_dal + domega_ka_dpro*dprodal
+    domega_ka_dpco2 = domega_ka_dpco2 + domega_ka_dpro*dprodpco2
+    
+    ! Cc = Ca2+ + CO32- 
+    
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,omega_cc &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx+dconc,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cc_dmg &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six+dconc,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cc_dsi &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax+dconc,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cc_dna &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax+dconc,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cc_dca &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox,alx+dconc,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cc_dal &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox+dconc,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cc_dpro &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x+dconc,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cc_dpco2 &! output
+        & )
+    domega_cc_dmg = (domega_cc_dmg-omega_cc)/dconc
+    domega_cc_dsi = (domega_cc_dsi-omega_cc)/dconc
+    domega_cc_dna = (domega_cc_dna-omega_cc)/dconc
+    domega_cc_dca = (domega_cc_dca-omega_cc)/dconc
+    domega_cc_dal = (domega_cc_dal-omega_cc)/dconc
+    domega_cc_dpro = (domega_cc_dpro-omega_cc)/dconc
+    domega_cc_dpco2 = (domega_cc_dpco2-omega_cc)/dconc
+    
+    domega_cc_dmg = domega_cc_dmg + domega_cc_dpro*dprodmg
+    domega_cc_dca = domega_cc_dca + domega_cc_dpro*dprodca
+    domega_cc_dna = domega_cc_dna + domega_cc_dpro*dprodna
+    domega_cc_dsi = domega_cc_dsi + domega_cc_dpro*dprodsi
+    domega_cc_dal = domega_cc_dal + domega_cc_dpro*dprodal
+    domega_cc_dpco2 = domega_cc_dpco2 + domega_cc_dpro*dprodpco2
+    
+    disonly = 0d0
+    disonly_ka = 0d0
+    
+    ! authigenesis (prety much tentative parameterization)
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcca,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,omega_cca &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcca,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx+dconc,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cca_dmg &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcca,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six+dconc,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cca_dsi &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcca,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,pco2x,cax,mgx,six,nax+dconc,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cca_dna &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcca,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax+dconc,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cca_dca &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcca,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox,alx+dconc,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cca_dal &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcca,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x,cax,mgx,six,nax,prox+dconc,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cca_dpro &! output
+        & )
+    call calc_omega_v2( &
+        & nz,keqfo,keqab,keqan,keqcca,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input
+        & ,pco2x+dconc,cax,mgx,six,nax,prox,alx,k1al,k2al,k3al,k4al,keqka,'cc' &! input 
+        & ,domega_cca_dpco2 &! output
+        & )
+    domega_cca_dmg = (domega_cca_dmg-omega_cca)/dconc
+    domega_cca_dsi = (domega_cca_dsi-omega_cca)/dconc
+    domega_cca_dna = (domega_cca_dna-omega_cca)/dconc
+    domega_cca_dca = (domega_cca_dca-omega_cca)/dconc
+    domega_cca_dal = (domega_cca_dal-omega_cca)/dconc
+    domega_cca_dpro = (domega_cca_dpro-omega_cca)/dconc
+    domega_cca_dpco2 = (domega_cca_dpco2-omega_cca)/dconc
+    
+    domega_cca_dmg = domega_cca_dmg + domega_cca_dpro*dprodmg
+    domega_cca_dca = domega_cca_dca + domega_cca_dpro*dprodca
+    domega_cca_dna = domega_cca_dna + domega_cca_dpro*dprodna
+    domega_cca_dsi = domega_cca_dsi + domega_cca_dpro*dprodsi
+    domega_cca_dal = domega_cca_dal + domega_cca_dpro*dprodal
+    domega_cca_dpco2 = domega_cca_dpco2 + domega_cca_dpro*dprodpco2
+
+    do iz = 1, nz  !================================
+        
+        do isp = 1, 5
+        
+            row = nsp3*(iz-1)+isp
+            
+            if (isp==1) then  ! Fo
+                k_tmp = kfo(iz)
+                mv_tmp = mvfo
+                omega_tmp = omega_fo(iz)
+                omega_tmp_th = omega_tmp
+                m_tmp = mfox(iz)
+                mth_tmp = mfoth 
+                mi_tmp = mfoi
+                mp_tmp = mfox(min(nz,iz+1))
+                msupp_tmp = mfosupp(iz)
+                mprev_tmp = mfo(iz)
+            elseif (isp==2)then ! Ab
+                k_tmp = kab(iz)
+                mv_tmp = mvab
+                omega_tmp = omega_ab(iz)
+                omega_tmp_th = omega_tmp
+                m_tmp = mabx(iz)
+                mth_tmp = mabth 
+                mi_tmp = mabi
+                mp_tmp = mabx(min(nz,iz+1))
+                msupp_tmp = mabsupp(iz)
+                mprev_tmp = mab(iz)
+            elseif (isp==3)then ! An
+                k_tmp = kan(iz)
+                mv_tmp = mvan
+                omega_tmp = omega_an(iz)
+                omega_tmp_th = omega_tmp
+                m_tmp = manx(iz)
+                mth_tmp = manth 
+                mi_tmp = mani
+                mp_tmp = manx(min(nz,iz+1))
+                msupp_tmp = mansupp(iz)
+                mprev_tmp = man(iz)
+            elseif (isp==4)then ! Cc
+                k_tmp = kcc(iz)
+                mv_tmp = mvcc
+                omega_tmp = omega_cc(iz)
+                disonly(iz) = merge(1d0,0d0,pco2x(iz)<pco2th)
+                omega_tmp_th = omega_tmp*disonly(iz)
+                m_tmp = mccx(iz)
+                mth_tmp = mccth 
+                mi_tmp = mcci
+                mp_tmp = mccx(min(nz,iz+1))
+                msupp_tmp = mccsupp(iz)
+                mprev_tmp = mcc(iz)
+            elseif (isp==5)then ! Ka
+                k_tmp = kka(iz)
+                mv_tmp = mvka
+                omega_tmp = omega_ka(iz)
+                ! disonly_ka(iz) = merge(1d0,0d0,alx(iz)<alth)
+                omega_tmp_th = omega_tmp*disonly_ka(iz)
+                m_tmp = mkax(iz)
+                mth_tmp = mkath 
+                mi_tmp = mkai
+                mp_tmp = mkax(min(nz,iz+1))
+                msupp_tmp = mkasupp(iz)
+                mprev_tmp = mka(iz)
+            endif 
+            
+            if (iz==nz) mp_tmp = mi_tmp
+
+            amx3(row,row) = (1.0d0     &
+                & + w/dz(iz)*dt    &
+                & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*(1d0-omega_tmp)*dt &
+                & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                & ) &
+                & * merge(1.0d0,m_tmp,m_tmp<mth_tmp)
+
+            ymx3(row) = ( &
+                & (m_tmp-mprev_tmp) &
+                & -w*(mp_tmp-m_tmp)/dz(iz)*dt  &
+                & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp)*dt &
+                & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                & -msupp_tmp*dt  &
+                & ) &
+                & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                
+            if (iz/=nz) amx3(row,row+nsp3) = (-w/dz(iz))*dt *merge(1.0d0,mp_tmp,m_tmp<mth_tmp)
+            
+            if (isp==1) then 
+                amx3(row,row + 5 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_fo_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+
+                amx3(row,row + 6 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_fo_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+
+                amx3(row,row + 7 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_fo_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+
+                amx3(row,row + 8 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_fo_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+
+                amx3(row,row + 9 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_fo_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+
+                amx3(row,row + 10 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_fo_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                flx_fo(itflx,iz) = (&
+                    & (m_tmp-mprev_tmp)/dt &
+                    & )
+                flx_fo(iadv,iz) = (&
+                    & -w*(mp_tmp-m_tmp)/dz(iz)  &
+                    & )
+                flx_fo(irxn_fo,iz) = (&
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & )
+                flx_fo(irain,iz) = (&
+                    & - msupp_tmp  &
+                    & )
+                flx_fo(ires,iz) = sum(flx_fo(:,iz))
+                if (isnan(flx_fo(ires,iz))) then 
+                    print *,'fo',iz,(flx_fo(iflx,iz),iflx=1,nflx)
+                endif 
+                
+            elseif (isp==2) then 
+                amx3(row,row + 4 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ab_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 5 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ab_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 6 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ab_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 7 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ab_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 8 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ab_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 9 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ab_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                flx_ab(itflx,iz) = (&
+                    & (m_tmp-mprev_tmp)/dt &
+                    & )
+                flx_ab(iadv,iz) = (&
+                    & -w*(mp_tmp-m_tmp)/dz(iz)  &
+                    & )
+                flx_ab(irxn_fo,iz) = (&
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & )
+                flx_ab(irain,iz) = (&
+                    & -msupp_tmp  &
+                    & )
+                flx_ab(ires,iz) = sum(flx_ab(:,iz))
+                if (isnan(flx_ab(ires,iz))) then 
+                    print *,'ab',iz,(flx_ab(iflx,iz),iflx=1,nflx)
+                endif 
+                
+            elseif (isp==3) then 
+                amx3(row,row + 3 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_an_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 4 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_an_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 5 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_an_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 6 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_an_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 7 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_an_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 8 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_an_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                flx_an(itflx,iz) = (&
+                    & (m_tmp-mprev_tmp)/dt &
+                    & )
+                flx_an(iadv,iz) = (&
+                    & -w*(mp_tmp-m_tmp)/dz(iz)  &
+                    & )
+                flx_an(irxn_fo,iz) = (&
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & )
+                flx_an(irain,iz) = (&
+                    & -msupp_tmp  &
+                    & )
+                flx_an(ires,iz) = sum(flx_an(:,iz))
+                if (isnan(flx_an(ires,iz))) then 
+                    print *,'an',iz,(flx_an(iflx,iz),iflx=1,nflx)
+                endif 
+                
+            elseif (isp==4) then 
+                amx3(row,row + 2 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_cc_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & + kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dmg(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 3 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_cc_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & + kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dsi(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 4 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_cc_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & + kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dna(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 5 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_cc_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & + kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dca(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 6 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_cc_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & + kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dal(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 7 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_cc_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & + kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dpco2(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                
+                if (authig == 1d0) then 
+                    ymx3(row) = ymx3(row) + ( & 
+                        & + kcca(iz)*poro(iz)*sat(iz)*(1d0-omega_cca(iz))*authig*dt &
+                        & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                        & ) &
+                        & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                endif
+                    
+                flx_cc(itflx,iz) = (&
+                    & (m_tmp-mprev_tmp)/dt &
+                    & )
+                flx_cc(iadv,iz) = (&
+                    & -w*(mp_tmp-m_tmp)/dz(iz)  &
+                    & )
+                flx_cc(irxn_fo,iz) = (&
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & + kcca(iz)*poro(iz)*sat(iz)*(1d0-omega_cca(iz))*authig &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & )
+                flx_cc(irain,iz) = (&
+                    & -msupp_tmp  &
+                    & )
+                flx_cc(ires,iz) = sum(flx_cc(:,iz))
+                if (isnan(flx_cc(ires,iz))) then 
+                    print *,'cc',iz,(flx_cc(iflx,iz),iflx=1,nflx)
+                endif 
+                
+            elseif (isp==5) then 
+                amx3(row,row + 1 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ka_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 2 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ka_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 3 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ka_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 4 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ka_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 5 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ka_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                amx3(row,row + 6 ) = ( &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_ka_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp)
+                    
+                flx_ka(itflx,iz) = (&
+                    & (m_tmp-mprev_tmp)/dt &
+                    & )
+                flx_ka(iadv,iz) = (&
+                    & -w*(mp_tmp-m_tmp)/dz(iz)  &
+                    & )
+                flx_ka(irxn_fo,iz) = (&
+                    & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
+                    & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
+                    & )
+                flx_ka(irain,iz) = (&
+                    & -msupp_tmp  &
+                    & )
+                flx_ka(ires,iz) = sum(flx_ka(:,iz))
+                if (isnan(flx_ka(ires,iz))) then 
+                    print *,'ka',iz,(flx_ka(iflx,iz),iflx=1,nflx)
+                endif 
+            endif 
+        enddo 
+    end do  !================================
+
+    do iz = 1, nz
+        
+        do isp = 1, 5
+
+            row = nsp3*(iz-1)+5 + isp
+            
+            if (isp==1) then ! mg 
+                d_tmp = dmg
+                caq_tmp = mgx(iz)
+                caq_tmp_prev = mg(iz)
+                caq_tmp_p = mgx(min(nz,iz+1))
+                caq_tmp_n = mgx(max(1,iz-1))
+                caqth_tmp = mgth
+                caqi_tmp = mgi
+                st_fo = 2d0
+                st_ab = 0d0
+                st_an = 0d0
+                st_cc = 0d0
+                st_cca = 0d0
+                st_ka = 0d0
+                rxn_tmp = st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(1d0-omega_fo(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0) 
+                drxndisp_tmp = st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dmg(iz)) & 
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)
+            elseif (isp==2) then  ! si
+                d_tmp = dsi
+                caq_tmp = six(iz)
+                caq_tmp_prev = si(iz)
+                caq_tmp_p = six(min(nz,iz+1))
+                caq_tmp_n = six(max(1,iz-1))
+                caqth_tmp = sith
+                caqi_tmp = sii
+                st_fo = 1d0
+                st_ab = 3d0
+                st_an = 2d0
+                st_cc = 0d0
+                st_cca = 0d0
+                st_ka = 2d0
+                rxn_tmp = st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(1d0-omega_fo(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0) &
+                    & + st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) &
+                    & + st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(1d0-omega_an(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0) &
+                    & + st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(1d0-omega_ka(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0) 
+                drxndisp_tmp = st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dsi(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0) &
+                    & + st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dsi(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) &
+                    & + st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dsi(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0) &
+                    & + st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dsi(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0) 
+            elseif (isp==3) then  ! na
+                d_tmp = dna
+                caq_tmp = nax(iz)
+                caq_tmp_prev = na(iz)
+                caq_tmp_p = nax(min(nz,iz+1))
+                caq_tmp_n = nax(max(1,iz-1))
+                caqth_tmp = nath
+                caqi_tmp = nai
+                st_fo = 0d0
+                st_ab = 1d0
+                st_an = 0d0
+                st_cc = 0d0
+                st_cca = 0d0
+                st_ka = 0d0
+                rxn_tmp = st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) 
+                drxndisp_tmp = st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dna(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) 
+            elseif (isp==4) then  ! ca
+                d_tmp = dca
+                caq_tmp = cax(iz)
+                caq_tmp_prev = ca(iz)
+                caq_tmp_p = cax(min(nz,iz+1))
+                caq_tmp_n = cax(max(1,iz-1))
+                caqth_tmp = cath
+                caqi_tmp = cai
+                st_fo = 0d0
+                st_ab = 0d0
+                st_an = 1d0
+                st_cc = 1d0
+                st_cca = 1d0
+                st_ka = 0d0
+                rxn_tmp = st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(1d0-omega_an(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0) &
+                    & + st_cc*kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*mccx(iz)*(1d0-omega_cc(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_cc(iz)*disonly(iz) < 0d0) &
+                    & + st_cca*kcca(iz)*poro(iz)*sat(iz)*(1d0-omega_cca(iz))*authig &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) 
+                drxndisp_tmp = ( &
+                    & st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dca(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0) &
+                    & + st_cc*kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*mccx(iz)*(-domega_cc_dca(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_cc(iz)*disonly(iz) < 0d0) &
+                    & + st_cca*kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dca(iz))*authig &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & )
+            elseif (isp==5) then  ! al
+                d_tmp = dal
+                caq_tmp = alx(iz)
+                caq_tmp_prev = al(iz)
+                caq_tmp_p = alx(min(nz,iz+1))
+                caq_tmp_n = alx(max(1,iz-1))
+                caqth_tmp = alth
+                caqi_tmp = ali
+                st_fo = 0d0
+                st_ab = 1d0
+                st_an = 2d0
+                st_cc = 0d0
+                st_cca = 0d0
+                st_ka = 2d0
+                rxn_tmp = &
+                    & + st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) &
+                    & + st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(1d0-omega_an(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0) &
+                    & + st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(1d0-omega_ka(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0) 
+                drxndisp_tmp =  &
+                    & + st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dal(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) &
+                    & + st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dal(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0) &
+                    & + st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dal(iz)) &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0) 
+            endif 
+            
+            if (iz==1) caq_tmp_n = caqi_tmp
+                
+            edif_tmp = 1d3*poro(iz)*sat(iz)*tora(iz)*d_tmp
+            edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*tora(min(iz+1,nz))*d_tmp
+            edif_tmp_n = 1d3*poro(max(iz-1,1))*sat(max(iz-1,1))*tora(max(iz-1,1))*d_tmp
+
+            amx3(row,row) = ( &
+                & (poro(iz)*sat(iz)*1d3*1d0)  &
+                & -(0.5d0*(edif_tmp +edif_tmp_p)*merge(0d0,-1d0,iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
+                & -0.5d0*(edif_tmp +edif_tmp_n)*(1d0)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz)*dt &
+                & + poro(iz)*sat(iz)*1d3*v(iz)*(1d0)/dz(iz)*dt &
+                & -drxndisp_tmp*dt &
+                & ) &
+                & *merge(1.0d0,caq_tmp,caq_tmp<caqth_tmp)
+
+            ymx3(row) = ( &
+                & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)  &
+                & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt &
+                & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz)*dt &
+                & - rxn_tmp*dt &
+                & ) &
+                & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+
+            if (iz/=1) then 
+                amx3(row,row-nsp3) = ( &
+                    & -(-0.5d0*(edif_tmp +edif_tmp_n)*(-1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt &
+                    & + poro(iz)*sat(iz)*1d3*v(iz)*(-1d0)/dz(iz)*dt &
+                    & ) &
+                    & *caq_tmp_n &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            endif 
+            
+            if (iz/=nz) then 
+                amx3(row,row+nsp3) = ( &
+                    & -(0.5d0*(edif_tmp +edif_tmp_p)*(1d0)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                    & ) &
+                    & *caq_tmp_p &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            endif 
+            
+            amx3(row,row  - isp - 4) = (     & 
+                & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*1d0*(1d0-omega_fo(iz))*dt &
+                & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                & ) &
+                & *mfox(iz) &
+                & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+            amx3(row,row  - isp -3) = (     & 
+                & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*1d0*(1d0-omega_ab(iz))*dt &
+                & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                & ) &
+                & *mabx(iz) &
+                & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+            amx3(row,row  - isp -2) = (     & 
+                & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*1d0*(1d0-omega_an(iz))*dt &
+                & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                & ) &
+                & *manx(iz) &
+                & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+            amx3(row,row  - isp -1) = (     & 
+                & - st_cc*kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*1d0*(1d0-omega_cc(iz))*dt &
+                & *merge(0d0,1d0,1d0-omega_cc(iz)*disonly(iz) < 0d0)  &
+                & ) &
+                & *mccx(iz) &
+                & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+            amx3(row,row  - isp ) = (     & 
+                & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*1d0*(1d0-omega_ka(iz))*dt &
+                & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                & ) &
+                & *mkax(iz) &
+                & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+            if (isp==1) then 
+            
+                amx3(row,row  + 1) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 2) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 3) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 4) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 5) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                    
+                flx_mg(itflx,iz) = (&
+                    & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/dt  &
+                    & ) 
+                flx_mg(iadv,iz) = (&
+                    & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+                    & ) 
+                flx_mg(idif,iz) = (&
+                    & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                    & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                    & ) 
+                flx_mg(irxn_fo,iz) = (&
+                    & - rxn_tmp &
+                    & ) 
+                flx_mg(ires,iz) = sum(flx_mg(:,iz))
+                if (isnan(flx_mg(ires,iz))) then 
+                    print *,'mg',iz,(flx_mg(iflx,iz),iflx=1,nflx)
+                endif 
+            elseif (isp==2) then 
+            
+                amx3(row,row  - 1) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 1) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 2) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 3) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 4) = (     & 
+                    & - st_fo*kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(-domega_fo_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0)  &
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                    
+                flx_si(itflx,iz) = (&
+                    & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/dt  &
+                    & ) 
+                flx_si(iadv,iz) = (&
+                    & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+                    & ) 
+                flx_si(idif,iz) = (&
+                    & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                    & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                    & ) 
+                flx_si(irxn_fo,iz) = (&
+                    & - rxn_tmp &
+                    & ) 
+                flx_si(ires,iz) = sum(flx_si(:,iz))
+                if (isnan(flx_si(ires,iz))) then 
+                    print *,'si',iz,(flx_si(iflx,iz),iflx=1,nflx)
+                endif 
+            elseif (isp==3) then 
+            
+                amx3(row,row  - 2) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  - 1) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 1) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 2) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 3) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                    
+                flx_na(itflx,iz) = (&
+                    & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/dt  &
+                    & ) 
+                flx_na(iadv,iz) = (&
+                    & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+                    & ) 
+                flx_na(idif,iz) = (&
+                    & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                    & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                    & ) 
+                flx_na(irxn_fo,iz) = (&
+                    & - rxn_tmp &
+                    & ) 
+                flx_na(ires,iz) = sum(flx_na(:,iz))
+                if (isnan(flx_na(ires,iz))) then 
+                    print *,'na',iz,(flx_na(iflx,iz),iflx=1,nflx)
+                endif 
+            elseif (isp==4) then 
+            
+                amx3(row,row  - 3) = (     & 
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_cc*kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*mccx(iz)*(-domega_cc_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_cc(iz)*disonly(iz) < 0d0)  &
+                    & + st_cca*kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dmg(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  - 2) = (     & 
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_cc*kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*mccx(iz)*(-domega_cc_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_cc(iz)*disonly(iz) < 0d0)  &
+                    & + st_cca*kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dsi(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  - 1) = (     & 
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_cc*kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*mccx(iz)*(-domega_cc_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_cc(iz)*disonly(iz) < 0d0)  &
+                    & + st_cca*kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dna(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 1) = (     & 
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_cc*kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*mccx(iz)*(-domega_cc_dal(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_cc(iz)*disonly(iz) < 0d0)  &
+                    & + st_cca*kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dal(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *alx(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 2) = (     & 
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_cc*kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*mccx(iz)*(-domega_cc_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_cc(iz)*disonly(iz) < 0d0)  &
+                    & + st_cca*kcca(iz)*poro(iz)*sat(iz)*(-domega_cca_dpco2(iz))*authig*dt &
+                    & *merge(0d0,1d0,1d0-omega_cca(iz) > 0d0) &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                    
+                flx_ca(itflx,iz) = (&
+                    & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/dt  &
+                    & ) 
+                flx_ca(iadv,iz) = (&
+                    & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+                    & ) 
+                flx_ca(idif,iz) = (&
+                    & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                    & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                    & ) 
+                flx_ca(irxn_fo,iz) = (&
+                    & - rxn_tmp &
+                    & ) 
+                flx_ca(ires,iz) = sum(flx_ca(:,iz))
+                if (isnan(flx_ca(ires,iz))) then 
+                    print *,'ca',iz,(flx_ca(iflx,iz),iflx=1,nflx)
+                endif 
+            elseif (isp==5) then 
+            
+                amx3(row,row  - 4) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dmg(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *mgx(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  - 3) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dsi(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *six(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  - 2) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dna(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *nax(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  - 1) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dca(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *cax(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+            
+                amx3(row,row  + 1) = (     & 
+                    & - st_ab*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(-domega_ab_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0)  &
+                    & - st_an*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz)*(-domega_an_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_an(iz) < 0d0)  &
+                    & - st_ka*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz)*(-domega_ka_dpco2(iz))*dt &
+                    & *merge(0d0,1d0,1d0-omega_ka(iz)*disonly_ka(iz) < 0d0)  &
+                    & ) &
+                    & *pco2x(iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                    
+                flx_al(itflx,iz) = (&
+                    & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/dt  &
+                    & ) 
+                flx_al(iadv,iz) = (&
+                    & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+                    & ) 
+                flx_al(idif,iz) = (&
+                    & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                    & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                    & ) 
+                flx_al(irxn_fo,iz) = (&
+                    & - rxn_tmp &
+                    & ) 
+                flx_al(ires,iz) = sum(flx_al(:,iz))
+                if (isnan(flx_al(ires,iz))) then 
+                    print *,'si',iz,(flx_al(iflx,iz),iflx=1,nflx)
+                endif 
+            endif 
+            
+            ! amx3(row,:) = amx3(row,:)/(poro(iz)*sat(iz)*1d3)
+            ! ymx3(row) = ymx3(row)/(poro(iz)*sat(iz)*1d3)
+        
+        enddo 
+        
+    end do  ! ==============================
+    
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    pCO2    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
+    khco2 = kco2*(1d0+k1/pro + k1*k2/pro/pro) ! previous value; should not change through iterations 
+    khco2x = kco2*(1d0+k1/prox + k1*k2/prox/prox)
+    
+    disonly = merge(1d0,0d0,pco2x<pco2th)
+    preccc = kcc*poro*hr*mvcc*1d-6*mccx*(1d0-omega_cc) &
+        & *merge(0d0,1d0,1d0-omega_cc*disonly < 0d0)
+        
+    dpreccc_dpco2=0d0
+    dkhco2_dpco2 = 0d0
+        
+    dpreccc_dpco2=kcc*poro*hr*mvcc*1d-6*mccx*(-domega_cc_dpco2) &
+        & *merge(0d0,1d0,1d0-omega_cc*disonly < 0d0)
+    dpreccc_dna=kcc*poro*hr*mvcc*1d-6*mccx*(-domega_cc_dna) &
+        & *merge(0d0,1d0,1d0-omega_cc*disonly < 0d0)
+    dpreccc_dmg=kcc*poro*hr*mvcc*1d-6*mccx*(-domega_cc_dmg) &
+        & *merge(0d0,1d0,1d0-omega_cc*disonly < 0d0)
+    dpreccc_dsi=kcc*poro*hr*mvcc*1d-6*mccx*(-domega_cc_dsi) &
+        & *merge(0d0,1d0,1d0-omega_cc*disonly < 0d0)
+    dpreccc_dca=kcc*poro*hr*mvcc*1d-6*mccx*(-domega_cc_dca) &
+        & *merge(0d0,1d0,1d0-omega_cc*disonly < 0d0)
+    dpreccc_dal=kcc*poro*hr*mvcc*1d-6*mccx*(-domega_cc_dal) &
+        & *merge(0d0,1d0,1d0-omega_cc*disonly < 0d0)
+    dpreccc_dmcc=kcc*poro*hr*mvcc*1d-6*(1d0-omega_cc) &
+        & *merge(0d0,1d0,1d0-omega_cc*disonly < 0d0)
+    dkhco2_dpro = kco2*(k1*(-1d0)/prox**2d0 + k1*k2*(-2d0)/prox**3d0)
+    dkhco2_dpco2 = dkhco2_dpro*dprodpco2
+    dkhco2_dna = dkhco2_dpro*dprodna
+    dkhco2_dmg = dkhco2_dpro*dprodmg
+    dkhco2_dsi = dkhco2_dpro*dprodsi
+    dkhco2_dca = dkhco2_dpro*dprodca
+    dkhco2_dal = dkhco2_dpro*dprodal
+    
+    edif = ucv*poro*(1.0d0-sat)*1d3*torg*dgasc+poro*sat*khco2x*1d3*tora*daqc
+    edifi = edif(1)
+    edifi = ucv*1d3*dgasc 
+    
+    dedif_dpco2 = poro*sat*dkhco2_dpco2*1d3*tora*daqc
+    dedif_dna = poro*sat*dkhco2_dna*1d3*tora*daqc
+    dedif_dmg = poro*sat*dkhco2_dmg*1d3*tora*daqc
+    dedif_dsi = poro*sat*dkhco2_dsi*1d3*tora*daqc
+    dedif_dca = poro*sat*dkhco2_dca*1d3*tora*daqc
+    dedif_dal = poro*sat*dkhco2_dal*1d3*tora*daqc
+    
+    alpha = ucv*poro*(1.0d0-sat)*1d3+poro*sat*khco2x*1d3
+    alphaprev = ucv*poroprev*(1.0d0-sat)*1d3+poroprev*sat*khco2*1d3
+    
+    dalpha_dpco2 = poro*sat*dkhco2_dpco2*1d3
+    dalpha_dna = poro*sat*dkhco2_dna*1d3
+    dalpha_dmg = poro*sat*dkhco2_dmg*1d3
+    dalpha_dsi = poro*sat*dkhco2_dsi*1d3
+    dalpha_dca = poro*sat*dkhco2_dca*1d3
+    dalpha_dal = poro*sat*dkhco2_dal*1d3
+    
+    if (any(isnan(alpha)).or.any(isnan(alphaprev))) then 
+        print *, alpha 
+        print *, alphaprev
+        print *, poroprev
+        print *, khco2
+        print *, pro
+        stop
+    endif 
+    
+    do iz = 1, nz
+
+        row = nsp3*(iz-1) + 11
+        
+        pco2n_tmp = pco2x(max(1,iz-1))
+        khco2n_tmp = khco2x(max(1,iz-1))
+        edifn_tmp = edif(max(1,iz-1))
+        if (iz == 1) then 
+            pco2n_tmp = pco2i
+            khco2n_tmp = khco2i
+            edifn_tmp = edifi
+        endif 
+
+        amx3(row,row) = ( &
+            & (alpha(iz) + dalpha_dpco2(iz)*pco2x(iz)) &
+            & -( 0.5d0*(edif(iz)+edif(min(nz,iz+1)))*merge(0d0,-1d0,iz==nz)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & +0.5d0*(dedif_dpco2(iz))*(pco2x(min(nz,iz+1))-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(edif(iz)+edifn_tmp)*(1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+            & - 0.5d0*(dedif_dpco2(iz))*(pco2x(iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(khco2x(iz)*1d0)/dz(iz)*dt &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhco2_dpco2(iz)*pco2x(iz))/dz(iz)*dt &
+            & -dpreccc_dpco2(iz)*dt &
+            & ) &
+            & *merge(1.0d0,pco2x(iz),pco2x(iz)<pco2th)
+
+        ymx3(row) = ( &
+            & (alpha(iz)*pco2x(iz)-alphaprev(iz)*pco2(iz)) &
+            & -( 0.5d0*(edif(iz)+edif(min(nz,iz+1)))*(pco2x(min(nz,iz+1))-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(edif(iz)+edifn_tmp)*(pco2x(iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(khco2x(iz)*pco2x(iz)-khco2n_tmp*pco2n_tmp)/dz(iz)*dt &
+            & -resp(iz)*dt &
+            & -preccc(iz)*dt &
+            & ) &
+            & *merge(0.0d0,1.0d0,pco2x(iz)<pco2th)
+        
+        
+        if (iz/=nz) then 
+        
+            amx3(row,row+nsp3) = ( &
+                    & -( 0.5d0*(edif(iz)+edif(iz+1))*(1d0)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                    & + 0.5d0*(dedif_dpco2(iz+1))*(pco2x(iz+1)-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                    & ) &
+                    & *merge(0.0d0,pco2x(iz+1),pco2x(iz)<pco2th)
+        
+            amx3(row,row+nsp3-5) = ( &
+                    & -( 0.5d0*(dedif_dmg(iz+1))*(pco2x(iz+1)-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                    & ) &
+                    & *merge(0.0d0,mgx(iz+1),pco2x(iz)<pco2th)
+        
+            amx3(row,row+nsp3-4) = ( &
+                    & -( 0.5d0*(dedif_dsi(iz+1))*(pco2x(iz+1)-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                    & ) &
+                    & *merge(0.0d0,six(iz+1),pco2x(iz)<pco2th)
+        
+            amx3(row,row+nsp3-3) = ( &
+                    & -( 0.5d0*(dedif_dna(iz+1))*(pco2x(iz+1)-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                    & ) &
+                    & *merge(0.0d0,nax(iz+1),pco2x(iz)<pco2th)
+        
+            amx3(row,row+nsp3-2) = ( &
+                    & -( 0.5d0*(dedif_dca(iz+1))*(pco2x(iz+1)-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                    & ) &
+                    & *merge(0.0d0,cax(iz+1),pco2x(iz)<pco2th)
+        
+            amx3(row,row+nsp3-1) = ( &
+                    & -( 0.5d0*(dedif_dal(iz+1))*(pco2x(iz+1)-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                    & ) &
+                    & *merge(0.0d0,alx(iz+1),pco2x(iz)<pco2th)
+        
+        endif 
+        
+        if (iz/=1) then 
+
+            amx3(row,row-nsp3) = ( &
+                & -(- 0.5d0*(edif(iz)+edif(iz-1))*(-1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+                & - 0.5d0*(dedif_dpco2(iz-1))*(pco2x(iz)-pco2x(iz-1))/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(-khco2x(iz-1)*1d0)/dz(iz)*dt &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhco2_dpco2(iz-1)*pco2x(iz-1))/dz(iz)*dt &
+                & ) &
+                & *merge(0.0d0,pco2x(iz-1),pco2x(iz)<pco2th)
+
+            amx3(row,row-nsp3-5) = ( &
+                & -(- 0.5d0*(dedif_dmg(iz-1))*(pco2x(iz)-pco2x(iz-1))/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhco2_dmg(iz-1)*pco2x(iz-1))/dz(iz)*dt &
+                & ) &
+                & *merge(0.0d0,mgx(iz-1),pco2x(iz)<pco2th)
+
+            amx3(row,row-nsp3-4) = ( &
+                & -(- 0.5d0*(dedif_dsi(iz-1))*(pco2x(iz)-pco2x(iz-1))/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhco2_dsi(iz-1)*pco2x(iz-1))/dz(iz)*dt &
+                & ) &
+                & *merge(0.0d0,six(iz-1),pco2x(iz)<pco2th)
+
+            amx3(row,row-nsp3-3) = ( &
+                & -(- 0.5d0*(dedif_dna(iz-1))*(pco2x(iz)-pco2x(iz-1))/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhco2_dna(iz-1)*pco2x(iz-1))/dz(iz)*dt &
+                & ) &
+                & *merge(0.0d0,nax(iz-1),pco2x(iz)<pco2th)
+
+            amx3(row,row-nsp3-2) = ( &
+                & -(- 0.5d0*(dedif_dca(iz-1))*(pco2x(iz)-pco2x(iz-1))/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhco2_dca(iz-1)*pco2x(iz-1))/dz(iz)*dt &
+                & ) &
+                & *merge(0.0d0,cax(iz-1),pco2x(iz)<pco2th)
+
+            amx3(row,row-nsp3-1) = ( &
+                & -(- 0.5d0*(dedif_dal(iz-1))*(pco2x(iz)-pco2x(iz-1))/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhco2_dal(iz-1)*pco2x(iz-1))/dz(iz)*dt &
+                & ) &
+                & *merge(0.0d0,alx(iz-1),pco2x(iz)<pco2th)
+        endif 
+        
+        amx3(row,row-7) = ( &
+            & -dpreccc_dmcc(iz)*dt &
+            & ) &
+            & *merge(1.0d0,mccx(iz),pco2x(iz)<pco2th)
+        
+        amx3(row,row-5) = ( &
+            & (dalpha_dmg(iz)*pco2x(iz)) &
+            & -( 0.5d0*(dedif_dmg(iz))*(pco2x(min(nz,iz+1))-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(dedif_dmg(iz))*(pco2x(iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhco2_dmg(iz)*pco2x(iz))/dz(iz)*dt &
+            & -dpreccc_dmg(iz)*dt &
+            & ) &
+            & *merge(1.0d0,mgx(iz),pco2x(iz)<pco2th)
+        
+        amx3(row,row-4) = ( &
+            & (dalpha_dsi(iz)*pco2x(iz)) &
+            & -( 0.5d0*(dedif_dsi(iz))*(pco2x(min(nz,iz+1))-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(dedif_dsi(iz))*(pco2x(iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhco2_dsi(iz)*pco2x(iz))/dz(iz)*dt &
+            & -dpreccc_dsi(iz)*dt &
+            & ) &
+            & *merge(1.0d0,six(iz),pco2x(iz)<pco2th)
+        
+        amx3(row,row-3) = ( &
+            & (dalpha_dna(iz)*pco2x(iz)) &
+            & -( 0.5d0*(dedif_dna(iz))*(pco2x(min(nz,iz+1))-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(dedif_dna(iz))*(pco2x(iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhco2_dna(iz)*pco2x(iz))/dz(iz)*dt &
+            & -dpreccc_dna(iz)*dt &
+            & ) &
+            & *merge(1.0d0,nax(iz),pco2x(iz)<pco2th)
+        
+        amx3(row,row-2) = ( &
+            & (dalpha_dca(iz)*pco2x(iz)) &
+            & -( 0.5d0*(dedif_dca(iz))*(pco2x(min(nz,iz+1))-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(dedif_dca(iz))*(pco2x(iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhco2_dca(iz)*pco2x(iz))/dz(iz)*dt &
+            & -dpreccc_dca(iz)*dt &
+            & ) &
+            & *merge(1.0d0,cax(iz),pco2x(iz)<pco2th)
+        
+        amx3(row,row-1) = ( &
+            & (dalpha_dal(iz)*pco2x(iz)) &
+            & -( 0.5d0*(dedif_dal(iz))*(pco2x(min(nz,iz+1))-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(dedif_dal(iz))*(pco2x(iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhco2_dal(iz)*pco2x(iz))/dz(iz)*dt &
+            & -dpreccc_dal(iz)*dt &
+            & ) &
+            & *merge(1.0d0,alx(iz),pco2x(iz)<pco2th)
+        
+        flx_co2(itflx,iz) = ( &
+            & (alpha(iz)*pco2x(iz)-alphaprev(iz)*pco2(iz))/dt &
+            & )         
+        flx_co2(idif,iz) = ( &
+            & -( 0.5d0*(edif(iz)+edif(min(nz,iz+1)))*(pco2x(min(nz,iz+1))-pco2x(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(edif(iz)+edifn_tmp)*(pco2x(iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            & )
+        flx_co2(iadv,iz) = ( &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(khco2x(iz)*pco2x(iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
+            & )
+        flx_co2(irxn_fo,iz) = -resp(iz)
+        flx_co2(irain,iz) = -preccc(iz)
+        flx_co2(ires,iz) = sum(flx_co2(:,iz))
+        
+        if (any(isnan(flx_co2(:,iz)))) then
+            print *,flx_co2(:,iz)
+        endif 
+
+    end do 
+    
+    ymx3=-1.0d0*ymx3
+
+    if (any(isnan(amx3)).or.any(isnan(ymx3)).or.any(amx3>infinity).or.any(ymx3>infinity)) then 
+    ! if (.true.) then 
+        print*,'error in mtx'
+        print*,'any(isnan(amx3)),any(isnan(ymx3))'
+        print*,any(isnan(amx3)),any(isnan(ymx3))
+
+        if (any(isnan(ymx3))) then 
+            do ie = 1,nsp3*(nz)
+                if (isnan(ymx3(ie))) then 
+                    print*,'NAN is here...',ie
+                endif
+            enddo
+        endif
+
+
+        if (any(isnan(amx3))) then 
+            do ie = 1,nsp3*(nz)
+                do ie2 = 1,nsp3*(nz)
+                    if (isnan(amx3(ie,ie2))) then 
+                        print*,'NAN is here...',ie,ie2
+                    endif
+                enddo
+            enddo
+        endif
+        
+        open(unit=11,file='amx.txt',status = 'replace')
+        open(unit=12,file='ymx.txt',status = 'replace')
+        do ie = 1,nsp3*(nz)
+            write(11,*) (amx3(ie,ie2),ie2 = 1,nsp3*nz)
+            write(12,*) ymx3(ie)
+        enddo 
+        close(11)
+        close(12)       
+
+        stop
+    endif
+
+    call DGESV(nsp3*(Nz),int(1),amx3,nsp3*(Nz),IPIV3,ymx3,nsp3*(Nz),INFO) 
+
+    if (any(isnan(ymx3))) then
+        print*,'error in soultion'
+        
+        open(unit=11,file='amx.txt',status = 'replace')
+        open(unit=12,file='ymx.txt',status = 'replace')
+        do ie = 1,nsp3*(nz)
+            write(11,*) (amx3(ie,ie2),ie2 = 1,nsp3*nz)
+            write(12,*) ymx3(ie)
+        enddo 
+        close(11)
+        close(12)       
+    endif
+
+    do iz = 1, nz
+        row = 1 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'Fo'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            mfox(iz) = mfox(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            mfox(iz) = mfox(iz)*0.50d0
+        else   
+            mfox(iz) = mfox(iz)*exp(ymx3(row))
+        endif
+        
+        row = 2 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'Ab'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            mabx(iz) = mabx(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            mabx(iz) = mabx(iz)*0.50d0
+        else   
+            mabx(iz) = mabx(iz)*exp(ymx3(row))
+        endif
+        
+        row = 3 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'An'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            manx(iz) = manx(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            manx(iz) = manx(iz)*0.50d0
+        else   
+            manx(iz) = manx(iz)*exp(ymx3(row))
+        endif
+        
+        row = 4 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'Cc'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            mccx(iz) = mccx(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            mccx(iz) = mccx(iz)*0.50d0
+        else   
+            mccx(iz) = mccx(iz)*exp(ymx3(row))
+        endif
+        
+        row = 5 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'Ka'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            mkax(iz) = mkax(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            mkax(iz) = mkax(iz)*0.50d0
+        else   
+            mkax(iz) = mkax(iz)*exp(ymx3(row))
+        endif
+        
+        row = 6 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'mg'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                mgx(iz) = 0.1d0*mgth
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            mgx(iz) = mgx(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            mgx(iz) = mgx(iz)*0.50d0
+        else
+            mgx(iz) = mgx(iz)*exp(ymx3(row))
+        endif
+        
+        row = 7 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'si'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                six(iz) = 0.1d0*sith
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            six(iz) = six(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            six(iz) = six(iz)*0.50d0
+        else
+            six(iz) = six(iz)*exp(ymx3(row))
+        endif
+        
+        row = 8 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'na'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                nax(iz) = 0.1d0*nath
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            nax(iz) = nax(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            nax(iz) = nax(iz)*0.50d0
+        else
+            nax(iz) = nax(iz)*exp(ymx3(row))
+        endif
+        
+        row = 9 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'ca'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                cax(iz) = 0.1d0*cath
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            cax(iz) = cax(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            cax(iz) = cax(iz)*0.50d0
+        else
+            cax(iz) = cax(iz)*exp(ymx3(row))
+        endif
+        
+        row = 10 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'al'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                alx(iz) = 0.1d0*alth
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            alx(iz) = alx(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            alx(iz) = alx(iz)*0.50d0
+        else
+            alx(iz) = alx(iz)*exp(ymx3(row))
+        endif
+        
+        row = 11 + nsp3*(iz-1)
+
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'pco2'
+            if (z(iz)<zrxn) then 
+                ymx3(row)=0d0
+                pco2x(iz) = 0.1d0*pco2th
+            endif
+        endif
+
+        if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            pco2x(iz) = pco2x(iz)*1.5d0
+        else if (ymx3(row) < -threshold) then 
+            pco2x(iz) = pco2x(iz)*0.50d0
+        else
+            pco2x(iz) = pco2x(iz)*exp(ymx3(row))
+        endif
+        
+    end do 
+
+    error = maxval(exp(abs(ymx3))) - 1.0d0
+
+    if (isnan(error).or.info/=0 .or. any(isnan(mgx)) .or. any(isnan(six)).or. any(isnan(cax)).or. any(isnan(pco2x)) &
+        & .or. any(isnan(nax)) .or. any(isnan(mfox)).or. any(isnan(mabx)).or. any(isnan(manx)).or. any(isnan(mccx)) &
+        & .or. any(isnan(alx)) .or. any(isnan(mkax))) then 
+        error = 1d3
+        print *, '!! error is NaN; values are returned to those before iteration with reducing dt'
+        print*, 'isnan(error), info/=0,any(isnan(mgx)),any(isnan(mfox)))'
+        print*,isnan(error),info/=0,any(isnan(mgx)),any(isnan(six)),any(isnan(mfox)),any(isnan(nax)),any(isnan(mabx)) &
+            & ,any(isnan(cax)),any(isnan(manx)),any(isnan(mccx)),any(isnan(pco2x)),any(isnan(mkax)),any(isnan(alx))
+        stop
+        mgx = mg
+        six = si
+        nax = na
+        cax = ca
+        alx = al
+        mfox = mfo
+        mabx = mab
+        manx = man
+        mccx = mcc
+        mkax = mka
+        prox = pro
+        pco2x = pco2
+        iter = iter + 1
+        cycle
+    endif
+
+    ! prox(:) = 0.5d0* ( &
+        ! & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
+        ! & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
+        ! & + 4d0*kco2*k1*pco2x(:)) &
+        ! & )
+    ! call calc_pH( &
+        ! & nz,nax+2d0*(cx+cax+mgx-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2 &! input 
+        ! & ,prox &! output
+        ! & ) 
+    ! call calc_pH_v2( &
+        ! & nz,nax+2d0*(cx+cax+mgx-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2,six,k1si,k2si &! input 
+        ! & ,prox &! output
+        ! & ) 
+    call calc_pH_v4( &
+        & nz,nax,mgx,cax,so4x,pco2x,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
+        & ,alx,k1al,k2al,k3al,k4al &! input
+        & ,prox &! output
+        & ) 
+
+    co2 = kco2*pco2x
+    hco3 = k1*co2/prox
+    co3 = k2*hco3/prox
+    dic = co2 + hco3 + co3
+
+    do iz = 1, nz
+        row = 1 + nsp3*(iz-1)
+
+        if (mfox(iz) < 0.0d0) then
+            mfox(iz) = mfox(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 2 + nsp3*(iz-1)
+
+        if (mabx(iz) < 0.0d0) then
+            mabx(iz) = mabx(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 3 + nsp3*(iz-1)
+
+        if (manx(iz) < 0.0d0) then
+            manx(iz) = manx(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 4 + nsp3*(iz-1)
+
+        if (mccx(iz) < 0.0d0) then
+            mccx(iz) = mccx(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 5 + nsp3*(iz-1)
+
+        if (mkax(iz) < 0.0d0) then
+            mkax(iz) = mkax(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 6 + nsp3*(iz-1)
+
+        if (mgx(iz) < 0.0d0) then
+            mgx(iz) = mgx(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 7 + nsp3*(iz-1)
+
+        if (six(iz) < 0.0d0) then
+            six(iz) = six(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 8 + nsp3*(iz-1)
+
+        if (nax(iz) < 0.0d0) then
+            nax(iz) = nax(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 9 + nsp3*(iz-1)
+
+        if (cax(iz) < 0.0d0) then
+            cax(iz) = cax(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 10 + nsp3*(iz-1)
+
+        if (alx(iz) < 0.0d0) then
+            alx(iz) = alx(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+        
+        row = 11 + nsp3*(iz-1)
+
+        if (pco2x(iz) < 0.0d0) then
+            pco2x(iz) = pco2x(iz)/exp(ymx3(row))*0.5d0
+            error = 1.0d0
+        end if
+
+    end do 
+
+#ifdef display      
+    print *, 'silicate_dis error',error,info,iter,dt
+#endif      
+    iter = iter + 1 
+
+    if (iter > iter_Max) then
+        ! dt = dt/1.01d0
+        dt = dt/10d0
+        if (dt==0d0) then 
+            print *, 'dt==0d0; stop'
+        
+            open(unit=11,file='amx.txt',status = 'replace')
+            open(unit=12,file='ymx.txt',status = 'replace')
+            do ie = 1,nsp3*(nz)
+                write(11,*) (amx3(ie,ie2),ie2 = 1,nsp3*nz)
+                write(12,*) ymx3(ie)
+            enddo 
+            close(11)
+            close(12)      
+            stop
+        endif 
+        flgback = .true.
+        
+        ! mgx = mg
+        ! six = si
+        ! nax = na
+        ! cax = ca
+        ! mfox = mfo
+        ! mabx = mab
+        ! manx = man
+        ! mccx = mcc
+        ! prox = pro
+        
+        ! call precalc_slds_wopy( &
+            ! & nz,dt,w,dz,mfoi,mabi,mani,mcci,mabth,manth,mfoth,mccth   &! input
+            ! & ,mfo,mfosupp,mab,mabsupp,mansupp,man,mcc,mccsupp &! input
+            ! & ,mfox,mabx,manx,mccx &! output
+            ! & )
+        
+        ! call precalc_pw_sil_v2( &
+            ! & nz,nath,mgth,cath,sith,dt,v,na,ca,mg,si,dz,dna,dsi,dmg,dca,tora,poro,sat,nai,mgi,cai,sii &! input 
+            ! & ,kab,kan,kcc,kfo,hr,mvab,mvan,mvfo,mvcc,mabx,manx,mfox,mccx &! input 
+            ! & ,nax,six,cax,mgx &! output
+            ! & )
+        exit 
+    end if
+    
+#ifdef dispiter
+    print *,'-=-=-=-=-=-= Mg, Si, Na, Ca, Fo, Ab, An, pCO2 -=-=-=-=-=-=-='
+    print *, 'mg:', (mgx(iz),iz=1,nz, nz/5)
+    print *, 'si:', (six(iz),iz=1,nz, nz/5)
+    print *, 'na:', (nax(iz),iz=1,nz, nz/5)
+    print *, 'ca:', (cax(iz),iz=1,nz, nz/5)
+    print *, 'al:', (alx(iz),iz=1,nz, nz/5)
+    print *, 'fo:', (mfox(iz),iz=1,nz, nz/5)
+    print *, 'ab:', (mabx(iz),iz=1,nz, nz/5)
+    print *, 'an:', (manx(iz),iz=1,nz, nz/5)
+    print *, 'ka:', (mkax(iz),iz=1,nz, nz/5)
+    print *, 'cc:', (mccx(iz),iz=1,nz, nz/5)
+    print *, 'omega_fo:', (omega_fo(iz),iz=1,nz, nz/5)
+    print *, 'omega_ab:', (omega_ab(iz),iz=1,nz, nz/5)
+    print *, 'omega_an:', (omega_an(iz),iz=1,nz, nz/5)
+    print *, 'omega_ka:', (omega_ka(iz),iz=1,nz, nz/5)
+    print *, 'omega_cc:', (omega_cc(iz),iz=1,nz, nz/5)
+    print *
+    print *,'-=-=-=-=-=-= pH -=-=-=-=-=-=-='
+    print *, 'ph:', (-log10(prox(iz)),iz=1,nz, nz/5)
+    print *
+    print *,'-=-=-=-=-=-= CO2 -=-=-=-=-=-=-='
+    print *, 'co2:', (pco2x(iz),iz=1,nz, nz/5)
+    print *
+#endif     
+enddo
+
+endsubroutine alsilicate_dis_co2_1D_v2
+
