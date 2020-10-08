@@ -17,17 +17,17 @@ for i in intlist:
         runname = simlist[i-1]
         break
 
-simlist = glob.glob(outdir+runname+'/o2profile-res-0*.txt')
+simlist = glob.glob(outdir+runname+'/o2profile-res-01*.txt')
 datalist = []
 for i in simlist:
     datalist.append(np.loadtxt(i))
 
-simlist = glob.glob(outdir+runname+'/o2profile-res(rate)-0*.txt')
+simlist = glob.glob(outdir+runname+'/o2profile-res(rate)-01*.txt')
 ratelist = []
 for i in simlist:
     ratelist.append(np.loadtxt(i))
 
-simlist = glob.glob(outdir+runname+'/o2profile-bsd-0*.txt')
+simlist = glob.glob(outdir+runname+'/o2profile-bsd-01*.txt')
 baselist = []
 for i in simlist:
     baselist.append(np.loadtxt(i))
@@ -57,6 +57,7 @@ omegaabchar = r'$\mathregular{\Omega_{\rm{ab}}}$'
 omegaanchar = r'$\mathregular{\Omega_{\rm{an}}}$'
 omegafochar = r'$\mathregular{\Omega_{\rm{fo}}}$'
 omegaccchar = r'$\mathregular{\Omega_{\rm{cc}}}$'
+omegaccchar = r'$\mathregular{\Omega_{\rm{ka}}}$'
 fe2char = 'Fe(II)'
 fe3char = 'Fe(III)'
 so4char = 'Sulfate'
@@ -70,30 +71,32 @@ advchar = r'$\mathregular{\it{v}}$'
 diffchar = r'$\mathregular{\it{D}}$'
 
 numplt = [
-    [(12,':','Forsterite'),(10,'-','Albite'),(11,'-.','Anorthite'),(13,'--','Calcite')]
-    ,[(14,'-',omegaabchar),(15,':',omegafochar),(16,'-.',omegaanchar),(17,'--',omegaccchar)]
-    ,[(8,'--',mgchar),(6,':',nachar),(7,'-',cachar),(9,'-.',sichar)]
-    ,[(19,'-','pH')]
-    ,[(1,':',po2char),(18,'-',pco2char)]
+    [(11,'-','Ab'),(13,':','Fo'),(12,'-.','An'),(15,'--','Cc'),(14,(0,(1,3)),'Ka')]
+    ,[(16,'-','Ab'),(17,':','Fo'),(18,'-.','An'),(20,'--','Cc'),(19,(0,(1,3)),'Ka')]
+    ,[(8,'--','Mg'),(6,':','Na'),(7,'-','Ca'),(9,'-.','Si'),(10,(0,(1,3)),'Al')]
+    ,[(22,'-','pH')]
+    ,[(1,':',po2char),(21,'-',pco2char)]
     ,[(1,':',porochar),(5,'-','SA')]
     ]
     
 xlabels = [
     'mol m'+r'${^{-3}}$'
-    ,'dimensionless'
+    ,'log '+r'$\mathregular{\Omega}$'
     ,'mol L'+r'${^{-1}}$'
     ,'pH'
     # ,'ppmv (CO'+r'$_2$'+') or '+u'$‰$'+ ' (O'+r'$_2$'+')'
-    ,'PAL'
-    ,'10'+r'${^6}$'+' m'+r'${^2}$'+' m'+r'${^{-3}}$' + ' or m' +r'${^3}$'+' m'+r'${^{-3}}$'
+    ,'log atm'
+    ,'log '+' m'+r'${^2}$'+' m'+r'${^{-3}}$' + ' or log m' +r'${^3}$'+' m'+r'${^{-3}}$'
     ]
 
 for base in baselist:
-    base[:,5] = base[:,5]/1e6
+    base[:,5] = np.log10(base[:,5])
+    base[:,1] = np.log10(base[:,1])
     
 for data in datalist:
-    data[:,1] = data[:,1]/0.21
-    data[:,18] = data[:,18]/(10**-3.5)
+    data[:,1] = np.log10(data[:,1])
+    data[:,21] = np.log10(data[:,21])
+    data[:,16:20] = np.log10(data[:,16:20])
 
 for k in range(nx*ny):
     i = int(k%nx)

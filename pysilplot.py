@@ -5,18 +5,18 @@ import matplotlib as mpl
 import glob
 
 outdir = '../pyweath_output/'
-runname = 'Fe2+SO4+sil+ph_wet_iter---q1E-1_zsat5_w1e-5_msx5_msil%100_S1e5_z60'
-simlist = glob.glob(outdir+runname+'/o2profile-res-01*.txt')
+runname = 'sil+ph_wet_iter---q1E-1_zsat5_w1e-5_msx5_msil%100_S1e5_z60_v5'
+simlist = glob.glob(outdir+runname+'/o2profile-res-0*.txt')
 datalist = []
 for i in simlist:
     datalist.append(np.loadtxt(i))
 
-simlist = glob.glob(outdir+runname+'/o2profile-res(rate)-01*.txt')
+simlist = glob.glob(outdir+runname+'/o2profile-res(rate)-0*.txt')
 ratelist = []
 for i in simlist:
     ratelist.append(np.loadtxt(i))
 
-simlist = glob.glob(outdir+runname+'/o2profile-bsd-01*.txt')
+simlist = glob.glob(outdir+runname+'/o2profile-bsd-0*.txt')
 baselist = []
 for i in simlist:
     baselist.append(np.loadtxt(i))
@@ -101,7 +101,7 @@ for k in range(nx*ny):
 
 cbaxes = fig.add_axes([0.9, 0.175, 0.01, 0.75]) 
 # cticks = [500,400,300,200,100,0]
-cbar = fig.colorbar(cmap, cax = cbaxes, ticks = c, orientation = 'vertical')
+cbar = fig.colorbar(cmap, cax = cbaxes, orientation = 'vertical')
 cbar.set_label('Time (Myr)', rotation=90)
 
 fig.subplots_adjust(left=0.1,right= 0.85 ,bottom=0.12,top = 0.95, wspace = 0.2, hspace = 0.3)
