@@ -73,7 +73,7 @@ real(kind=8) :: silwti = 1d-10 ! wt%
 
 ! real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
 ! real(kind=8)::rainpowder = 0.5d2 !  g/m2/yr corresponding to 0.5 t/ha/yr (0.5x1e3x1e3/1e4)
-real(kind=8)::rainpowder = 20d2 !  g/m2/yr 
+real(kind=8)::rainpowder = 40d2 !  g/m2/yr 
 ! real(kind=8)::rainpowder = 10d2 !  g/m2/yr corresponding to 10 t/ha/yr (0.5x1e3x1e3/1e4)
 
 real(kind=8)::rainfrc_fo = 0.12d0 ! rain wt fraction for Fo (Beering et al 2020)
@@ -119,7 +119,7 @@ real(kind=8), parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 ! real(kind=8), parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
 
 ! real(kind=8) :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)  ** default
-real(kind=8) :: qin = 10d-1 ! m yr^-1 
+real(kind=8) :: qin = 0.1d-1 ! m yr^-1 
 ! real(kind=8) :: qin = 0.1d-1 ! m yr^-1 
 real(kind=8) v(nz), q
 
@@ -128,7 +128,7 @@ real(kind=8) v(nz), q
 real(kind=8) :: hrii = 1d5
 
 ! real(kind=8) :: p80 = 10d-6 ! m (**default?)
-real(kind=8) :: p80 = 10d-6 ! m 
+real(kind=8) :: p80 = 0.1d-6 ! m 
 
 real(kind=8) msi,msili,mfoi,mabi,mani,mcci,ctmp,po2tmp,ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save &
     & ,mkai,mvka_save,mvgb_save
@@ -142,7 +142,8 @@ real(kind=8) :: delca = 0.5d0  ! m reaction front width
 real(kind=8) :: zca = 50d0   ! m depth of reaction front for calcite          
 
 real(kind=8),dimension(nz)::koxa,koxs,koxs2,ksil,msilsupp,kfo,mfosupp,omega_fo,omega_ka,mkasupp,mgbsupp &
-    & ,kab,mabsupp,omega_ab,kan,mansupp,omega_an,kcc,mccsupp,omega_cc,preccc,kcca,omega_cca,kka,kgb 
+    & ,kab,mabsupp,omega_ab,kan,mansupp,omega_an,kcc,mccsupp,omega_cc,preccc,kcca,omega_cca,kka,kgb &
+    & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp
 
 real(kind=8) kho,ucv,kco2,k1,keqsil,kw,k2,keqfo,keqab,keqgb,khco2i,keqan,keqcc,k1si,k2si,keqcca &
     & ,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al,keqka
@@ -174,11 +175,11 @@ real(kind=8) :: mgth = 1.0d-20
 real(kind=8) :: sith = 1.0d-20
 real(kind=8) :: cath = 1.0d-20
 real(kind=8) :: alth = 1.0d-20
-real(kind=8) :: msth = 1.0d-300
-real(kind=8) :: msilth = 1.0d-300
-real(kind=8) :: mfoth = 1.0d-300
-real(kind=8) :: mabth = 1.0d-300
-real(kind=8) :: manth = 1.0d-300
+real(kind=8) :: msth = 1.0d-20
+real(kind=8) :: msilth = 1.0d-20
+real(kind=8) :: mfoth = 1.0d-20
+real(kind=8) :: mabth = 1.0d-20
+real(kind=8) :: manth = 1.0d-20
 real(kind=8) :: mccth = 1.0d-20
 real(kind=8) :: mkath = 1.0d-20
 real(kind=8) :: mgbth = 1.0d-20
@@ -215,6 +216,9 @@ logical :: initial_ss = .true.
 
 ! logical :: incld_rough = .false.
 logical :: incld_rough = .true.
+
+! logical :: cplprec = .false.
+logical :: cplprec = .true.
 
 logical :: rain_wave = .false.
 ! logical :: rain_wave = .true.
@@ -333,7 +337,14 @@ mo2 = mo2*po2i/0.21d0     !! mo2 is assumed to proportional to po2i
 
 
 write(workdir,*) '../pyweath_output/'     
-write(base,*) 'test_cpl_rain-'//trim(adjustl(chrrain))    
+
+if (cplprec) then 
+    write(base,*) 'test_cplp'
+else 
+    write(base,*) 'test_cpl'
+endif 
+
+base = trim(adjustl(base))//'_rain-'//trim(adjustl(chrrain))    
  
 #ifdef poroevol 
 base = trim(adjustl(base))//'_pevol'
@@ -343,8 +354,7 @@ base = trim(adjustl(base))//'_sevol1'
 #elif defined(surfevol2)
 base = trim(adjustl(base))//'_sevol2'
 #elif defined(surfssa)
-write(chrrain,'(E10.2)') p80
-base = trim(adjustl(base))//'_ssa-'//trim(adjustl(chrrain))
+base = trim(adjustl(base))//'_ssa'
 #endif 
 
 #ifndef regulargrid
@@ -358,8 +368,10 @@ endif
 
 if (incld_rough)then 
     write(chrrain,'(E10.2)') p80
-    base = trim(adjustl(base))//'_rough-'//trim(adjustl(chrrain))
-    hrii = 1d0/p80
+    base = trim(adjustl(base))//'_p80r-'//trim(adjustl(chrrain))
+else
+    write(chrrain,'(E10.2)') p80
+    base = trim(adjustl(base))//'_p80-'//trim(adjustl(chrrain))
 endif 
 #ifdef test 
 write(base,*) '_test'
@@ -470,6 +482,7 @@ endif
 
 ssa_cmn = -4.4528d0*log10(p80*1d6) + 11.578d0 ! m2/g
 
+hrii = 1d0/p80
 hri = hrii
 
 hr = hri*rough
@@ -741,16 +754,40 @@ do while (it<nt)
         endif 
     endif 
 
-    if (.not.initial_ss .and. it==0) then 
+    ! if (.not.initial_ss .and. it==0) then 
+    if (.not.initial_ss) then 
         maxdt = 1d2
         maxdt = 1d1
-    else if (initial_ss .and. it==0) then
+    ! else if (initial_ss .and. it==0) then
+    else if (initial_ss) then
         maxdt = 0.2d0
         ! maxdt = 0.02d0 ! when calcite is included smaller time step must be assumed 
         ! maxdt = 0.005d0 ! when calcite is included smaller time step must be assumed 
-        ! maxdt = 0.002d0 ! when calcite is included smaller time step must be assumed 
+        maxdt = 0.002d0 ! working with p80 = 10 um
         ! maxdt = 0.001d0 ! when calcite is included smaller time step must be assumed 
-        ! maxdt = 0.0005d0 ! when calcite is included smaller time step must be assumed 
+        ! maxdt = 0.0005d0 ! working with p80 = 1 um
+        
+        ! if (time<1d-2) then  
+            ! maxdt = 1d-6 
+        ! elseif (time>=1d-2 .and. time<1d-1) then  
+        if (time<1d-1) then  
+            maxdt = 1d-5 
+        elseif (time>=1d-1 .and. time<1d0) then  
+            maxdt = 1d-4 
+        elseif (time>=1d0 .and. time<1d1) then 
+            maxdt = 1d-3 
+        elseif (time>=1d1 .and. time<1d2) then 
+            maxdt = 1d-2  
+        elseif (time>=1d2 .and. time<1d3) then 
+            maxdt = 1d-1 
+        elseif (time>=1d3 .and. time<1d4) then 
+            maxdt = 1d0 
+        elseif (time>=1d4 .and. time<1d5) then 
+            maxdt = 1d1 
+        elseif (time>=1d5 ) then 
+            maxdt = 1d2 
+        endif 
+        
     endif 
 
     if (waterfluc == 1d0) then
@@ -852,11 +889,23 @@ do while (it<nt)
         mansupp = rainpowder*rainfrc_an/mwtan*exp(-z/zsupp)/zsupp
         mccsupp = 0d0
         mkasupp = 0d0
-        ! kcc = k_arrhenius(10d0**(-5.81d0)*sec2yr,25d0+tempk_0,tc+tempk_0,23.5d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
-        ! mccsupp = kcc*poro*hr*mvcc*1d-6*mccx*(cax*k1*k2*kco2*pco2x/(prox**2d0)/keqcc - 1d0) &
-            ! & *merge(1d0,0d0,cax*k1*k2*kco2*pco2x/(prox**2d0)/keqcc - 1d0 > 0d0) 
+        if (.not.cplprec)then
+            mccsupp = kcc*poro*hr*mvcc*1d-6*mccx*(omega_cc - 1d0) &
+                & *merge(1d0,0d0,omega_cc - 1d0 > 0d0) 
+            mkasupp = kka*poro*hr*mvka*1d-6*mkax*(omega_ka - 1d0) &
+                & *merge(1d0,0d0,omega_ka - 1d0 > 0d0) 
+        endif 
             
         ! kcc = 0d0
+        
+        alsupp = -2d0*mkasupp
+        mgsupp = 0d0
+        nasupp = 0d0
+        casupp = -mccsupp
+        sisupp = -2d0*mkasupp
+        
+        pco2supp = -mccsupp
+        
         if (rain_wave) then 
             mfosupp = mfosupp*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau)) 
             mabsupp = mabsupp*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau)) 
@@ -876,6 +925,12 @@ do while (it<nt)
         mansupp = 0d0
         mccsupp = 0d0
         mkasupp = 0d0
+        alsupp = 0d0
+        mgsupp = 0d0
+        nasupp = 0d0
+        casupp = 0d0
+        sisupp = 0d0
+        pco2supp = 0d0
     endif 
 
     msilsupp = 0d0
@@ -914,7 +969,7 @@ do while (it<nt)
         
         call precalc_pw_sil_v2( &
             & nz,nath,mgth,cath,sith,dt,v,na,ca,mg,si,dz,dna,dsi,dmg,dca,tora,poro,sat,nai,mgi,cai,sii &! input 
-            & ,kab,kan,kcc,kfo,hr,mvab,mvan,mvfo,mvcc,mabx,manx,mfox,mccx,alth,al,dal,ali &! input 
+            & ,kab,kan,kcc,kfo,hr,mvab,mvan,mvfo,mvcc,mabx,manx,mfox,mccx,alth,al,dal,ali,kka,mvka,mkax &! input 
             & ,nax,six,cax,mgx,alx &! output
             & )
 
@@ -1052,6 +1107,7 @@ do while (it<nt)
         & ,kco2,k1,k2,mgth,sith,nath,cath,tora,v,tol,zrxn,it,cx,c2x,so4x,mgi,sii,nai,cai,mvfo,mvab,mvan,mvcc,nflx,kw &! input
         & ,k1si,k2si,kcca,keqcca,authig,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,pco2,pco2i,khco2i,ucv,torg,dgasc,daqc &! input 
         & ,pco2th,resp,k1al,k2al,k3al,k4al,keqka,kka,al,mvka,ali,mkai,alth,mkath,dal,mkasupp,mka &! intput
+        & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp,cplprec &! input
         & ,iter,error,dt,flgback &! inout
         & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
         & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca,pco2x,flx_co2,alx,flx_ka,flx_al,omega_ka,mkax &! output
@@ -2303,14 +2359,16 @@ endsubroutine precalc_pw_sil
 
 subroutine precalc_pw_sil_v2( &
     & nz,nath,mgth,cath,sith,dt,v,na,ca,mg,si,dz,dna,dsi,dmg,dca,tora,poro,sat,nai,mgi,cai,sii &! input 
-    & ,kab,kan,kcc,kfo,hr,mvab,mvan,mvfo,mvcc,mabx,manx,mfox,mccx,alth,al,dal,ali &! input 
+    & ,kab,kan,kcc,kfo,hr,mvab,mvan,mvfo,mvcc,mabx,manx,mfox,mccx,alth,al,dal,ali,kka,mvka,mkax &! input 
     & ,nax,six,cax,mgx,alx &! output
     & )
 implicit none
 
 integer,intent(in)::nz
-real(kind=8),intent(in)::nath,mgth,cath,sith,dt,dna,dsi,dmg,dca,nai,mgi,cai,sii,mvab,mvan,mvfo,mvcc,alth,dal,ali
-real(kind=8),dimension(nz),intent(in)::v,na,ca,mg,si,tora,poro,sat,kab,kan,kcc,kfo,hr,mabx,manx,mfox,mccx,dz,al
+real(kind=8),intent(in)::nath,mgth,cath,sith,dt,dna,dsi,dmg,dca,nai,mgi,cai,sii,mvab,mvan,mvfo,mvcc,alth,dal,ali &
+    & ,mvka
+real(kind=8),dimension(nz),intent(in)::v,na,ca,mg,si,tora,poro,sat,kab,kan,kcc,kfo,hr,mabx,manx,mfox,mccx,dz,al &
+    & ,kka,mkax
 real(kind=8),dimension(nz),intent(out)::nax,six,cax,mgx,alx
 
 integer iz
@@ -2382,6 +2440,7 @@ do iz = 1, nz
         & +kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz) &
         & +3d0*kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz) &
         & +2d0*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz) &
+        & +2d0*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz) &
         & ) &
         & )
 end do
@@ -2405,6 +2464,7 @@ do iz = 1, nz
         & +(0.5d0*(edif(iz)+edif(min(nz,iz+1)))*(ca(min(nz,iz+1))-ca(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
         & - 0.5d0*(edif(iz)+ediftmp)*(ca(iz)-ctmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
         & +kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz) &
+        & +kcc(iz)*poro(iz)*hr(iz)*mvcc*1d-6*mccx(iz) &
         & ) &
         & )
         
@@ -2430,6 +2490,7 @@ do iz = 1, nz
         & - 0.5d0*(edif(iz)+ediftmp)*(al(iz)-ctmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
         & +2d0*kan(iz)*poro(iz)*hr(iz)*mvan*1d-6*manx(iz) &
         & +kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz) &
+        & +2d0*kka(iz)*poro(iz)*hr(iz)*mvka*1d-6*mkax(iz) &
         & ) &
         & )
         

@@ -3504,6 +3504,7 @@ subroutine alsilicate_dis_co2_1D_v2( &
     & ,kco2,k1,k2,mgth,sith,nath,cath,tora,v,tol,zrxn,it,cx,c2x,so4x,mgi,sii,nai,cai,mvfo,mvab,mvan,mvcc,nflx,kw &! input
     & ,k1si,k2si,kcca,keqcca,authig,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,pco2,pco2i,khco2i,ucv,torg,dgasc,daqc &! input 
     & ,pco2th,resp,k1al,k2al,k3al,k4al,keqka,kka,al,mvka,ali,mkai,alth,mkath,dal,mkasupp,mka &! intput
+    & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp,cplprec &! input
     & ,iter,error,dt,flgback &! inout
     & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
     & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca,pco2x,flx_co2,alx,flx_ka,flx_al,omega_ka,mkax &! output
@@ -3516,11 +3517,13 @@ real(kind=8),intent(in)::w,mfoth,tol,zrxn,dmg,dsi,mgth,sith,kco2,k1,k2,mfoi,mgi,
     & ,nai,mvab,kw,keqan,manth,dca,mani,cath,cai,mvan,keqcc,mccth,mcci,mvcc,k1si,k2si,keqcca,authig,k1mg,k1mgco3,k1mghco3 &
     & ,k1ca,k1caco3,k1cahco3,pco2i,khco2i,ucv,dgasc,daqc,pco2th,k1al,k2al,k3al,k4al,keqka,mvka,ali,mkai,alth,mkath,dal
 real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,dporodta,tora,v,mfo,kfo,cx,c2x,so4x,ca,pro,mfosupp,mg,si,mab,na,kab,mabsupp &
-    & ,man,kan,mansupp,mcc,kcc,mccsupp,poroprev,dz,kcca,pco2,torg,resp,kka,al,mkasupp,mka
+    & ,man,kan,mansupp,mcc,kcc,mccsupp,poroprev,dz,kcca,pco2,torg,resp,kka,al,mkasupp,mka &
+    & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp
 real(kind=8),dimension(nz),intent(inout)::mgx,six,mfox,nax,mabx,cax,manx,mccx,pco2x,alx,mkax
 real(kind=8),dimension(nz),intent(out)::prox,co2,hco3,co3,dic,omega_fo,omega_ab,omega_an,omega_cc,omega_cca,omega_ka
 real(kind=8),dimension(nflx,nz),intent(out)::flx_fo,flx_mg,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,flx_co2,flx_ka,flx_al
 integer,intent(inout)::iter,it
+logical,intent(in)::cplprec
 logical,intent(inout)::flgback
 real(kind=8),intent(inout)::error,dt
 
@@ -3540,7 +3543,7 @@ real(kind=8),dimension(nz)::dprodna,dprodmg,domega_fo_dmg,domega_fo_dsi,domega_a
     & ,domega_ab_dal,domega_an_dal,domega_cc_dal,domega_cca_dal,dalpha_dal,dkhco2_dal,dedif_dal,dpreccc_dal,dprodal
 real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp,st_fo,st_ab &
     & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp,st_an,omega_tmp_th,st_cc &
-    & ,edif_tmp,edif_tmp_n,edif_tmp_p,st_cca,edifi,khco2n_tmp,pco2n_tmp,edifn_tmp,st_ka
+    & ,edif_tmp,edif_tmp_n,edif_tmp_p,st_cca,edifi,khco2n_tmp,pco2n_tmp,edifn_tmp,st_ka,caqsupp_tmp
 real(kind=8)::k1_fo = 10d0**(-6.85d0), E1_fo = 51.7d0, n1_fo = 0.5d0, k2_fo = 10d0**(-12.41d0),E2_fo = 38d0 &
     & ,k3_fo = 10d0**(-21.2d0),E3_fo = 94.1d0,n3_fo = -0.82d0  &
     & ,k1_ab = 10d0**(-10.16d0), E1_ab = 65d0, n1_ab = 0.457d0, k2_ab = 10d0**(-12.56d0),E2_ab = 69.8d8 &
@@ -3558,7 +3561,7 @@ real(kind=8),dimension(nz)::disonly_ka ! for ka [1---yes, 0---no]
 ! real(kind=8)::authig = 0d0 ! for cc whether to include authigenesis [1---yes, 0---no]
 ! real(kind=8)::authig = 1d0 ! 
 
-integer,parameter :: iter_max = 100
+integer,parameter :: iter_max = 300
 
 real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
 integer ipiv3(nsp3*nz)
@@ -3950,6 +3953,10 @@ do while ((.not.isnan(error)).and.(error > tol))
     
     disonly = 0d0
     disonly_ka = 0d0
+    if (.not.cplprec)then
+        disonly = 1d0
+        disonly_ka = 1d0
+    endif 
     
     ! authigenesis (prety much tentative parameterization)
     call calc_omega_v2( &
@@ -4050,7 +4057,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 k_tmp = kcc(iz)
                 mv_tmp = mvcc
                 omega_tmp = omega_cc(iz)
-                disonly(iz) = merge(1d0,0d0,pco2x(iz)<pco2th)
+                ! disonly(iz) = merge(1d0,0d0,pco2x(iz)<pco2th)
                 omega_tmp_th = omega_tmp*disonly(iz)
                 m_tmp = mccx(iz)
                 mth_tmp = mccth 
@@ -4436,6 +4443,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 caq_tmp_n = mgx(max(1,iz-1))
                 caqth_tmp = mgth
                 caqi_tmp = mgi
+                caqsupp_tmp = mgsupp(iz)
                 st_fo = 2d0
                 st_ab = 0d0
                 st_an = 0d0
@@ -4454,6 +4462,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 caq_tmp_n = six(max(1,iz-1))
                 caqth_tmp = sith
                 caqi_tmp = sii
+                caqsupp_tmp = sisupp(iz)
                 st_fo = 1d0
                 st_ab = 3d0
                 st_an = 2d0
@@ -4484,6 +4493,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 caq_tmp_n = nax(max(1,iz-1))
                 caqth_tmp = nath
                 caqi_tmp = nai
+                caqsupp_tmp = nasupp(iz)
                 st_fo = 0d0
                 st_ab = 1d0
                 st_an = 0d0
@@ -4502,6 +4512,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 caq_tmp_n = cax(max(1,iz-1))
                 caqth_tmp = cath
                 caqi_tmp = cai
+                caqsupp_tmp = casupp(iz)
                 st_fo = 0d0
                 st_ab = 0d0
                 st_an = 1d0
@@ -4530,6 +4541,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 caq_tmp_n = alx(max(1,iz-1))
                 caqth_tmp = alth
                 caqi_tmp = ali
+                caqsupp_tmp = alsupp(iz)
                 st_fo = 0d0
                 st_ab = 1d0
                 st_an = 2d0
@@ -4573,6 +4585,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt &
                 & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz)*dt &
                 & - rxn_tmp*dt &
+                & - caqsupp_tmp*dt &
                 & ) &
                 & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
 
@@ -4678,6 +4691,9 @@ do while ((.not.isnan(error)).and.(error > tol))
                 flx_mg(irxn_fo,iz) = (&
                     & - rxn_tmp &
                     & ) 
+                flx_mg(irain,iz) = (&
+                    & - caqsupp_tmp &
+                    & ) 
                 flx_mg(ires,iz) = sum(flx_mg(:,iz))
                 if (isnan(flx_mg(ires,iz))) then 
                     print *,'mg',iz,(flx_mg(iflx,iz),iflx=1,nflx)
@@ -4762,6 +4778,9 @@ do while ((.not.isnan(error)).and.(error > tol))
                 flx_si(irxn_fo,iz) = (&
                     & - rxn_tmp &
                     & ) 
+                flx_si(irain,iz) = (&
+                    & - caqsupp_tmp &
+                    & ) 
                 flx_si(ires,iz) = sum(flx_si(:,iz))
                 if (isnan(flx_si(ires,iz))) then 
                     print *,'si',iz,(flx_si(iflx,iz),iflx=1,nflx)
@@ -4815,6 +4834,9 @@ do while ((.not.isnan(error)).and.(error > tol))
                     & ) 
                 flx_na(irxn_fo,iz) = (&
                     & - rxn_tmp &
+                    & ) 
+                flx_na(irain,iz) = (&
+                    & - caqsupp_tmp &
                     & ) 
                 flx_na(ires,iz) = sum(flx_na(:,iz))
                 if (isnan(flx_na(ires,iz))) then 
@@ -4890,6 +4912,9 @@ do while ((.not.isnan(error)).and.(error > tol))
                 flx_ca(irxn_fo,iz) = (&
                     & - rxn_tmp &
                     & ) 
+                flx_ca(irain,iz) = (&
+                    & - caqsupp_tmp &
+                    & ) 
                 flx_ca(ires,iz) = sum(flx_ca(:,iz))
                 if (isnan(flx_ca(ires,iz))) then 
                     print *,'ca',iz,(flx_ca(iflx,iz),iflx=1,nflx)
@@ -4963,6 +4988,9 @@ do while ((.not.isnan(error)).and.(error > tol))
                     & ) 
                 flx_al(irxn_fo,iz) = (&
                     & - rxn_tmp &
+                    & ) 
+                flx_al(irain,iz) = (&
+                    & - caqsupp_tmp &
                     & ) 
                 flx_al(ires,iz) = sum(flx_al(:,iz))
                 if (isnan(flx_al(ires,iz))) then 
@@ -5073,6 +5101,7 @@ do while ((.not.isnan(error)).and.(error > tol))
             & +poro(iz)*sat(iz)*v(iz)*1d3*(khco2x(iz)*pco2x(iz)-khco2n_tmp*pco2n_tmp)/dz(iz)*dt &
             & -resp(iz)*dt &
             & -preccc(iz)*dt &
+            & -pco2supp(iz)*dt &
             & ) &
             & *merge(0.0d0,1.0d0,pco2x(iz)<pco2th)
         
@@ -5214,7 +5243,7 @@ do while ((.not.isnan(error)).and.(error > tol))
             & +poro(iz)*sat(iz)*v(iz)*1d3*(khco2x(iz)*pco2x(iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
             & )
         flx_co2(irxn_fo,iz) = -resp(iz)
-        flx_co2(irain,iz) = -preccc(iz)
+        flx_co2(irain,iz) = -preccc(iz) - pco2supp(iz)
         flx_co2(ires,iz) = sum(flx_co2(:,iz))
         
         if (any(isnan(flx_co2(:,iz)))) then
