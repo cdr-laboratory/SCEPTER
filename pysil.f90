@@ -24,7 +24,6 @@ real(kind=8) dt  ! yr
 integer, parameter :: nt = 50000000
 real(kind=8) time
 integer, parameter :: nsp = 4
-integer, parameter :: nsp3= 2
 
 real(kind=8),parameter :: rg = 8.3d-3   ! kJ mol^-1 K^-1
 real(kind=8) :: rg2 = 8.2d-2  ! L mol^-1 atm K^-1
@@ -73,7 +72,7 @@ real(kind=8) :: silwti = 1d-10 ! wt%
 
 ! real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
 ! real(kind=8)::rainpowder = 0.5d2 !  g/m2/yr corresponding to 0.5 t/ha/yr (0.5x1e3x1e3/1e4)
-real(kind=8)::rainpowder = 40d2 !  g/m2/yr 
+real(kind=8)::rainpowder = 30d2 !  g/m2/yr 
 ! real(kind=8)::rainpowder = 10d2 !  g/m2/yr corresponding to 10 t/ha/yr (0.5x1e3x1e3/1e4)
 
 real(kind=8)::rainfrc_fo = 0.12d0 ! rain wt fraction for Fo (Beering et al 2020)
@@ -88,8 +87,8 @@ real(kind=8)::rainfrc_gb = 0d0 ! rain wt fraction for Gb; None (Beering et al 20
 real(kind=8)::zsupp = 0.3d0 !  e-folding decrease
 
 real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz), deff(nz)
-real(kind=8) :: dgas = 6.09d2 ! m^2 yr^-1
-real(kind=8) :: daq = 5.49d-2 ! m^2 yr^-1
+real(kind=8) :: dgaso = 6.09d2 ! m^2 yr^-1
+real(kind=8) :: daqo = 5.49d-2 ! m^2 yr^-1
 real(kind=8) :: dgasc = 441.504d0 ! m^2 yr^-1 (Assuming 0.14 cm2/sec)
 real(kind=8) :: daqc = 0.022459852 ! m^2 yr^-1 (for C32- from Li and Gregory 1974)
 
@@ -128,7 +127,7 @@ real(kind=8) v(nz), q
 real(kind=8) :: hrii = 1d5
 
 ! real(kind=8) :: p80 = 10d-6 ! m (**default?)
-real(kind=8) :: p80 = 0.1d-6 ! m 
+real(kind=8) :: p80 = 1d-6 ! m 
 
 real(kind=8) msi,msili,mfoi,mabi,mani,mcci,ctmp,po2tmp,ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save &
     & ,mkai,mvka_save,mvgb_save
@@ -143,12 +142,12 @@ real(kind=8) :: zca = 50d0   ! m depth of reaction front for calcite
 
 real(kind=8),dimension(nz)::koxa,koxs,koxs2,ksil,msilsupp,kfo,mfosupp,omega_fo,omega_ka,mkasupp,mgbsupp &
     & ,kab,mabsupp,omega_ab,kan,mansupp,omega_an,kcc,mccsupp,omega_cc,preccc,kcca,omega_cca,kka,kgb &
-    & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp
+    & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp,po2supp
 
 real(kind=8) kho,ucv,kco2,k1,keqsil,kw,k2,keqfo,keqab,keqgb,khco2i,keqan,keqcc,k1si,k2si,keqcca &
     & ,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al,keqka
 
-integer iz, ie, it, ie2, iter_co2
+integer iz, ie, it, ie2, iter_co2,ispa,ispg,isps
 
 real(kind=8) error, error2, error_poro,error_co2
 real(kind=8) :: tol = 1d-6
@@ -255,11 +254,122 @@ logical :: O2_evolution = .false.
 ! logical :: O2_evolution = .true.
 
 logical :: flgback = .false.
+logical :: flgreducedt = .false.
+logical :: flgreducedt_prev = .false.
 real(kind=8) :: zab(3), zpy(3) 
 
 real(kind=8), parameter:: infinity = huge(0d0)
 real(kind=8) k_arrhenius
+
+real(kind=8) time_start, time_fin, progress_rate, progress_rate_prev
+integer count_dtunchanged 
+
+integer,parameter::nsp_sld = 5
+integer,parameter::nsp_sld_2 = 2
+integer,parameter::nsp_sld_all = 6
+integer,parameter::nsp_aq = 5
+integer,parameter::nsp_aq_ph = 8
+integer,parameter::nsp_aq_all = 8
+integer,parameter::nsp_gas = 2
+integer,parameter::nsp_gas_ph = 1
+integer,parameter::nsp_gas_all = 2
+integer,parameter::nsp3 = nsp_sld + nsp_aq + nsp_gas
+integer,parameter::nrxn_ext = 1
+integer,parameter::nrxn_ext_all = 2
+character(5),dimension(nsp_sld)::chrsld
+character(5),dimension(nsp_sld_2)::chrsld_2
+character(5),dimension(nsp_aq)::chraq
+character(5),dimension(nsp_aq_ph)::chraq_ph
+character(5),dimension(nsp_gas_ph)::chrgas_ph
+character(5),dimension(nsp_aq_all)::chraq_all
+character(5),dimension(nsp_sld_all)::chrsld_all
+character(5),dimension(nsp_gas_all)::chrgas_all
+character(5),dimension(nsp_gas)::chrgas
+character(5),dimension(nrxn_ext)::chrrxn_ext
+character(5),dimension(nrxn_ext_all)::chrrxn_ext_all
+real(kind=8),dimension(nsp_sld)::msldi,msldth,keq,mv
+real(kind=8),dimension(nsp_aq)::maqi,maqth,daq,dmaq 
+real(kind=8),dimension(nsp_gas)::mgasi,mgasth,dgasa,dgasg,dmgas,khgasi,dgasi
+real(kind=8),dimension(nsp_sld,nsp_aq)::staq
+real(kind=8),dimension(nsp_sld,nsp_gas)::stgas
+real(kind=8),dimension(nsp_sld,nz)::msldx,msld,ksld,omega,nonprec,rxnsld,msldsupp,domega_dpro 
+real(kind=8),dimension(nsp_sld,nsp3,nz)::domega_disp,drxnsld_disp 
+real(kind=8),dimension(nsp_sld,nsp_aq,nz)::domega_dmaq,drxnsld_dmaq 
+real(kind=8),dimension(nsp_sld,nsp_gas,nz)::domega_dmgas,drxnsld_dmgas 
+real(kind=8),dimension(nsp_sld,nflx,nz)::flx_sld
+real(kind=8),dimension(nsp_aq,nz)::maqx,maq,rxnaq,maqsupp,drxnaq_dpro,dprodmaq 
+real(kind=8),dimension(nsp_aq,nsp3,nz)::drxnaq_disp
+real(kind=8),dimension(nsp_aq,nflx,nz)::flx_aq
+real(kind=8),dimension(nsp_gas,nz)::mgasx,mgas,khgasx,khgas,dgas,agasx,agas,rxngas,mgassupp 
+real(kind=8),dimension(nsp_gas,nsp_gas,nz)::dkhgas_dmgas,ddgas_dmgas,dagas_dmgas,drxngas_dmgas 
+real(kind=8),dimension(nsp_gas,nflx,nz)::flx_gas 
+real(kind=8),dimension(nrxn_ext,nz)::rxnext
+real(kind=8),dimension(nrxn_ext,nsp_gas)::stgas_ext
+real(kind=8),dimension(nrxn_ext,nsp_gas)::stgas_dext
+real(kind=8),dimension(nrxn_ext,nsp_aq)::staq_ext
+real(kind=8),dimension(nrxn_ext,nsp_sld)::stsld_ext
+real(kind=8),dimension(nrxn_ext,nsp_gas,nz)::drxnext_dmgas
+real(kind=8),dimension(nrxn_ext,nsp_aq,nz)::drxnext_dmaq
+real(kind=8),dimension(nrxn_ext,nsp_sld,nz)::drxnext_dmsld
+
 !-------------------------
+! define all species and rxns definable in the model 
+! note that rxns here exclude diss(/prec) of mineral 
+! which are automatically included when associated mineral is chosen
+chrsld_all = (/'fo','ab','an','cc','ka','gb'/)
+chraq_all = (/'mg ','si ','na ','ca ','al ','fe2','fe3','so4'/)
+chrgas_all = (/'pco2','po2 '/)
+chrrxn_ext_all = (/'resp ','fe2o2'/)
+
+! define the species and rxns explicitly simulated in the model in a fully coupled way
+! should be chosen from definable species & rxn lists above 
+chrsld = (/'fo','ab','an','cc','ka'/)
+chraq = (/'mg','si','na','ca','al'/)
+chrgas = (/'pco2','po2 '/)
+chrrxn_ext = (/'resp'/)
+! define solid species which can precipitate
+! in default, all minerals only dissolve 
+! should be chosen from the chrsld list
+chrsld_2 = (/'cc','ka'/) 
+
+! below are species which are sensitive to pH 
+chraq_ph = (/'mg ','si ','na ','ca ','al ','fe2','fe3','so4'/)
+chrgas_ph = (/'pco2'/)
+
+! stoichiometry
+! mineral dissolution(/precipitation)
+staq = 0d0
+stgas = 0d0
+! Forsterite; Mg2SiO4
+staq(findloc(chrsld,'fo',dim=1), findloc(chraq,'mg',dim=1)) = 2d0
+staq(findloc(chrsld,'fo',dim=1), findloc(chraq,'si',dim=1)) = 1d0
+! Albite; NaAlSi3O8
+staq(findloc(chrsld,'ab',dim=1), findloc(chraq,'na',dim=1)) = 1d0
+staq(findloc(chrsld,'ab',dim=1), findloc(chraq,'si',dim=1)) = 3d0
+staq(findloc(chrsld,'ab',dim=1), findloc(chraq,'al',dim=1)) = 1d0
+! Anothite; CaAl2Si2O8
+staq(findloc(chrsld,'an',dim=1), findloc(chraq,'ca',dim=1)) = 1d0
+staq(findloc(chrsld,'an',dim=1), findloc(chraq,'si',dim=1)) = 2d0
+staq(findloc(chrsld,'an',dim=1), findloc(chraq,'al',dim=1)) = 2d0
+! Calcite; CaCO3
+staq(findloc(chrsld,'cc',dim=1), findloc(chraq,'ca',dim=1)) = 1d0
+stgas(findloc(chrsld,'cc',dim=1), findloc(chrgas,'pco2',dim=1)) = 1d0
+! Kaolinite; Al2Si2O5(OH)4
+staq(findloc(chrsld,'ka',dim=1), findloc(chraq,'si',dim=1)) = 2d0
+staq(findloc(chrsld,'ka',dim=1), findloc(chraq,'al',dim=1)) = 2d0
+
+! external reactions
+staq_ext = 0d0
+stgas_ext = 0d0
+stsld_ext = 0d0
+! respiration 
+stgas_ext(findloc(chrrxn_ext,'resp',dim=1), findloc(chrgas,'pco2',dim=1)) = 1d0
+stgas_ext(findloc(chrrxn_ext,'resp',dim=1), findloc(chrgas,'po2',dim=1)) = -1d0
+! define 1 when a reaction is sensitive to a speces 
+stgas_dext = 0d0
+stgas_dext(findloc(chrrxn_ext,'resp',dim=1), findloc(chrgas,'po2',dim=1)) = 1d0
+
+
 
 rectime =rectime/1d4 
 ! rectime =rectime/1d3 ! better with basalt exp? max 12000 yr 
@@ -339,7 +449,7 @@ mo2 = mo2*po2i/0.21d0     !! mo2 is assumed to proportional to po2i
 write(workdir,*) '../pyweath_output/'     
 
 if (cplprec) then 
-    write(base,*) 'test_cplp'
+    write(base,*) 'test_cplpcccx'
 else 
     write(base,*) 'test_cpl'
 endif 
@@ -491,7 +601,7 @@ v = qin/poroi/sat
 poro = poroi
 torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
 tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
-deff = torg*dgas + tora*daq
+deff = torg*dgaso + tora*daqo
 
 #ifdef surfssa
 hri = ssa_cmn*1d6/poro
@@ -545,7 +655,7 @@ pro = 1d-5
 
 call coefs( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pco2i,swoxa,pco2,pco2th &! input
-    & ,pro,dgas,dgasc,daq,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
+    & ,pro,dgaso,dgasc,daqo,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
     & ,ksil,keqsil,kab,keqab,kfo,keqfo,kan,keqan,kcc,keqcc,koxs,koxa,koxs2,khco2 &! output
     & ,k1si,k2si,kcca,keqcca,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! output
     & ,k1al,k2al,k3al,k4al,keqka,kka,dal,keqgb,kgb &! output
@@ -718,7 +828,7 @@ endif
 
 call coefs( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pco2i,swoxa,pco2,pco2th &! input
-    & ,pro,dgas,dgasc,daq,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
+    & ,pro,dgaso,dgasc,daqo,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
     & ,ksil,keqsil,kab,keqab,kfo,keqfo,kan,keqan,kcc,keqcc,koxs,koxa,koxs2,khco2 &! output
     & ,k1si,k2si,kcca,keqcca,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! output
     & ,k1al,k2al,k3al,k4al,keqka,kka,dal,keqgb,kgb &! output
@@ -728,9 +838,12 @@ call coefs( &
 it = 0
 irec = 0
 
+count_dtunchanged = 0
+
 !! @@@@@@@@@@@@@@@   start of time integration  @@@@@@@@@@@@@@@@@@@@@@
 
 do while (it<nt)
+    call cpu_time(time_start)
 #ifdef display 
     print *, 'it, time = ',it, time
 #endif
@@ -754,39 +867,40 @@ do while (it<nt)
         endif 
     endif 
 
-    ! if (.not.initial_ss .and. it==0) then 
-    if (.not.initial_ss) then 
+    if (.not.initial_ss .and. it==0) then 
+    ! if (.not.initial_ss) then 
         maxdt = 1d2
         maxdt = 1d1
-    ! else if (initial_ss .and. it==0) then
-    else if (initial_ss) then
+    else if (initial_ss .and. it==0) then
+    ! else if (initial_ss) then
         maxdt = 0.2d0
         ! maxdt = 0.02d0 ! when calcite is included smaller time step must be assumed 
         ! maxdt = 0.005d0 ! when calcite is included smaller time step must be assumed 
-        maxdt = 0.002d0 ! working with p80 = 10 um
+        ! maxdt = 0.002d0 ! working with p80 = 10 um
         ! maxdt = 0.001d0 ! when calcite is included smaller time step must be assumed 
         ! maxdt = 0.0005d0 ! working with p80 = 1 um
         
         ! if (time<1d-2) then  
             ! maxdt = 1d-6 
-        ! elseif (time>=1d-2 .and. time<1d-1) then  
-        if (time<1d-1) then  
-            maxdt = 1d-5 
-        elseif (time>=1d-1 .and. time<1d0) then  
-            maxdt = 1d-4 
-        elseif (time>=1d0 .and. time<1d1) then 
-            maxdt = 1d-3 
-        elseif (time>=1d1 .and. time<1d2) then 
-            maxdt = 1d-2  
-        elseif (time>=1d2 .and. time<1d3) then 
-            maxdt = 1d-1 
-        elseif (time>=1d3 .and. time<1d4) then 
-            maxdt = 1d0 
-        elseif (time>=1d4 .and. time<1d5) then 
-            maxdt = 1d1 
-        elseif (time>=1d5 ) then 
-            maxdt = 1d2 
-        endif 
+        ! elseif (time>=1d-2 .and. time<1d-1) then 
+        
+        ! if (time<1d-1) then  
+            ! maxdt = 1d-5 
+        ! elseif (time>=1d-1 .and. time<1d0) then  
+            ! maxdt = 1d-4 
+        ! elseif (time>=1d0 .and. time<1d1) then 
+            ! maxdt = 1d-3 
+        ! elseif (time>=1d1 .and. time<1d2) then 
+            ! maxdt = 1d-2  
+        ! elseif (time>=1d2 .and. time<1d3) then 
+            ! maxdt = 1d-1 
+        ! elseif (time>=1d3 .and. time<1d4) then 
+            ! maxdt = 1d0 
+        ! elseif (time>=1d4 .and. time<1d5) then 
+            ! maxdt = 1d1 
+        ! elseif (time>=1d5 ) then 
+            ! maxdt = 1d2 
+        ! endif 
         
     endif 
 
@@ -831,7 +945,7 @@ do while (it<nt)
     ! incase temperature&ph change
     call coefs( &
         & nz,rg,rg2,tc,sec2yr,tempk_0,pco2i,swoxa,pco2,pco2th &! input
-        & ,pro,dgas,dgasc,daq,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
+        & ,pro,dgaso,dgasc,daqo,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
         & ,ksil,keqsil,kab,keqab,kfo,keqfo,kan,keqan,kcc,keqcc,koxs,koxa,koxs2,khco2 &! output
         & ,k1si,k2si,kcca,keqcca,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! output
         & ,k1al,k2al,k3al,k4al,keqka,kka,dal,keqgb,kgb &! output
@@ -905,6 +1019,7 @@ do while (it<nt)
         sisupp = -2d0*mkasupp
         
         pco2supp = -mccsupp
+        po2supp = 0d0
         
         if (rain_wave) then 
             mfosupp = mfosupp*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau)) 
@@ -931,6 +1046,7 @@ do while (it<nt)
         casupp = 0d0
         sisupp = 0d0
         pco2supp = 0d0
+        po2supp = 0d0
     endif 
 
     msilsupp = 0d0
@@ -939,7 +1055,7 @@ do while (it<nt)
     if (pre_calc) then 
         
         call precalc_po2_v2( &
-            & nz,po2th,dt,ucv,kho,dz,dgas,daq,po2i,poro,sat,po2,torg,tora,v &! input 
+            & nz,po2th,dt,ucv,kho,dz,dgaso,daqo,po2i,poro,sat,po2,torg,tora,v &! input 
             & ,po2x &! output 
             & )
         
@@ -1004,7 +1120,7 @@ do while (it<nt)
 
     call pyweath_1D( &
         & nz,nflx_py,mvpy,c,c2,ci,c2i,po2,po2i,ms,msi,hr,po2th,poro,z,dz,w,koxs2,koxs,msth,dfe2,dfe3,sat,dporodta,dporodtg  &! input
-        & ,kho,koxa,dt2,cth,c2th,stoxa,tora,torg,daq,dgas,v,swbr,mo2,stoxs,tol,nsp,runname,workdir,zrxn,it &! input
+        & ,kho,koxa,dt2,cth,c2th,stoxa,tora,torg,daqo,dgaso,v,swbr,mo2,stoxs,tol,nsp,runname,workdir,zrxn,it &! input
         & ,swoxa,swoxall,ucv,vmax  &! inpput
         & ,iter,error,dt &! inout
         & ,cx,c2x,po2x,msx,flx_py,flx_py_fe2,flx_py_fe3,flx_py_o2 &! output
@@ -1053,7 +1169,7 @@ do while (it<nt)
             
         call oxygen_resp_1D_v2( &
             & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
-            & ,kho,tora,torg,daq,dgas,v,mo2,tol,runname,workdir,zrxn,ucv,vmax,poroprev  &! inpput
+            & ,kho,tora,torg,daqo,dgaso,v,mo2,tol,runname,workdir,zrxn,ucv,vmax,poroprev  &! inpput
             & ,dt,flgback &! inout
             & ,po2x,flx_o2,resp &! output
             & ) 
@@ -1084,13 +1200,6 @@ do while (it<nt)
         endif 
     enddo 
 #endif 
-            
-    call oxygen_resp_1D_v2( &
-        & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
-        & ,kho,tora,torg,daq,dgas,v,mo2,tol,runname,workdir,zrxn,ucv,vmax,poroprev  &! inpput
-        & ,dt,flgback &! inout
-        & ,po2x,flx_o2,resp &! output
-        & ) 
     ! call silicate_dis_co2_1D_v2( &
         ! & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
         ! & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp,poroprev  &! input
@@ -1101,17 +1210,162 @@ do while (it<nt)
         ! & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
         ! & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca,pco2x,flx_co2 &! output
         ! & )
-    call alsilicate_dis_co2_1D_v2( &
-        & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
-        & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp,poroprev  &! input
-        & ,kco2,k1,k2,mgth,sith,nath,cath,tora,v,tol,zrxn,it,cx,c2x,so4x,mgi,sii,nai,cai,mvfo,mvab,mvan,mvcc,nflx,kw &! input
-        & ,k1si,k2si,kcca,keqcca,authig,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,pco2,pco2i,khco2i,ucv,torg,dgasc,daqc &! input 
-        & ,pco2th,resp,k1al,k2al,k3al,k4al,keqka,kka,al,mvka,ali,mkai,alth,mkath,dal,mkasupp,mka &! intput
-        & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp,cplprec &! input
-        & ,iter,error,dt,flgback &! inout
-        & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
-        & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca,pco2x,flx_co2,alx,flx_ka,flx_al,omega_ka,mkax &! output
+            
+    ! call oxygen_resp_1D_v2( &
+        ! & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
+        ! & ,kho,tora,torg,daqo,dgaso,v,mo2,tol,runname,workdir,zrxn,ucv,vmax,poroprev  &! inpput
+        ! & ,dt,flgback &! inout
+        ! & ,po2x,flx_o2,resp &! output
+        ! & ) 
+    ! call alsilicate_dis_co2_1D_v3( &
+        ! & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
+        ! & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp,poroprev  &! input
+        ! & ,kco2,k1,k2,mgth,sith,nath,cath,tora,v,tol,zrxn,it,cx,c2x,so4x,mgi,sii,nai,cai,mvfo,mvab,mvan,mvcc,nflx,kw &! input
+        ! & ,k1si,k2si,kcca,keqcca,authig,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,pco2,pco2i,khco2i,ucv,torg,dgasc,daqc &! input 
+        ! & ,pco2th,resp,k1al,k2al,k3al,k4al,keqka,kka,al,mvka,ali,mkai,alth,mkath,dal,mkasupp,mka &! intput
+        ! & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp,cplprec &! input
+        ! & ,iter,error,dt,flgback &! inout
+        ! & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
+        ! & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca,pco2x,flx_co2,alx,flx_ka,flx_al,omega_ka,mkax &! output
+        ! & )
+
+    ! call alsilicate_aq_gas_1D( &
+        ! & nz,mfo,mab,man,mcc,na,mg,si,ca,hr,poro,z,dz,w,kfo,kab,kan,kcc,keqfo,keqab,keqan,keqcc,mfoth,mabth,manth,mccth &! input
+        ! & ,dmg,dsi,dna,dca,sat,dporodta,pro,mfoi,mabi,mani,mcci,mfosupp,mabsupp,mansupp,mccsupp,poroprev  &! input
+        ! & ,kco2,k1,k2,mgth,sith,nath,cath,tora,v,tol,zrxn,it,cx,c2x,so4x,mgi,sii,nai,cai,mvfo,mvab,mvan,mvcc,nflx,kw &! input
+        ! & ,k1si,k2si,kcca,keqcca,authig,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,pco2,pco2i,khco2i,ucv,torg,dgasc,daqc &! input 
+        ! & ,pco2th,k1al,k2al,k3al,k4al,keqka,kka,al,mvka,ali,mkai,alth,mkath,dal,mkasupp,mka &! intput
+        ! & ,alsupp,sisupp,casupp,pco2supp,mgsupp,nasupp,cplprec,po2,po2th,po2i,kho,po2supp,dgaso,daqo,vmax,mo2 &! input
+        ! & ,iter,error,dt,flgback &! inout
+        ! & ,mgx,six,nax,cax,prox,co2,hco3,co3,dic,mfox,mabx,manx,mccx,omega_fo,omega_ab,omega_an,omega_cc,flx_fo,flx_mg &! output
+        ! & ,flx_si,flx_ab,flx_na,flx_an,flx_ca,flx_cc,omega_cca,pco2x,flx_co2,alx,flx_ka,flx_al,omega_ka,mkax,po2x,flx_o2,resp &! output
+        ! & )
+        
+    ! previous values
+    msld(findloc(chrsld,'fo',dim=1),:)=mfo(:)
+    msld(findloc(chrsld,'ab',dim=1),:)=mab(:)
+    msld(findloc(chrsld,'an',dim=1),:)=man(:)
+    msld(findloc(chrsld,'cc',dim=1),:)=mcc(:)
+    msld(findloc(chrsld,'ka',dim=1),:)=mka(:)
+
+    maq(findloc(chraq,'mg',dim=1),:)=mg(:)
+    maq(findloc(chraq,'si',dim=1),:)=si(:)
+    maq(findloc(chraq,'na',dim=1),:)=na(:)
+    maq(findloc(chraq,'ca',dim=1),:)=ca(:)
+    maq(findloc(chraq,'al',dim=1),:)=al(:)
+
+    mgas(findloc(chrgas,'pco2',dim=1),:)=pco2(:)
+    mgas(findloc(chrgas,'po2',dim=1),:)=po2(:)
+
+    ! output
+    msldx(findloc(chrsld,'fo',dim=1),:)=mfox(:)
+    msldx(findloc(chrsld,'ab',dim=1),:)=mabx(:)
+    msldx(findloc(chrsld,'an',dim=1),:)=manx(:)
+    msldx(findloc(chrsld,'cc',dim=1),:)=mccx(:)
+    msldx(findloc(chrsld,'ka',dim=1),:)=mkax(:)
+
+    maqx(findloc(chraq,'mg',dim=1),:)=mgx(:)
+    maqx(findloc(chraq,'si',dim=1),:)=six(:)
+    maqx(findloc(chraq,'na',dim=1),:)=nax(:)
+    maqx(findloc(chraq,'ca',dim=1),:)=cax(:)
+    maqx(findloc(chraq,'al',dim=1),:)=alx(:)
+
+    mgasx(findloc(chrgas,'pco2',dim=1),:)=pco2x(:)
+    mgasx(findloc(chrgas,'po2',dim=1),:)=po2x(:)
+
+    ! constants
+    msldi = (/mfoi,mabi,mani,mcci,mkai/)
+    msldth = (/mfoth,mabth,manth,mccth,mkath/)
+    maqi = (/mgi,sii,nai,cai,ali/)
+    maqth = (/mgth,sith,nath,cath,alth/)
+    mgasth = (/pco2th,po2th/)
+    mgasi = (/pco2i,po2i/)
+
+    ksld(findloc(chrsld,'fo',dim=1),:) = kfo
+    ksld(findloc(chrsld,'ab',dim=1),:) = kab
+    ksld(findloc(chrsld,'an',dim=1),:) = kan
+    ksld(findloc(chrsld,'cc',dim=1),:) = kcc
+    ksld(findloc(chrsld,'ka',dim=1),:) = kka
+
+    msldsupp(findloc(chrsld,'fo',dim=1),:) = mfosupp
+    msldsupp(findloc(chrsld,'ab',dim=1),:) = mabsupp
+    msldsupp(findloc(chrsld,'an',dim=1),:) = mansupp
+    msldsupp(findloc(chrsld,'cc',dim=1),:) = mccsupp
+    msldsupp(findloc(chrsld,'ka',dim=1),:) = mkasupp
+
+    maqsupp(findloc(chraq,'mg',dim=1),:) = mgsupp
+    maqsupp(findloc(chraq,'si',dim=1),:) = sisupp
+    maqsupp(findloc(chraq,'na',dim=1),:) = nasupp
+    maqsupp(findloc(chraq,'ca',dim=1),:) = casupp
+    maqsupp(findloc(chraq,'al',dim=1),:) = alsupp
+
+    mgassupp(findloc(chrgas,'pco2',dim=1),:) = pco2supp
+    mgassupp(findloc(chrgas,'po2',dim=1),:) = po2supp
+
+    daq = (/dmg,dsi,dna,dca,dal/)
+
+    dgasg = (/dgasc,dgaso/)
+    dgasa = (/daqc,daqo/)
+
+    khgasi = (/khco2i,kho/)
+
+    mv = (/mvfo,mvab,mvan,mvcc,mvka/)
+
+    call alsilicate_aq_gas_1D_v2( &
+        ! new input 
+        & nz,nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext &
+        & ,chrsld,chrsld_2,chraq,chraq_ph,chrgas_ph,chrgas,chrrxn_ext  &
+        & ,msldi,msldth,mv,maqi,maqth,daq,mgasi,mgasth,dgasa,dgasg,khgasi &
+        & ,staq,stgas,msld,ksld,msldsupp,maq,maqsupp,mgas,mgassupp &
+        & ,stgas_ext,stgas_dext,staq_ext,stsld_ext &
+        !  old inputs
+        & ,hr,poro,z,dz,w,keqfo,keqab,keqan,keqcc,sat,pro,poroprev &
+        & ,kco2,k1,k2,tora,v,tol,it,so4x,nflx,kw,k1si,k2si & 
+        & ,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,ucv,torg &
+        & ,k1al,k2al,k3al,k4al,keqka,cplprec,kho,vmax,mo2  &
+        ! old inout
+        & ,iter,error,dt,flgback &    
+        ! output 
+        & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,co2,hco3,co3,dic & 
         & )
+
+    mfox(:)=msldx(findloc(chrsld,'fo',dim=1),:)
+    mabx(:)=msldx(findloc(chrsld,'ab',dim=1),:)
+    manx(:)=msldx(findloc(chrsld,'an',dim=1),:)
+    mccx(:)=msldx(findloc(chrsld,'cc',dim=1),:)
+    mkax(:)=msldx(findloc(chrsld,'ka',dim=1),:)
+
+    mgx(:)=maqx(findloc(chraq,'mg',dim=1),:)
+    six(:)=maqx(findloc(chraq,'si',dim=1),:)
+    nax(:)=maqx(findloc(chraq,'na',dim=1),:)
+    cax(:)=maqx(findloc(chraq,'ca',dim=1),:)
+    alx(:)=maqx(findloc(chraq,'al',dim=1),:)
+
+    pco2x(:)=mgasx(findloc(chrgas,'pco2',dim=1),:)
+    po2x(:)=mgasx(findloc(chrgas,'po2',dim=1),:)
+
+    omega_fo =omega(findloc(chrsld,'fo',dim=1),:)
+    omega_ab =omega(findloc(chrsld,'ab',dim=1),:)
+    omega_an =omega(findloc(chrsld,'an',dim=1),:)
+    omega_ka =omega(findloc(chrsld,'ka',dim=1),:)
+    omega_cc =omega(findloc(chrsld,'cc',dim=1),:)
+
+    flx_fo =flx_sld(findloc(chrsld,'fo',dim=1),:,:)
+    flx_ab =flx_sld(findloc(chrsld,'ab',dim=1),:,:)
+    flx_an =flx_sld(findloc(chrsld,'an',dim=1),:,:)
+    flx_ka =flx_sld(findloc(chrsld,'ka',dim=1),:,:)
+    flx_cc =flx_sld(findloc(chrsld,'cc',dim=1),:,:)
+
+    flx_mg=flx_aq(findloc(chraq,'mg',dim=1),:,:)
+    flx_si=flx_aq(findloc(chraq,'si',dim=1),:,:)
+    flx_na=flx_aq(findloc(chraq,'na',dim=1),:,:)
+    flx_ca=flx_aq(findloc(chraq,'ca',dim=1),:,:)
+    flx_al=flx_aq(findloc(chraq,'al',dim=1),:,:)
+
+    flx_co2=flx_gas(findloc(chrgas,'pco2',dim=1),:,:)
+    flx_o2=flx_gas(findloc(chrgas,'po2',dim=1),:,:)
+
+    resp = rxnext(findloc(chrrxn_ext,'resp',dim=1),:)
 
     ! if (iter > 75) then
         ! maxdt = maxdt/2d0
@@ -1124,6 +1378,7 @@ do while (it<nt)
 
     if (flgback) then 
         flgback = .false. 
+        flgreducedt = .true.
         go to 100
     endif    
     
@@ -1163,7 +1418,7 @@ do while (it<nt)
     v = qin/poro/sat
     torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
     tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
-    deff = torg*dgas + tora*daq
+    deff = torg*dgaso + tora*daqo
     dporodtg = ( &
         & (ucv*poro*(1.0d0-sat)*1d3+poro*sat*kho*1d3) &
         & -(ucv*porox*(1.0d0-sat)*1d3+porox*sat*kho*1d3) &
@@ -1215,41 +1470,66 @@ do while (it<nt)
 #endif  
     !  endif of ifndef pyweath
 #ifdef display
+    ! print *
+    ! print *,'-=-=-=-=-=-= o2 & pyrite -=-=-=-=-=-=-='
+    ! print *,'o2:', (po2x(iz),iz=1,nz, nz/5)
+    ! print *,'fe2:', (cx(iz),iz=1,nz, nz/5)
+    ! print *,'py:', (msx(iz),iz=1,nz, nz/5)
+    ! print *, 'fe3:', (c2x(iz),iz=1,nz, nz/5)
+    ! print *, 'so4:', (so4x(iz),iz=1,nz, nz/5)
+    ! print *
+    ! print *,'-=-=-=-=-=-= Na & albite -=-=-=-=-=-=-='
+    ! print *, 'na:', (nax(iz),iz=1,nz, nz/5)
+    ! print *, 'sil:', (msilx(iz),iz=1,nz, nz/5)
+    ! print *
+    ! print *,'-=-=-=-=-=-= Mg, Si, Na, Ca, Fo, Ab, An -=-=-=-=-=-=-='
+    ! print *, 'mg:', (mgx(iz),iz=1,nz, nz/5)
+    ! print *, 'si:', (six(iz),iz=1,nz, nz/5)
+    ! print *, 'na:', (nax(iz),iz=1,nz, nz/5)
+    ! print *, 'ca:', (cax(iz),iz=1,nz, nz/5)
+    ! print *, 'al:', (alx(iz),iz=1,nz, nz/5)
+    ! print *, 'fo:', (mfox(iz),iz=1,nz, nz/5)
+    ! print *, 'ab:', (mabx(iz),iz=1,nz, nz/5)
+    ! print *, 'an:', (manx(iz),iz=1,nz, nz/5)
+    ! print *, 'ka:', (mkax(iz),iz=1,nz, nz/5)
+    ! print *, 'cc:', (mccx(iz),iz=1,nz, nz/5)
+    ! print *, 'omega_fo:', (omega_fo(iz),iz=1,nz, nz/5)
+    ! print *, 'omega_ab:', (omega_ab(iz),iz=1,nz, nz/5)
+    ! print *, 'omega_an:', (omega_an(iz),iz=1,nz, nz/5)
+    ! print *, 'omega_ka:', (omega_ka(iz),iz=1,nz, nz/5)
+    ! print *, 'omega_cc:', (omega_cc(iz),iz=1,nz, nz/5)
+    ! if (authig==1d0) print *, 'omega_cca:', (omega_cca(iz),iz=1,nz, nz/5)
+    ! print *
+    ! print *,'-=-=-=-=-=-= pH -=-=-=-=-=-=-='
+    ! print *, 'ph:', (-log10(prox(iz)),iz=1,nz, nz/5)
+    ! print *
+    ! print *,'-=-=-=-=-=-= CO2 -=-=-=-=-=-=-='
+    ! print *, 'co2:', (pco2x(iz),iz=1,nz, nz/5)
+    ! print *
+    
+    
     print *
-    print *,'-=-=-=-=-=-= o2 & pyrite -=-=-=-=-=-=-='
-    print *,'o2:', (po2x(iz),iz=1,nz, nz/5)
-    print *,'fe2:', (cx(iz),iz=1,nz, nz/5)
-    print *,'py:', (msx(iz),iz=1,nz, nz/5)
-    print *, 'fe3:', (c2x(iz),iz=1,nz, nz/5)
-    print *, 'so4:', (so4x(iz),iz=1,nz, nz/5)
+    print *,'-=-=-=-=-=-= Aq species -=-=-=-=-=-=-='
+    do ispa = 1, nsp_aq
+        print *, trim(adjustl(chraq(ispa))), (maqx(ispa,iz),iz=1,nz, nz/5)
+    enddo 
     print *
-    print *,'-=-=-=-=-=-= Na & albite -=-=-=-=-=-=-='
-    print *, 'na:', (nax(iz),iz=1,nz, nz/5)
-    print *, 'sil:', (msilx(iz),iz=1,nz, nz/5)
+    print *,'-=-=-=-=-=-= Sld species -=-=-=-=-=-=-='
+    do isps = 1, nsp_sld
+        print *, trim(adjustl(chrsld(isps))), (msldx(isps,iz),iz=1,nz, nz/5)
+    enddo 
     print *
-    print *,'-=-=-=-=-=-= Mg, Si, Na, Ca, Fo, Ab, An -=-=-=-=-=-=-='
-    print *, 'mg:', (mgx(iz),iz=1,nz, nz/5)
-    print *, 'si:', (six(iz),iz=1,nz, nz/5)
-    print *, 'na:', (nax(iz),iz=1,nz, nz/5)
-    print *, 'ca:', (cax(iz),iz=1,nz, nz/5)
-    print *, 'al:', (alx(iz),iz=1,nz, nz/5)
-    print *, 'fo:', (mfox(iz),iz=1,nz, nz/5)
-    print *, 'ab:', (mabx(iz),iz=1,nz, nz/5)
-    print *, 'an:', (manx(iz),iz=1,nz, nz/5)
-    print *, 'ka:', (mkax(iz),iz=1,nz, nz/5)
-    print *, 'cc:', (mccx(iz),iz=1,nz, nz/5)
-    print *, 'omega_fo:', (omega_fo(iz),iz=1,nz, nz/5)
-    print *, 'omega_ab:', (omega_ab(iz),iz=1,nz, nz/5)
-    print *, 'omega_an:', (omega_an(iz),iz=1,nz, nz/5)
-    print *, 'omega_ka:', (omega_ka(iz),iz=1,nz, nz/5)
-    print *, 'omega_cc:', (omega_cc(iz),iz=1,nz, nz/5)
-    if (authig==1d0) print *, 'omega_cca:', (omega_cca(iz),iz=1,nz, nz/5)
+    do isps = 1, nsp_sld
+        print *, 'omega_'//trim(adjustl(chrsld(isps))), (omega(isps,iz),iz=1,nz, nz/5)
+    enddo 
+    print *
+    print *,'-=-=-=-=-=-= Gas species -=-=-=-=-=-=-='
+    do ispg = 1, nsp_gas
+        print *, trim(adjustl(chrgas(ispg))), (mgasx(ispg,iz),iz=1,nz, nz/5)
+    enddo 
     print *
     print *,'-=-=-=-=-=-= pH -=-=-=-=-=-=-='
     print *, 'ph:', (-log10(prox(iz)),iz=1,nz, nz/5)
-    print *
-    print *,'-=-=-=-=-=-= CO2 -=-=-=-=-=-=-='
-    print *, 'co2:', (pco2x(iz),iz=1,nz, nz/5)
     print *
 #endif 
 
@@ -1421,7 +1701,38 @@ do while (it<nt)
 
     it = it + 1
     time = time + dt
-
+    count_dtunchanged = count_dtunchanged + 1
+    
+    progress_rate_prev = progress_rate
+    
+    call cpu_time(time_fin)
+    
+    ! progress_rate = dt/(time_fin-time_start)*sec2yr ! (model yr)/(computer yr)
+    progress_rate = (time_fin-time_start) ! (computer sec)
+    
+    if (it/=1) then 
+        if (flgreducedt) then 
+            maxdt = maxdt/10d0
+            flgreducedt = .false.
+            count_dtunchanged = 0
+        else
+            ! maxdt = maxdt* (progress_rate/progress_rate_prev)**0.33d0
+            maxdt = maxdt* (progress_rate/progress_rate_prev)**(-0.33d0)
+            if (maxdt > 1d2) maxdt = 1d2
+            if (dt < maxdt) count_dtunchanged = 0
+            ! if (dt > maxdt) dt = maxdt
+        endif 
+        
+        if (count_dtunchanged > 1000) then 
+            maxdt = maxdt*10d0
+            count_dtunchanged = 0
+        endif 
+    endif 
+    
+    print *,'progress_rate, maxdt, count_dtunchanged',progress_rate, maxdt, count_dtunchanged
+    
+    flgreducedt_prev = flgreducedt
+    
 end do
 
 write(chr,'(i3.3)') irec+1
@@ -1532,7 +1843,7 @@ endsubroutine makegrid
 
 subroutine coefs( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pco2i,swoxa,pco2,pco2th &! input
-    & ,pro,dgas,dgasc,daq,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
+    & ,pro,dgaso,dgasc,daqo,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
     & ,ksil,keqsil,kab,keqab,kfo,keqfo,kan,keqan,kcc,keqcc,koxs,koxa,koxs2,khco2 &! output
     & ,k1si,k2si,kcca,keqcca,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! output
     & ,k1al,k2al,k3al,k4al,keqka,kka,dal,keqgb,kgb &! output
@@ -1542,7 +1853,7 @@ implicit none
 integer,intent(in)::nz
 real(kind=8),intent(in)::rg,rg2,tc,sec2yr,tempk_0,pco2i,swoxa,pco2th
 real(kind=8),dimension(nz),intent(in)::pro,pco2
-real(kind=8),intent(out)::dgas,dgasc,daq,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,keqsil &
+real(kind=8),intent(out)::dgaso,dgasc,daqo,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,keqsil &
     & ,keqab,keqfo,keqcc,keqan,ucv,k1si,k2si,keqcca,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &
     & ,k1al,k2al,k3al,k4al,keqka,dal,keqgb
 real(kind=8),dimension(nz),intent(out)::ksil,kab,kfo,kan,kcc,koxs,koxa,koxs2,khco2,kcca,kka,kgb
@@ -1563,13 +1874,13 @@ dsi  = 0.03689712d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory
 dca  = 0.019023312d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory 
 dal = 0.011656226d0    ! m^2 yr^-1 ! at 15 C; Li and Gregory 
 
-dgas = 6.09d2 ! m^2 yr^-1
-daq = 5.49d-2 ! m^2 yr^-1
+dgaso = 6.09d2 ! m^2 yr^-1
+daqo = 5.49d-2 ! m^2 yr^-1
 dgasc = 441.504d0 ! m^2 yr^-1 (Assuming 0.14 cm2/sec)
 daqc = 0.022459852d0 ! m^2 yr^-1 (for C32- from Li and Gregory 1974)
 
-dgas = dgas*exp(-4.18d0*(1.0d0/(tempk_0+tc)-1.0d0/(tempk_0+15.0d0))/rg)
-daq = daq*exp(-20.07d0*(1.0d0/(tempk_0+tc)-1.0d0/(tempk_0+15.0d0))/rg)
+dgaso = dgaso*exp(-4.18d0*(1.0d0/(tempk_0+tc)-1.0d0/(tempk_0+15.0d0))/rg)
+daqo = daqo*exp(-20.07d0*(1.0d0/(tempk_0+tc)-1.0d0/(tempk_0+15.0d0))/rg)
 dfe2=dfe2*exp(-19.615251d0*(1.0d0/(tempk_0+tc)-1.0d0/(tempk_0+15.0d0))/rg)
 dfe3=dfe3*exp(-14.33659d0*(1.0d0/(tempk_0+tc)-1.0d0/(tempk_0+15.0d0))/rg)
 dso4=dso4*exp(-20.67364d0*(1.0d0/(tempk_0+tc)-1.0d0/(tempk_0+15.0d0))/rg)
@@ -1718,13 +2029,229 @@ endsubroutine coefs
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine coefs_v2( &
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro &! input
+    & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
+    & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
+    & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c &! output
+    & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
+    & ) 
+implicit none
+
+integer,intent(in)::nz
+real(kind=8),intent(in)::rg,rg2,tc,sec2yr,tempk_0
+real(kind=8),dimension(nz),intent(in)::pro
+real(kind=8),intent(out)::ucv,kw
+
+real(kind=8) k_arrhenius
+real(kind=8) :: cal2j = 4.184d0 
+
+integer,intent(in)::nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+real(kind=8),dimension(nsp_aq_all),intent(out)::daq_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
+character(5),dimension(nrxn_ext_all),intent(in)::chrrxn_ext_all
+real(kind=8),dimension(nsp_gas_all),intent(out)::dgasa_all,dgasg_all
+real(kind=8),dimension(nsp_gas_all,3),intent(out)::keqgas_h
+real(kind=8),dimension(nsp_aq_all,4),intent(out)::keqaq_h
+real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_c
+real(kind=8),dimension(nsp_sld_all,nz),intent(out)::ksld_all
+real(kind=8),dimension(nsp_sld_all),intent(out)::keqsld_all
+real(kind=8),dimension(nrxn_ext_all,nz),intent(out)::krxn1_ext_all
+real(kind=8),dimension(nrxn_ext_all,nz),intent(out)::krxn2_ext_all
+
+integer ieqgas_h0,ieqgas_h1,ieqgas_h2
+data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
+
+integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
+data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
+
+integer ieqaq_co3,ieqaq_hco3
+data ieqaq_co3,ieqaq_hco3/1,2/
+
+ucv = 1.0d0/(rg2*(tempk_0+tc))
+
+! Aq species diffusion from Li and Gregory 1974 except for Si which is based on Rebreanu et al. 2008
+daq_all(findloc(chraq_all,'fe2',dim=1))= k_arrhenius(1.7016d-2    , 15d0+tempk_0, tc+tempk_0, 19.615251d0, rg)
+daq_all(findloc(chraq_all,'fe3',dim=1))= k_arrhenius(1.5664d-2    , 15d0+tempk_0, tc+tempk_0, 14.33659d0 , rg)
+daq_all(findloc(chraq_all,'so4',dim=1))= k_arrhenius(2.54d-2      , 15d0+tempk_0, tc+tempk_0, 20.67364d0 , rg)
+daq_all(findloc(chraq_all,'na',dim=1)) = k_arrhenius(3.19d-2      , 15d0+tempk_0, tc+tempk_0, 20.58566d0 , rg)
+daq_all(findloc(chraq_all,'mg',dim=1)) = k_arrhenius(1.7218079d-2 , 15d0+tempk_0, tc+tempk_0, 18.51979d0 , rg)
+daq_all(findloc(chraq_all,'si',dim=1)) = k_arrhenius(2.682396d-2  , 15d0+tempk_0, tc+tempk_0, 22.71378d0 , rg)
+daq_all(findloc(chraq_all,'ca',dim=1)) = k_arrhenius(1.9023312d-2 , 15d0+tempk_0, tc+tempk_0, 20.219661d0, rg)
+daq_all(findloc(chraq_all,'al',dim=1)) = k_arrhenius(1.1656226d-2 , 15d0+tempk_0, tc+tempk_0, 21.27788d0 , rg)
+
+! values used in Kanzaki and Murakami 2016 for oxygen 
+dgasa_all(findloc(chrgas_all,'po2',dim=1)) = k_arrhenius(5.49d-2 , 15d0+tempk_0, tc+tempk_0, 20.07d0 , rg)
+dgasg_all(findloc(chrgas_all,'po2',dim=1)) = k_arrhenius(6.09d2  , 15d0+tempk_0, tc+tempk_0, 4.18d0  , rg)
+
+! assuming a value of 0.14 cm2/sec and O2 gas activation energy for CO2 gas 
+! and CO32- diffusion from Li and Greogy 1974 for aq CO2 
+dgasa_all(findloc(chrgas_all,'pco2',dim=1)) = k_arrhenius(2.2459852d-2, 15d0+tempk_0, tc+tempk_0, 21.00564d0, rg)
+dgasg_all(findloc(chrgas_all,'pco2',dim=1)) = k_arrhenius(441.504d0   , 15d0+tempk_0, tc+tempk_0, 4.18d0    , rg)
+
+kw = -14.93d0+0.04188d0*tc-0.0001974d0*tc**2d0+0.000000555d0*tc**3d0-0.0000000007581d0*tc**4d0  ! Murakami et al. 2011
+kw = k_arrhenius(10d0**(-14.35d0), tempk_0+15.0d0, tempk_0+tc, 58.736742d0, rg) ! from Kanzaki and Murakami 2015
+
+keqgas_h = 0d0
+
+! kho = k_arrhenius(10.0d0**(-2.89d0), tempk_0+25.0d0, tempk_0+tc, -13.2d0, rg)
+keqgas_h(findloc(chrgas_all,'po2',dim=1),ieqgas_h0) = &
+    & k_arrhenius(10d0**(-2.89d0), tempk_0+25.0d0, tempk_0+tc, -13.2d0, rg)
+
+keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0) = &
+    & k_arrhenius(10d0**(-1.34d0), tempk_0+15.0d0, tempk_0+tc, -21.33183d0, rg) ! from Kanzaki and Murakami 2015
+keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1) = &
+    & k_arrhenius(10d0**(-6.42d0), tempk_0+15.0d0, tempk_0+tc, 11.94453d0, rg) ! from Kanzaki and Murakami 2015
+keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2) = &
+    & k_arrhenius(10d0**(-10.43d0), tempk_0+15.0d0, tempk_0+tc, 17.00089d0, rg) ! from Kanzaki and Murakami 2015
+
+
+keqaq_c = 0d0
+keqaq_h = 0d0
+
+! Al3+ + H2O = Al(OH)2+ + H+
+keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h1) = &
+    & k_arrhenius(10d0**(-5d0),25d0+tempk_0,tc+tempk_0,11.49d0*cal2j,rg) ! from PHREEQC.DAT 
+! Al3+ + 2H2O = Al(OH)2+ + 2H+
+keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h2) = &
+    & k_arrhenius(10d0**(-10.1d0),25d0+tempk_0,tc+tempk_0,26.90d0*cal2j,rg) ! from PHREEQC.DAT 
+! Al3+ + 3H2O = Al(OH)3 + 3H+
+keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h3) = &
+    & k_arrhenius(10d0**(-16.9d0),25d0+tempk_0,tc+tempk_0,39.89d0*cal2j,rg) ! from PHREEQC.DAT 
+! Al3+ + 4H2O = Al(OH)4- + 4H+
+keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h4) = &
+    & k_arrhenius(10d0**(-22.7d0),25d0+tempk_0,tc+tempk_0,42.30d0*cal2j,rg) ! from PHREEQC.DAT 
+
+
+keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h1) = &
+    & k_arrhenius(10d0**(-9.83d0),25d0+tempk_0,tc+tempk_0,6.12d0*cal2j,rg) ! from PHREEQC.DAT 
+keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h2) = &
+    & k_arrhenius(10d0**(-23d0),25d0+tempk_0,tc+tempk_0,17.6d0*cal2j,rg) ! from PHREEQC.DAT 
+
+
+! Mg2+ + H2O = Mg(OH)+ + H+
+keqaq_h(findloc(chraq_all,'mg',dim=1),ieqaq_h1) = &
+    & k_arrhenius(10d0**(-11.44d0),25d0+tempk_0,tc+tempk_0,15.952d0*cal2j,rg) ! from PHREEQC.DAT 
+! Mg2+ + CO32- = MgCO3 
+keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_co3) = &
+    & k_arrhenius(10d0**(2.98d0),25d0+tempk_0,tc+tempk_0,2.713d0*cal2j,rg) ! from PHREEQC.DAT 
+! Mg2+ + H+ + CO32- = MgHCO3
+keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_hco3) = & 
+    & k_arrhenius(10d0**(11.399d0),25d0+tempk_0,tc+tempk_0,-2.771d0*cal2j,rg) ! from PHREEQC.DAT 
+
+! Ca2+ + H2O = Ca(OH)+ + H+
+keqaq_h(findloc(chraq_all,'ca',dim=1),ieqaq_h1) =  &
+    & k_arrhenius(10d0**(-12.78d0),25d0+tempk_0,tc+tempk_0,15.952d0*cal2j,rg) ! from PHREEQC.DAT 
+! (No delta_h is reported so used the same value for Mg)
+! Ca2+ + CO32- = CaCO3 
+keqaq_h(findloc(chraq_all,'ca',dim=1),ieqaq_co3) = &
+    & k_arrhenius(10d0**(3.224d0),25d0+tempk_0,tc+tempk_0,3.545d0*cal2j,rg) ! from PHREEQC.DAT 
+! Ca2+ + H+ + CO32- = CaHCO3
+keqaq_h(findloc(chraq_all,'ca',dim=1),ieqaq_hco3) = &
+    & k_arrhenius(10d0**(11.435d0),25d0+tempk_0,tc+tempk_0,-0.871d0*cal2j,rg) ! from PHREEQC.DAT 
+
+
+ksld_all = 0d0 
+keqsld_all = 0d0
+
+ksld_all(findloc(chrsld_all,'ka',dim=1),:) = &
+    & k_arrhenius(10d0**(-13.18d0)*sec2yr,25d0+tempk_0,tc+tempk_0,22.2d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+! kaolinite dissolution: Al2Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 2 Al+3 
+! keqka = 8.310989613d0 ! gcw
+keqsld_all(findloc(chrsld_all,'ka',dim=1)) = &
+    & k_arrhenius(10d0**(7.435d0),25d0+tempk_0,tc+tempk_0,-35.3d0*cal2j,rg) ! from PHREEQC.DAT  
+
+
+ksld_all(findloc(chrsld_all,'ab',dim=1),:) = &
+    & k_arrhenius(10d0**(-12.56d0)*sec2yr,25d0+tempk_0,tc+tempk_0,69.8d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+
+! NaAlSi3O8 + 8 H2O = Na+ + Al(OH)4- + 3 H4SiO4
+keqsld_all(findloc(chrsld_all,'ab',dim=1)) = &
+    & k_arrhenius(10d0**(-18.002d0),25d0+tempk_0,tc+tempk_0,25.896d0*cal2j,rg) ! from PHREEQC.DAT 
+! NaAlSi3O8 + 4 H+ = Na+ + Al3+ + 3SiO2 + 2H2O
+keqsld_all(findloc(chrsld_all,'ab',dim=1)) = &
+    & k_arrhenius(10d0**3.412182823d0,15d0+tempk_0,tc+tempk_0,-54.15042876d0,rg)   ! Kanzaki and Murakami 2018
+
+
+ksld_all(findloc(chrsld_all,'fo',dim=1),:) = &
+    & k_arrhenius(10d0**(-10.64d0)*sec2yr,25d0+tempk_0,tc+tempk_0,79d0,rg)  ! mol/m2/yr  from Beering et al 2020 (only neutral weathering)
+ksld_all(findloc(chrsld_all,'fo',dim=1),:) = &
+    & k_arrhenius(10d0**(-10.64d0)*sec2yr,25d0+tempk_0,tc+tempk_0,79d0,rg)  !(only neutral weathering from Palandri and Kharaka, 2004)
+
+! Fo + 4H+ = 2Mg2+ + SiO2(aq) + 2H2O
+! keqfo= 27.8626d0  ! Sugimori et al. (2012) 
+! keqfo = 10d0**keqfo
+keqsld_all(findloc(chrsld_all,'fo',dim=1)) = &
+    & k_arrhenius(10d0**29.41364324d0,15d0+tempk_0,tc+tempk_0,-208.5932252d0,rg)   ! Kanzaki and Murakami 2018
+
+! -208.5932252 
+
+! kan = 10d0**(-9.12d0)*60d0*60d0*24d0*365d0 &! mol/m2/yr  
+    ! & *exp(-17.8d0/rg*(1d0/(tc+273d0)-1d0/(25d0+273d0)))
+ksld_all(findloc(chrsld_all,'an',dim=1),:) = & 
+    & k_arrhenius(10d0**(-9.12d0)*sec2yr,25d0+tempk_0,tc+tempk_0,17.8d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+
+! anorthite (CaAl2Si2O8) + 2H+ + H2O --> kaolinite(Al2Si2O5(OH)4) + Ca2+ 
+! keqan = 28.8615308d0 - 8.310989613d0
+! keqan = 10d0**keqan
+! CaAl2Si2O8 + 8 H2O = Ca+2 + 2 Al(OH)4- + 2 H4SiO4
+keqsld_all(findloc(chrsld_all,'an',dim=1)) = & 
+    & k_arrhenius(10d0**(-19.714d0),25d0+tempk_0,tc+tempk_0,11.580d0*cal2j,rg) ! from PHREEQC.DAT 
+! CaAl2Si2O8 + 8H+ = Ca2+ + 2 Al3+ + 2SiO2 + 4H2O
+keqsld_all(findloc(chrsld_all,'an',dim=1)) = & 
+    & k_arrhenius(10d0**28.8615308d0,15d0+tempk_0,tc+tempk_0,-292.8769275d0,rg)   ! Kanzaki and Murakami 2018
+
+
+ksld_all(findloc(chrsld_all,'cc',dim=1),:) = & 
+    & k_arrhenius(10d0**(-5.81d0)*sec2yr,25d0+tempk_0,tc+tempk_0,23.5d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+! kcc = kcc**merge(0.0d0,1.0d0,pco2<pco2th)
+! kcc = 0d0
+
+keqsld_all(findloc(chrsld_all,'cc',dim=1)) = & 
+    & k_arrhenius(10d0**(-8.43d0),15d0+tempk_0,tc+tempk_0,-8.028943471d0,rg) ! Kanzaki and Murakami 2015
+
+
+
+ksld_all(findloc(chrsld_all,'gb',dim=1),:) = & 
+    & k_arrhenius(10d0**(-11.50d0)*sec2yr,25d0+tempk_0,tc+tempk_0,61.2d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+! Al(OH)3 + 3 H+ = Al+3 + 3 H2O
+keqsld_all(findloc(chrsld_all,'gb',dim=1)) = &
+    & k_arrhenius(10d0**(8.11d0),25d0+tempk_0,tc+tempk_0,-22.80d0*cal2j,rg) ! from PHREEQC.DAT 
+
+
+ksld_all(findloc(chrsld_all,'py',dim=1),:) = & 
+    & k_arrhenius(10.0d0**(-8.19d0)*sec2yr,15d0+tempk_0,tc+tempk_0,57d0,rg)  !!! excluding po2 and ph dependence
+    ! & *(kho)**(0.50d0)/(pro**0.11d0) ! mol m^-2 yr^-1, Williamson and Rimstidt (1994)
+
+krxn1_ext_all = 0d0
+krxn2_ext_all = 0d0
+
+krxn1_ext_all(findloc(chrsld_all,'fe2o2',dim=1),:) = & 
+    & max(8.0d13*60.0d0*24.0d0*365.0d0*(kw/pro)**2.0d0, 1d-7*60.0d0*24.0d0*365.0d0)    
+    ! mol L^-1 yr^-1 (25 deg C), Singer and Stumm (1970)excluding the term (c*po2)
+     
+krxn1_ext_all(findloc(chrsld_all,'resp',dim=1),:) = 0.71d0 ! vmax mol m^-3, yr^-1, max soil respiration, Wood et al. (1993)
+krxn1_ext_all(findloc(chrsld_all,'resp',dim=1),:) = &
+    & krxn1_ext_all(findloc(chrsld_all,'resp',dim=1),:)*1d-1 ! reducing a bit to be fitted with modern soil pco2
+
+krxn2_ext_all(findloc(chrsld_all,'resp',dim=1),:) = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
+
+endsubroutine coefs_v2
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine precalc_po2( &
-    & nz,po2th,dt,ucv,kho,dz,dgas,daq,po2i,poro,sat,po2,torg,tora,v &! input 
+    & nz,po2th,dt,ucv,kho,dz,dgaso,daqo,po2i,poro,sat,po2,torg,tora,v &! input 
     & ,po2x &! output 
     & )
 implicit none 
 integer,intent(in)::nz
-real(kind=8),intent(in)::po2th,dt,ucv,kho,dz,dgas,daq,po2i
+real(kind=8),intent(in)::po2th,dt,ucv,kho,dz,dgaso,daqo,po2i
 real(kind=8),dimension(nz),intent(in)::poro,sat,po2,torg,tora,v
 real(kind=8),dimension(nz),intent(out)::po2x
 
@@ -1742,10 +2269,10 @@ do iz = 1, nz
         po2x(iz) = max(0.0d0  &
             & ,-(dt/(ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3))* &
             & ((ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(-po2(iz))/dt &
-            & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+            & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
             & *(po2tmp+po2(iz-1)-2.0d0*po2(iz))/(dz**2.0d0) &
-            & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-            & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+            & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+            & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
             & *(po2(iz)-po2(iz-1))/(dz**2.0d0) &
             & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2(iz)-po2(iz-1))/dz &
             & ) &
@@ -1754,8 +2281,8 @@ do iz = 1, nz
         po2x(iz) = max(0.0d0 &
             & ,-(dt/(ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3))* &
             & ((ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3) &
-            & *(-po2(iz))/dt-(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-            & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(-2.0d0*po2(iz) + po2(iz+1)+po2i) &
+            & *(-po2(iz))/dt-(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+            & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)*(-2.0d0*po2(iz) + po2(iz+1)+po2i) &
             & /(dz**2.0d0)+poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2(iz)-po2i)/dz  &
             & ) &
             & )
@@ -1771,12 +2298,12 @@ endsubroutine precalc_po2
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine precalc_po2_v2( &
-    & nz,po2th,dt,ucv,kho,dz,dgas,daq,po2i,poro,sat,po2,torg,tora,v &! input 
+    & nz,po2th,dt,ucv,kho,dz,dgaso,daqo,po2i,poro,sat,po2,torg,tora,v &! input 
     & ,po2x &! output 
     & )
 implicit none 
 integer,intent(in)::nz
-real(kind=8),intent(in)::po2th,dt,ucv,kho,dgas,daq,po2i
+real(kind=8),intent(in)::po2th,dt,ucv,kho,dgaso,daqo,po2i
 real(kind=8),dimension(nz),intent(in)::poro,sat,po2,torg,tora,v,dz
 real(kind=8),dimension(nz),intent(out)::po2x
 
@@ -1785,9 +2312,9 @@ real(kind=8) po2tmp,edifi,ediftmp
 real(kind=8),dimension(nz)::alpha,edif
 
 alpha = ucv*poro*(1.0d0-sat)*1d3+poro*sat*kho*1d3
-edif = ucv*poro*(1.0d0-sat)*1d3*torg*dgas +poro*sat*kho*1d3*tora*daq
+edif = ucv*poro*(1.0d0-sat)*1d3*torg*dgaso +poro*sat*kho*1d3*tora*daqo
 edifi = edif(1)
-edifi = ucv*1d3*dgas 
+edifi = ucv*1d3*dgaso 
 
 do iz = 1, nz
 
@@ -2505,7 +3032,7 @@ endsubroutine precalc_pw_sil_v2
 
 subroutine pyweath_1D( &
     & nz,nflx_py,mvpy,c,c2,ci,c2i,po2,po2i,ms,msi,hr,po2th,poro,z,dz,w,koxs2,koxs,msth,dfe2,dfe3,sat,dporodta,dporodtg  &! input
-    & ,kho,koxa,dt2,cth,c2th,stoxa,tora,torg,daq,dgas,v,swbr,mo2,stoxs,tol,nsp,runname,workdir,zrxn,it &! input
+    & ,kho,koxa,dt2,cth,c2th,stoxa,tora,torg,daqo,dgaso,v,swbr,mo2,stoxs,tol,nsp,runname,workdir,zrxn,it &! input
     & ,swoxa,swoxall,ucv,vmax  &! inpput
     & ,iter,error,dt &! inout
     & ,cx,c2x,po2x,msx,flx_py,flx_py_fe2,flx_py_fe3,flx_py_o2 &! output
@@ -2514,7 +3041,7 @@ subroutine pyweath_1D( &
 implicit none 
 
 integer,intent(in)::nz,nflx_py,nsp
-real(kind=8),intent(in)::ci,c2i,po2i,msi,po2th,dz,w,msth,dfe2,dfe3,kho,dt2,cth,c2th,stoxa,daq,dgas &
+real(kind=8),intent(in)::ci,c2i,po2i,msi,po2th,dz,w,msth,dfe2,dfe3,kho,dt2,cth,c2th,stoxa,daqo,dgaso &
     & ,swbr,mo2,stoxs,tol,zrxn,swoxa,swoxall,ucv,vmax,mvpy
 real(kind=8),dimension(nz),intent(in)::c,c2,po2,ms,hr,poro,z,koxs2,koxs,sat,dporodta,dporodtg &
     & ,tora,torg,v,koxa
@@ -3072,8 +3599,8 @@ do while ((.not.isnan(error)).and.(error > tol))
             amx(row,row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt &
                 & +dporodtg(iz)  &
-                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
                 & +merge(0.0d0,stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),po2x(iz)<po2th) &
                 & +merge(0.d0 &
@@ -3086,16 +3613,16 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
 
             amx(row,row+nsp) = ( &
-                & - (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & - (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
                 & ) &
                 & *merge(0.0d0,po2x(iz+1),po2x(iz)<po2th)
 
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt &
                 & +dporodtg(iz) *po2x(iz) &
-                & - (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
+                & - (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)*(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2i)/dz &
                 & + stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz) &
                 & *merge(0d0,po2x(iz),po2x(iz)<po2th.or.isnan(po2x(iz))) &
@@ -3107,8 +3634,8 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
                 
             flx_py_o2(idif,iz) = (  &
-                & - (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)*(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
+                & - (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)*(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
                 & )  
             flx_py_o2(iadv,iz) = (  &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2i)/dz &
@@ -3119,11 +3646,11 @@ do while ((.not.isnan(error)).and.(error > tol))
             amx(row,row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt &
                 & +dporodtg(iz)  &
-                & +1.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(1.0d0)/(dz**2.0d0) &
+                & +1.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo))*(1.0d0)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
                 & +merge(0.0d0,stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),po2x(iz) <po2th) &
                 & +merge(0.0d0 &
@@ -3136,10 +3663,10 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
 
             amx(row,row-nsp) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(-1.0d0)/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo))*(-1.0d0)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(-1.0d0)/dz &
                 & ) &
                 & *merge(0.0d0,po2x(iz-1),po2x(iz)<po2th)
@@ -3147,10 +3674,10 @@ do while ((.not.isnan(error)).and.(error > tol))
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt &
                 & +dporodtg(iz) *po2x(iz) &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
                 & + poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz &
                 & +stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz) &
@@ -3163,10 +3690,10 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
                 
             flx_py_o2(idif,iz) = (  &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
                 & )  
             flx_py_o2(iadv,iz) = (  &
@@ -3178,9 +3705,9 @@ do while ((.not.isnan(error)).and.(error > tol))
             amx(row,row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt & 
                 & +dporodtg(iz)  &
-                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) *(1.0d0)/(dz**2.0d0) &
+                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) *(1.0d0)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
                 & +merge(0.0d0,stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz),po2x(iz) <po2th) &
                 & +merge(0.0d0, &
@@ -3193,15 +3720,15 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
 
             amx(row,row+nsp) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
                 & ) &
                 & *merge(0.0d0,po2x(iz+1),po2x(iz)<po2th)
 
             amx(row,row-nsp) = ( &
-                & - (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
-                & - 1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas)  &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(-1.0d0)/(dz**2.0d0) &
+                & - (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
+                & - 1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso)  &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo))*(-1.0d0)/(dz**2.0d0) &
                 & + poro(iz)*sat(iz)*v(iz)*kho*1d3*(-1.0d0)/dz &
                 & ) &
                 & *merge(0.0d0,po2x(iz-1),po2x(iz)<po2th)
@@ -3209,10 +3736,10 @@ do while ((.not.isnan(error)).and.(error > tol))
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt  &
                 & +dporodtg(iz) *po2x(iz) &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz &
                 & +stoxa*poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz) &
@@ -3225,10 +3752,10 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
                 
             flx_py_o2(idif,iz) = (  &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso-poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
                 & )  
             flx_py_o2(iadv,iz) = (  &
@@ -3478,7 +4005,7 @@ endsubroutine pyweath_1D
 
 subroutine oxygen_resp_1D( &
     & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
-    & ,kho,tora,torg,daq,dgas,v,mo2,tol,runname,workdir,zrxn,ucv,vmax  &! inpput
+    & ,kho,tora,torg,daqo,dgaso,v,mo2,tol,runname,workdir,zrxn,ucv,vmax  &! inpput
     & ,iter,error,dt &! inout
     & ,po2x,flx_o2,resp &! output
     & ) 
@@ -3486,7 +4013,7 @@ subroutine oxygen_resp_1D( &
 implicit none 
 
 integer,intent(in)::nz,nflx
-real(kind=8),intent(in)::po2i,po2th,dz,kho,daq,dgas,mo2,tol,zrxn,ucv,vmax
+real(kind=8),intent(in)::po2i,po2th,dz,kho,daqo,dgaso,mo2,tol,zrxn,ucv,vmax
 real(kind=8),dimension(nz),intent(in)::po2,poro,z,sat,dporodtg,tora,torg,v
 character(256),intent(in)::runname,workdir
 real(kind=8),dimension(nz),intent(inout)::po2x
@@ -3538,23 +4065,23 @@ do while ((.not.isnan(error)).and.(error > tol))
             amx(row,row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt &
                 & +dporodtg(iz)  &
-                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
                 & +dresp_dpo2(iz) &
                 & ) &
                 & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
 
             amx(row,row+nsp) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
                 & ) &
                 & *merge(0.0d0,po2x(iz+1),po2x(iz)<po2th)
 
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt &
                 & +dporodtg(iz) *po2x(iz) &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2i)/dz &
                 & +resp(iz) &
@@ -3562,7 +4089,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
             
             flx_o2(idif,iz) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz+1)+po2i-2.0d0*po2x(iz))/(dz**2.0d0) &
                 & )
             flx_o2(iadv,iz) = +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2i)/dz
@@ -3572,23 +4099,23 @@ do while ((.not.isnan(error)).and.(error > tol))
             amx(row,row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt &
                 & +dporodtg(iz)  &
-                & +(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(1.0d0)/(dz**2.0d0) &
+                & +(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo))*(1.0d0)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
                 & +dresp_dpo2(iz) &
                 & ) &
                 & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
 
             amx(row,row-nsp) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq &
-                & -poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(-1.0d0)/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo &
+                & -poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo))*(-1.0d0)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(-1.0d0)/dz &
                 & ) &
                 & *merge(0.0d0,po2x(iz-1),po2x(iz)<po2th)
@@ -3596,11 +4123,11 @@ do while ((.not.isnan(error)).and.(error > tol))
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt &
                 & +dporodtg(iz) *po2x(iz) &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz &
                 & +resp(iz)  &
@@ -3608,11 +4135,11 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
             
             flx_o2(idif,iz) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz-1)-1.0d0*po2x(iz))/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
                 & ) 
             flx_o2(iadv,iz) = poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz 
@@ -3622,11 +4149,11 @@ do while ((.not.isnan(error)).and.(error > tol))
             amx(row,row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)/dt & 
                 & +dporodtg(iz)  &
-                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & +2.0d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(1.0d0)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3/dz &
                 & +dresp_dpo2(iz) &
@@ -3634,18 +4161,18 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(1.0d0,po2x(iz),po2x(iz)<po2th)
 
             amx(row,row+nsp) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
                 & ) &
                 & *merge(0.0d0,po2x(iz+1),po2x(iz)<po2th)
 
             amx(row,row-nsp) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas &
-                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq)/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas)  &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq &
-                & -poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq))*(-1.0d0)/(dz**2.0d0) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso &
+                & +poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo)/(dz**2.0d0) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso)  &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo &
+                & -poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo))*(-1.0d0)/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(-1.0d0)/dz &
                 & ) &
                 & *merge(0.0d0,po2x(iz-1),po2x(iz)<po2th)
@@ -3653,11 +4180,11 @@ do while ((.not.isnan(error)).and.(error > tol))
             ymx(row) = ( &
                 & (ucv*poro(iz)*(1.0d0-sat(iz))*1d3+poro(iz)*sat(iz)*kho*1d3)*(po2x(iz)-po2(iz))/dt  &
                 & +dporodtg(iz) *po2x(iz) &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
                 & +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz &
                 & +resp(iz) &
@@ -3665,11 +4192,11 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & *merge(0.0d0,1.0d0,po2x(iz)<po2th)
             
             flx_o2(idif,iz) = ( &
-                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgas+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daq) &
+                & -(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgaso+poro(iz)*sat(iz)*kho*1d3*tora(iz)*daqo) &
                 & *(po2x(iz+1)+po2x(iz-1)-2.0d0*po2x(iz))/(dz**2.0d0) &
-                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgas &
-                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgas) &
-                & +(poro(iz)*sat(iz)*kho*tora(iz)*daq-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daq)) &
+                & -1d3*(ucv*(poro(iz)*(1.0d0-sat(iz))*torg(iz)*dgaso &
+                & -poro(iz-1)*(1.0d0-sat(iz-1))*torg(iz-1)*dgaso) &
+                & +(poro(iz)*sat(iz)*kho*tora(iz)*daqo-poro(iz-1)*sat(iz-1)*kho*tora(iz-1)*daqo)) &
                 & *(po2x(iz)-po2x(iz-1))/(dz**2.0d0) &
                 & ) 
             flx_o2(iadv,iz) = +poro(iz)*sat(iz)*v(iz)*kho*1d3*(po2x(iz)-po2x(iz-1))/dz
@@ -3827,7 +4354,7 @@ endsubroutine oxygen_resp_1D
 
 subroutine oxygen_resp_1D_v2( &
     & nz,nflx,po2,po2i,po2th,poro,z,dz,sat,dporodtg  &! input
-    & ,kho,tora,torg,daq,dgas,v,mo2,tol,runname,workdir,zrxn,ucv,vmax,poroprev  &! inpput
+    & ,kho,tora,torg,daqo,dgaso,v,mo2,tol,runname,workdir,zrxn,ucv,vmax,poroprev  &! inpput
     & ,dt,flgback &! inout
     & ,po2x,flx_o2,resp &! output
     & ) 
@@ -3835,7 +4362,7 @@ subroutine oxygen_resp_1D_v2( &
 implicit none 
 
 integer,intent(in)::nz,nflx
-real(kind=8),intent(in)::po2i,po2th,kho,daq,dgas,mo2,tol,zrxn,ucv,vmax
+real(kind=8),intent(in)::po2i,po2th,kho,daqo,dgaso,mo2,tol,zrxn,ucv,vmax
 real(kind=8),dimension(nz),intent(in)::po2,poro,z,sat,dporodtg,tora,torg,v,poroprev,dz
 character(256),intent(in)::runname,workdir
 real(kind=8),dimension(nz),intent(inout)::po2x
@@ -3887,11 +4414,11 @@ do while ((.not.isnan(error)).and.(error > tol))
     
     dkho2_do2 = 0d0
     
-    edif = ucv*poro*(1.0d0-sat)*1d3*torg*dgas+poro*sat*kho2x*1d3*tora*daq
+    edif = ucv*poro*(1.0d0-sat)*1d3*torg*dgaso+poro*sat*kho2x*1d3*tora*daqo
     edifi = edif(1)
-    edifi = ucv*1d3*dgas 
+    edifi = ucv*1d3*dgaso 
     
-    dedif_do2 = poro*sat*dkho2_do2*1d3*tora*daq
+    dedif_do2 = poro*sat*dkho2_do2*1d3*tora*daqo
     
     alpha = ucv*poro*(1.0d0-sat)*1d3+poro*sat*kho2x*1d3
     alphaprev = ucv*poroprev*(1.0d0-sat)*1d3+poroprev*sat*kho2*1d3
@@ -9819,7 +10346,7 @@ real(kind=8),intent(in):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mg
     & ,k1al,k2al,k3al,k4al,keqka
 real(kind=8),dimension(nz),intent(in):: pco2x,cax,mgx,six,nax,prox,alx
 real(kind=8),dimension(nz),intent(out):: omega
-character(2),intent(in):: mineral
+character(5),intent(in):: mineral
 
 select case(trim(adjustl(mineral)))
     case('fo')
@@ -9851,6 +10378,30 @@ select case(trim(adjustl(mineral)))
 endselect
 
 endsubroutine calc_omega_v2
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calc_rxn_ext( &
+    & nz,vmax,mo2,po2th,po2x,rxn_name &! input 
+    & ,rxn_ext &! output
+    & )
+implicit none
+integer,intent(in)::nz
+real(kind=8),intent(in):: vmax,mo2,po2th
+real(kind=8),dimension(nz),intent(in):: po2x
+real(kind=8),dimension(nz),intent(out):: rxn_ext
+character(5),intent(in)::rxn_name
+
+select case(trim(adjustl(rxn_name)))
+    case('resp')
+        rxn_ext = vmax*po2x/(po2x+mo2)
+        ! rxn_ext = vmax*merge(0d0,po2x/(po2x+mo2),(po2x <po2th).or.(isnan(po2x/(po2x+mo2))))
+endselect
+
+endsubroutine calc_rxn_ext
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
