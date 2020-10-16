@@ -118,7 +118,7 @@ real(kind=8), parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 ! real(kind=8), parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
 
 ! real(kind=8) :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)  ** default
-real(kind=8) :: qin = 10d-1 ! m yr^-1 
+real(kind=8) :: qin = 0.1d-1 ! m yr^-1 
 ! real(kind=8) :: qin = 0.1d-1 ! m yr^-1 
 real(kind=8) v(nz), q
 
@@ -204,8 +204,8 @@ real(kind=8),dimension(nflx_py,nz)::flx_py,flx_py_fe2,flx_py_fe3,flx_py_o2,flx_p
 ! real(kind=8) :: maxdt = 10d0
 real(kind=8) :: maxdt = 0.2d0 ! for basalt exp?
 
-! logical :: pre_calc = .false.
-logical :: pre_calc = .true.
+logical :: pre_calc = .false.
+! logical :: pre_calc = .true.
 
 logical :: read_data = .false.
 ! logical :: read_data = .true.
@@ -343,6 +343,19 @@ data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
 
 integer ieqaq_co3,ieqaq_hco3
 data ieqaq_co3,ieqaq_hco3/1,2/
+
+integer,dimension(nsp_aq)::iaqflx
+integer,dimension(nsp_gas)::igasflx
+integer,dimension(nsp_sld)::isldflx
+
+integer,parameter::ibasaltrain = 15
+integer,parameter::isldprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 1
+integer,parameter::iaqprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 2
+integer,parameter::igasprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 3
+integer,parameter::isldsat = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 4
+integer,parameter::ibsd = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
+
+real(kind=8) dt_prev
 !-------------------------
 ! define all species and rxns definable in the model 
 ! note that rxns here exclude diss(/prec) of mineral 
@@ -528,7 +541,7 @@ write(chrrain,'(E10.2)') rainpowder
 write(workdir,*) '../pyweath_output/'     
 
 if (cplprec) then 
-    write(base,*) 'test_cplpcxasgxsagwp2'
+    write(base,*) 'test_cplpcxasgxsagwff'
 else 
     write(base,*) 'test_cpl'
 endif 
@@ -576,50 +589,43 @@ write(runname,*) trim(adjustl(base))//'_q-'//trim(adjustl(chrq(3)))//'_zsat-'  &
     & //trim(adjustl(chrz(3)))
 #endif
 
+do isps = 1, nsp_sld 
+    isldflx(isps) = ibasaltrain + isps
+enddo 
+    
+do ispa = 1, nsp_aq 
+    iaqflx(ispa) = ibasaltrain + nsp_sld  + ispa
+enddo 
+
+do ispg = 1, nsp_gas
+    igasflx(ispg) = ibasaltrain + nsp_sld + nsp_aq + ispg
+enddo 
+
 call system ('mkdir -p '//trim(adjustl(workdir))//trim(adjustl(runname)))
 
-open(65, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(o2flx).txt', &
-    & status='replace')
-open(67, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(fe2flx).txt', &
-    & status='replace')
-open(68, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(fe3flx).txt', &
-    & status='replace')
-open(69, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(pyflx).txt',  &
-    & status='replace')
-open(55, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(naflx).txt',  &
-    & status='replace')
-open(56, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(silflx).txt',  &
-    & status='replace')
-open(57, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(so4flx).txt',  &
-    & status='replace')
-open(58, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(mgflx).txt',  &
-    & status='replace')
-open(59, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(siflx).txt',  &
-    & status='replace')
-open(60, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(foflx).txt',  &
-    & status='replace')
-open(61, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(naflx2).txt',  &
-    & status='replace')
-open(62, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(abflx).txt',  &
-    & status='replace')
-open(63, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(co2flx).txt', &
-    & status='replace')
-open(64, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(anflx).txt',  &
-    & status='replace')
-open(54, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(caflx).txt', &
-    & status='replace')
-open(53, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(ccflx).txt', &
-    & status='replace')
-open(51, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(kaflx).txt', &
-    & status='replace')
-open(50, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(alflx).txt', &
-    & status='replace')
-open(52, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'rain.txt', &
-    & status='replace')
+do isps = 1,nsp_sld
+    open(isldflx(isps), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', status='replace')
+    write(isldflx(isps),*) ' time ',' itflx ',' iadv ',' idif ',' irxn ',' irain ',' ires '
+    close(isldflx(isps))
+enddo 
 
+do ispa = 1,nsp_aq
+    open(iaqflx(ispa), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', status='replace')
+    write(iaqflx(ispa),*) ' time ',' itflx ',' iadv ',' idif ',' irxn ',' irain ',' ires '
+    close(iaqflx(ispa))
+enddo 
 
-close(65);close(67);close(68);close(69);close(55);close(56);close(57);close(58);close(59);close(60)
-close(61);close(62);close(63);close(64);close(54);close(53);close(52);close(51);close(50)
+do ispg = 1,nsp_gas
+    open(igasflx(ispg), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', status='replace')
+    write(igasflx(ispg),*) ' time ',' itflx ',' iadv ',' idif ',' irxn ',' irain ',' ires '
+    close(igasflx(ispg))
+enddo 
+open(ibasaltrain, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'rain.txt', &
+    & status='replace')
+close(ibasaltrain)
 
 
 
@@ -862,16 +868,6 @@ endif
 ! *** the above must be commented out when using arbitrary q value
 
 
-open(22, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-bsd.txt', &
-    & status='unknown', action = 'write')
-
-do iz = 1,nz
-    write(22,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz)
-enddo
-
-close(22)
-
-
 !  --------- read -----
 if (read_data) then 
     ! runname_save = 'test_cpl_rain-0.40E+04_pevol_sevol1_q-0.10E-01_zsat-5' ! specifiy the file where restart data is stored 
@@ -991,6 +987,7 @@ do while (it<nt)
 #ifdef display 
     print *, 'it, time = ',it, time
 #endif
+    dt_prev = dt
     ! if (time>rectime(nrec)) exit
     if (initial_ss.and.time>rectime(nrec)) exit
         
@@ -1085,6 +1082,8 @@ do while (it<nt)
         ! dt = dt/1.05d0
         dt = dt/10d0
     end if
+    
+    if (dt/=dt_prev) pre_calc = .true.
 
     ! incase temperature&ph change
     ! call coefs( &
@@ -1219,10 +1218,12 @@ do while (it<nt)
     maqsupp(findloc(chraq,'ca',dim=1),:) = casupp
     maqsupp(findloc(chraq,'al',dim=1),:) = alsupp
 
-
-    ! if (pre_calc) then 
-    if (pre_calc .and. it ==0) then 
-        
+    if (it==0) pre_calc = .true.
+    pre_calc = .true.
+    
+    if (pre_calc) then 
+    ! if (pre_calc .and. it ==0) then 
+        pre_calc = .false.
         ! call precalc_po2_v2( &
             ! & nz,po2th,dt,ucv,kho,dz,dgaso,daqo,po2i,poro,sat,po2,torg,tora,v &! input 
             ! & ,po2x &! output 
@@ -1484,44 +1485,6 @@ do while (it<nt)
         & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,co2,hco3,co3,dic & 
         & )
 
-    mfox(:)=msldx(findloc(chrsld,'fo',dim=1),:)
-    mabx(:)=msldx(findloc(chrsld,'ab',dim=1),:)
-    manx(:)=msldx(findloc(chrsld,'an',dim=1),:)
-    mccx(:)=msldx(findloc(chrsld,'cc',dim=1),:)
-    mkax(:)=msldx(findloc(chrsld,'ka',dim=1),:)
-
-    mgx(:)=maqx(findloc(chraq,'mg',dim=1),:)
-    six(:)=maqx(findloc(chraq,'si',dim=1),:)
-    nax(:)=maqx(findloc(chraq,'na',dim=1),:)
-    cax(:)=maqx(findloc(chraq,'ca',dim=1),:)
-    alx(:)=maqx(findloc(chraq,'al',dim=1),:)
-
-    pco2x(:)=mgasx(findloc(chrgas,'pco2',dim=1),:)
-    po2x(:)=mgasx(findloc(chrgas,'po2',dim=1),:)
-
-    omega_fo =omega(findloc(chrsld,'fo',dim=1),:)
-    omega_ab =omega(findloc(chrsld,'ab',dim=1),:)
-    omega_an =omega(findloc(chrsld,'an',dim=1),:)
-    omega_ka =omega(findloc(chrsld,'ka',dim=1),:)
-    omega_cc =omega(findloc(chrsld,'cc',dim=1),:)
-
-    flx_fo =flx_sld(findloc(chrsld,'fo',dim=1),:,:)
-    flx_ab =flx_sld(findloc(chrsld,'ab',dim=1),:,:)
-    flx_an =flx_sld(findloc(chrsld,'an',dim=1),:,:)
-    flx_ka =flx_sld(findloc(chrsld,'ka',dim=1),:,:)
-    flx_cc =flx_sld(findloc(chrsld,'cc',dim=1),:,:)
-
-    flx_mg=flx_aq(findloc(chraq,'mg',dim=1),:,:)
-    flx_si=flx_aq(findloc(chraq,'si',dim=1),:,:)
-    flx_na=flx_aq(findloc(chraq,'na',dim=1),:,:)
-    flx_ca=flx_aq(findloc(chraq,'ca',dim=1),:,:)
-    flx_al=flx_aq(findloc(chraq,'al',dim=1),:,:)
-
-    flx_co2=flx_gas(findloc(chrgas,'pco2',dim=1),:,:)
-    flx_o2=flx_gas(findloc(chrgas,'po2',dim=1),:,:)
-
-    resp = rxnext(findloc(chrrxn_ext,'resp',dim=1),:)
-
     ! if (iter > 75) then
         ! maxdt = maxdt/2d0
     ! end if
@@ -1693,24 +1656,6 @@ do while (it<nt)
 #endif 
 
     ! stop
-
-    po2 = po2x
-    pco2 = pco2x
-    c = cx
-    ms = msx
-    c2 = c2x
-    so4 = so4x
-    na = nax
-    ca = cax
-    msil = msilx
-    mg = mgx
-    si = six
-    al = alx
-    mfo = mfox
-    mab = mabx
-    man = manx
-    mka = mkax
-    mcc = mccx
     
     mgas = mgasx
     maq = maqx
@@ -1761,105 +1706,58 @@ do while (it<nt)
 
     if (initial_ss .and. time>=rectime(irec+1)) then
         write(chr,'(i3.3)') irec+1
-        open (28, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(rate)-'//chr//'.txt',  &
-            & status='replace')
-        open (22, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res-'//chr//'.txt',  &
-            & status='replace')
-        open (29, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(nom)-'//chr//'.txt',  &
-            & status='replace')
-        open(30, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-bsd-'//chr//'.txt',  &
-            & status='replace')
-
+        
+        open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_sld-'//chr//'.txt', status='replace')
+        open(isldsat,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'sat_sld-'//chr//'.txt', status='replace')
+        open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_gas-'//chr//'.txt', status='replace')
+        open(iaqprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_aq-'//chr//'.txt', status='replace')
+        open(ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+            & //'bsd-'//chr//'.txt', status='replace')
+            
+        write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
+        write(isldsat,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
+        write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
+        write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
 
         do iz = 1, Nz
-            write (28,*) z(iz), &
-                & koxs(iz)*poro(iz)*hr(iz)*mvpy*1d-6*msx(iz)*po2x(iz)**0.50d0*merge(0.0d0,1.0d0,po2x(iz)<po2th), &
-                & merge(0.0d0, &
-                & + koxs2(iz)*poro(iz)*hr(iz)*mvpy*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0),cx(iz)<cth) &
-                & *merge(0.0d0,1.0d0,c2x(iz)<c2th), &
-                & poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz) &
-                & *merge(0.0d0,1.0d0,po2x(iz)<po2th.or.cx(iz)<cth) &
-                & , swbr*vmax*po2x(iz)/(po2x(iz)+mo2) &
-                & ,kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
-                & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) &
-                & ,kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(1d0-omega_fo(iz)) &
-                & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0) &
-                & ,time
-            write (22,*) z(iz),po2(iz),c(iz),ms(iz),c2(iz), so4(iz),na(iz),ca(iz),mg(iz),si(iz),al(iz) &
-                & ,mab(iz),man(iz),mfo(iz),mka(iz),mcc(iz) &
-                & ,omega_ab(iz), omega_fo(iz),omega_an(iz),omega_ka(iz),omega_cc(iz),pco2(iz),-log10(pro(iz)),time
-            write (29,*) z(iz),po2(iz)/maxval(po2(:)),c(iz)/maxval(c(:)),ms(iz)/maxval(ms(:)),c2(iz)/maxval(c2(:)) &
-                & , so4(iz)/maxval(so4(:)), na(iz)/maxval(na(:)), msil(iz)/maxval(msil(:)), pro(iz)/maxval(pro(:)) &
-                & , silsat(iz),co2(iz),hco3(iz),co3(iz),dic(iz),time
-            write(30,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz),hr(iz)
+            write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
+            write(isldsat,*) z(iz),(omega(isps,iz),isps = 1, nsp_sld),time
+            write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
+            write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),time
         end do
         irec=irec+1
 
-        close(28)
-        close(22)
-        close(29)
-        close(30)
-
-        open(65, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(o2flx).txt' &
-            & ,action='write',status='old',access='append')
-        open(67, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(fe2flx).txt' &
-            & ,action='write',status='old',access='append')
-        open(68, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(fe3flx).txt' &
-            & ,action='write',status='old',access='append')
-        open(69, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(pyflx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(55, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(naflx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(56, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(silflx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(57, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(so4flx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(58, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(mgflx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(59, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(siflx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(60, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(foflx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(61, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(naflx2).txt'  &
-            & ,action='write',status='old',access='append')
-        open(62, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(abflx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(63, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(co2flx).txt' &
-            & ,action='write',status='old',access='append')
-        open(64, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(anflx).txt'  &
-            & ,action='write',status='old',access='append')
-        open(54, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(caflx).txt' &
-            & ,action='write',status='old',access='append')
-        open(53, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(ccflx).txt' &
-            & ,action='write',status='old',access='append')
-        open(51, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(kaflx).txt' &
-            & ,action='write',status='old',access='append')
-        open(50, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(alflx).txt' &
-            & ,action='write',status='old',access='append')
-
-        ! write(65,*) time, o2tflx, diflx, advflx, pyoxflx, feoxflx, respflx,o2flxsum 
-        write(65,*) time,(sum(flx_o2(iflx,:)),iflx=1,nflx) 
-        write(67,*) time,(sum(flx_py_fe2(iflx,:)),iflx=1,nflx_py) 
-        write(68,*) time,(sum(flx_py_fe3(iflx,:)),iflx=1,nflx_py)  
-        write(69,*) time,(sum(flx_py(iflx,:)),iflx=1,nflx_py)         
-        write(56,*) time,(sum(flx_ab(iflx,:)),iflx=1,nflx)       
-        write(55,*) time,(sum(flx_na(iflx,:)),iflx=1,nflx)      
-        write(57,*) time,(sum(flx_py_so4(iflx,:)),iflx=1,nflx_py) 
+        close(isldprof)
+        close(isldsat)
+        close(iaqprof)
+        close(igasprof)
+        close(ibsd)
         
-        write(58,*) time,(sum(flx_mg(iflx,:)),iflx=1,nflx)
-        write(59,*) time,(sum(flx_si(iflx,:)),iflx=1,nflx)
-        write(60,*) time,(sum(flx_fo(iflx,:)),iflx=1,nflx)
-        write(61,*) time,(sum(flx_na(iflx,:)),iflx=1,nflx)
-        write(62,*) time,(sum(flx_ab(iflx,:)),iflx=1,nflx)
-        write(63,*) time,(sum(flx_co2(iflx,:)),iflx=1,nflx)
-        write(64,*) time,(sum(flx_an(iflx,:)),iflx=1,nflx)
-        write(54,*) time,(sum(flx_ca(iflx,:)),iflx=1,nflx)
-        write(53,*) time,(sum(flx_cc(iflx,:)),iflx=1,nflx)
-        write(51,*) time,(sum(flx_ka(iflx,:)),iflx=1,nflx)
-        write(50,*) time,(sum(flx_al(iflx,:)),iflx=1,nflx)
+        do isps=1,nsp_sld 
+            open(isldflx(isps), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',access='append')
+            write(isldflx(isps),*) time,(sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
+            close(isldflx(isps))
+        enddo 
         
-        close(65);close(67);close(68);close(69);close(55);close(56);close(57);close(58);close(59);close(60)
-        close(61);close(62);close(63);close(64);close(54);close(53);close(51);close(50)
+        do ispa=1,nsp_aq 
+            open(iaqflx(ispa), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',access='append')
+            write(iaqflx(ispa),*) time,(sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
+            close(iaqflx(ispa))
+        enddo 
+        
+        do ispg=1,nsp_gas 
+            open(igasflx(ispg), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',access='append')
+            write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
+            close(igasflx(ispg))
+        enddo 
 
     end if
 
@@ -1898,44 +1796,6 @@ do while (it<nt)
     flgreducedt_prev = flgreducedt
     
 end do
-
-write(chr,'(i3.3)') irec+1
-open (28, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(rate)-'//chr//'.txt', &
-    & status='replace')
-open (22, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res-'//chr//'.txt', &
-    & status='replace')
-open (29, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res(nom)-'//chr//'.txt', &
-    & status='replace')
-
-open(30, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-bsd-'//chr//'.txt',  &
-    & status='replace')
-
-do iz = 1, Nz
-    write (28,*) z(iz), &
-        & koxs(iz)*poro(iz)*hr(iz)*mvpy*1d-6*msx(iz)*po2x(iz)**0.50d0*merge(0.0d0,1.0d0,po2x(iz)<po2th), &
-        & merge(0.0d0, &
-        & + koxs2(iz)*poro(iz)*hr(iz)*mvpy*1d-6*msx(iz)*c2x(iz)**0.93d0*cx(iz)**(-0.40d0),cx(iz)<cth) &
-        & *merge(0.0d0,1.0d0,c2x(iz)<c2th), &
-        & poro(iz)*sat(iz)*1d3*koxa(iz)*cx(iz)*po2x(iz)*merge(0.0d0,1.0d0,po2x(iz)<po2th.or.cx(iz)<cth) &
-        & , swbr*vmax*po2x(iz)/(po2x(iz)+mo2) &
-        & ,kab(iz)*poro(iz)*hr(iz)*mvab*1d-6*mabx(iz)*(1d0-omega_ab(iz)) &
-        & *merge(0d0,1d0,1d0-omega_ab(iz) < 0d0) &
-        & ,kfo(iz)*poro(iz)*hr(iz)*mvfo*1d-6*mfox(iz)*(1d0-omega_fo(iz)) &
-        & *merge(0d0,1d0,1d0-omega_fo(iz) < 0d0) &
-        & ,time
-    write (22,*) z(iz),po2(iz),c(iz),ms(iz),c2(iz), so4(iz),na(iz),ca(iz),mg(iz),si(iz),al(iz) &
-        & ,mab(iz),man(iz),mfo(iz),mka(iz),mcc(iz) &
-        & ,omega_ab(iz), omega_fo(iz),omega_an(iz),omega_ka(iz),omega_cc(iz),pco2(iz),-log10(pro(iz)),time
-    write (29,*) z(iz),po2(iz)/maxval(po2(:)),c(iz)/maxval(c(:)),ms(iz)/maxval(ms(:)),c2(iz)/maxval(c2(:)) &
-        & ,so4(iz)/maxval(so4(:)),na(iz)/maxval(na(:)),msil(iz)/maxval(msil(:)),pro(iz)/maxval(pro(:)) &
-        & ,silsat(iz), co2(iz),hco3(iz),co3(iz),dic(iz),time
-    write(30,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz),hr(iz)
-end do
-
-close(28)
-close(22)
-close(29)
-close(30)
 
 zpy = 0d0
 zab = 0d0
