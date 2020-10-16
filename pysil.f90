@@ -51,13 +51,20 @@ real(kind=8) :: mvan = 100.79d0 ! cm3/mol; molar volume of An (CaAl2Si2O8); Robi
 real(kind=8) :: mvcc = 36.934d0 ! cm3/mol; molar volume of Cc (CaCO3); Robie et al. 1978
 real(kind=8) :: mvpy = 23.94d0 ! cm3/mol; molar volume of Pyrite (FeS2); Robie et al. 1978
 real(kind=8) :: mvgb = 31.956d0 ! cm3/mol; molar volume of Gibsite (Al(OH)3); Robie et al. 1978
+real(kind=8) :: mvct = 108.5d0 ! cm3/mol; molar volume of Chrysotile (Mg3Si2O5(OH)4); Robie et al. 1978
+real(kind=8) :: mvfa = 46.39d0 ! cm3/mol; molar volume of Fayalite (Fe2SiO4); Robie et al. 1978
+real(kind=8) :: mvgt = 20.82d0 ! cm3/mol; molar volume of Goethite (Fe(OH)3); Robie et al. 1978
 
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
 real(kind=8) :: mwtab = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
 real(kind=8) :: mwtan = 278.311d0 ! g/mol; formula weight of An; Robie et al. 1978
 real(kind=8) :: mwtcc = 100.089d0 ! g/mol; formula weight of Cc; Robie et al. 1978
-real(kind=8) :: mwtka = 100.089d0 ! g/mol; formula weight of Cc; Robie et al. 1978
+real(kind=8) :: mwtpy = 119.967d0 ! g/mol; formula weight of Py; Robie et al. 1978
+real(kind=8) :: mwtka = 100.089d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtgb = 78.004d0 ! g/mol; formula weight of Gb; Robie et al. 1978
+real(kind=8) :: mwtct = 277.113d0 ! g/mol; formula weight of Ct; Robie et al. 1978
+real(kind=8) :: mwtfa = 203.778d0 ! g/mol; formula weight of Fa; Robie et al. 1978
+real(kind=8) :: mwtgt = 88.854d0 ! g/mol; formula weight of Gt; Robie et al. 1978
 
 ! real(kind=8) :: redsldi = 0.56d0 ! wt%  **default 
 ! real(kind=8) :: redsldi = 1.12d0 ! wt%  x2
@@ -83,6 +90,8 @@ real(kind=8)::rainfrc_an = 0.258d0 ! rain wt fraction for An; assuming 0.43 for 
 real(kind=8)::rainfrc_cc = 0d0 ! rain wt fraction for Cc; None (Beering et al 2020)
 real(kind=8)::rainfrc_ka = 0d0 ! rain wt fraction for Ka; None (Beering et al 2020)
 real(kind=8)::rainfrc_gb = 0d0 ! rain wt fraction for Gb; None (Beering et al 2020)
+real(kind=8)::rainfrc_ct = 0d0 ! rain wt fraction for ct; None (Beering et al 2020)
+real(kind=8)::rainfrc_fa = 0.05d0 ! rain wt fraction for ct; None (Beering et al 2020)
 
 real(kind=8)::zsupp = 0.3d0 !  e-folding decrease
 
@@ -118,7 +127,7 @@ real(kind=8), parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 ! real(kind=8), parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
 
 ! real(kind=8) :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)  ** default
-real(kind=8) :: qin = 0.1d-1 ! m yr^-1 
+real(kind=8) :: qin = 10d-1 ! m yr^-1 
 ! real(kind=8) :: qin = 0.1d-1 ! m yr^-1 
 real(kind=8) v(nz), q
 
@@ -130,7 +139,7 @@ real(kind=8) :: hrii = 1d5
 real(kind=8) :: p80 = 1d-6 ! m 
 
 real(kind=8) msi,msili,mfoi,mabi,mani,mcci,ctmp,po2tmp,ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save &
-    & ,mkai,mvka_save,mvgb_save
+    & ,mkai,mvka_save,mvgb_save,mcti
 real(kind=8),dimension(nz)::msil,msilx,mfo,mfox,mab,mabx,man,manx,mcc,mccx,mka,mkax,mgb,mgbx &
     & ,po2,redsld,ms,c,po2x,msx,cx,resp,c2,c2x,so4,so4x,na,nax,naeq,silsat &
     & ,pro,prox,hco3,ca,co2,co3,dic,cax,porox,dporodta,dporodtg,dporodtgc,khco2  &
@@ -182,6 +191,7 @@ real(kind=8) :: manth = 1.0d-20
 real(kind=8) :: mccth = 1.0d-20
 real(kind=8) :: mkath = 1.0d-20
 real(kind=8) :: mgbth = 1.0d-20
+real(kind=8) :: mctth = 1.0d-20
 
 real(kind=8) :: stoxs = 15.0d0/4.0d0  ! 15/4 py => Fe-oxide + sulfate; 7/2 py => Fe++ + sulfate
 real(kind=8) :: stoxa = 1.0d0/4.0d0  ! stoichiomety of oxidation in aq
@@ -228,6 +238,9 @@ logical :: co2_iteration = .false.
 logical :: calcite_seed = .false.
 ! logical :: calcite_seed = .true.
 
+logical :: al_inhibit = .false.
+! logical :: al_inhibit = .true.
+
 real(kind=8) :: authig = 0d0 ! 0 if not allowing authigenesis of CaCO3
 ! real(kind=8) :: authig = 1d0 ! 1 if allowing authigenesis of CaCO3
 
@@ -266,7 +279,7 @@ integer count_dtunchanged
 
 integer,parameter::nsp_sld = 5
 integer,parameter::nsp_sld_2 = 2
-integer,parameter::nsp_sld_all = 7
+integer,parameter::nsp_sld_all = 10
 integer,parameter::nsp_sld_cnst = nsp_sld_all - nsp_sld
 integer,parameter::nsp_aq = 5
 integer,parameter::nsp_aq_ph = 8
@@ -293,47 +306,40 @@ character(5),dimension(nsp_gas_all)::chrgas_all
 character(5),dimension(nsp_gas_cnst)::chrgas_cnst
 character(5),dimension(nrxn_ext)::chrrxn_ext
 character(5),dimension(nrxn_ext_all)::chrrxn_ext_all
-real(kind=8),dimension(nsp_sld)::msldi,msldth,keq,mv
+real(kind=8),dimension(nsp_sld)::msldi,msldth,mv,rfrc_sld,mwt
 real(kind=8),dimension(nsp_sld,nsp_aq)::staq
 real(kind=8),dimension(nsp_sld,nsp_gas)::stgas
-real(kind=8),dimension(nsp_sld,nz)::msldx,msld,ksld,omega,nonprec,rxnsld,msldsupp,domega_dpro 
-real(kind=8),dimension(nsp_sld,nsp3,nz)::domega_disp,drxnsld_disp 
-real(kind=8),dimension(nsp_sld,nsp_aq,nz)::domega_dmaq,drxnsld_dmaq 
-real(kind=8),dimension(nsp_sld,nsp_gas,nz)::domega_dmgas,drxnsld_dmgas 
+real(kind=8),dimension(nsp_sld,nz)::msldx,msld,ksld,omega,msldsupp
 real(kind=8),dimension(nsp_sld,nflx,nz)::flx_sld
-real(kind=8),dimension(nsp_aq)::maqi,maqth,daq,dmaq 
-real(kind=8),dimension(nsp_aq,nz)::maqx,maq,rxnaq,maqsupp,drxnaq_dpro,dprodmaq 
-real(kind=8),dimension(nsp_aq,nsp3,nz)::drxnaq_disp
+real(kind=8),dimension(nsp_aq)::maqi,maqth,daq
+real(kind=8),dimension(nsp_aq,nz)::maqx,maq,rxnaq,maqsupp
 real(kind=8),dimension(nsp_aq,nflx,nz)::flx_aq
 real(kind=8),dimension(nsp_gas)::mgasi,mgasth,dgasa,dgasg,dmgas,khgasi,dgasi
 real(kind=8),dimension(nsp_gas,nz)::mgasx,mgas,khgasx,khgas,dgas,agasx,agas,rxngas,mgassupp 
-real(kind=8),dimension(nsp_gas,nsp_gas,nz)::dkhgas_dmgas,ddgas_dmgas,dagas_dmgas,drxngas_dmgas 
 real(kind=8),dimension(nsp_gas,nflx,nz)::flx_gas 
 real(kind=8),dimension(nrxn_ext,nz)::rxnext
-real(kind=8),dimension(nrxn_ext,nsp_gas)::stgas_ext
-real(kind=8),dimension(nrxn_ext,nsp_gas)::stgas_dext
-real(kind=8),dimension(nrxn_ext,nsp_aq)::staq_ext
-real(kind=8),dimension(nrxn_ext,nsp_sld)::stsld_ext
-real(kind=8),dimension(nrxn_ext,nsp_gas,nz)::drxnext_dmgas
-real(kind=8),dimension(nrxn_ext,nsp_aq,nz)::drxnext_dmaq
-real(kind=8),dimension(nrxn_ext,nsp_sld,nz)::drxnext_dmsld
+real(kind=8),dimension(nrxn_ext,nsp_gas)::stgas_ext,stgas_dext
+real(kind=8),dimension(nrxn_ext,nsp_aq)::staq_ext,staq_dext
+real(kind=8),dimension(nrxn_ext,nsp_sld)::stsld_ext,stsld_dext
 
-real(kind=8),dimension(nsp_aq_all)::daq_all
-real(kind=8),dimension(nsp_gas_all)::dgasa_all,dgasg_all
+real(kind=8),dimension(nsp_aq_all)::daq_all,maqi_all,maqth_all
+real(kind=8),dimension(nsp_gas_all)::dgasa_all,dgasg_all,mgasi_all,mgasth_all
 real(kind=8),dimension(nsp_gas_all,3)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2)::keqaq_c
 real(kind=8),dimension(nsp_sld_all,nz)::ksld_all
-real(kind=8),dimension(nsp_sld_all)::keqsld_all,mv_all
+real(kind=8),dimension(nsp_sld_all,nsp_aq_all)::staq_all
+real(kind=8),dimension(nsp_sld_all,nsp_gas_all)::stgas_all
+real(kind=8),dimension(nsp_sld_all)::keqsld_all,mv_all,msldi_all,msldth_all,rfrc_sld_all,mwt_all
 real(kind=8),dimension(nrxn_ext_all,nz)::krxn1_ext_all
 real(kind=8),dimension(nrxn_ext_all,nz)::krxn2_ext_all
+real(kind=8),dimension(nrxn_ext_all,nsp_aq_all)::staq_ext_all,staq_dext_all
+real(kind=8),dimension(nrxn_ext_all,nsp_gas_all)::stgas_ext_all,stgas_dext_all
+real(kind=8),dimension(nrxn_ext_all,nsp_sld_all)::stsld_ext_all,stsld_dext_all
 
 real(kind=8),dimension(nsp_aq_cnst,nz)::maqc
 real(kind=8),dimension(nsp_gas_cnst,nz)::mgasc
 real(kind=8),dimension(nsp_sld_cnst,nz)::msldc
-
-real(kind=8),dimension(nsp_gas_all)::mgasth_all
-real(kind=8),dimension(nsp_aq_all)::maqth_all
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
@@ -360,7 +366,7 @@ real(kind=8) dt_prev
 ! define all species and rxns definable in the model 
 ! note that rxns here exclude diss(/prec) of mineral 
 ! which are automatically included when associated mineral is chosen
-chrsld_all = (/'fo','ab','an','cc','ka','gb','py'/)
+chrsld_all = (/'fo','ab','an','cc','ka','gb','py','ct','fa','gt'/)
 chraq_all = (/'mg ','si ','na ','ca ','al ','fe2','fe3','so4'/)
 chrgas_all = (/'pco2','po2 '/)
 chrrxn_ext_all = (/'resp ','fe2o2'/)
@@ -368,7 +374,7 @@ chrrxn_ext_all = (/'resp ','fe2o2'/)
 ! define the species and rxns explicitly simulated in the model in a fully coupled way
 ! should be chosen from definable species & rxn lists above 
 chrsld = (/'fo','ab','an','cc','ka'/)
-chraq = (/'mg','si','na','ca','al'/)
+chraq = (/'mg ','si ','na ','ca ','al '/)
 chrgas = (/'pco2','po2 '/)
 chrrxn_ext = (/'resp'/)
 ! define solid species which can precipitate
@@ -419,53 +425,182 @@ if (nsp_sld_cnst .ne. 0) then
     ! pause 
 endif 
 
+! assume 0 concs for all consntant species
 mgasc = 0d0
 maqc = 0d0
 msldc = 0d0
 
-maqth_all = 1d-20
-mgasth_all = 1d-20
+! initial values for all species 
+mgasi_all = (/pco2i,po2i/)
 
-mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy/)
+msldi_all = 1d-10
+msldi_all(findloc(chrsld_all,'ab',dim=1)) =  silwti*1d-2/262.2d0*2.7d0*(1.0d0-poroi)*1d6  
+msldi_all(findloc(chrsld_all,'py',dim=1)) =  redsldi*1d-2/120.0d0*2.7d0*(1.0d0-poroi)*1d6  
+
+maqi_all = 0d0
+
+! threshould values 
+mgasth_all = 1d-20
+maqth_all = 1d-20
+msldth_all = 1d-20
+
+
+! passing initial and threshold values to explcit variables 
+do isps = 1, nsp_sld    
+    if (any(chrsld_all == chrsld(isps))) then 
+        msldi(isps) = msldi_all(findloc(chrsld_all,chrsld(isps),dim=1))
+        msldth(isps) = msldth_all(findloc(chrsld_all,chrsld(isps),dim=1))
+    endif 
+enddo 
+do ispa = 1, nsp_aq    
+    if (any(chraq_all == chraq(ispa))) then 
+        maqi(ispa) = maqi_all(findloc(chraq_all,chraq(ispa),dim=1))
+        maqth(ispa) = maqth_all(findloc(chraq_all,chraq(ispa),dim=1))
+    endif 
+enddo 
+do ispg = 1, nsp_gas    
+    if (any(chrgas_all == chrgas(ispg))) then 
+        mgasi(ispg) = mgasi_all(findloc(chrgas_all,chrgas(ispg),dim=1))
+        mgasth(ispg) = mgasth_all(findloc(chrgas_all,chrgas(ispg),dim=1))
+    endif 
+enddo 
+
+! molar volume 
+
+mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt/)
+mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt/)
 
 do isps = 1, nsp_sld 
     mv(isps) = mv_all(findloc(chrsld_all,chrsld(isps),dim=1))
+    mwt(isps) = mwt_all(findloc(chrsld_all,chrsld(isps),dim=1))
 enddo 
 
 ! stoichiometry
 ! mineral dissolution(/precipitation)
+staq_all = 0d0
+stgas_all = 0d0
+! Forsterite; Mg2SiO4
+staq_all(findloc(chrsld_all,'fo',dim=1), findloc(chraq_all,'mg',dim=1)) = 2d0
+staq_all(findloc(chrsld_all,'fo',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+! Albite; NaAlSi3O8
+staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
+staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
+! Anothite; CaAl2Si2O8
+staq_all(findloc(chrsld_all,'an',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'an',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+staq_all(findloc(chrsld_all,'an',dim=1), findloc(chraq_all,'al',dim=1)) = 2d0
+! Calcite; CaCO3
+staq_all(findloc(chrsld_all,'cc',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+stgas_all(findloc(chrsld_all,'cc',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
+! Kaolinite; Al2Si2O5(OH)4
+staq_all(findloc(chrsld_all,'ka',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+staq_all(findloc(chrsld_all,'ka',dim=1), findloc(chraq_all,'al',dim=1)) = 2d0
+! Gibbsite; Al(OH)3
+staq_all(findloc(chrsld_all,'gb',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
+! Pyrite; FeS2
+staq_all(findloc(chrsld_all,'py',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'py',dim=1), findloc(chraq_all,'so4',dim=1)) = 2d0
+stgas_all(findloc(chrsld_all,'py',dim=1), findloc(chrgas_all,'po2',dim=1)) = -7d0/2d0
+! Chrysotile; Mg3Si2O5(OH)4
+staq_all(findloc(chrsld_all,'ct',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+staq_all(findloc(chrsld_all,'ct',dim=1), findloc(chraq_all,'mg',dim=1)) = 3d0
+! Fayalite; Fe2SiO4
+staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'fe2',dim=1)) = 2d0
+! Goethite; FeO(OH)
+staq_all(findloc(chrsld_all,'gt',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
+
 staq = 0d0
 stgas = 0d0
-! Forsterite; Mg2SiO4
-staq(findloc(chrsld,'fo',dim=1), findloc(chraq,'mg',dim=1)) = 2d0
-staq(findloc(chrsld,'fo',dim=1), findloc(chraq,'si',dim=1)) = 1d0
-! Albite; NaAlSi3O8
-staq(findloc(chrsld,'ab',dim=1), findloc(chraq,'na',dim=1)) = 1d0
-staq(findloc(chrsld,'ab',dim=1), findloc(chraq,'si',dim=1)) = 3d0
-staq(findloc(chrsld,'ab',dim=1), findloc(chraq,'al',dim=1)) = 1d0
-! Anothite; CaAl2Si2O8
-staq(findloc(chrsld,'an',dim=1), findloc(chraq,'ca',dim=1)) = 1d0
-staq(findloc(chrsld,'an',dim=1), findloc(chraq,'si',dim=1)) = 2d0
-staq(findloc(chrsld,'an',dim=1), findloc(chraq,'al',dim=1)) = 2d0
-! Calcite; CaCO3
-staq(findloc(chrsld,'cc',dim=1), findloc(chraq,'ca',dim=1)) = 1d0
-stgas(findloc(chrsld,'cc',dim=1), findloc(chrgas,'pco2',dim=1)) = 1d0
-! Kaolinite; Al2Si2O5(OH)4
-staq(findloc(chrsld,'ka',dim=1), findloc(chraq,'si',dim=1)) = 2d0
-staq(findloc(chrsld,'ka',dim=1), findloc(chraq,'al',dim=1)) = 2d0
+
+do isps = 1, nsp_sld
+    if (any(chrsld_all == chrsld(isps))) then 
+        do ispa = 1, nsp_aq 
+            if (any(chraq_all == chraq(ispa))) then 
+                staq(isps,ispa) = &
+                    & staq_all(findloc(chrsld_all,chrsld(isps),dim=1), findloc(chraq_all,chraq(ispa),dim=1))
+            endif 
+        enddo 
+        do ispg = 1, nsp_gas 
+            if (any(chrgas_all == chrgas(ispg))) then 
+                stgas(isps,ispg) = &
+                    & stgas_all(findloc(chrsld_all,chrsld(isps),dim=1), findloc(chrgas_all,chrgas(ispg),dim=1))
+            endif 
+        enddo 
+    endif 
+enddo 
 
 ! external reactions
+staq_ext_all = 0d0
+stgas_ext_all = 0d0
+stsld_ext_all = 0d0
+! respiration 
+stgas_ext_all(findloc(chrrxn_ext_all,'resp',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
+stgas_ext_all(findloc(chrrxn_ext_all,'resp',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
+! fe2 oxidation 
+staq_ext_all(findloc(chrrxn_ext_all,'fe2o2',dim=1), findloc(chraq_all,'fe2',dim=1)) = -1d0
+staq_ext_all(findloc(chrrxn_ext_all,'fe2o2',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
+stgas_ext_all(findloc(chrrxn_ext_all,'fe2o2',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
+
+! define 1 when a reaction is sensitive to a speces 
+stgas_dext_all = 0d0
+staq_dext_all = 0d0
+stsld_dext_all = 0d0
+! respiration 
+stgas_dext_all(findloc(chrrxn_ext_all,'resp',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
+! fe2 oxidation 
+stgas_dext_all(findloc(chrrxn_ext_all,'fe2o2',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
+staq_dext_all(findloc(chrrxn_ext_all,'fe2o2',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
+
 staq_ext = 0d0
 stgas_ext = 0d0
 stsld_ext = 0d0
-! respiration 
-stgas_ext(findloc(chrrxn_ext,'resp',dim=1), findloc(chrgas,'pco2',dim=1)) = 1d0
-stgas_ext(findloc(chrrxn_ext,'resp',dim=1), findloc(chrgas,'po2',dim=1)) = -1d0
-! define 1 when a reaction is sensitive to a speces 
-stgas_dext = 0d0
-stgas_dext(findloc(chrrxn_ext,'resp',dim=1), findloc(chrgas,'po2',dim=1)) = 1d0
 
+do irxn = 1, nrxn_ext
+    if (any(chrrxn_ext_all == chrrxn_ext(irxn))) then 
+        do ispa = 1, nsp_aq 
+            if (any(chraq_all == chraq(ispa))) then 
+                staq_ext(irxn,ispa) = &
+                    & staq_ext_all(findloc(chrrxn_ext_all,chrrxn_ext(irxn),dim=1) &
+                    &   ,findloc(chraq_all,chraq(ispa),dim=1))
+                staq_dext(irxn,ispa) = &
+                    & staq_dext_all(findloc(chrrxn_ext_all,chrrxn_ext(irxn),dim=1) &
+                    &   ,findloc(chraq_all,chraq(ispa),dim=1))
+            endif 
+        enddo 
+        do ispg = 1, nsp_gas 
+            if (any(chrgas_all == chrgas(ispg))) then 
+                stgas_ext(irxn,ispg) = &
+                    & stgas_ext_all(findloc(chrrxn_ext_all,chrrxn_ext(irxn),dim=1) &
+                    &   ,findloc(chrgas_all,chrgas(ispg),dim=1))
+                stgas_dext(irxn,ispg) = &
+                    & stgas_dext_all(findloc(chrrxn_ext_all,chrrxn_ext(irxn),dim=1) &
+                    &   ,findloc(chrgas_all,chrgas(ispg),dim=1))
+            endif 
+        enddo 
+        do isps = 1, nsp_sld 
+            if (any(chrsld_all == chrsld(isps))) then 
+                stsld_ext(irxn,isps) = &
+                    & stsld_ext_all(findloc(chrrxn_ext_all,chrrxn_ext(irxn),dim=1) &
+                    &   ,findloc(chrsld_all,chrsld(isps),dim=1))
+                stsld_dext(irxn,isps) = &
+                    & stsld_dext_all(findloc(chrrxn_ext_all,chrrxn_ext(irxn),dim=1) &
+                    &   ,findloc(chrsld_all,chrsld(isps),dim=1))
+            endif 
+        enddo 
+    endif 
+enddo 
 
+rfrc_sld_all = 0d0 
+rfrc_sld_all(findloc(chrsld_all,'fo',dim=1)) = rainfrc_fo/mwtfo
+rfrc_sld_all(findloc(chrsld_all,'an',dim=1)) = rainfrc_an/mwtan
+rfrc_sld_all(findloc(chrsld_all,'ab',dim=1)) = rainfrc_ab/mwtab
+rfrc_sld_all(findloc(chrsld_all,'fa',dim=1)) = rainfrc_fa/mwtfa
+
+do isps = 1, nsp_sld 
+    rfrc_sld(isps) = rfrc_sld_all(findloc(chrsld_all,chrsld(isps),dim=1))
+enddo
 
 rectime =rectime/1d4 
 ! rectime =rectime/1d3 ! better with basalt exp? max 12000 yr 
@@ -541,10 +676,13 @@ write(chrrain,'(E10.2)') rainpowder
 write(workdir,*) '../pyweath_output/'     
 
 if (cplprec) then 
-    write(base,*) 'test_cplpcxasgxsagwff'
+    ! write(base,*) 'test_cplpcxasgxsagwff'
+    write(base,*) 'test_cplp_100vmax'
 else 
     write(base,*) 'test_cpl'
 endif 
+
+if (al_inhibit) base = trim(adjustl(base))//'_alx'
 
 base = trim(adjustl(base))//'_rain-'//trim(adjustl(chrrain))    
  
@@ -702,29 +840,6 @@ mvfo = mwtfo
 mvka = mwtka 
 #endif 
 
-c(1) = 0.0d0
-c(2:) = 0.0d0
-c2(1) = 0.0d0
-c2(2:) = 0.0d0
-so4 = 0d0
-na = 0d0
-mg = 0d0
-si = 0d0
-ca = 0d0
-al = 0d0
-pro = 10.0d0**(-ph)
-
-resp = 0d0
-
-omega_ab = 0d0
-omega_an = 0d0
-omega_fo = 0d0
-omega_cc = 0d0
-omega_cca = 0d0
-omega_ka = 0d0
-
-omega = 0d0
-
 dt = maxdt
 if (.not.initial_ss) then 
     dt = 1d-20  
@@ -733,20 +848,6 @@ else
 endif 
 
 pro = 1d-5
-! call calc_pH( &
-    ! & nz,na+2d0*(mg+ca-so4),pco2,kw,kco2,k1,k2 &! input 
-    ! & ,pro &! output
-    ! & ) 
-! print*,-log10(pro)
-! stop
-
-! call coefs( &
-    ! & nz,rg,rg2,tc,sec2yr,tempk_0,pco2i,swoxa,pco2,pco2th &! input
-    ! & ,pro,dgaso,dgasc,daqo,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
-    ! & ,ksil,keqsil,kab,keqab,kfo,keqfo,kan,keqan,kcc,keqcc,koxs,koxa,koxs2,khco2 &! output
-    ! & ,k1si,k2si,kcca,keqcca,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! output
-    ! & ,k1al,k2al,k3al,k4al,keqka,kka,dal,keqgb,kgb &! output
-    ! & )
     
 call coefs_v2( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pro &! input
@@ -756,50 +857,17 @@ call coefs_v2( &
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ) 
 
-print *,kw
-print *
-do ispa=1,nsp_aq_all 
-    print*,chraq_all(ispa),daq_all(ispa),keqaq_h(ispa,:),keqaq_c(ispa,:)
-enddo
-print *
-do ispg=1,nsp_gas_all 
-    print*,chrgas_all(ispg),dgasa_all(ispg),dgasg_all(ispg),keqgas_h(ispg,:)
-enddo
-print *
-do isps=1,nsp_sld_all 
-    print*,chrsld_all(isps),ksld_all(isps,1),keqsld_all(isps)
-enddo
-print *
-do irxn=1,nrxn_ext_all 
-    print*,chrrxn_ext_all(irxn),krxn1_ext_all(irxn,1),krxn2_ext_all(irxn,1)
-enddo   
-    
-! call calc_pH( &
-    ! & nz,na+2d0*(mg+ca-so4),pco2,kw,kco2,k1,k2 &! input 
-    ! & ,pro &! output
-    ! & )
-! call calc_pH_v2( &
-    ! & nz,na+2d0*(mg+ca-so4),pco2,kw,kco2,k1,k2,si,k1si,k2si &! input 
-    ! & ,pro &! output
-    ! & )
-! call calc_pH_v3( &
-    ! & nz,na,mg,ca,so4,pco2,kw,kco2,k1,k2,six,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
-    ! & ,pro &! output
-    ! & ) 
-! call calc_pH_v4( &
-    ! & nz,na,mg,ca,so4,pco2,kw,kco2,k1,k2,si,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
-    ! & ,al,k1al,k2al,k3al,k4al &! input
-    ! & ,pro &! output
-    ! & ) 
+do ispa = 1, nsp_aq
+    maq(ispa,:)=maqi(ispa)
+enddo 
+do ispg = 1, nsp_gas
+    mgas(ispg,:)=mgasi(ispg)
+enddo 
+do isps = 1, nsp_sld
+    msld(isps,:) = msldi(isps)
+enddo 
 
-maq(findloc(chraq,'mg',dim=1),:)=mg(:)
-maq(findloc(chraq,'si',dim=1),:)=si(:)
-maq(findloc(chraq,'na',dim=1),:)=na(:)
-maq(findloc(chraq,'ca',dim=1),:)=ca(:)
-maq(findloc(chraq,'al',dim=1),:)=al(:)
-
-mgas(findloc(chrgas,'pco2',dim=1),:)=pco2(:)
-mgas(findloc(chrgas,'po2',dim=1),:)=po2(:)
+omega = 0d0
 
 call calc_pH_v5( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
@@ -807,56 +875,6 @@ call calc_pH_v5( &
     & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
     & ,pro &! output
     & ) 
-print *, 'first ph calculation finished'
-print *, pro
-! pause
-!       print *,keqsil;stop
-
-
-redsld = redsldi*1d-2/120.0d0*mvpy*2.7d0*(1.0d0-poro)  
-! 120 g mol^-1 and 23.94 cm^3 mol^-1 for pyrite and 2.7 g cm^-3 for solid density
-! redsld is fraction and unitless
-
-msi = redsldi*1d-2/120.0d0*2.7d0*(1.0d0-poroi)*1d6 
-
-if (O2_evolution) msi =  4d0*o2in/15d0/w/area     
-! mol m^-3       
-ms = msi
-
-msili = silwti*1d-2/262.2d0*2.7d0*(1.0d0-poroi)*1d6   
-! 262.2 g mol^-1 and 100.07 cm^3 mol^-1 (Robie et al., 1967) for albite and 2.7 g cm^-3 for solid density
-
-msil = msili
-
-mabi = msili
-mab = mabi
-
-! mfoi = mfoth*0.1d0
-! mani = manth*0.1d0
-
-mfoi = 1d-10
-mani = 1d-10
-mcci = 1d-10
-mkai = 1d-10
-! mfoi = mfoth*0.1d0
-! mani = manth*0.1d0
-! mcci = mccth*0.1d0
-
-mfo = mfoi
-man = mani
-mcc = mcci
-mka = mkai
-
-msldi = (/mfoi,mabi,mani,mcci,mkai/)
-msldth = (/mfoth,mabth,manth,mccth,mkath/)
-maqi = (/mgi,sii,nai,cai,ali/)
-maqth = (/mgth,sith,nath,cath,alth/)
-mgasth = (/pco2th,po2th/)
-mgasi = (/pco2i,po2i/)
-
-do isps = 1, nsp_sld
-    msld(isps,:) = msldi(isps)
-enddo 
 
 poroprev = poro
 
@@ -957,14 +975,6 @@ if (read_data) then
     print *
 #endif      
 endif
-
-! call coefs( &
-    ! & nz,rg,rg2,tc,sec2yr,tempk_0,pco2i,swoxa,pco2,pco2th &! input
-    ! & ,pro,dgaso,dgasc,daqo,daqc,dfe2,dfe3,dso4,dna,dmg,dsi,dca,kho,kco2,k1,k2,kw,khco2i,ucv &! output
-    ! & ,ksil,keqsil,kab,keqab,kfo,keqfo,kan,keqan,kcc,keqcc,koxs,koxa,koxs2,khco2 &! output
-    ! & ,k1si,k2si,kcca,keqcca,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! output
-    ! & ,k1al,k2al,k3al,k4al,keqka,kka,dal,keqgb,kgb &! output
-    ! & ) 
     
 call coefs_v2( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pro &! input
@@ -1123,6 +1133,18 @@ do while (it<nt)
     khco2i = kco2*(1d0+k1/sqrt(kco2*k1*pco2i)+k2/kco2/pco2i)
 
     khgasi = (/khco2i,kho/)
+    
+    ! kinetic inhibition 
+    if (al_inhibit) then 
+        if (any(chraq == 'al')) then 
+            do isps = 1, nsp_sld
+                if (staq(isps,findloc(chraq,'al',dim=1)) .ne. 0d0) then 
+                    ksld(isps,:) = ksld(isps,:) &
+                        & *10d0**(-4.84d0)/(10d0**(-4.84d0)+maq(findloc(chraq,'al',dim=1),:)) 
+                endif 
+            enddo 
+        endif 
+    endif 
 
     ! ======== modifying maxdt ===============
     !       if (time >1d4) maxdt = 10d0
@@ -1151,72 +1173,54 @@ do while (it<nt)
 
 
     if (initial_ss) then 
-        mfosupp = rainpowder*rainfrc_fo/mwtfo*exp(-z/zsupp)/zsupp
-        mabsupp = rainpowder*rainfrc_ab/mwtab*exp(-z/zsupp)/zsupp 
-        mansupp = rainpowder*rainfrc_an/mwtan*exp(-z/zsupp)/zsupp
-        mccsupp = 0d0
-        mkasupp = 0d0
-        if (.not.cplprec)then
-            mccsupp = kcc*poro*hr*mvcc*1d-6*mccx*(omega_cc - 1d0) &
-                & *merge(1d0,0d0,omega_cc - 1d0 > 0d0) 
-            mkasupp = kka*poro*hr*mvka*1d-6*mkax*(omega_ka - 1d0) &
-                & *merge(1d0,0d0,omega_ka - 1d0 > 0d0) 
-        endif 
+        ! mfosupp = rainpowder*rainfrc_fo/mwtfo*exp(-z/zsupp)/zsupp
+        ! mabsupp = rainpowder*rainfrc_ab/mwtab*exp(-z/zsupp)/zsupp 
+        ! mansupp = rainpowder*rainfrc_an/mwtan*exp(-z/zsupp)/zsupp
+        ! mccsupp = 0d0
+        ! mkasupp = 0d0
+        ! if (.not.cplprec)then
+            ! mccsupp = kcc*poro*hr*mvcc*1d-6*mccx*(omega_cc - 1d0) &
+                ! & *merge(1d0,0d0,omega_cc - 1d0 > 0d0) 
+            ! mkasupp = kka*poro*hr*mvka*1d-6*mkax*(omega_ka - 1d0) &
+                ! & *merge(1d0,0d0,omega_ka - 1d0 > 0d0) 
+        ! endif 
             
         ! kcc = 0d0
         
-        alsupp = -2d0*mkasupp
-        mgsupp = 0d0
-        nasupp = 0d0
-        casupp = -mccsupp
-        sisupp = -2d0*mkasupp
+        ! alsupp = -2d0*mkasupp
+        ! mgsupp = 0d0
+        ! nasupp = 0d0
+        ! casupp = -mccsupp
+        ! sisupp = -2d0*mkasupp
         
-        pco2supp = -mccsupp
-        po2supp = 0d0
+        ! pco2supp = -mccsupp
+        ! po2supp = 0d0
+        
+        maqsupp = 0d0
+        mgassupp = 0d0
+        do isps = 1, nsp_sld
+            msldsupp(isps,:) = rainpowder*rfrc_sld(isps)*exp(-z/zsupp)/zsupp
+        enddo 
+        
         
         if (rain_wave) then 
-            mfosupp = mfosupp*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau)) 
-            mabsupp = mabsupp*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau)) 
-            mansupp = mansupp*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
+            do isps = 1, nsp_sld
+                msldsupp(isps,:) = msldsupp(isps,:)*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
+            enddo 
             if (time==0d0 .or. rain_norm /= merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))) then
-                open(52, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'rain.txt', &
+                open(ibasaltrain, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'rain.txt', &
                     & status='old',action='write',access='append')
-                write(52,*) time-dt,rain_norm
-                write(52,*) time,merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
+                write(ibasaltrain,*) time-dt,rain_norm
+                write(ibasaltrain,*) time,merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
                 rain_norm = merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
-                close(52)
+                close(ibasaltrain)
             endif 
         endif 
     else 
-        mfosupp = 0d0
-        mabsupp = 0d0
-        mansupp = 0d0
-        mccsupp = 0d0
-        mkasupp = 0d0
-        alsupp = 0d0
-        mgsupp = 0d0
-        nasupp = 0d0
-        casupp = 0d0
-        sisupp = 0d0
-        pco2supp = 0d0
-        po2supp = 0d0
+        mgassupp = 0d0
+        msldsupp = 0d0
+        maqsupp = 0d0
     endif 
-
-    msilsupp = 0d0
-    
-    mgassupp = 0d0
-
-    msldsupp(findloc(chrsld,'fo',dim=1),:) = mfosupp
-    msldsupp(findloc(chrsld,'ab',dim=1),:) = mabsupp
-    msldsupp(findloc(chrsld,'an',dim=1),:) = mansupp
-    msldsupp(findloc(chrsld,'cc',dim=1),:) = mccsupp
-    msldsupp(findloc(chrsld,'ka',dim=1),:) = mkasupp
-
-    maqsupp(findloc(chraq,'mg',dim=1),:) = mgsupp
-    maqsupp(findloc(chraq,'si',dim=1),:) = sisupp
-    maqsupp(findloc(chraq,'na',dim=1),:) = nasupp
-    maqsupp(findloc(chraq,'ca',dim=1),:) = casupp
-    maqsupp(findloc(chraq,'al',dim=1),:) = alsupp
 
     if (it==0) pre_calc = .true.
     pre_calc = .true.
@@ -2175,8 +2179,37 @@ keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_co3) = &
 ! Ca2+ + H+ + CO32- = CaHCO3
 keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_hco3) = &
     & k_arrhenius(10d0**(11.435d0),25d0+tempk_0,tc+tempk_0,-0.871d0*cal2j,rg) ! from PHREEQC.DAT 
+    
+    
+! Fe2+ + H2O = Fe(OH)+ + H+
+keqaq_h(findloc(chraq_all,'fe2',dim=1),ieqaq_h1) = &
+    & k_arrhenius(10d0**(-9.51d0),25d0+tempk_0,tc+tempk_0, 40.3d0,rg) ! from Kanzaki and Murakami 2016
+! Fe2+ + CO32- = FeCO3 
+keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_co3) = &
+    & k_arrhenius(10d0**(5.69d0),25d0+tempk_0,tc+tempk_0, -45.6d0,rg) ! from Kanzaki and Murakami 2016
+! Fe2+ + H+ + CO32- = FeHCO3
+keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_hco3) = &
+    & k_arrhenius(10d0**(1.47d0),25d0+tempk_0,tc+tempk_0, -18d0,rg) &! from Kanzaki and Murakami 2016 
+    & /keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2) 
 
 
+! Fe3+ + H2O = Fe(OH)2+ + H+
+keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h1) = &
+    & k_arrhenius(10d0**(-2.19d0),25d0+tempk_0,tc+tempk_0,10.4d0*cal2j,rg) ! from PHREEQC.DAT 
+! Fe3+ + 2H2O = Fe(OH)2+ + 2H+
+keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h2) = &
+    & k_arrhenius(10d0**(-5.67d0),25d0+tempk_0,tc+tempk_0,17.1d0*cal2j,rg) ! from PHREEQC.DAT 
+! Fe3+ + 3H2O = Fe(OH)3 + 3H+
+keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3) = &
+    & k_arrhenius(10d0**(-12.56d0),25d0+tempk_0,tc+tempk_0,24.8d0*cal2j,rg) ! from PHREEQC.DAT 
+! Fe3+ + 4H2O = Fe(OH)4- + 4H+
+keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4) = &
+    & k_arrhenius(10d0**(-21.6d0),25d0+tempk_0,tc+tempk_0,31.9d0*cal2j,rg) ! from PHREEQC.DAT 
+
+
+
+
+!!! ----------- Solid phases ------------------------!!
 ksld_all = 0d0 
 keqsld_all = 0d0
 
@@ -2212,6 +2245,16 @@ keqsld_all(findloc(chrsld_all,'fo',dim=1)) = &
 
 ! -208.5932252 
 
+
+ksld_all(findloc(chrsld_all,'fa',dim=1),:) = &
+    & k_arrhenius(10d0**(-12.80d0)*sec2yr,25d0+tempk_0,tc+tempk_0, 94.4d0, rg)  !(only neutral weathering from Palandri and Kharaka, 2004)
+
+! Fa + 4H+ = 2Fe2+ + SiO2(aq) + 2H2O
+keqsld_all(findloc(chrsld_all,'fa',dim=1)) = &
+    & k_arrhenius(10d0**19.98781342d0,15d0+tempk_0,tc+tempk_0,-153.7676621d0,rg)   ! Kanzaki and Murakami 2018
+
+
+
 ! kan = 10d0**(-9.12d0)*60d0*60d0*24d0*365d0 &! mol/m2/yr  
     ! & *exp(-17.8d0/rg*(1d0/(tc+273d0)-1d0/(25d0+273d0)))
 ksld_all(findloc(chrsld_all,'an',dim=1),:) = & 
@@ -2245,10 +2288,26 @@ keqsld_all(findloc(chrsld_all,'gb',dim=1)) = &
     & k_arrhenius(10d0**(8.11d0),25d0+tempk_0,tc+tempk_0,-22.80d0*cal2j,rg) ! from PHREEQC.DAT 
 
 
+ksld_all(findloc(chrsld_all,'gt',dim=1),:) = & 
+    & k_arrhenius(10d0**(-7.94d0)*sec2yr,25d0+tempk_0,tc+tempk_0,86.5d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+! Fe(OH)3 + 3 H+ = Fe+3 + 2 H2O
+keqsld_all(findloc(chrsld_all,'gt',dim=1)) = &
+    & k_arrhenius(10d0**(0.5345d0),25d0+tempk_0,tc+tempk_0,-61.53703d0*cal2j,rg) ! from Sugimori et al. 2012 
+
+
+ksld_all(findloc(chrsld_all,'ct',dim=1),:) = & 
+    & k_arrhenius(10d0**(-12d0)*sec2yr,25d0+tempk_0,tc+tempk_0,73.5d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+! Mg3Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 3 Mg+2
+keqsld_all(findloc(chrsld_all,'ct',dim=1)) = &
+    & k_arrhenius(10d0**(32.2),25d0+tempk_0,tc+tempk_0,-46.800d0*cal2j,rg) ! from PHREEQC.DAT 
+
+
 ksld_all(findloc(chrsld_all,'py',dim=1),:) = & 
     & k_arrhenius(10.0d0**(-8.19d0)*sec2yr,15d0+tempk_0,tc+tempk_0,57d0,rg)  !!! excluding po2 and ph dependence
     ! & *(kho)**(0.50d0)/(pro**0.11d0) ! mol m^-2 yr^-1, Williamson and Rimstidt (1994)
 
+
+!--------- other reactions -------------! 
 krxn1_ext_all = 0d0
 krxn2_ext_all = 0d0
 
@@ -2258,7 +2317,7 @@ krxn1_ext_all(findloc(chrrxn_ext_all,'fe2o2',dim=1),:) = &
      
 krxn1_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) = 0.71d0 ! vmax mol m^-3, yr^-1, max soil respiration, Wood et al. (1993)
 krxn1_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) = &
-    & krxn1_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:)*1d-1 ! reducing a bit to be fitted with modern soil pco2
+    & krxn1_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) *1d-1 ! reducing a bit to be fitted with modern soil pco2
 
 krxn2_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
 
@@ -10593,8 +10652,9 @@ subroutine calc_pH_v5( &
 implicit none
 integer,intent(in)::nz
 real(kind=8),intent(in)::kw
-real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al
-real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx
+real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al &
+    & ,k1fe2,k1fe2co3,k1fe2hco3,k1fe3,k2fe3,k3fe3,k4fe3
+real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x
 real(kind=8),dimension(nz),intent(inout)::prox
 
 real(kind=8),dimension(nz)::df,f,netcat
@@ -10647,6 +10707,13 @@ k1al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h1)
 k2al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h2)
 k3al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h3)
 k4al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h4)
+k1fe2 = keqaq_h(findloc(chraq_all,'fe2',dim=1),ieqaq_h1)
+k1fe2co3 = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_co3)
+k1fe2hco3  = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_hco3)
+k1fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h1)
+k2fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h2)
+k3fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3)
+k4fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4)
 
 nax = 0d0
 so4x = 0d0
@@ -10666,7 +10733,9 @@ netcat = nax-2d0*so4x
 six =0d0
 cax =0d0
 mgx =0d0
+fe2x =0d0
 alx =0d0
+fe3x =0d0
 pco2x =0d0
 
 if (any(chraq=='si')) then 
@@ -10684,10 +10753,20 @@ if (any(chraq=='mg')) then
 elseif (any(chraq_cnst=='mg')) then 
     mgx = maqc(findloc(chraq_cnst,'mg',dim=1),:)
 endif 
+if (any(chraq=='fe2')) then 
+    fe2x = maqx(findloc(chraq,'fe2',dim=1),:)
+elseif (any(chraq_cnst=='fe2')) then 
+    fe2x = maqc(findloc(chraq_cnst,'fe2',dim=1),:)
+endif 
 if (any(chraq=='al')) then 
     alx = maqx(findloc(chraq,'al',dim=1),:)
 elseif (any(chraq_cnst=='al')) then 
     alx = maqc(findloc(chraq_cnst,'al',dim=1),:)
+endif 
+if (any(chraq=='fe3')) then 
+    fe3x = maqx(findloc(chraq,'fe3',dim=1),:)
+elseif (any(chraq_cnst=='fe3')) then 
+    fe3x = maqc(findloc(chraq_cnst,'fe3',dim=1),:)
 endif 
 if (any(chrgas=='pco2')) then 
     pco2x = mgasx(findloc(chrgas,'pco2',dim=1),:)
@@ -10707,7 +10786,13 @@ do while (error > tol)
         & + 3d0*alx*prox**2d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
         & + 2d0*alx*k1al*prox/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
         & + alx*k2al/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
-        & - alx*k4al/prox**2d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0)
+        & - alx*k4al/prox**2d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
+        & + 2d0*fe2x*prox**2d0/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox) &
+        & + fe2x*prox**2d0/(prox/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2co3/k1fe2hco3/prox+1d0) &
+        & + 3d0*fe3x*prox**2d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) &
+        & + 2d0*fe3x*k1fe3*prox/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) &
+        & + fe3x*k2fe3/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) &
+        & - fe3x*k4fe3/prox**2d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) 
     df = 3d0*prox**2d0 + 2d0*netcat*prox - (k1*kco2*pco2x+kw) &
         & - six*prox*2d0/(prox/k1si + 1d0 + k2si/k1si/prox) &
         & - six*prox**2d0*(-1d0)/(prox/k1si + 1d0 + k2si/k1si/prox)**2d0* (1d0/k1si + k2si/k1si*(-1d0)/prox**2d0) &
@@ -10739,7 +10824,26 @@ do while (error > tol)
         &   *(k1al*(-1d0)/prox**2d0+k2al*(-2d0)/prox**3d0+k3al*(-3d0)/prox**4d0+k4al*(-4d0)/prox**5d0) &
         & - alx*k4al*(-2d0)/prox**3d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
         & - alx*k4al/prox**2d0*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0)**2d0 &
-        &   *(k1al*(-1d0)/prox**2d0+k2al*(-2d0)/prox**3d0+k3al*(-3d0)/prox**4d0+k4al*(-4d0)/prox**5d0) 
+        &   *(k1al*(-1d0)/prox**2d0+k2al*(-2d0)/prox**3d0+k3al*(-3d0)/prox**4d0+k4al*(-4d0)/prox**5d0) &
+        & + 2d0*fe2x*prox*2d0/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox) &
+        & + 2d0*fe2x*prox**2d0*(-1d0) &
+        &   /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox)**2d0 &
+        &   *(k1fe2*(-1d0)/prox**2d0+k1fe2co3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1fe2hco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0) &
+        & + fe2x*prox*2d0/(prox/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2co3/k1fe2hco3/prox+1d0) &
+        & + fe2x*prox**2d0*(-1d0) &
+        &   /(prox/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2co3/k1fe2hco3/prox+1d0)**2d0 & 
+        &   *(1d0/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2co3/k1fe2hco3*(-1d0)/prox**2d0)  &
+        & + 3d0*fe3x*prox*2d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) &
+        & + 3d0*fe3x*prox**2d0*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0)**2d0 &
+        &   *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0) &
+        & + 2d0*fe3x*k1fe3/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) &
+        & + 2d0*fe3x*k1fe3*prox*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0)**2d0 &
+        &   *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0) &
+        & + fe3x*k2fe3*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0)**2d0 &
+        &   *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0) &
+        & - fe3x*k4fe3*(-2d0)/prox**3d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) &
+        & - fe3x*k4fe3/prox**2d0*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0)**2d0 &
+        &   *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0)
     df = df*prox
     ! if (any(isnan(-f/df)) .or. any(isnan(exp(-f/df)))) then 
         ! print *,any(isnan(-f/df)),any(isnan(exp(-f/df)))
@@ -10865,9 +10969,9 @@ subroutine calc_omega_v3( &
 implicit none
 integer,intent(in)::nz
 real(kind=8):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &
-    & ,k1al,k2al,k3al,k4al,keqka,keqgb
+    & ,k1al,k2al,k3al,k4al,keqka,keqgb,keqct,k1fe2,k1fe2co3,k1fe2hco3,keqfa,k1fe3,k2fe3,k3fe3,k4fe3
 real(kind=8),dimension(nz),intent(in):: prox
-real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x
+real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x
 real(kind=8),dimension(nz),intent(out):: omega
 character(5),intent(in):: mineral
 
@@ -10918,6 +11022,15 @@ k3al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h3)
 k4al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h4)
 keqka = keqsld_all(findloc(chrsld_all,'ka',dim=1))
 keqgb =  keqsld_all(findloc(chrsld_all,'gb',dim=1))
+keqct =  keqsld_all(findloc(chrsld_all,'ct',dim=1))
+k1fe2 = keqaq_h(findloc(chraq_all,'fe2',dim=1),ieqaq_h1)
+k1fe2co3 = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_co3)
+k1fe2hco3  = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_hco3)
+keqfa = keqsld_all(findloc(chrsld_all,'fa',dim=1))
+k1fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h1)
+k2fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h2)
+k3fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3)
+k4fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4)
 
 nax = 0d0
 
@@ -10930,6 +11043,8 @@ endif
 six =0d0
 cax =0d0
 mgx =0d0
+fe2x =0d0
+fe3x =0d0
 alx =0d0
 pco2x =0d0
 
@@ -10948,10 +11063,20 @@ if (any(chraq=='mg')) then
 elseif (any(chraq_cnst=='mg')) then 
     mgx = maqc(findloc(chraq_cnst,'mg',dim=1),:)
 endif 
+if (any(chraq=='fe2')) then 
+    fe2x = maqx(findloc(chraq,'fe2',dim=1),:)
+elseif (any(chraq_cnst=='fe2')) then 
+    fe2x = maqc(findloc(chraq_cnst,'fe2',dim=1),:)
+endif 
 if (any(chraq=='al')) then 
     alx = maqx(findloc(chraq,'al',dim=1),:)
 elseif (any(chraq_cnst=='al')) then 
     alx = maqc(findloc(chraq_cnst,'al',dim=1),:)
+endif 
+if (any(chraq=='fe3')) then 
+    fe3x = maqx(findloc(chraq,'fe3',dim=1),:)
+elseif (any(chraq_cnst=='fe3')) then 
+    fe3x = maqc(findloc(chraq_cnst,'fe3',dim=1),:)
 endif 
 if (any(chrgas=='pco2')) then 
     pco2x = mgasx(findloc(chrgas,'pco2',dim=1),:)
@@ -10971,6 +11096,10 @@ select case(trim(adjustl(mineral)))
             & *six/(1d0+k1si/prox+k2si/prox**2d0)/prox**4d0/keqfo
         ! omega = mgx**2d0/(prox+k1mg+k1mgco3*k1*k2*kco2*pco2x/prox+k1mghco3*k1*k2*kco2*pco2x)**2d0 & 
             ! & *six/(prox**2d0+k1si*prox+k2si)/keqfo
+    case('fa')
+    ! Fa + 4H+ = 2Fe2+ + SiO2(aq) + 2H2O 
+        omega = fe2x**2d0/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox)**2d0 &
+            & *six/(1d0+k1si/prox+k2si/prox**2d0)/prox**4d0/keqfa
     case('ab')
     ! NaAlSi3O8 + 4 H+ = Na+ + Al3+ + 3SiO2 + 2H2O
         omega = nax*alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
@@ -10996,6 +11125,12 @@ select case(trim(adjustl(mineral)))
         omega = &
             & alx**3d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0)**3d0 &
             & /prox**3d0/keqgb
+    case('ct')
+    ! Mg3Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 3 Mg+2
+        omega = &
+            & mgx**3d0/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox)**3d0 &
+            & *six**2d0/(1d0+k1si/prox+k2si/prox**2d0)**2d0  &
+            & /prox**6d0/keqct
     case('py')
     ! omega is defined so that kpy*poro*hr*mvpy*1d-6*mpyx*(1d0-omega_py) = kpy*poro*hr*mvpy*1d-6*mpyx*po2x**0.5d0
     ! i.e., 1.0 - omega_py = po2x**0.5 
