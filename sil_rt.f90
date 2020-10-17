@@ -8977,7 +8977,7 @@ subroutine alsilicate_aq_gas_1D_v3( &
     & ,chrsld,chrsld_2,chraq,chraq_ph,chrgas_ph,chrgas,chrrxn_ext  &
     & ,msldi,msldth,mv,maqi,maqth,daq,mgasi,mgasth,dgasa,dgasg,khgasi &
     & ,staq,stgas,msld,ksld,msldsupp,maq,maqsupp,mgas,mgassupp &
-    & ,stgas_ext,stgas_dext,staq_ext,stsld_ext &
+    & ,stgas_ext,stgas_dext,staq_ext,stsld_ext,staq_dext,stsld_dext &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst &
     & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
     & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all &
@@ -9035,8 +9035,8 @@ real(kind=8),dimension(nsp_gas,nsp_gas,nz)::dkhgas_dmgas,ddgas_dmgas,dagas_dmgas
 real(kind=8),dimension(nsp_gas,nflx,nz),intent(out)::flx_gas 
 real(kind=8),dimension(nrxn_ext,nz),intent(inout)::rxnext
 real(kind=8),dimension(nrxn_ext,nsp_gas),intent(in)::stgas_ext,stgas_dext
-real(kind=8),dimension(nrxn_ext,nsp_aq),intent(in)::staq_ext
-real(kind=8),dimension(nrxn_ext,nsp_sld),intent(in)::stsld_ext
+real(kind=8),dimension(nrxn_ext,nsp_aq),intent(in)::staq_ext,staq_dext
+real(kind=8),dimension(nrxn_ext,nsp_sld),intent(in)::stsld_ext,stsld_dext
 real(kind=8),dimension(nrxn_ext,nsp_gas,nz)::drxnext_dmgas
 real(kind=8),dimension(nrxn_ext,nsp_aq,nz)::drxnext_dmaq
 real(kind=8),dimension(nrxn_ext,nsp_sld,nz)::drxnext_dmsld
@@ -9085,6 +9085,9 @@ real(kind=8)::threshold = 10d0
 ! real(kind=8)::threshold = 100d0
 real(kind=8),dimension(nz)::zeros  
 
+logical print_cb
+character(500) print_loc
+
 integer,parameter :: iter_max = 100
 
 real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
@@ -9092,6 +9095,10 @@ integer ipiv3(nsp3*nz)
 integer info
 
 external DGESV
+
+
+print_cb = .false. 
+print_loc = './ph.txt'
 
 kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
 k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
@@ -9132,6 +9139,7 @@ if (it ==0) then
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqc,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+        & ,print_cb,print_loc,z &! input 
         & ,prox &! output
         & ) 
 else 
@@ -9152,6 +9160,7 @@ else
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+        & ,print_cb,print_loc,z &! input 
         & ,prox &! output
         & ) 
 endif
@@ -9180,6 +9189,7 @@ do while ((.not.isnan(error)).and.(error > tol))
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+        & ,print_cb,print_loc,z &! input 
         & ,prox &! output
         & ) 
     do ispa=1,nsp_aq
@@ -9201,6 +9211,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
                 & ,maqx+dmaq,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+                & ,print_cb,print_loc,z &! input 
                 & ,dprodmaq(ispa,:) &! output
                 & ) 
             dprodmaq(ispa,:) = (dprodmaq(ispa,:) - prox(:))/dconc
@@ -9227,6 +9238,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
                 & ,maqx,maqc,mgasx+dmgas,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+                & ,print_cb,print_loc,z &! input 
                 & ,dprodmgas(ispg,:) &! output
                 & ) 
             dprodmgas(ispg,:) = (dprodmgas(ispg,:) - prox(:))/dconc
@@ -9387,6 +9399,25 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & )
             drxnext_dmgas(irxn,ispg,:) = (drxnext_dmgas(irxn,ispg,:) -rxnext(irxn,:))/dconc
         enddo 
+        dmaq = 0d0
+        do ispa=1,nsp_aq
+            if (staq_dext(irxn,ispa)==0d0) cycle
+            dmaq(ispa,:) = dconc
+            ! call calc_rxn_ext( &
+                ! & nz,vmax,mo2,mgasth(findloc(chrgas,'po2',dim=1)) &
+                ! & ,mgasx(findloc(chrgas,'po2',dim=1),:)+dmgas(findloc(chrgas,'po2',dim=1)) &
+                ! & ,chrrxn_ext(irxn) &! input 
+                ! & ,drxnext_dmgas(irxn,ispg,:)  &! output
+                ! & )            
+            call calc_rxn_ext_v2( &
+                & nz,nrxn_ext_all,nsp_gas_all,nsp_aq_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst  &!input
+                & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
+                & ,poro,sat,maqx+dmaq,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
+                & ,chrrxn_ext(irxn) &! input 
+                & ,drxnext_dmaq(irxn,ispa,:) &! output
+                & )
+            drxnext_dmaq(irxn,ispa,:) = (drxnext_dmaq(irxn,ispa,:) -rxnext(irxn,:))/dconc
+        enddo 
     enddo 
             
     
@@ -9483,7 +9514,8 @@ do while ((.not.isnan(error)).and.(error > tol))
             caq_tmp_n = maqx(ispa,max(1,iz-1))
             caqth_tmp = maqth(ispa)
             caqi_tmp = maqi(ispa)
-            caqsupp_tmp = maqsupp(ispa,iz)
+            ! caqsupp_tmp = maqsupp(ispa,iz)
+            caqsupp_tmp = maqsupp(ispa,iz) + sum(staq_ext(:,ispa)*rxnext(:,iz))
             rxn_tmp = 0d0
             drxndisp_tmp = 0d0
             do isps = 1,nsp_sld
@@ -9510,6 +9542,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & -0.5d0*(edif_tmp +edif_tmp_n)*(1d0)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz)*dt &
                 & + poro(iz)*sat(iz)*1d3*v(iz)*(1d0)/dz(iz)*dt &
                 & -drxndisp_tmp*dt &
+                & - sum(staq_ext(:,ispa)*drxnext_dmaq(:,ispa,iz))*dt &
                 & ) &
                 & *merge(1.0d0,caq_tmp,caq_tmp<caqth_tmp)
 
@@ -9556,6 +9589,12 @@ do while ((.not.isnan(error)).and.(error > tol))
                 
                 if (ispa2 == ispa) cycle
                 
+                amx3(row,col) = amx3(row,col) + (     & 
+                    & - sum(staq_ext(:,ispa)*drxnext_dmaq(:,ispa2,iz))*dt &
+                    & ) &
+                    & *maqx(ispa2,iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
+                
                 do isps = 1, nsp_sld
                     amx3(row,col) = amx3(row,col) + (     & 
                         & - staq(isps,ispa)*ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz) &
@@ -9569,6 +9608,12 @@ do while ((.not.isnan(error)).and.(error > tol))
             
             do ispg = 1, nsp_gas
                 col = nsp3*(iz-1) + nsp_sld + nsp_aq + ispg
+                
+                amx3(row,col) = amx3(row,col) + (     & 
+                    & - sum(staq_ext(:,ispa)*drxnext_dmgas(:,ispg,iz))*dt &
+                    & ) &
+                    & *mgasx(ispg,iz) &
+                    & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp)   ! commented out (is this necessary?)
                 
                 do isps = 1, nsp_sld
                     amx3(row,col) = amx3(row,col) + (     & 
@@ -9789,6 +9834,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                     & - 0.5d0*(ddgas_dmaq(ispg,ispa,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
                     & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmaq(ispg,ispa,iz)*mgasx(ispg,iz))/dz(iz)*dt &
                     & -drxngas_dmaq(ispg,ispa,iz)*dt &
+                    & -sum(stgas_ext(:,ispg)*drxnext_dmaq(:,ispa,iz))*dt &
                     & ) &
                     & *merge(1.0d0,maqx(ispa,iz),mgasx(ispg,iz)<mgasth(ispg))
                 
@@ -9979,6 +10025,7 @@ do while ((.not.isnan(error)).and.(error > tol))
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+        & ,print_cb,print_loc,z &! input 
         & ,prox &! output
         & ) 
 
@@ -10058,6 +10105,7 @@ call calc_pH_v5( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+    & ,print_cb,print_loc,z &! input 
     & ,prox &! output
     & ) 
 
@@ -10405,6 +10453,9 @@ real(kind=8)::threshold = 10d0
 ! real(kind=8)::threshold = 100d0
 real(kind=8),dimension(nz)::zeros  
 
+logical print_cb
+character(500) print_loc
+
 integer,parameter :: iter_max = 100
 
 real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
@@ -10412,6 +10463,10 @@ integer ipiv3(nsp3*nz)
 integer info
 
 external DGESV
+
+
+print_cb = .false. 
+print_loc = './ph.txt'
 
 kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
 k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
@@ -10452,6 +10507,7 @@ if (it ==0) then
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqc,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+        & ,print_cb,print_loc,z &! input 
         & ,prox &! output
         & ) 
 else 
@@ -10472,6 +10528,7 @@ else
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+        & ,print_cb,print_loc,z &! input 
         & ,prox &! output
         & ) 
 endif
@@ -10500,6 +10557,7 @@ do while ((.not.isnan(error)).and.(error > tol))
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+        & ,print_cb,print_loc,z &! input 
         & ,prox &! output
         & ) 
     do ispa=1,nsp_aq
@@ -10521,6 +10579,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
                 & ,maqx+dmaq,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+                & ,print_cb,print_loc,z &! input 
                 & ,dprodmaq(ispa,:) &! output
                 & ) 
             dprodmaq(ispa,:) = (dprodmaq(ispa,:) - prox(:))/dconc
@@ -10547,6 +10606,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
                 & ,maqx,maqc,mgasx+dmgas,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+                & ,print_cb,print_loc,z &! input 
                 & ,dprodmgas(ispg,:) &! output
                 & ) 
             dprodmgas(ispg,:) = (dprodmgas(ispg,:) - prox(:))/dconc
@@ -11289,6 +11349,7 @@ do while ((.not.isnan(error)).and.(error > tol))
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+        & ,print_cb,print_loc,z &! input 
         & ,prox &! output
         & ) 
 
@@ -11367,6 +11428,7 @@ call calc_pH_v5( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
+    & ,print_cb,print_loc,z &! input 
     & ,prox &! output
     & ) 
 
