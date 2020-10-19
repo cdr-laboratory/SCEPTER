@@ -9,13 +9,54 @@ program weathering
 !! adding calcium profile to examine the effect of CaCO3 dissolution
 !! allowing porosity & surface area change       
 !! converted to f90 from o2profile+silweath+o2_v9_7.f
+implicit none 
+
+integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+character(5),dimension(:),allocatable::chraq,chrsld,chrgas,chrrxn_ext 
+character(500) sim_name
+
+call get_variables_num( &
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
+    & )
+
+print *,nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+
+allocate(chraq(nsp_aq),chrsld(nsp_sld),chrgas(nsp_gas),chrrxn_ext(nrxn_ext))
+    
+call get_variables( &
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! input
+    & ,chraq,chrgas,chrsld,chrrxn_ext &! output
+    & )
+    
+print *,chraq
+print *,chrsld 
+print *,chrgas 
+print *,chrrxn_ext 
+
+sim_name = 'all_kfs'
+
+call weathering_main( &
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name &! input
+    & )
+
+endprogram weathering
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+ 
+subroutine weathering_main( &
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name &! input
+    & )
+
 implicit none
 
 !-----------------------------
 
-real(kind=8) :: ztot = 5.0d0 ! m
+real(kind=8) :: ztot = 3.0d0 ! m
 ! real(kind=8) dz
-integer, parameter :: nz = 50 
+integer, parameter :: nz = 30 
 real(kind=8) z(nz),dz(nz)
 real(kind=8) ze(nz+1)
 real(kind=8) :: ph = 5.0d0
@@ -57,6 +98,7 @@ real(kind=8) :: mvgt = 20.82d0 ! cm3/mol; molar volume of Goethite (FeO(OH)); Ro
 real(kind=8) :: mvcabd = 129.77d0 ! cm3/mol; molar volume of Ca-beidellite (Ca(1/6)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
 real(kind=8) :: mvdp = 66.09d0 ! cm3/mol; molar volume of Diopside (MgCaSi2O6);  Robie et al. 1978
 real(kind=8) :: mvhb = 248.09d0/3.55d0 ! cm3/mol; molar volume of Hedenbergite (FeCaSi2O6); from a webpage
+real(kind=8) :: mvkfs = 108.72d0 ! cm3/mol; molar volume of K-feldspar (KAlSi3O8); Robie et al. 1978
 
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
 real(kind=8) :: mwtab = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
@@ -71,6 +113,7 @@ real(kind=8) :: mwtgt = 88.854d0 ! g/mol; formula weight of Gt; Robie et al. 197
 real(kind=8) :: mwtcabd = 366.6252667d0 ! g/mol; formula weight of Cabd calculated from atmoic weight
 real(kind=8) :: mwtdp = 216.553d0 ! g/mol;  Robie et al. 1978
 real(kind=8) :: mwthb = 248.09d0 ! g/mol; from a webpage
+real(kind=8) :: mwtkfs = 278.33d0 ! g/mol; formula weight of Kfs; Robie et al. 1978
 
 ! real(kind=8) :: redsldi = 0.56d0 ! wt%  **default 
 ! real(kind=8) :: redsldi = 1.12d0 ! wt%  x2
@@ -97,9 +140,10 @@ real(kind=8)::rainfrc_cc = 0d0 ! rain wt fraction for Cc; None (Beering et al 20
 real(kind=8)::rainfrc_ka = 0d0 ! rain wt fraction for Ka; None (Beering et al 2020)
 real(kind=8)::rainfrc_gb = 0d0 ! rain wt fraction for Gb; None (Beering et al 2020)
 real(kind=8)::rainfrc_ct = 0d0 ! rain wt fraction for ct; None (Beering et al 2020)
-real(kind=8)::rainfrc_fa = 0.05d0 ! rain wt fraction for ct; None (Beering et al 2020)
+real(kind=8)::rainfrc_fa = 0.05d0 ! rain wt fraction for Fa (Beering et al 2020)
 real(kind=8)::rainfrc_dp = 0.189d0 ! rain wt fraction for dp; 0.21 for augite and assuming 0.9 of augite is from diopside (Beering et al 2020)
 real(kind=8)::rainfrc_hb = 0.021d0 ! rain wt fraction for hb; 0.21 for augite and assuming 0.1 of augite is from hedenbergite (Beering et al 2020)
+real(kind=8)::rainfrc_kfs = 0.06d0 ! rain wt fraction for kfs (Beering et al 2020)
 
 real(kind=8)::zsupp = 0.3d0 !  e-folding decrease
 
@@ -110,7 +154,7 @@ real(kind=8) :: dgasc = 441.504d0 ! m^2 yr^-1 (Assuming 0.14 cm2/sec)
 real(kind=8) :: daqc = 0.022459852 ! m^2 yr^-1 (for C32- from Li and Gregory 1974)
 
 ! real(kind=8) :: poroi = 0.1d0 !*** default
-real(kind=8) :: poroi = 0.25d0
+real(kind=8) :: poroi = 0.5d0
 
 real(kind=8) :: sati = 0.50d0
 real(kind=8) :: satup = 0.10d0
@@ -285,34 +329,34 @@ real(kind=8) k_arrhenius
 real(kind=8) time_start, time_fin, progress_rate, progress_rate_prev
 integer count_dtunchanged 
 
-integer,parameter::nsp_sld = 5
+integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 6
-integer,parameter::nsp_sld_all = 13
-integer,parameter::nsp_sld_cnst = nsp_sld_all - nsp_sld
-integer,parameter::nsp_aq = 5
-integer,parameter::nsp_aq_ph = 8
-integer,parameter::nsp_aq_all = 8
-integer,parameter::nsp_aq_cnst = nsp_aq_all - nsp_aq
-integer,parameter::nsp_gas = 2
+integer,parameter::nsp_sld_all = 14
+integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
+integer,intent(in)::nsp_aq != 5
+integer,parameter::nsp_aq_ph = 9
+integer,parameter::nsp_aq_all = 9
+integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
+integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 1
 integer,parameter::nsp_gas_all = 2
-integer,parameter::nsp_gas_cnst = nsp_gas_all - nsp_gas
-integer,parameter::nsp3 = nsp_sld + nsp_aq + nsp_gas
-integer,parameter::nrxn_ext = 1
+integer ::nsp_gas_cnst != nsp_gas_all - nsp_gas
+integer ::nsp3 != nsp_sld + nsp_aq + nsp_gas
+integer,intent(in)::nrxn_ext != 1
 integer,parameter::nrxn_ext_all = 2
-character(5),dimension(nsp_sld)::chrsld
+character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2)::chrsld_2
 character(5),dimension(nsp_sld_all)::chrsld_all
-character(5),dimension(nsp_sld_cnst)::chrsld_cnst
-character(5),dimension(nsp_aq)::chraq
+character(5),dimension(nsp_sld_all - nsp_sld)::chrsld_cnst
+character(5),dimension(nsp_aq),intent(in)::chraq
 character(5),dimension(nsp_aq_ph)::chraq_ph
 character(5),dimension(nsp_aq_all)::chraq_all
-character(5),dimension(nsp_aq_cnst)::chraq_cnst
-character(5),dimension(nsp_gas)::chrgas
+character(5),dimension(nsp_aq_all - nsp_aq)::chraq_cnst
+character(5),dimension(nsp_gas),intent(in)::chrgas
 character(5),dimension(nsp_gas_ph)::chrgas_ph
 character(5),dimension(nsp_gas_all)::chrgas_all
-character(5),dimension(nsp_gas_cnst)::chrgas_cnst
-character(5),dimension(nrxn_ext)::chrrxn_ext
+character(5),dimension(nsp_gas_all - nsp_gas)::chrgas_cnst
+character(5),dimension(nrxn_ext),intent(in)::chrrxn_ext
 character(5),dimension(nrxn_ext_all)::chrrxn_ext_all
 real(kind=8),dimension(nsp_sld)::msldi,msldth,mv,rfrc_sld,mwt
 real(kind=8),dimension(nsp_sld,nsp_aq)::staq
@@ -345,9 +389,9 @@ real(kind=8),dimension(nrxn_ext_all,nsp_aq_all)::staq_ext_all,staq_dext_all
 real(kind=8),dimension(nrxn_ext_all,nsp_gas_all)::stgas_ext_all,stgas_dext_all
 real(kind=8),dimension(nrxn_ext_all,nsp_sld_all)::stsld_ext_all,stsld_dext_all
 
-real(kind=8),dimension(nsp_aq_cnst,nz)::maqc
-real(kind=8),dimension(nsp_gas_cnst,nz)::mgasc
-real(kind=8),dimension(nsp_sld_cnst,nz)::msldc
+real(kind=8),dimension(nsp_aq_all - nsp_aq,nz)::maqc
+real(kind=8),dimension(nsp_gas_all - nsp_gas,nz)::mgasc
+real(kind=8),dimension(nsp_sld_all - nsp_sld,nz)::msldc
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
@@ -363,39 +407,55 @@ integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
 
 integer,parameter::ibasaltrain = 15
-integer,parameter::isldprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 1
-integer,parameter::iaqprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 2
-integer,parameter::igasprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 3
-integer,parameter::isldsat = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 4
-integer,parameter::ibsd = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
+integer ::isldprof != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 1
+integer ::iaqprof != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 2
+integer ::igasprof != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 3
+integer ::isldsat != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 4
+integer ::ibsd != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
 
 real(kind=8) dt_prev
 
 logical print_cb
 character(500) print_loc
+character(500),intent(in):: sim_name
 !-------------------------
+
+nsp_sld_cnst = nsp_sld_all - nsp_sld
+nsp_aq_cnst = nsp_aq_all - nsp_aq
+nsp_gas_cnst = nsp_gas_all - nsp_gas
+nsp3 = nsp_sld + nsp_aq + nsp_gas
+
+isldprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 1
+iaqprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 2
+igasprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 3
+isldsat = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 4
+ibsd = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
+
 ! define all species and rxns definable in the model 
 ! note that rxns here exclude diss(/prec) of mineral 
 ! which are automatically included when associated mineral is chosen
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
-    & ,'dp   ','hb   '/)
-chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  '/)
+    & ,'dp   ','hb   ','kfs  '/)
+chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
 chrrxn_ext_all = (/'resp ','fe2o2'/)
 
 ! define the species and rxns explicitly simulated in the model in a fully coupled way
 ! should be chosen from definable species & rxn lists above 
-chrsld = (/'fo   ','ab   ','an   ','cc   ','ka   '/)
-chraq = (/'mg   ','si   ','na   ','ca   ','al   '/)
-chrgas = (/'pco2 ','po2  '/)
-chrrxn_ext = (/'resp '/)
+
+! chrsld = (/'fo   ','ab   ','an   ','cc   ','ka   '/)
+! chraq = (/'mg   ','si   ','na   ','ca   ','al   '/)
+! chrgas = (/'pco2 ','po2  '/)
+! chrrxn_ext = (/'resp '/)
+
+
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd '/) 
 
 ! below are species which are sensitive to pH 
-chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  '/)
+chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_ph = (/'pco2 '/)
 
 if (nsp_aq_cnst .ne. 0) then 
@@ -479,8 +539,8 @@ enddo
 
 ! molar volume 
 
-mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb/)
-mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb/)
+mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs/)
+mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs/)
 
 do isps = 1, nsp_sld 
     mv(isps) = mv_all(findloc(chrsld_all,chrsld(isps),dim=1))
@@ -498,6 +558,10 @@ staq_all(findloc(chrsld_all,'fo',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
 staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
+! K-feldspar; KAlSi3O8
+staq_all(findloc(chrsld_all,'kfs',dim=1), findloc(chraq_all,'k',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'kfs',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
+staq_all(findloc(chrsld_all,'kfs',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
 ! Anothite; CaAl2Si2O8
 staq_all(findloc(chrsld_all,'an',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'an',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
@@ -623,6 +687,7 @@ rfrc_sld_all(findloc(chrsld_all,'ab',dim=1)) = rainfrc_ab/mwtab
 rfrc_sld_all(findloc(chrsld_all,'fa',dim=1)) = rainfrc_fa/mwtfa
 rfrc_sld_all(findloc(chrsld_all,'dp',dim=1)) = rainfrc_dp/mwtdp
 rfrc_sld_all(findloc(chrsld_all,'hb',dim=1)) = rainfrc_hb/mwthb
+rfrc_sld_all(findloc(chrsld_all,'kfs',dim=1)) = rainfrc_kfs/mwtkfs
 
 do isps = 1, nsp_sld 
     rfrc_sld(isps) = rfrc_sld_all(findloc(chrsld_all,chrsld(isps),dim=1))
@@ -701,12 +766,13 @@ write(chrrain,'(E10.2)') rainpowder
 
 write(workdir,*) '../pyweath_output/'     
 
-if (cplprec) then 
-    ! write(base,*) 'test_cplpcxasgxsagwff'
-    write(base,*) 'test_cplp_kph'
-else 
-    write(base,*) 'test_cpl'
-endif 
+! if (cplprec) then 
+    ! write(base,*) 'test_cplp_test'
+! else 
+    ! write(base,*) 'test_cpl'
+! endif 
+
+base = trim(adjustl(sim_name))
 
 if (al_inhibit) base = trim(adjustl(base))//'_alx'
 
@@ -1769,6 +1835,7 @@ do while (it<nt)
         write(isldsat,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
         write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
         write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
+        write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' time '
 
         do iz = 1, Nz
             write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
@@ -1875,9 +1942,122 @@ close(401)
 #endif
 #endif 
 
-endprogram weathering
+endsubroutine weathering_main
 
-!**************************************************************************************************************************************
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_variables_num( &
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
+    & )
+implicit none
+
+integer,intent(out):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+character(500) file_name
+
+file_name = './slds.in'
+call Console4(file_name,nsp_sld)
+file_name = './solutes.in'
+call Console4(file_name,nsp_aq)
+file_name = './gases.in'
+call Console4(file_name,nsp_gas)
+file_name = './extrxns.in'
+call Console4(file_name,nrxn_ext)
+
+nsp_sld = nsp_sld - 1
+nsp_aq = nsp_aq - 1
+nsp_gas = nsp_gas - 1
+nrxn_ext = nrxn_ext - 1
+
+endsubroutine get_variables_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_variables( &
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! input
+    & ,chraq,chrgas,chrsld,chrrxn_ext &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+character(5),dimension(nsp_sld),intent(out)::chrsld 
+character(5),dimension(nsp_aq),intent(out)::chraq 
+character(5),dimension(nsp_gas),intent(out)::chrgas 
+character(5),dimension(nrxn_ext),intent(out)::chrrxn_ext 
+
+character(500) file_name
+integer ispa,ispg,isps,irxn
+
+file_name = './solutes.in'
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do ispa =1,nsp_aq
+    read(50,*) chraq(ispa) 
+enddo 
+close(50)
+
+file_name = './slds.in'
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do isps =1,nsp_sld
+    read(50,*) chrsld(isps) 
+enddo  
+close(50)
+
+file_name = './gases.in'
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do ispg =1,nsp_gas
+    read(50,*) chrgas(ispg) 
+enddo 
+close(50)
+
+file_name = './extrxns.in'
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do irxn =1,nrxn_ext
+    read(50,*) chrrxn_ext(irxn) 
+enddo 
+close(50)
+
+
+endsubroutine get_variables
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine Console4(file_name,i)
+
+implicit none
+
+integer,intent(out) :: i
+character(500),intent(in)::file_name
+
+open(9, file =trim(adjustl(file_name)))
+
+i = 0
+do 
+    read(9, *, end = 99)
+    i = i + 1
+end do 
+
+99 print *, i
+close(9)
+
+end subroutine Console4
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine makegrid(beta,nz,ztot,dz,z)  !  making grid, after Hoffmann & Chiang, 2000
 implicit none
 integer(kind=4),intent(in) :: nz
@@ -1905,7 +2085,6 @@ do iz=1,nz  ! depth is defined at the middle of individual layers
 enddo
 
 endsubroutine makegrid
-!**************************************************************************************************************************************
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -2112,6 +2291,7 @@ implicit none
 integer,intent(in)::nz
 real(kind=8),intent(in)::rg,rg2,tc,sec2yr,tempk_0
 real(kind=8),dimension(nz),intent(in)::pro
+real(kind=8),dimension(nz)::oh
 real(kind=8),intent(out)::ucv,kw
 
 real(kind=8) k_arrhenius
@@ -2148,6 +2328,7 @@ daq_all(findloc(chraq_all,'fe2',dim=1))= k_arrhenius(1.7016d-2    , 15d0+tempk_0
 daq_all(findloc(chraq_all,'fe3',dim=1))= k_arrhenius(1.5664d-2    , 15d0+tempk_0, tc+tempk_0, 14.33659d0 , rg)
 daq_all(findloc(chraq_all,'so4',dim=1))= k_arrhenius(2.54d-2      , 15d0+tempk_0, tc+tempk_0, 20.67364d0 , rg)
 daq_all(findloc(chraq_all,'na',dim=1)) = k_arrhenius(3.19d-2      , 15d0+tempk_0, tc+tempk_0, 20.58566d0 , rg)
+daq_all(findloc(chraq_all,'k',dim=1))  = k_arrhenius(4.8022699d-2 , 15d0+tempk_0, tc+tempk_0, 18.71816d0 , rg)
 daq_all(findloc(chraq_all,'mg',dim=1)) = k_arrhenius(1.7218079d-2 , 15d0+tempk_0, tc+tempk_0, 18.51979d0 , rg)
 daq_all(findloc(chraq_all,'si',dim=1)) = k_arrhenius(2.682396d-2  , 15d0+tempk_0, tc+tempk_0, 22.71378d0 , rg)
 daq_all(findloc(chraq_all,'ca',dim=1)) = k_arrhenius(1.9023312d-2 , 15d0+tempk_0, tc+tempk_0, 20.219661d0, rg)
@@ -2164,6 +2345,9 @@ dgasg_all(findloc(chrgas_all,'pco2',dim=1)) = k_arrhenius(441.504d0   , 15d0+tem
 
 kw = -14.93d0+0.04188d0*tc-0.0001974d0*tc**2d0+0.000000555d0*tc**3d0-0.0000000007581d0*tc**4d0  ! Murakami et al. 2011
 kw = k_arrhenius(10d0**(-14.35d0), tempk_0+15.0d0, tempk_0+tc, 58.736742d0, rg) ! from Kanzaki and Murakami 2015
+
+oh = kw/pro
+
 
 keqgas_h = 0d0
 
@@ -2277,6 +2461,16 @@ keqsld_all(findloc(chrsld_all,'ab',dim=1)) = &
 ! NaAlSi3O8 + 4 H+ = Na+ + Al3+ + 3SiO2 + 2H2O
 keqsld_all(findloc(chrsld_all,'ab',dim=1)) = &
     & k_arrhenius(10d0**3.412182823d0,15d0+tempk_0,tc+tempk_0,-54.15042876d0,rg)   ! Kanzaki and Murakami 2018
+
+
+
+ksld_all(findloc(chrsld_all,'kfs',dim=1),:) = &
+    & k_arrhenius(10d0**(-12.41d0)*sec2yr,25d0+tempk_0,tc+tempk_0,9.08*cal2j,rg) &!(only neutral weathering from Brantley et al 2008)
+    & + pro**0.5d0*k_arrhenius(10d0**(-10.06d0)*sec2yr,25d0+tempk_0,tc+tempk_0,12.4d0*cal2j,rg) &!(acid weathering from Brantley et al 2008)
+    & + oh**0.823d0*k_arrhenius(10d0**(-9.68d0)*sec2yr,25d0+tempk_0,tc+tempk_0,22.5d0*cal2j,rg) !(alkarine weathering from Brantley et al 2008)
+! K-feldspar  + 4 H+  = 2 H2O  + K+  + Al+++  + 3 SiO2(aq)
+keqsld_all(findloc(chrsld_all,'kfs',dim=1)) = &
+    & k_arrhenius(10d0**0.227294204d0,15d0+tempk_0,tc+tempk_0,-26.30862098d0,rg)   ! Kanzaki and Murakami 2018
 
 
 ! ksld_all(findloc(chrsld_all,'fo',dim=1),:) = &
@@ -2398,7 +2592,7 @@ krxn1_ext_all(findloc(chrrxn_ext_all,'fe2o2',dim=1),:) = &
      
 krxn1_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) = 0.71d0 ! vmax mol m^-3, yr^-1, max soil respiration, Wood et al. (1993)
 krxn1_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) = &
-    & krxn1_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) *1d-1 ! reducing a bit to be fitted with modern soil pco2
+    & krxn1_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) *1d1 ! reducing a bit to be fitted with modern soil pco2
 
 krxn2_ext_all(findloc(chrrxn_ext_all,'resp',dim=1),:) = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
 
@@ -10736,7 +10930,7 @@ integer,intent(in)::nz
 real(kind=8),intent(in)::kw
 real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al &
     & ,k1fe2,k1fe2co3,k1fe2hco3,k1fe3,k2fe3,k3fe3,k4fe3
-real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x
+real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x,kx
 real(kind=8),dimension(nz),intent(in)::z
 real(kind=8),dimension(nz),intent(inout)::prox
 
@@ -10803,10 +10997,16 @@ k4fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4)
 
 nax = 0d0
 so4x = 0d0
+kx = 0d0
 if (any(chraq=='na')) then 
     nax = maqx(findloc(chraq,'na',dim=1),:)
 elseif (any(chraq_cnst=='na')) then 
     nax = maqc(findloc(chraq_cnst,'na',dim=1),:)
+endif 
+if (any(chraq=='k')) then 
+    kx = maqx(findloc(chraq,'k',dim=1),:)
+elseif (any(chraq_cnst=='k')) then 
+    kx = maqc(findloc(chraq_cnst,'k',dim=1),:)
 endif 
 if (any(chraq=='so4')) then 
     so4x = 2d0*maqx(findloc(chraq,'so4',dim=1),:)
@@ -10814,7 +11014,7 @@ elseif (any(chraq_cnst=='so4')) then
     so4x = 2d0*maqc(findloc(chraq_cnst,'so4',dim=1),:)
 endif 
 
-netcat = nax-2d0*so4x
+netcat = nax + kx -2d0*so4x
 
 six =0d0
 cax =0d0
@@ -11011,7 +11211,7 @@ endif
 
 if (print_cb) then 
     open(88,file = trim(adjustl(print_loc)),status='replace')
-    write(88,*) ' z ',' h+ ',' oh- ',' na+ ', ' so42- ', 'hco3- ', ' co32- ',' h4sio4 ',' h3sio4- ',' h2sio42- ' &
+    write(88,*) ' z ',' h+ ',' oh- ',' na+ ', ' k+ ',' so42- ', 'hco3- ', ' co32- ',' h4sio4 ',' h3sio4- ',' h2sio42- ' &
         & ,' mg2+ ', ' mg(oh)+ ', ' mgco3 ', 'mghco3+ ', ' ca2+ ', ' ca(oh)+ ', ' caco3 ', ' cahco3+ ' &
         & ,' al3+ ', ' al(oh)2+ ', ' al(oh)2+ ', ' al(oh)3 ', ' al(oh)4- ' &
         & , ' fe22+ ', ' fe2(oh)+ ', ' fe2co3 ', ' fe2hco3+ ' &
@@ -11021,6 +11221,7 @@ if (print_cb) then
         &, prox(iz) &
         & ,kw/prox(iz) &
         & ,nax(iz) &
+        & ,kx(iz) &
         & ,so4x(iz) &
         & ,k1*kco2*pco2x(iz)/prox(iz) &
         & ,k2*k1*kco2*pco2x(iz)/prox(iz)**2d0 &
@@ -11062,6 +11263,7 @@ if (print_cb) then
         & ,1d0*prox(iz) &
         & +(-1d0)*kw/prox(iz) &
         & +(1d0)*nax(iz) &
+        & +(1d0)*kx(iz) &
         & +(-2d0)*so4x(iz) &
         & +(-1d0)*k1*kco2*pco2x(iz)/prox(iz) &
         & +(-2d0)*k2*k1*kco2*pco2x(iz)/prox(iz)**2d0 &
@@ -11209,9 +11411,9 @@ implicit none
 integer,intent(in)::nz
 real(kind=8):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &
     & ,k1al,k2al,k3al,k4al,keqka,keqgb,keqct,k1fe2,k1fe2co3,k1fe2hco3,keqfa,k1fe3,k2fe3,k3fe3,k4fe3,keqgt &
-    & ,keqcabd,keqdp,keqhb
+    & ,keqcabd,keqdp,keqhb,keqkfs
 real(kind=8),dimension(nz),intent(in):: prox
-real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x
+real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x,kx
 real(kind=8),dimension(nz),intent(out):: omega
 character(5),intent(in):: mineral
 
@@ -11275,13 +11477,20 @@ keqgt = keqsld_all(findloc(chrsld_all,'gt',dim=1))
 keqcabd = keqsld_all(findloc(chrsld_all,'cabd',dim=1))
 keqdp = keqsld_all(findloc(chrsld_all,'dp',dim=1))
 keqhb = keqsld_all(findloc(chrsld_all,'hb',dim=1))
+keqkfs = keqsld_all(findloc(chrsld_all,'kfs',dim=1))
 
 nax = 0d0
+kx = 0d0
 
 if (any(chraq=='na')) then 
     nax = maqx(findloc(chraq,'na',dim=1),:)
 elseif (any(chraq_cnst=='na')) then 
     nax = maqc(findloc(chraq_cnst,'na',dim=1),:)
+endif 
+if (any(chraq=='k')) then 
+    kx = maqx(findloc(chraq,'k',dim=1),:)
+elseif (any(chraq_cnst=='k')) then 
+    kx = maqc(findloc(chraq_cnst,'k',dim=1),:)
 endif 
 
 six =0d0
@@ -11351,6 +11560,14 @@ select case(trim(adjustl(mineral)))
         omega = & 
             & nax*alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
             & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0/prox**4d0/keqab
+    case('kfs')
+    ! K-feldspar  + 4 H+  = 2 H2O  + K+  + Al+++  + 3 SiO2(aq)
+        omega = & 
+            & kx &
+            & *alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
+            & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0 &
+            & /prox**4d0 &
+            & /keqkfs 
     case('an')
     ! CaAl2Si2O8 + 8H+ = Ca2+ + 2 Al3+ + 2SiO2 + 4H2O
         omega = & 
