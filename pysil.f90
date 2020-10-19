@@ -53,7 +53,10 @@ real(kind=8) :: mvpy = 23.94d0 ! cm3/mol; molar volume of Pyrite (FeS2); Robie e
 real(kind=8) :: mvgb = 31.956d0 ! cm3/mol; molar volume of Gibsite (Al(OH)3); Robie et al. 1978
 real(kind=8) :: mvct = 108.5d0 ! cm3/mol; molar volume of Chrysotile (Mg3Si2O5(OH)4); Robie et al. 1978
 real(kind=8) :: mvfa = 46.39d0 ! cm3/mol; molar volume of Fayalite (Fe2SiO4); Robie et al. 1978
-real(kind=8) :: mvgt = 20.82d0 ! cm3/mol; molar volume of Goethite (Fe(OH)3); Robie et al. 1978
+real(kind=8) :: mvgt = 20.82d0 ! cm3/mol; molar volume of Goethite (FeO(OH)); Robie et al. 1978
+real(kind=8) :: mvcabd = 129.77d0 ! cm3/mol; molar volume of Ca-beidellite (Ca(1/6)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
+real(kind=8) :: mvdp = 66.09d0 ! cm3/mol; molar volume of Diopside (MgCaSi2O6);  Robie et al. 1978
+real(kind=8) :: mvhb = 248.09d0/3.55d0 ! cm3/mol; molar volume of Hedenbergite (FeCaSi2O6); from a webpage
 
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
 real(kind=8) :: mwtab = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
@@ -65,6 +68,9 @@ real(kind=8) :: mwtgb = 78.004d0 ! g/mol; formula weight of Gb; Robie et al. 197
 real(kind=8) :: mwtct = 277.113d0 ! g/mol; formula weight of Ct; Robie et al. 1978
 real(kind=8) :: mwtfa = 203.778d0 ! g/mol; formula weight of Fa; Robie et al. 1978
 real(kind=8) :: mwtgt = 88.854d0 ! g/mol; formula weight of Gt; Robie et al. 1978
+real(kind=8) :: mwtcabd = 366.6252667d0 ! g/mol; formula weight of Cabd calculated from atmoic weight
+real(kind=8) :: mwtdp = 216.553d0 ! g/mol;  Robie et al. 1978
+real(kind=8) :: mwthb = 248.09d0 ! g/mol; from a webpage
 
 ! real(kind=8) :: redsldi = 0.56d0 ! wt%  **default 
 ! real(kind=8) :: redsldi = 1.12d0 ! wt%  x2
@@ -92,6 +98,8 @@ real(kind=8)::rainfrc_ka = 0d0 ! rain wt fraction for Ka; None (Beering et al 20
 real(kind=8)::rainfrc_gb = 0d0 ! rain wt fraction for Gb; None (Beering et al 2020)
 real(kind=8)::rainfrc_ct = 0d0 ! rain wt fraction for ct; None (Beering et al 2020)
 real(kind=8)::rainfrc_fa = 0.05d0 ! rain wt fraction for ct; None (Beering et al 2020)
+real(kind=8)::rainfrc_dp = 0.189d0 ! rain wt fraction for dp; 0.21 for augite and assuming 0.9 of augite is from diopside (Beering et al 2020)
+real(kind=8)::rainfrc_hb = 0.021d0 ! rain wt fraction for hb; 0.21 for augite and assuming 0.1 of augite is from hedenbergite (Beering et al 2020)
 
 real(kind=8)::zsupp = 0.3d0 !  e-folding decrease
 
@@ -278,8 +286,8 @@ real(kind=8) time_start, time_fin, progress_rate, progress_rate_prev
 integer count_dtunchanged 
 
 integer,parameter::nsp_sld = 5
-integer,parameter::nsp_sld_2 = 2
-integer,parameter::nsp_sld_all = 10
+integer,parameter::nsp_sld_2 = 6
+integer,parameter::nsp_sld_all = 13
 integer,parameter::nsp_sld_cnst = nsp_sld_all - nsp_sld
 integer,parameter::nsp_aq = 5
 integer,parameter::nsp_aq_ph = 8
@@ -369,25 +377,26 @@ character(500) print_loc
 ! define all species and rxns definable in the model 
 ! note that rxns here exclude diss(/prec) of mineral 
 ! which are automatically included when associated mineral is chosen
-chrsld_all = (/'fo','ab','an','cc','ka','gb','py','ct','fa','gt'/)
-chraq_all = (/'mg ','si ','na ','ca ','al ','fe2','fe3','so4'/)
+chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
+    & ,'dp   ','hb   '/)
+chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  '/)
 chrgas_all = (/'pco2','po2 '/)
 chrrxn_ext_all = (/'resp ','fe2o2'/)
 
 ! define the species and rxns explicitly simulated in the model in a fully coupled way
 ! should be chosen from definable species & rxn lists above 
-chrsld = (/'fo','ab','an','cc','ka'/)
-chraq = (/'mg ','si ','na ','ca ','al '/)
-chrgas = (/'pco2','po2 '/)
-chrrxn_ext = (/'resp'/)
+chrsld = (/'fo   ','ab   ','an   ','cc   ','ka   '/)
+chraq = (/'mg   ','si   ','na   ','ca   ','al   '/)
+chrgas = (/'pco2 ','po2  '/)
+chrrxn_ext = (/'resp '/)
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
-chrsld_2 = (/'cc','ka'/) 
+chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd '/) 
 
 ! below are species which are sensitive to pH 
-chraq_ph = (/'mg ','si ','na ','ca ','al ','fe2','fe3','so4'/)
-chrgas_ph = (/'pco2'/)
+chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  '/)
+chrgas_ph = (/'pco2 '/)
 
 if (nsp_aq_cnst .ne. 0) then 
     do ispa = 1, nsp_aq_cnst
@@ -470,8 +479,8 @@ enddo
 
 ! molar volume 
 
-mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt/)
-mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt/)
+mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb/)
+mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb/)
 
 do isps = 1, nsp_sld 
     mv(isps) = mv_all(findloc(chrsld_all,chrsld(isps),dim=1))
@@ -513,6 +522,18 @@ staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'fe2',dim=1)) = 2d0
 ! Goethite; FeO(OH)
 staq_all(findloc(chrsld_all,'gt',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
+! Ca-beidellite; Ca(1/6)Al(7/3)Si(11/3)O10(OH)2
+staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0/6d0
+staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
+staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'si',dim=1)) = 11d0/3d0
+! Diopside (MgCaSi2O6)
+staq_all(findloc(chrsld_all,'dp',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'dp',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'dp',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+! Hedenbergite (FeCaSi2O6)
+staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 
 staq = 0d0
 stgas = 0d0
@@ -600,6 +621,8 @@ rfrc_sld_all(findloc(chrsld_all,'fo',dim=1)) = rainfrc_fo/mwtfo
 rfrc_sld_all(findloc(chrsld_all,'an',dim=1)) = rainfrc_an/mwtan
 rfrc_sld_all(findloc(chrsld_all,'ab',dim=1)) = rainfrc_ab/mwtab
 rfrc_sld_all(findloc(chrsld_all,'fa',dim=1)) = rainfrc_fa/mwtfa
+rfrc_sld_all(findloc(chrsld_all,'dp',dim=1)) = rainfrc_dp/mwtdp
+rfrc_sld_all(findloc(chrsld_all,'hb',dim=1)) = rainfrc_hb/mwthb
 
 do isps = 1, nsp_sld 
     rfrc_sld(isps) = rfrc_sld_all(findloc(chrsld_all,chrsld(isps),dim=1))
@@ -680,7 +703,7 @@ write(workdir,*) '../pyweath_output/'
 
 if (cplprec) then 
     ! write(base,*) 'test_cplpcxasgxsagwff'
-    write(base,*) 'test_cplp_s2'
+    write(base,*) 'test_cplp_kph'
 else 
     write(base,*) 'test_cpl'
 endif 
@@ -2234,7 +2257,9 @@ ksld_all = 0d0
 keqsld_all = 0d0
 
 ksld_all(findloc(chrsld_all,'ka',dim=1),:) = &
-    & k_arrhenius(10d0**(-13.18d0)*sec2yr,25d0+tempk_0,tc+tempk_0,22.2d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+    & k_arrhenius(10d0**(-13.18d0)*sec2yr,25d0+tempk_0,tc+tempk_0,22.2d0,rg) &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro**0.777d0*k_arrhenius(10d0**(-11.31d0)*sec2yr,25d0+tempk_0,tc+tempk_0,65.9d0,rg) &!(acid weathering from Palandri and Kharaka, 2004)
+    & + pro**(-0.472d0)*k_arrhenius(10d0**(-17.05d0)*sec2yr,25d0+tempk_0,tc+tempk_0,17.9d0,rg) !(alkarine weathering from Palandri and Kharaka, 2004)
 ! kaolinite dissolution: Al2Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 2 Al+3 
 ! keqka = 8.310989613d0 ! gcw
 keqsld_all(findloc(chrsld_all,'ka',dim=1)) = &
@@ -2242,7 +2267,9 @@ keqsld_all(findloc(chrsld_all,'ka',dim=1)) = &
 
 
 ksld_all(findloc(chrsld_all,'ab',dim=1),:) = &
-    & k_arrhenius(10d0**(-12.56d0)*sec2yr,25d0+tempk_0,tc+tempk_0,69.8d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+    & k_arrhenius(10d0**(-12.56d0)*sec2yr,25d0+tempk_0,tc+tempk_0,69.8d0,rg) &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro**0.457d0*k_arrhenius(10d0**(-10.16d0)*sec2yr,25d0+tempk_0,tc+tempk_0,65d0,rg) &!(acid weathering from Palandri and Kharaka, 2004)
+    & + pro**(-0.572d0)*k_arrhenius(10d0**(-15.6d0)*sec2yr,25d0+tempk_0,tc+tempk_0,71d0,rg) !(alkarine weathering from Palandri and Kharaka, 2004)
 
 ! NaAlSi3O8 + 8 H2O = Na+ + Al(OH)4- + 3 H4SiO4
 keqsld_all(findloc(chrsld_all,'ab',dim=1)) = &
@@ -2252,10 +2279,11 @@ keqsld_all(findloc(chrsld_all,'ab',dim=1)) = &
     & k_arrhenius(10d0**3.412182823d0,15d0+tempk_0,tc+tempk_0,-54.15042876d0,rg)   ! Kanzaki and Murakami 2018
 
 
+! ksld_all(findloc(chrsld_all,'fo',dim=1),:) = &
+    ! & k_arrhenius(10d0**(-10.64d0)*sec2yr,25d0+tempk_0,tc+tempk_0,79d0,rg)  ! mol/m2/yr  from Beering et al 2020 (only neutral weathering)
 ksld_all(findloc(chrsld_all,'fo',dim=1),:) = &
-    & k_arrhenius(10d0**(-10.64d0)*sec2yr,25d0+tempk_0,tc+tempk_0,79d0,rg)  ! mol/m2/yr  from Beering et al 2020 (only neutral weathering)
-ksld_all(findloc(chrsld_all,'fo',dim=1),:) = &
-    & k_arrhenius(10d0**(-10.64d0)*sec2yr,25d0+tempk_0,tc+tempk_0,79d0,rg)  !(only neutral weathering from Palandri and Kharaka, 2004)
+    & k_arrhenius(10d0**(-10.64d0)*sec2yr,25d0+tempk_0,tc+tempk_0,79d0,rg)  &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro**0.47d0*k_arrhenius(10d0**(-6.85d0)*sec2yr,25d0+tempk_0,tc+tempk_0,67.2d0,rg)  !(acid weathering from Palandri and Kharaka, 2004)
 
 ! Fo + 4H+ = 2Mg2+ + SiO2(aq) + 2H2O
 ! keqfo= 27.8626d0  ! Sugimori et al. (2012) 
@@ -2267,7 +2295,8 @@ keqsld_all(findloc(chrsld_all,'fo',dim=1)) = &
 
 
 ksld_all(findloc(chrsld_all,'fa',dim=1),:) = &
-    & k_arrhenius(10d0**(-12.80d0)*sec2yr,25d0+tempk_0,tc+tempk_0, 94.4d0, rg)  !(only neutral weathering from Palandri and Kharaka, 2004)
+    & k_arrhenius(10d0**(-12.80d0)*sec2yr,25d0+tempk_0,tc+tempk_0, 94.4d0, rg)  &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro*k_arrhenius(10d0**(-4.80d0)*sec2yr,25d0+tempk_0,tc+tempk_0, 94.4d0, rg)  !(acid weathering from Palandri and Kharaka, 2004)
 
 ! Fa + 4H+ = 2Fe2+ + SiO2(aq) + 2H2O
 keqsld_all(findloc(chrsld_all,'fa',dim=1)) = &
@@ -2278,7 +2307,8 @@ keqsld_all(findloc(chrsld_all,'fa',dim=1)) = &
 ! kan = 10d0**(-9.12d0)*60d0*60d0*24d0*365d0 &! mol/m2/yr  
     ! & *exp(-17.8d0/rg*(1d0/(tc+273d0)-1d0/(25d0+273d0)))
 ksld_all(findloc(chrsld_all,'an',dim=1),:) = & 
-    & k_arrhenius(10d0**(-9.12d0)*sec2yr,25d0+tempk_0,tc+tempk_0,17.8d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+    & k_arrhenius(10d0**(-9.12d0)*sec2yr,25d0+tempk_0,tc+tempk_0,17.8d0,rg) &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro**1.411d0*k_arrhenius(10d0**(-3.5d0)*sec2yr,25d0+tempk_0,tc+tempk_0,16.6d0,rg) !(acid weathering from Palandri and Kharaka, 2004)
 
 ! anorthite (CaAl2Si2O8) + 2H+ + H2O --> kaolinite(Al2Si2O5(OH)4) + Ca2+ 
 ! keqan = 28.8615308d0 - 8.310989613d0
@@ -2292,7 +2322,8 @@ keqsld_all(findloc(chrsld_all,'an',dim=1)) = &
 
 
 ksld_all(findloc(chrsld_all,'cc',dim=1),:) = & 
-    & k_arrhenius(10d0**(-5.81d0)*sec2yr,25d0+tempk_0,tc+tempk_0,23.5d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+    & k_arrhenius(10d0**(-5.81d0)*sec2yr,25d0+tempk_0,tc+tempk_0,23.5d0,rg) &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro*k_arrhenius(10d0**(-0.3d0)*sec2yr,25d0+tempk_0,tc+tempk_0,14.4d0,rg) !(acid weathering from Palandri and Kharaka, 2004)
 ! kcc = kcc**merge(0.0d0,1.0d0,pco2<pco2th)
 ! kcc = 0d0
 
@@ -2302,7 +2333,9 @@ keqsld_all(findloc(chrsld_all,'cc',dim=1)) = &
 
 
 ksld_all(findloc(chrsld_all,'gb',dim=1),:) = & 
-    & k_arrhenius(10d0**(-11.50d0)*sec2yr,25d0+tempk_0,tc+tempk_0,61.2d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+    & k_arrhenius(10d0**(-11.50d0)*sec2yr,25d0+tempk_0,tc+tempk_0,61.2d0,rg) &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro**0.992d0*k_arrhenius(10d0**(-7.65d0)*sec2yr,25d0+tempk_0,tc+tempk_0,47.5d0,rg) &!(acid weathering from Palandri and Kharaka, 2004)
+    & + pro**(-0.784d0)*k_arrhenius(10d0**(-16.65d0)*sec2yr,25d0+tempk_0,tc+tempk_0,80.1d0,rg) !(alkarine weathering from Palandri and Kharaka, 2004)
 ! Al(OH)3 + 3 H+ = Al+3 + 3 H2O
 keqsld_all(findloc(chrsld_all,'gb',dim=1)) = &
     & k_arrhenius(10d0**(8.11d0),25d0+tempk_0,tc+tempk_0,-22.80d0*cal2j,rg) ! from PHREEQC.DAT 
@@ -2316,10 +2349,38 @@ keqsld_all(findloc(chrsld_all,'gt',dim=1)) = &
 
 
 ksld_all(findloc(chrsld_all,'ct',dim=1),:) = & 
-    & k_arrhenius(10d0**(-12d0)*sec2yr,25d0+tempk_0,tc+tempk_0,73.5d0,rg) !(only neutral weathering from Palandri and Kharaka, 2004)
+    & k_arrhenius(10d0**(-12d0)*sec2yr,25d0+tempk_0,tc+tempk_0,73.5d0,rg) &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro**(-0.23d0)*k_arrhenius(10d0**(-13.58d0)*sec2yr,25d0+tempk_0,tc+tempk_0,73.5d0,rg) !(alkarine weathering from Palandri and Kharaka, 2004)
 ! Mg3Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 3 Mg+2
 keqsld_all(findloc(chrsld_all,'ct',dim=1)) = &
     & k_arrhenius(10d0**(32.2),25d0+tempk_0,tc+tempk_0,-46.800d0*cal2j,rg) ! from PHREEQC.DAT 
+
+
+ksld_all(findloc(chrsld_all,'cabd',dim=1),:) = & 
+    & k_arrhenius(10d0**(-12.78d0)*sec2yr,25d0+tempk_0,tc+tempk_0,35d0,rg) &!(only neutral weathering for smectite from Palandri and Kharaka, 2004)
+    & + pro**0.34d0*k_arrhenius(10d0**(-10.98d0)*sec2yr,25d0+tempk_0,tc+tempk_0,23.6d0,rg) &!(only neutral weathering for smectite from Palandri and Kharaka, 2004)
+    & + pro**(-0.4d0)*k_arrhenius(10d0**(-16.52d0)*sec2yr,25d0+tempk_0,tc+tempk_0,58.9d0,rg) !(only neutral weathering for smectite from Palandri and Kharaka, 2004)
+! Beidellit-Ca  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .165 Ca++
+keqsld_all(findloc(chrsld_all,'cabd',dim=1)) = &
+    & k_arrhenius(10d0**(7.269946518d0),15d0+tempk_0,tc+tempk_0,-157.0186168d0,rg) ! from Kanzaki & Murakami 2018
+
+
+ksld_all(findloc(chrsld_all,'dp',dim=1),:) = & 
+    & k_arrhenius(10d0**(-11.11d0)*sec2yr,25d0+tempk_0,tc+tempk_0,50.6d0,rg) &!(only neutral weathering from Palandri and Kharaka, 2004)
+    & + pro**0.71d0*k_arrhenius(10d0**(-6.36d0)*sec2yr,25d0+tempk_0,tc+tempk_0,96.1d0,rg) !(acid weathering from Palandri and Kharaka, 2004)
+! Diopside  + 4 H+  = Ca++  + 2 H2O  + Mg++  + 2 SiO2(aq)
+keqsld_all(findloc(chrsld_all,'dp',dim=1)) = &
+    & k_arrhenius(10d0**(21.79853309d0),15d0+tempk_0,tc+tempk_0,-138.6020832d0,rg) ! from Kanzaki & Murakami 2018
+
+
+ksld_all(findloc(chrsld_all,'hb',dim=1),:) = & 
+    & k_arrhenius(10d0**(-11.97d0)*sec2yr,25d0+tempk_0,tc+tempk_0,78.0d0,rg) &!(only neutral weathering for augite from Palandri and Kharaka, 2004)
+    & + pro**0.70d0*k_arrhenius(10d0**(-6.82d0)*sec2yr,25d0+tempk_0,tc+tempk_0,78.0d0,rg) !(acid weathering for augite from Palandri and Kharaka, 2004)
+! Hedenbergite  + 4 H+  = 2 H2O  + 2 SiO2(aq)  + Fe++  + Ca++
+keqsld_all(findloc(chrsld_all,'hb',dim=1)) = &
+    & k_arrhenius(10d0**(20.20981116d0),15d0+tempk_0,tc+tempk_0,-128.5d0,rg) ! from Kanzaki & Murakami 2018
+
+
 
 
 ksld_all(findloc(chrsld_all,'py',dim=1),:) = & 
@@ -11147,7 +11208,8 @@ subroutine calc_omega_v3( &
 implicit none
 integer,intent(in)::nz
 real(kind=8):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &
-    & ,k1al,k2al,k3al,k4al,keqka,keqgb,keqct,k1fe2,k1fe2co3,k1fe2hco3,keqfa,k1fe3,k2fe3,k3fe3,k4fe3,keqgt 
+    & ,k1al,k2al,k3al,k4al,keqka,keqgb,keqct,k1fe2,k1fe2co3,k1fe2hco3,keqfa,k1fe3,k2fe3,k3fe3,k4fe3,keqgt &
+    & ,keqcabd,keqdp,keqhb
 real(kind=8),dimension(nz),intent(in):: prox
 real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x
 real(kind=8),dimension(nz),intent(out):: omega
@@ -11210,6 +11272,9 @@ k2fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h2)
 k3fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3)
 k4fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4)
 keqgt = keqsld_all(findloc(chrsld_all,'gt',dim=1))
+keqcabd = keqsld_all(findloc(chrsld_all,'cabd',dim=1))
+keqdp = keqsld_all(findloc(chrsld_all,'dp',dim=1))
+keqhb = keqsld_all(findloc(chrsld_all,'hb',dim=1))
 
 nax = 0d0
 
@@ -11271,21 +11336,25 @@ endif
 select case(trim(adjustl(mineral)))
     case('fo')
     ! Fo + 4H+ = 2Mg2+ + SiO2(aq) + 2H2O 
-        omega = mgx**2d0/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox)**2d0 &
+        omega = & 
+            & mgx**2d0/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox)**2d0 &
             & *six/(1d0+k1si/prox+k2si/prox**2d0)/prox**4d0/keqfo
         ! omega = mgx**2d0/(prox+k1mg+k1mgco3*k1*k2*kco2*pco2x/prox+k1mghco3*k1*k2*kco2*pco2x)**2d0 & 
             ! & *six/(prox**2d0+k1si*prox+k2si)/keqfo
     case('fa')
     ! Fa + 4H+ = 2Fe2+ + SiO2(aq) + 2H2O 
-        omega = fe2x**2d0/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox)**2d0 &
+        omega = & 
+            & fe2x**2d0/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox)**2d0 &
             & *six/(1d0+k1si/prox+k2si/prox**2d0)/prox**4d0/keqfa
     case('ab')
     ! NaAlSi3O8 + 4 H+ = Na+ + Al3+ + 3SiO2 + 2H2O
-        omega = nax*alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
+        omega = & 
+            & nax*alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
             & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0/prox**4d0/keqab
     case('an')
     ! CaAl2Si2O8 + 8H+ = Ca2+ + 2 Al3+ + 2SiO2 + 4H2O
-        omega = cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox) &
+        omega = & 
+            & cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox) &
             & *alx**2d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0)**2d0 &
             & *six**2d0/(1d0+k1si/prox+k2si/prox**2d0)**2d0 &
             & /prox**8d0/keqan
@@ -11315,6 +11384,27 @@ select case(trim(adjustl(mineral)))
             & mgx**3d0/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox)**3d0 &
             & *six**2d0/(1d0+k1si/prox+k2si/prox**2d0)**2d0  &
             & /prox**6d0/keqct
+    case('cabd')
+    ! Beidellit-Ca  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .165 Ca++
+        omega = &
+            & cax**(1d0/6d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox)**(1d0/6d0) &
+            & *alx**(7d0/3d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0)**(7d0/3d0) &
+            & *six**(11d0/3d0)/(1d0+k1si/prox+k2si/prox**2d0)**(11d0/3d0) &
+            & /prox**(22d0/3d0)/keqcabd
+    case('dp')
+    ! Diopside  + 4 H+  = Ca++  + 2 H2O  + Mg++  + 2 SiO2(aq)
+        omega = &
+            & cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox) &
+            & *mgx/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox) &
+            & *six**(2d0)/(1d0+k1si/prox+k2si/prox**2d0)**(2d0) &
+            & /prox**(4d0)/keqdp
+    case('hb')
+    ! Hedenbergite  + 4 H+  = 2 H2O  + 2 SiO2(aq)  + Fe++  + Ca++
+        omega = &
+            & cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox) &
+            & *fe2x/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox) &
+            & *six**(2d0)/(1d0+k1si/prox+k2si/prox**2d0)**(2d0) &
+            & /prox**(4d0)/keqhb
     case('py')
     ! omega is defined so that kpy*poro*hr*mvpy*1d-6*mpyx*(1d0-omega_py) = kpy*poro*hr*mvpy*1d-6*mpyx*po2x**0.5d0
     ! i.e., 1.0 - omega_py = po2x**0.5 
@@ -11414,7 +11504,8 @@ select case(trim(adjustl(rxn_name)))
         rxn_ext = vmax*po2x/(po2x+mo2)
         ! rxn_ext = vmax*merge(0d0,po2x/(po2x+mo2),(po2x <po2th).or.(isnan(po2x/(po2x+mo2))))
     case('fe2o2')
-        rxn_ext = poro*sat*1d3*koxa*fe2x*po2x
+        rxn_ext = poro*sat*1d3*koxa*fe2x*po2x &
+            & *merge(0d0,1d0,po2x < po2th .or. fe2x < fe2th)
 endselect
 
 endsubroutine calc_rxn_ext_v2
@@ -11423,25 +11514,6 @@ endsubroutine calc_rxn_ext_v2
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine checkfile(fname,oxj)
-implicit none
-character(*),intent(in)::fname
-integer,intent(out)::oxj
-
-open(998,file=trim(fname),status='old',err=999)
-close(998)
-write(6,'(3A)')"file '",fname,"' exist"
-oxj=1
-return
-
-999 continue
-close(998)
-write(6,'(3A)')"file '",fname,"' don't exist"
-oxj=0
-
-return
-end subroutine checkfile
 
 !ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 function k_arrhenius(kref,tempkref,tempk,eapp,rg)
