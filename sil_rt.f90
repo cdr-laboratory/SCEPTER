@@ -9085,10 +9085,10 @@ real(kind=8)::threshold = 10d0
 ! real(kind=8)::threshold = 100d0
 real(kind=8),dimension(nz)::zeros  
 
-logical print_cb
+logical print_cb,ph_error
 character(500) print_loc
 
-integer,parameter :: iter_max = 100
+integer,parameter :: iter_max = 50
 
 real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
 integer ipiv3(nsp3*nz)
@@ -9140,8 +9140,13 @@ if (it ==0) then
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqc,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
         & ,print_cb,print_loc,z &! input 
-        & ,prox &! output
+        & ,prox,ph_error &! output
         & ) 
+    if (ph_error) then 
+        dt = dt/10d0
+        flgback = .true.
+        return
+    endif 
 else 
 
     ! call calc_pH_v3( &
@@ -9161,8 +9166,13 @@ else
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
         & ,print_cb,print_loc,z &! input 
-        & ,prox &! output
+        & ,prox,ph_error &! output
         & ) 
+    if (ph_error) then 
+        dt = dt/10d0
+        flgback = .true.
+        return
+    endif 
 endif
 
 ! print *, 'starting silciate calculation'
@@ -9190,8 +9200,13 @@ do while ((.not.isnan(error)).and.(error > tol))
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
         & ,print_cb,print_loc,z &! input 
-        & ,prox &! output
+        & ,prox,ph_error &! output
         & ) 
+    if (ph_error) then 
+        dt = dt/10d0
+        flgback = .true.
+        exit
+    endif 
     do ispa=1,nsp_aq
         dmaq = 0d0
         dmgas = 0d0
@@ -9212,7 +9227,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
                 & ,maqx+dmaq,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
                 & ,print_cb,print_loc,z &! input 
-                & ,dprodmaq(ispa,:) &! output
+                & ,dprodmaq(ispa,:),ph_error &! output
                 & ) 
             dprodmaq(ispa,:) = (dprodmaq(ispa,:) - prox(:))/dconc
         endif 
@@ -9239,7 +9254,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
                 & ,maqx,maqc,mgasx+dmgas,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
                 & ,print_cb,print_loc,z &! input 
-                & ,dprodmgas(ispg,:) &! output
+                & ,dprodmgas(ispg,:),ph_error &! output
                 & ) 
             dprodmgas(ispg,:) = (dprodmgas(ispg,:) - prox(:))/dconc
         endif 
@@ -9297,7 +9312,8 @@ do while ((.not.isnan(error)).and.(error > tol))
         do ispa = 1, nsp_aq
             dmaq = 0d0
             dmgas = 0d0
-            if (any (chraq_ph == chraq(ispa))) then 
+            ! if (any (chraq_ph == chraq(ispa))) then 
+            if (any (chraq_ph == chraq(ispa)) .or. staq(isps,ispa)/=0d0 ) then 
                 dmaq(ispa,:) = dconc
                 ! call calc_omega_v2( &
                     ! & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! inpuy
@@ -9325,7 +9341,8 @@ do while ((.not.isnan(error)).and.(error > tol))
         do ispg = 1, nsp_gas
             dmaq = 0d0
             dmgas = 0d0
-            if (any (chrgas_ph == chrgas(ispg))) then 
+            ! if (any (chrgas_ph == chrgas(ispg))) then 
+            if (any (chrgas_ph == chrgas(ispg)) .or. stgas(isps,ispg)/=0d0) then 
                 dmgas(ispg,:) = dconc
                 ! call calc_omega_v2( &
                     ! & nz,keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! inpuy
@@ -10026,7 +10043,7 @@ do while ((.not.isnan(error)).and.(error > tol))
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
         & ,print_cb,print_loc,z &! input 
-        & ,prox &! output
+        & ,prox,ph_error &! output
         & ) 
 
     co2 = kco2*mgasx(findloc(chrgas,'pco2',dim=1),:)
@@ -10106,7 +10123,7 @@ call calc_pH_v5( &
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
     & ,print_cb,print_loc,z &! input 
-    & ,prox &! output
+    & ,prox,ph_error &! output
     & ) 
 
 ! saturation state calc. and their derivatives wrt aq and gas species
@@ -10453,7 +10470,7 @@ real(kind=8)::threshold = 10d0
 ! real(kind=8)::threshold = 100d0
 real(kind=8),dimension(nz)::zeros  
 
-logical print_cb
+logical print_cb,ph_error
 character(500) print_loc
 
 integer,parameter :: iter_max = 100
@@ -10508,7 +10525,7 @@ if (it ==0) then
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqc,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
         & ,print_cb,print_loc,z &! input 
-        & ,prox &! output
+        & ,prox,ph_error &! output
         & ) 
 else 
 
@@ -10529,7 +10546,7 @@ else
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
         & ,print_cb,print_loc,z &! input 
-        & ,prox &! output
+        & ,prox,ph_error &! output
         & ) 
 endif
 
@@ -10558,7 +10575,7 @@ do while ((.not.isnan(error)).and.(error > tol))
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
         & ,print_cb,print_loc,z &! input 
-        & ,prox &! output
+        & ,prox,ph_error &! output
         & ) 
     do ispa=1,nsp_aq
         dmaq = 0d0
@@ -10580,7 +10597,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
                 & ,maqx+dmaq,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
                 & ,print_cb,print_loc,z &! input 
-                & ,dprodmaq(ispa,:) &! output
+                & ,dprodmaq(ispa,:),ph_error &! output
                 & ) 
             dprodmaq(ispa,:) = (dprodmaq(ispa,:) - prox(:))/dconc
         endif 
@@ -10607,7 +10624,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
                 & ,maqx,maqc,mgasx+dmgas,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
                 & ,print_cb,print_loc,z &! input 
-                & ,dprodmgas(ispg,:) &! output
+                & ,dprodmgas(ispg,:),ph_error &! output
                 & ) 
             dprodmgas(ispg,:) = (dprodmgas(ispg,:) - prox(:))/dconc
         endif 
@@ -11350,7 +11367,7 @@ do while ((.not.isnan(error)).and.(error > tol))
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
         & ,print_cb,print_loc,z &! input 
-        & ,prox &! output
+        & ,prox,ph_error &! output
         & ) 
 
     co2 = kco2*mgasx(findloc(chrgas,'pco2',dim=1),:)
@@ -11429,7 +11446,7 @@ call calc_pH_v5( &
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
     & ,print_cb,print_loc,z &! input 
-    & ,prox &! output
+    & ,prox,ph_error &! output
     & ) 
 
 ! saturation state calc. and their derivatives wrt aq and gas species

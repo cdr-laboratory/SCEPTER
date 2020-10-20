@@ -11,32 +11,41 @@ program weathering
 !! converted to f90 from o2profile+silweath+o2_v9_7.f
 implicit none 
 
-integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nz
 character(5),dimension(:),allocatable::chraq,chrsld,chrgas,chrrxn_ext 
 character(500) sim_name
+real(kind=8) ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80
 
 call get_variables_num( &
     & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
     & )
 
-print *,nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+! print *,nsp_sld,nsp_aq,nsp_gas,nrxn_ext
 
 allocate(chraq(nsp_aq),chrsld(nsp_sld),chrgas(nsp_gas),chrrxn_ext(nrxn_ext))
+
     
 call get_variables( &
     & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! input
     & ,chraq,chrgas,chrsld,chrrxn_ext &! output
-    & )
+    & ) 
     
 print *,chraq
 print *,chrsld 
 print *,chrgas 
 print *,chrrxn_ext 
 
-sim_name = 'all_kfs'
+! pause
 
+sim_name = 'chkchk'
+
+call get_bsdvalues( &
+    & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name &! output
+    & )
+    
 call weathering_main( &
-    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name &! input
+    & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,ttot  &! input
+    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name &! input
     & )
 
 endprogram weathering
@@ -47,16 +56,18 @@ endprogram weathering
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
  
 subroutine weathering_main( &
-    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name &! input
+    & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,ttot  &! input
+    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name &! input
     & )
 
 implicit none
 
 !-----------------------------
 
-real(kind=8) :: ztot = 3.0d0 ! m
+real(kind=8),intent(in) :: ztot != 3.0d0 ! m
+real(kind=8),intent(in) :: ttot  ! yr
 ! real(kind=8) dz
-integer, parameter :: nz = 30 
+integer,intent(in) :: nz != 30 
 real(kind=8) z(nz),dz(nz)
 real(kind=8) ze(nz+1)
 real(kind=8) :: ph = 5.0d0
@@ -128,7 +139,7 @@ real(kind=8) :: silwti = 1d-10 ! wt%
 
 ! real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
 ! real(kind=8)::rainpowder = 0.5d2 !  g/m2/yr corresponding to 0.5 t/ha/yr (0.5x1e3x1e3/1e4)
-real(kind=8)::rainpowder = 30d2 !  g/m2/yr 
+real(kind=8),intent(in)::rainpowder != 30d2 !  g/m2/yr 
 ! real(kind=8)::rainpowder = 10d2 !  g/m2/yr corresponding to 10 t/ha/yr (0.5x1e3x1e3/1e4)
 
 real(kind=8)::rainfrc_fo = 0.12d0 ! rain wt fraction for Fo (Beering et al 2020)
@@ -145,7 +156,7 @@ real(kind=8)::rainfrc_dp = 0.189d0 ! rain wt fraction for dp; 0.21 for augite an
 real(kind=8)::rainfrc_hb = 0.021d0 ! rain wt fraction for hb; 0.21 for augite and assuming 0.1 of augite is from hedenbergite (Beering et al 2020)
 real(kind=8)::rainfrc_kfs = 0.06d0 ! rain wt fraction for kfs (Beering et al 2020)
 
-real(kind=8)::zsupp = 0.3d0 !  e-folding decrease
+real(kind=8),intent(in)::zsupp != 0.3d0 !  e-folding decrease
 
 real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz), deff(nz)
 real(kind=8) :: dgaso = 6.09d2 ! m^2 yr^-1
@@ -154,13 +165,13 @@ real(kind=8) :: dgasc = 441.504d0 ! m^2 yr^-1 (Assuming 0.14 cm2/sec)
 real(kind=8) :: daqc = 0.022459852 ! m^2 yr^-1 (for C32- from Li and Gregory 1974)
 
 ! real(kind=8) :: poroi = 0.1d0 !*** default
-real(kind=8) :: poroi = 0.5d0
+real(kind=8),intent(in) :: poroi != 0.5d0
 
 real(kind=8) :: sati = 0.50d0
-real(kind=8) :: satup = 0.10d0
+real(kind=8),intent(in) :: satup != 0.10d0
 
 ! real(kind=8) :: zsat = 30d0  ! water table depth [m] ** default 
-real(kind=8) :: zsat = 5d0  ! water table depth [m] 
+real(kind=8),intent(in) :: zsat != 5d0  ! water table depth [m] 
 ! real(kind=8) :: zsat = 15d0
 
 real(kind=8) :: dfe2 = 1.7016d-2 ! m^2 yr^-1 ! at 15 C; Li and Gregory 
@@ -172,14 +183,14 @@ real(kind=8) :: dsi  = 0.03689712d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory
 real(kind=8) :: dca  = 0.019023312d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory 
 real(kind=8) :: dal  = 0.011656226d0   ! m^2 yr^-1 ! at 15 C; Li and Gregory 
 
-real(kind=8) :: w = 5.0d-5 ! m yr^-1, uplift rate ** default 
+real(kind=8),intent(in) :: w != 5.0d-5 ! m yr^-1, uplift rate ** default 
 ! real(kind=8), parameter :: w = 1.0d-4 ! m yr^-1, uplift rate
 
 real(kind=8), parameter :: vcnst = 1.0d1 ! m yr^-1, advection
 ! real(kind=8), parameter :: qin = 5d-3 ! m yr^-1, advection (m3 water / m2 profile / yr)
 
 ! real(kind=8) :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)  ** default
-real(kind=8) :: qin = 10d-1 ! m yr^-1 
+real(kind=8),intent(in) :: qin != 10d-1 ! m yr^-1 
 ! real(kind=8) :: qin = 0.1d-1 ! m yr^-1 
 real(kind=8) v(nz), q
 
@@ -188,7 +199,7 @@ real(kind=8) v(nz), q
 real(kind=8) :: hrii = 1d5
 
 ! real(kind=8) :: p80 = 10d-6 ! m (**default?)
-real(kind=8) :: p80 = 1d-6 ! m 
+real(kind=8),intent(in) :: p80 != 1d-6 ! m 
 
 real(kind=8) msi,msili,mfoi,mabi,mani,mcci,ctmp,po2tmp,ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save &
     & ,mkai,mvka_save,mvgb_save,mcti
@@ -415,9 +426,11 @@ integer ::ibsd != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
 
 real(kind=8) dt_prev
 
-logical print_cb
+logical print_cb,ph_error
 character(500) print_loc
 character(500),intent(in):: sim_name
+
+real(kind=8) def_dust,def_rain,def_pr
 !-------------------------
 
 nsp_sld_cnst = nsp_sld_all - nsp_sld
@@ -434,6 +447,7 @@ ibsd = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
 ! define all species and rxns definable in the model 
 ! note that rxns here exclude diss(/prec) of mineral 
 ! which are automatically included when associated mineral is chosen
+
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
@@ -497,19 +511,61 @@ if (nsp_sld_cnst .ne. 0) then
     ! pause 
 endif 
 
-! assume 0 concs for all consntant species
-mgasc = 0d0
-maqc = 0d0
-msldc = 0d0
+! molar volume 
+
+mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs/)
+mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs/)
+
+do isps = 1, nsp_sld 
+    mv(isps) = mv_all(findloc(chrsld_all,chrsld(isps),dim=1))
+    mwt(isps) = mwt_all(findloc(chrsld_all,chrsld(isps),dim=1))
+enddo 
 
 ! initial values for all species 
-mgasi_all = (/pco2i,po2i/)
+! mgasi_all = (/pco2i,po2i/)
 
-msldi_all = 1d-10
-msldi_all(findloc(chrsld_all,'ab',dim=1)) =  silwti*1d-2/262.2d0*2.7d0*(1.0d0-poroi)*1d6  
-msldi_all(findloc(chrsld_all,'py',dim=1)) =  redsldi*1d-2/120.0d0*2.7d0*(1.0d0-poroi)*1d6  
+! msldi_all = 1d-10
+! msldi_all(findloc(chrsld_all,'ab',dim=1)) =  silwti*1d-2/262.2d0*2.7d0*(1.0d0-poroi)*1d6  
+! msldi_all(findloc(chrsld_all,'py',dim=1)) =  redsldi*1d-2/120.0d0*2.7d0*(1.0d0-poroi)*1d6  
 
-maqi_all = 0d0
+! maqi_all = 0d0
+    
+def_rain = 0d0
+def_pr = 1d-20
+    
+call get_rainwater( &
+    & nsp_aq_all,chraq_all,def_rain &! input
+    & ,maqi_all &! output
+    & )
+    
+call get_parentrock( &
+    & nsp_sld_all,chrsld_all,def_pr &! input
+    & ,msldi_all &! output
+    & )
+
+msldi_all = msldi_all/mwt_all*2.7d0*(1d0-poroi)*1d6
+
+call get_atm( &
+    & nsp_gas_all,chrgas_all &! input
+    & ,mgasi_all &! output
+    & )
+
+print*,maqi_all 
+print*,mgasi_all 
+print*,msldi_all
+
+pause
+
+! constant values are taken from the boundary values specified above 
+do ispg = 1,nsp_gas_cnst
+    mgasc(ispg,:) = mgasi_all(findloc(chrgas_all,chrgas_cnst(ispg),dim=1))
+enddo 
+do ispa = 1,nsp_aq_cnst
+    maqc(ispa,:) = maqi_all(findloc(chraq_all,chraq_cnst(ispa),dim=1))
+enddo 
+do isps = 1,nsp_sld_cnst
+    msldc(isps,:) = msldi_all(findloc(chrsld_all,chrsld_cnst(isps),dim=1))
+enddo 
 
 ! threshould values 
 mgasth_all = 1d-20
@@ -537,15 +593,11 @@ do ispg = 1, nsp_gas
     endif 
 enddo 
 
-! molar volume 
+print*,maqi 
+print*,mgasi
+print*,msldi
 
-mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs/)
-mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs/)
-
-do isps = 1, nsp_sld 
-    mv(isps) = mv_all(findloc(chrsld_all,chrsld(isps),dim=1))
-    mwt(isps) = mwt_all(findloc(chrsld_all,chrsld(isps),dim=1))
-enddo 
+pause
 
 ! stoichiometry
 ! mineral dissolution(/precipitation)
@@ -680,20 +732,37 @@ do irxn = 1, nrxn_ext
     endif 
 enddo 
 
-rfrc_sld_all = 0d0 
-rfrc_sld_all(findloc(chrsld_all,'fo',dim=1)) = rainfrc_fo/mwtfo
-rfrc_sld_all(findloc(chrsld_all,'an',dim=1)) = rainfrc_an/mwtan
-rfrc_sld_all(findloc(chrsld_all,'ab',dim=1)) = rainfrc_ab/mwtab
-rfrc_sld_all(findloc(chrsld_all,'fa',dim=1)) = rainfrc_fa/mwtfa
-rfrc_sld_all(findloc(chrsld_all,'dp',dim=1)) = rainfrc_dp/mwtdp
-rfrc_sld_all(findloc(chrsld_all,'hb',dim=1)) = rainfrc_hb/mwthb
-rfrc_sld_all(findloc(chrsld_all,'kfs',dim=1)) = rainfrc_kfs/mwtkfs
+! rfrc_sld_all = 0d0 
+! rfrc_sld_all(findloc(chrsld_all,'fo',dim=1)) = rainfrc_fo/mwtfo
+! rfrc_sld_all(findloc(chrsld_all,'an',dim=1)) = rainfrc_an/mwtan
+! rfrc_sld_all(findloc(chrsld_all,'ab',dim=1)) = rainfrc_ab/mwtab
+! rfrc_sld_all(findloc(chrsld_all,'fa',dim=1)) = rainfrc_fa/mwtfa
+! rfrc_sld_all(findloc(chrsld_all,'dp',dim=1)) = rainfrc_dp/mwtdp
+! rfrc_sld_all(findloc(chrsld_all,'hb',dim=1)) = rainfrc_hb/mwthb
+! rfrc_sld_all(findloc(chrsld_all,'kfs',dim=1)) = rainfrc_kfs/mwtkfs
+
+def_dust = 0d0
+    
+call get_dust( &
+    & nsp_sld_all,chrsld_all,def_dust &! input
+    & ,rfrc_sld_all &! output
+    & )
+
+rfrc_sld_all = rfrc_sld_all/mwt_all
+
 
 do isps = 1, nsp_sld 
     rfrc_sld(isps) = rfrc_sld_all(findloc(chrsld_all,chrsld(isps),dim=1))
 enddo
 
-rectime =rectime/1d4 
+
+do while (rectime(nrec)>ttot) 
+    rectime = rectime/10d0
+enddo 
+do while (rectime(nrec)<ttot) 
+    rectime = rectime*10d0
+enddo 
+! rectime =rectime/1d4 
 ! rectime =rectime/1d3 ! better with basalt exp? max 12000 yr 
 ! rectime =rectime/2d0
 ! rectime=rectime*3d0 
@@ -969,7 +1038,7 @@ call calc_pH_v5( &
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
     & ,print_cb,print_loc,z &! input 
-    & ,pro &! output
+    & ,pro,ph_error &! output
     & ) 
 
 poroprev = poro
@@ -1081,6 +1150,7 @@ call coefs_v2( &
     & ) 
     
 ! --------- loop -----
+print *, 'about to start time loop'
 it = 0
 irec = 0
 
@@ -1390,6 +1460,7 @@ do while (it<nt)
         call precalc_aqs( &
             & nz,dt,v,dz,tora,poro,sat,hr &! input 
             & ,nsp_aq,nsp_sld,daq,maqth,maqi,maq,mv,msldx,ksld,staq &! input
+            & ,nrxn_ext,staq_ext,rxnext &! input
             & ,maqx &! output
             & )
 
@@ -1817,7 +1888,7 @@ do while (it<nt)
             & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
             & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
             & ,print_cb,print_loc,z &! input 
-            & ,prox &! output
+            & ,prox,ph_error &! output
             & ) 
         
         open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
@@ -1993,40 +2064,259 @@ character(5),dimension(nrxn_ext),intent(out)::chrrxn_ext
 character(500) file_name
 integer ispa,ispg,isps,irxn
 
-file_name = './solutes.in'
-open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
-read(50,'()')
-do ispa =1,nsp_aq
-    read(50,*) chraq(ispa) 
-enddo 
-close(50)
+if (nsp_aq>=1) then 
+    file_name = './solutes.in'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do ispa =1,nsp_aq
+        read(50,*) chraq(ispa) 
+    enddo 
+    close(50)
+endif 
 
-file_name = './slds.in'
-open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
-read(50,'()')
-do isps =1,nsp_sld
-    read(50,*) chrsld(isps) 
-enddo  
-close(50)
+if (nsp_sld>=1) then 
+    file_name = './slds.in'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do isps =1,nsp_sld
+        read(50,*) chrsld(isps) 
+    enddo  
+    close(50)
+endif 
 
-file_name = './gases.in'
-open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
-read(50,'()')
-do ispg =1,nsp_gas
-    read(50,*) chrgas(ispg) 
-enddo 
-close(50)
+if (nsp_gas>=1) then 
+    file_name = './gases.in'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do ispg =1,nsp_gas
+        read(50,*) chrgas(ispg) 
+    enddo 
+    close(50)
+endif 
 
-file_name = './extrxns.in'
-open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
-read(50,'()')
-do irxn =1,nrxn_ext
-    read(50,*) chrrxn_ext(irxn) 
-enddo 
-close(50)
-
+if (nrxn_ext>=1) then 
+    file_name = './extrxns.in'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do irxn =1,nrxn_ext
+        read(50,*) chrrxn_ext(irxn) 
+    enddo 
+    close(50)
+endif 
 
 endsubroutine get_variables
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_bsdvalues( &
+    & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name &! output
+    & )
+implicit none
+
+integer,intent(out):: nz
+real(kind=8),intent(out)::ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80
+character(500),intent(out)::sim_name
+
+character(500) file_name
+
+file_name = './frame.in'
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+read(50,*) ztot
+read(50,*) nz
+read(50,*) ttot
+read(50,*) rainpowder
+read(50,*) zsupp
+read(50,*) poroi
+read(50,*) satup
+read(50,*) zsat
+read(50,*) w
+read(50,*) qin
+read(50,*) p80
+read(50,*) sim_name
+close(50)
+
+print*,'nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name'
+print*,nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name
+
+endsubroutine get_bsdvalues
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_rainwater( &
+    & nsp_aq_all,chraq_all,def_rain &! input
+    & ,rain_all &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_aq_all
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+real(kind=8),dimension(nsp_aq_all),intent(out)::rain_all
+real(kind=8),intent(in)::def_rain 
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i,n_tmp
+
+file_name = './rain.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+
+! in default 
+rain_all = def_rain
+
+if (n_tmp <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,n_tmp
+    read(50,*) chr_tmp,val_tmp
+    if (any(chraq_all == chr_tmp)) then 
+        rain_all(findloc(chraq_all,chr_tmp,dim=1)) = val_tmp
+    endif 
+enddo 
+close(50)
+
+
+endsubroutine get_rainwater
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_dust( &
+    & nsp_sld_all,chrsld_all,def_dust &! input
+    & ,dust_frct_all &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld_all
+character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
+real(kind=8),dimension(nsp_sld_all),intent(out)::dust_frct_all
+real(kind=8),intent(in)::def_dust 
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i,n_tmp
+
+file_name = './dust.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+
+! in default 
+dust_frct_all = def_dust
+
+if (n_tmp <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,n_tmp
+    read(50,*) chr_tmp,val_tmp
+    if (any(chrsld_all == chr_tmp)) then 
+        dust_frct_all(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp
+    endif 
+enddo 
+close(50)
+
+
+endsubroutine get_dust
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_parentrock( &
+    & nsp_sld_all,chrsld_all,def_pr &! input
+    & ,parentrock_frct_all &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld_all
+character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
+real(kind=8),dimension(nsp_sld_all),intent(out)::parentrock_frct_all
+real(kind=8),intent(in)::def_pr 
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i,n_tmp
+
+file_name = './parentrock.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+
+! in default 
+parentrock_frct_all = def_pr
+
+if (n_tmp <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,n_tmp
+    read(50,*) chr_tmp,val_tmp
+    if (any(chrsld_all == chr_tmp)) then 
+        parentrock_frct_all(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp
+    endif 
+enddo 
+close(50)
+
+
+endsubroutine get_parentrock
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_atm( &
+    & nsp_gas_all,chrgas_all &! input
+    & ,atm_all &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_gas_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+real(kind=8),dimension(nsp_gas_all),intent(out)::atm_all
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i,n_tmp
+
+file_name = './atm.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+
+! in default 
+atm_all(findloc(chrgas_all,'po2',dim=1)) = 0.21d0
+atm_all(findloc(chrgas_all,'pco2',dim=1)) = 10d0**(-3.5d0)
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,n_tmp
+    read(50,*) chr_tmp,val_tmp
+    if (any(chrgas_all == chr_tmp)) then 
+        atm_all(findloc(chrgas_all,chr_tmp,dim=1)) = val_tmp
+    endif 
+enddo 
+close(50)
+
+
+endsubroutine get_atm
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -2048,7 +2338,8 @@ do
     i = i + 1
 end do 
 
-99 print *, i
+! 99 print *, i
+99 continue
 close(9)
 
 end subroutine Console4
@@ -3568,6 +3859,7 @@ endsubroutine precalc_pw_sil_v2
 subroutine precalc_aqs( &
     & nz,dt,v,dz,tora,poro,sat,hr &! input 
     & ,nsp_aq,nsp_sld,daq,maqth,maqi,maq,mv,msldx,ksld,staq &! input
+    & ,nrxn_ext,staq_ext,rxnext &! input
     & ,maqx &! output
     & )
 implicit none
@@ -3578,17 +3870,19 @@ real(kind=8)::nath,dna,nai,rxn_tmp
 real(kind=8),dimension(nz),intent(in)::v,tora,poro,sat,hr,dz
 real(kind=8),dimension(nz)::na,nax
 
-integer iz,ispa,isps
+integer iz,ispa,isps,irxn
 real(kind=8) ctmp,edifi,ediftmp
 real(kind=8),dimension(nz)::edif
 
-integer,intent(in)::nsp_aq,nsp_sld
+integer,intent(in)::nsp_aq,nsp_sld,nrxn_ext
 real(kind=8),dimension(nsp_aq),intent(in)::daq,maqth,maqi
 real(kind=8),dimension(nsp_aq,nz),intent(in)::maq
 real(kind=8),dimension(nsp_sld),intent(in)::mv
 real(kind=8),dimension(nsp_sld,nz),intent(in)::msldx,ksld
 real(kind=8),dimension(nsp_sld,nsp_aq),intent(in)::staq
 real(kind=8),dimension(nsp_aq,nz),intent(inout)::maqx
+real(kind=8),dimension(nrxn_ext,nz),intent(in)::rxnext
+real(kind=8),dimension(nrxn_ext,nsp_aq),intent(in)::staq_ext
 
 if (nsp_aq == 0 ) return
 
@@ -3619,6 +3913,13 @@ do ispa = 1, nsp_aq
             if (staq(isps,ispa)>0d0) then 
                 rxn_tmp = rxn_tmp  &
                     & + staq(isps,ispa)*ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz)
+            endif 
+        enddo 
+        
+        do irxn = 1, nrxn_ext
+            if (staq(irxn,ispa)>0d0) then 
+                rxn_tmp = rxn_tmp  &
+                    & + staq_ext(irxn,ispa)*rxnext(irxn,iz)
             endif 
         enddo 
         
@@ -10916,7 +11217,7 @@ subroutine calc_pH_v5( &
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c &! input
     & ,print_cb,print_loc,z &! input 
-    & ,prox &! output
+    & ,prox,ph_error &! output
     & ) 
 ! solving charge balance:
 ! [H+] + ZX[Xz+] - ZY[YZ-] - [HCO3-] - 2[CO32-] - [OH-] - [H3SiO4-] - 2[H2SiO42-] = 0
@@ -10933,6 +11234,7 @@ real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1
 real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x,kx
 real(kind=8),dimension(nz),intent(in)::z
 real(kind=8),dimension(nz),intent(inout)::prox
+logical,intent(out)::ph_error
 
 real(kind=8),dimension(nz)::df,f,netcat
 real(kind=8) error,tol
@@ -11059,6 +11361,13 @@ if (any(chrgas=='pco2')) then
 elseif (any(chrgas_cnst=='pco2')) then 
     pco2x = mgasc(findloc(chrgas_cnst,'pco2',dim=1),:)
 endif 
+
+if (any(isnan(maqx)) .or. any(isnan(maqc))) then 
+    print*,'nan in input aqueosu species'
+    stop
+endif 
+
+200 continue
 
 ! print*,'calc_pH'
 do while (error > tol)
@@ -11189,24 +11498,84 @@ do while (error > tol)
         & - fe3x*k4fe3/prox**2d0*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0)**2d0 &
         &   *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0)
     df = df*prox
-    ! if (any(isnan(-f/df)) .or. any(isnan(exp(-f/df)))) then 
-        ! print *,any(isnan(-f/df)),any(isnan(exp(-f/df)))
-        ! print *,-f/df
-    ! endif 
+    if (any(isnan(-f/df)) .or. any(isnan(exp(-f/df)))) then 
+        print *,any(isnan(-f/df)),any(isnan(exp(-f/df)))
+        print *,-f/df
+        print *,f
+        print *,df
+        print *,prox
+        print * &
+        & ,any(isnan(prox**3d0)), any(isnan(+ netcat*prox**2d0)), any(isnan(- (k1*kco2*pco2x+kw)*prox)) &
+        & ,any(isnan( - 2d0*k2*k1*kco2*pco2x )) &
+        & ,'si' &
+        ! & - six*prox**2d0/(prox/k1si + 1d0 + k2si/k1si/prox)  &
+        ! & - 2d0*six*prox**2d0/(prox**2d0/k2si + prox*k1si/k2si + 1d0) &
+        & ,any(isnan(- six*k1si*prox/(1d0+k1si/prox+k2si/prox**2d0))) &
+        & ,any(isnan(- 2d0*six*k2si/(1d0+k1si/prox+k2si/prox**2d0))) &
+        & ,'mg' &
+        & ,any(isnan(+ 2d0*mgx*prox**2d0/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox))) &
+        ! & + mgx*prox**2d0/(prox/(k1mghco3*k1*k2*kco2*pco2x)+k1mg/(k1mghco3*k1*k2*kco2*pco2x)+k1mgco3/k1mghco3/prox+1d0) &
+        & ,any(isnan(+ mgx*k1mg*prox/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox))) &
+        & ,any(isnan(+ mgx*k1mghco3*k1*k2*kco2*pco2x*prox &
+        &       /(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox))) &
+        & ,'ca' &
+        & ,any(isnan(+ 2d0*cax*prox**2d0/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox))) &
+        ! & + cax*prox**2d0/(prox/(k1cahco3*k1*k2*kco2*pco2x)+k1ca/(k1cahco3*k1*k2*kco2*pco2x)+k1caco3/k1cahco3/prox+1d0) &
+        & ,any(isnan(+ cax*k1ca*prox/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox))) &
+        & ,any(isnan(+ cax*k1cahco3*k1*k2*kco2*pco2x*prox &
+        &       /(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox))) &
+        & ,'al' &
+        & ,any(isnan(+ 3d0*alx*prox**2d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0))) &
+        & ,any(isnan(+ 2d0*alx*k1al*prox/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0))) &
+        & ,any(isnan(+ alx*k2al/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0))) &
+        & ,any(isnan(- alx*k4al/prox**2d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0))) &
+        & ,'fe2' &
+        & ,any(isnan(+ 2d0*fe2x*prox**2d0/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox))) &
+        ! & + fe2x*prox**2d0/(prox/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2/(k1fe2hco3*k1*k2*kco2*pco2x)+k1fe2co3/k1fe2hco3/prox+1d0) &
+        & ,any(isnan(+ fe2x*k1fe2*prox/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox))) &
+        & ,any(isnan(+ fe2x*k1fe2hco3*k1*k2*kco2*pco2x*prox &
+        &       /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox))) &
+        & ,'fe3'  &
+        & ,any(isnan(+ 3d0*fe3x*prox**2d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0))) &
+        & ,any(isnan(+ 2d0*fe3x*k1fe3*prox/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0))) &
+        & ,any(isnan(+ fe3x*k2fe3/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0))) &
+        & ,any(isnan(- fe3x*k4fe3/prox**2d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0)))  &
+        & ,any(isnan(- fe3x*k4fe3/prox**2d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0)))  
+        ! stop
+        ! prox = 10d0
+        ! prox = -netcat
+        ! goto 200
+    endif 
     prox = prox*exp( -f/df )
+    ! do iz = 1, nz
+        ! if (-f(iz)/df(iz) > 100d0) then 
+            ! prox(iz) = prox(iz)*1.5d0
+        ! elseif (-f(iz)/df(iz) > -100d0) then 
+            ! prox(iz) = prox(iz)*0.5d0
+        ! else 
+            ! prox(iz) = prox(iz)*exp( -f(iz)/df(iz) )
+        ! endif 
+    ! enddo
     error = maxval(abs(exp( -f/df )-1d0))
+    if (isnan(error)) error = 1d4
     ! print*, iter,error
     ! print*,  (-log10(prox(iz)),iz=1,nz,nz/5)
     ! print*,  (-log10(f(iz)),iz=1,nz,nz/5)
     ! print*,  (-log10(df(iz)),iz=1,nz,nz/5)
     ! pause
     ! stop
+    ! where (prox == 0)
+        ! prox = 1d-14
+    ! endwhere
+    
     iter = iter + 1
 enddo 
-
+ph_error = .false.
 if (any(isnan(prox))) then     
     print *, (-log10(prox(iz)),iz=1,nz,nz/5)
-    stop
+    print*,'ph is nan'
+    ph_error = .true.
+    ! stop
 endif 
 
 if (print_cb) then 
