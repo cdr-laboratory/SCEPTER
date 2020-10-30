@@ -17,20 +17,57 @@ for i in intlist:
         runname = simlist[i-1]
         break
 
-simlist = glob.glob(outdir+runname+'/o2profile-res-01*.txt')
+simlist = glob.glob(outdir+runname+'/prof_sld-01*.txt')
 datalist = []
+name_read_done = False
 for i in simlist:
-    datalist.append(np.loadtxt(i))
+    datalist.append(np.loadtxt(i,skiprows=1))
+    if not name_read_done:
+        with open(i) as f:
+            line = f.readline()
+            print(line)
+            sld_namelist = line.split()
+            print(sld_namelist)
+            f.close()
+            name_read_done = True
 
-simlist = glob.glob(outdir+runname+'/o2profile-res(rate)-01*.txt')
+simlist = glob.glob(outdir+runname+'/sat_sld-01*.txt')
 ratelist = []
 for i in simlist:
-    ratelist.append(np.loadtxt(i))
+    ratelist.append(np.loadtxt(i,skiprows=1))
 
-simlist = glob.glob(outdir+runname+'/o2profile-bsd-01*.txt')
+simlist = glob.glob(outdir+runname+'/prof_aq-01*.txt')
+aqlist = []
+name_read_done = False
+for i in simlist:
+    aqlist.append(np.loadtxt(i,skiprows=1))
+    if not name_read_done:
+        with open(i) as f:
+            line = f.readline()
+            print(line)
+            aq_namelist = line.split()
+            print(aq_namelist)
+            f.close()
+            name_read_done = True
+
+simlist = glob.glob(outdir+runname+'/prof_gas-01*.txt')
+gaslist = []
+name_read_done = False
+for i in simlist:
+    gaslist.append(np.loadtxt(i,skiprows=1))
+    if not name_read_done:
+        with open(i) as f:
+            line = f.readline()
+            print(line)
+            gas_namelist = line.split()
+            print(gas_namelist)
+            f.close()
+            name_read_done = True
+
+simlist = glob.glob(outdir+runname+'/bsd-01*.txt')
 baselist = []
 for i in simlist:
-    baselist.append(np.loadtxt(i))
+    baselist.append(np.loadtxt(i,skiprows=1))
 
 agelist = []
 for i in range(len(datalist)):
@@ -79,6 +116,8 @@ numplt = [
     ,[(1,':',porochar),(5,'-','SA')]
     ]
     
+linelist = ['-',':','-.','--',(0,(1,3))]*10
+    
 xlabels = [
     'mol m'+r'${^{-3}}$'
     ,'log '+r'$\mathregular{\Omega}$'
@@ -86,40 +125,64 @@ xlabels = [
     ,'pH'
     # ,'ppmv (CO'+r'$_2$'+') or '+u'$‰$'+ ' (O'+r'$_2$'+')'
     ,'log atm'
-    ,'log '+' m'+r'${^2}$'+' m'+r'${^{-3}}$' + ' or log m' +r'${^3}$'+' m'+r'${^{-3}}$'
+    ,'m' +r'${^3}$'+' m'+r'${^{-3}}$'
     ]
 
-for base in baselist:
-    base[:,5] = np.log10(base[:,5])
-    base[:,1] = np.log10(base[:,1])
+# for base in baselist:
+    # base[:,5] = np.log10(base[:,5])
+    # base[:,1] = np.log10(base[:,1])
     
-for data in datalist:
-    data[:,1] = np.log10(data[:,1])
-    data[:,21] = np.log10(data[:,21])
-    data[:,16:20] = np.log10(data[:,16:20])
+# for data in datalist:
+    # data[:,1] = np.log10(data[:,1])
+    # data[:,21] = np.log10(data[:,21])
+    # data[:,16:20] = np.log10(data[:,16:20])
+
+
 
 for k in range(nx*ny):
     i = int(k%nx)
     j = int((k-i)/nx)
     for o in range(len(datalist)):
-        for p in numplt[k]:
-            if o==0:
-                if k==4:
-                    axes[j][i].plot(datalist[o][:,p[0]],datalist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]),label = p[2])
-                elif k==5:
-                    axes[j][i].plot(baselist[o][:,p[0]],baselist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]),label = p[2])
-                else:
-                    axes[j][i].plot(datalist[o][:,p[0]],datalist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]),label = p[2])
-            else:
-                if k==4:
-                    axes[j][i].plot(datalist[o][:,p[0]],datalist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]))
-                elif k==5:
-                    axes[j][i].plot(baselist[o][:,p[0]],baselist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]))
-                else:
-                    axes[j][i].plot(datalist[o][:,p[0]],datalist[o][:,0],linestyle = p[1],c = cmap.to_rgba(c[o]))
+        if o==0:
+            if k==0: 
+                for p in range(len(sld_namelist)-2):
+                    axes[j][i].plot(datalist[o][:,1+p],datalist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]),label = sld_namelist[p+1])
+            if k==1: 
+                for p in range(len(sld_namelist)-2):
+                    axes[j][i].plot(ratelist[o][:,1+p],ratelist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]),label = sld_namelist[p+1])
+            if k==2: 
+                for p in range(len(aq_namelist)-3):
+                    axes[j][i].plot(aqlist[o][:,1+p],aqlist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]),label = aq_namelist[p+1])
+            if k==3: 
+                axes[j][i].plot(aqlist[o][:,-2],aqlist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]),label = aq_namelist[-2])
+            if k==4: 
+                for p in range(len(gas_namelist)-2):
+                    axes[j][i].plot(gaslist[o][:,1+p],gaslist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]),label = gas_namelist[p+1])
+            if k==5: 
+                axes[j][i].plot(baselist[o][:,1],baselist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]),label = 'porosity')
+        else :
+            if k==0: 
+                for p in range(len(sld_namelist)-2):
+                    axes[j][i].plot(datalist[o][:,1+p],datalist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]))
+            if k==1: 
+                for p in range(len(sld_namelist)-2):
+                    axes[j][i].plot(ratelist[o][:,1+p],ratelist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]))
+            if k==2: 
+                for p in range(len(aq_namelist)-3):
+                    axes[j][i].plot(aqlist[o][:,1+p],aqlist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]))
+            if k==3: 
+                axes[j][i].plot(aqlist[o][:,-2],aqlist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]))
+            if k==4: 
+                for p in range(len(gas_namelist)-2):
+                    axes[j][i].plot(gaslist[o][:,1+p],gaslist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]))
+            if k==5: 
+                axes[j][i].plot(baselist[o][:,1],baselist[o][:,0],linestyle = linelist[p],c = cmap.to_rgba(c[o]))
     axes[j][i].invert_yaxis()
     axes[j][i].set_xlabel(xlabels[k])
-    # if k==5:axes[j][i].set_xscale('log')
+    if k==0:axes[j][i].set_xscale('log')
+    if k==1:axes[j][i].set_xscale('log')
+    if k==2 and len(aq_namelist)>3:axes[j][i].set_xscale('log')
+    if k==4 and len(gas_namelist)>2:axes[j][i].set_xscale('log')
     if i==0:axes[j][i].set_ylabel('Depth (m)')
     axes[j][i].legend(loc = 'lower center')
 
