@@ -1,11 +1,14 @@
 ** switches on and off [true if on, false if off]
 true           no bioturbation
+false           Fickian mixng
 false           homogeneous mixng
 false           LABS mixing 
+false           tilling 
 true            display results at runtime
 false           restart from previous runtime
 true            include roughness in mineral surface area
 false           include Al-inhibition in mineral reaction kinetics 
 false           time step fixed
-true            pre-calculation before attempting to obtain flly coupled results     
+false            pre-calculation before attempting to obtain flly coupled results     
+true            adopting a regular grid      
     

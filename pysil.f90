@@ -13,7 +13,7 @@ implicit none
 
 integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nz
 character(5),dimension(:),allocatable::chraq,chrsld,chrgas,chrrxn_ext 
-character(500) sim_name
+character(500) sim_name,runname_save
 real(kind=8) ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain
 
 call get_variables_num( &
@@ -40,12 +40,12 @@ print *,chrrxn_ext
 sim_name = 'chkchk'
 
 call get_bsdvalues( &
-    & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain &! output
+    & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save &! output
     & )
     
 call weathering_main( &
     & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,ttot,plant_rain  &! input
-    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name &! input
+    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
     & )
 
 contains 
@@ -57,7 +57,7 @@ contains
  
 subroutine weathering_main( &
     & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,ttot,plant_rain  &! input
-    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name &! input
+    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
     & )
 
 implicit none
@@ -249,7 +249,8 @@ integer, parameter :: nrec = 20
 integer reclis(nrec)
 real(kind=8) rectime(nrec)
 character(3) chr
-character(256) runname,workdir, chrz(3), chrq(3),base,fname, runname_save,chrrain
+character(256) runname,workdir, chrz(3), chrq(3),base,fname, chrrain
+character(500),intent(in):: runname_save
 integer irec, iter, idum, iter2
 
 real(kind=8) dt2, swpe  ! physical erosion 
@@ -326,14 +327,23 @@ logical :: timestep_fixed = .false.
 ! logical :: no_biot = .false.
 logical :: no_biot = .true.
 
+logical :: biot_fick = .false.
+! logical :: biot_fick = .true.
+
 logical :: biot_turbo2 = .false.
 ! logical :: biot_turbo2 = .true.
 
 logical :: biot_labs = .false.
 ! logical :: biot_labs = .true.
 
+logical :: biot_till = .false.
+! logical :: biot_till = .true.
+
 ! logical :: display = .false.
 logical :: display = .true.
+
+! logical :: regular_grid = .false.
+logical :: regular_grid = .true.
 
 ! logical :: method_precalc = .false.
 logical :: method_precalc = .true.
@@ -425,6 +435,7 @@ real(kind=8),dimension(nsp_gas_all)::dgasa_all,dgasg_all,mgasi_all,mgasth_all
 real(kind=8),dimension(nsp_gas_all,3)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2)::keqaq_c
+real(kind=8),dimension(nsp_aq_all,2)::keqaq_s
 real(kind=8),dimension(nsp_sld_all,nz)::ksld_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_gas_all)::stgas_all
@@ -448,6 +459,9 @@ data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
 integer ieqaq_co3,ieqaq_hco3
 data ieqaq_co3,ieqaq_hco3/1,2/
 
+integer ieqaq_so4,ieqaq_so42
+data ieqaq_so4,ieqaq_so42/1,2/
+
 integer,dimension(nsp_aq)::iaqflx
 integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
@@ -460,26 +474,31 @@ integer ::igasprof != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 3
 integer ::isldsat != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 4
 integer ::ibsd != ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
 
-logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio
+logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
 real(kind=8),dimension(nz,nz,nsp_sld)::trans
 real(kind=8) zml_ref,dbl_ref
 integer izml
+integer :: nz_disp = 10
 
 real(kind=8) dt_prev
 
-logical print_cb,ph_error
+logical print_cb,ph_error,save_trans
 character(500) print_loc
 character(500),intent(in):: sim_name
 
 real(kind=8) def_dust,def_rain,def_pr,def_OM_frc
 character(5),dimension(5 + nrxn_ext + nsp_sld)::chrflx
-character(10) chrfmt
+character(20) chrfmt
 
 integer::itflx,iadv,idif,irain,ires
 data itflx,iadv,idif,irain/1,2,3,4/
 
 integer,dimension(nsp_sld)::irxn_sld 
-integer,dimension(nrxn_ext)::irxn_ext 
+integer,dimension(nrxn_ext)::irxn_ext
+
+integer nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save 
+character(5),dimension(:),allocatable::chraq_save,chrsld_save,chrgas_save,chrrxn_ext_save 
+real(kind=8),dimension(:,:),allocatable::msld_save,mgas_save,maq_save
 !-------------------------
 
 nsp_sld_cnst = nsp_sld_all - nsp_sld
@@ -507,11 +526,11 @@ enddo
 ires = nflx
 
 chrflx(1:4) = (/'tflx ','adv  ','dif  ','rain '/)
-if (nrxn_ext > 0) chrflx(irxn_sld(:)) = chrsld
-if (nsp_sld > 0) chrflx(irxn_ext(:)) = chrrxn_ext
+if (nsp_sld > 0) chrflx(irxn_sld(:)) = chrsld
+if (nrxn_ext > 0) chrflx(irxn_ext(:)) = chrrxn_ext
 chrflx(nflx) = 'res  '
 
-! print *,chrflx
+! print *,chrflx,irxn_sld,chrsld
 
 ! pause
 
@@ -899,8 +918,8 @@ enddo
 
 
 call get_switches( &
-    & no_biot,biot_turbo2,biot_labs,display,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc &! inout
+    & no_biot,biot_fick,biot_turbo2,biot_labs,biot_till,display,read_data,incld_rough &
+    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid &! inout
     & )
 
 
@@ -944,9 +963,9 @@ base = trim(adjustl(base))//'_sevol2'
 base = trim(adjustl(base))//'_ssa'
 #endif 
 
-#ifndef regulargrid
-base = trim(adjustl(base))//'_irr'
-#endif 
+if (.not. regular_grid) then 
+    base = trim(adjustl(base))//'_irr'
+endif 
 
 if (rain_wave)then 
     write(chrrain,'(E10.2)') wave_tau
@@ -982,6 +1001,8 @@ enddo
 
 call system ('mkdir -p '//trim(adjustl(workdir))//trim(adjustl(runname)))
 
+call system ('cp gases.in solutes.in slds.in extrxns.in '//trim(adjustl(workdir))//trim(adjustl(runname)))
+
 write(chrfmt,'(i0)') nflx+1
 
 chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a))'
@@ -1015,7 +1036,7 @@ close(ibasaltrain)
 !!!  MAKING GRID !!!!!!!!!!!!!!!!! 
 beta = 1.00000000005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
 beta = 1.00005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
-call makegrid(beta,nz,ztot,dz,z)
+call makegrid(beta,nz,ztot,dz,z,regular_grid)
 
 
 if (swoxall==1d0) swoxa = 0d0
@@ -1111,7 +1132,7 @@ call coefs_v2( &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all &!input
-    & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c &! output
+    & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ) 
 
@@ -1139,90 +1160,115 @@ endif
 !  --------- read -----
 if (read_data) then 
     ! runname_save = 'test_cpl_rain-0.40E+04_pevol_sevol1_q-0.10E-01_zsat-5' ! specifiy the file where restart data is stored 
-    runname_save = runname  ! the working folder has the restart data 
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'o2profile-res-save.txt '  &
-        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res-save.txt')
-    open (22, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res-save.txt',  &
+    ! runname_save = runname  ! the working folder has the restart data 
+    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'prof_sld-save.txt '  &
+        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_sld-restart.txt')
+    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'prof_aq-save.txt '  &
+        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_aq-restart.txt')
+    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'prof_gas-save.txt '  &
+        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_gas-restart.txt')
+    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'bsd-save.txt '  &
+        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'bsd-restart.txt')
+        
+    call get_saved_variables_num( &
+        & workdir,runname_save &! input
+        & ,nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save &! output
+        & )
+    
+    allocate(chraq_save(nsp_aq_save),chrsld_save(nsp_sld_save),chrgas_save(nsp_gas_save),chrrxn_ext_save(nrxn_ext_save))
+    allocate(maq_save(nsp_aq_save,nz),msld_save(nsp_sld_save,nz),mgas_save(nsp_gas_save,nz))
+        
+    
+    call get_saved_variables( &
+        & workdir,runname_save &! input
+        & ,nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save &! input
+        & ,chraq_save,chrgas_save,chrsld_save,chrrxn_ext_save &! output
+        & )
+    
+        
+    open (isldprof, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_sld-restart.txt',  &
         & status ='old',action='read')
-
+    open (iaqprof, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_aq-restart.txt',  &
+        & status ='old',action='read')
+    open (igasprof, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_gas-restart.txt',  &
+        & status ='old',action='read')
+    open (ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'bsd-restart.txt',  &
+        & status ='old',action='read')
+    
+    read (isldprof,'()')
+    read (iaqprof,'()')
+    read (igasprof,'()')
+    read (ibsd,'()')
+    
     do iz = 1, Nz
-        read (22,*) z(iz),po2(iz),c(iz),ms(iz),c2(iz), so4(iz),na(iz),ca(iz),mg(iz),si(iz),al(iz) &
-            & ,mab(iz),man(iz),mfo(iz),mka(iz),mcc(iz) &
-            & ,omega_ab(iz), omega_fo(iz),omega_an(iz),omega_ka(iz),omega_cc(iz),pco2(iz),pro(iz),time
+        read (isldprof,*) z(iz),(msld_save(isps,iz),isps=1,nsp_sld_save),time
+        read (iaqprof,*) z(iz),(maq_save(ispa,iz),ispa=1,nsp_aq_save),pro(iz),time
+        read (igasprof,*) z(iz),(mgas_save(ispg,iz),ispg=1,nsp_gas_save),time
+        read (ibsd,*) z(iz),poro(iz),sat(iz),v(iz),hr(iz),time
     enddo 
-    close(22) 
+    close(isldprof)
+
     pro = 10d0**(-pro) ! read data is -log10 (pro)
     time = 0d0
     
-    do iz=1,nz
-        if (po2(iz)<po2th) po2(iz)= po2th*0.1d0
-        if (c(iz)<cth) c(iz)= cth*0.1d0
-        if (ms(iz)<msth) ms(iz)= msth*0.1d0
-        if (c2(iz)<c2th) c2(iz)= c2th*0.1d0
-        if (so4(iz)<so4th) so4(iz)= so4th*0.1d0
-        if (na(iz)<nath) na(iz)= nath*0.1d0
-        if (ca(iz)<cath) ca(iz)= cath*0.1d0
-        if (mg(iz)<mgth) mg(iz)= mgth*0.1d0
-        if (si(iz)<sith) si(iz)= sith*0.1d0
-        if (al(iz)<sith) al(iz)= alth*0.1d0
-        if (mab(iz)<mabth) mab(iz)= mabth*0.1d0
-        if (man(iz)<manth) man(iz)= manth*0.1d0
-        if (mfo(iz)<mfoth) mfo(iz)= mfoth*0.1d0
-        if (mcc(iz)<mccth) mcc(iz)= mccth*0.1d0
-        if (mka(iz)<mkath) mka(iz)= mkath*0.1d0
-        if (pco2(iz)<pco2th) pco2(iz)= pco2th*0.1d0
-    enddo
-    
-    ! man = mani
-    ! mfo = mfoi
-    ! manx = man
-    ! mfox = mfo
-    if (calcite_seed) then 
-        mcc = mcci ! to precipirate calcite, crystal seeds are necessary 
-        mccx = mcc
-    endif 
-    
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'o2profile-bsd-save.txt '  &
-        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-bsd-save.txt')
-    open (22, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-bsd-save.txt',  &
-        & status ='old',action='read')
-    do iz=1,nz
-        read(22,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz),hr(iz)
-    enddo 
-    close(22) 
     torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
     tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+    
+    do isps = 1,nsp_sld_save
+        if (any(chrsld == chrsld_save(isps))) then 
+            msld(findloc(chrsld,chrsld_save(isps),dim=1),:) = msld_save(isps,:)
+        elseif (any(chrsld_cnst == chrsld_save(isps))) then
+            msldc(findloc(chrsld_cnst,chrsld_save(isps),dim=1),:) = msld_save(isps,:)
+        else 
+            print *,'error in re-assignment of sld conc.'
+        endif 
+    enddo 
+    
+    do ispa = 1,nsp_aq_save
+        if (any(chraq == chraq_save(ispa))) then 
+            maq(findloc(chraq,chraq_save(ispa),dim=1),:) = maq_save(ispa,:)
+        elseif (any(chraq_cnst == chraq_save(ispa))) then
+            maqc(findloc(chraq_cnst,chraq_save(ispa),dim=1),:) = maq_save(ispa,:)
+        else 
+            print *,'error in re-assignment of aq conc.'
+        endif 
+    enddo 
+    
+    do ispg = 1,nsp_gas_save
+        if (any(chrgas == chrgas_save(ispg))) then 
+            mgas(findloc(chrgas,chrgas_save(ispg),dim=1),:) = mgas_save(ispg,:)
+        elseif (any(chrgas_cnst == chrgas_save(ispg))) then
+            mgasc(findloc(chrgas_cnst,chrgas_save(ispg),dim=1),:) = mgas_save(ispg,:)
+        else 
+            print *,'error in re-assignment of gas conc.'
+        endif 
+    enddo 
         
     if (display) then
-        Print *,'==== printing read data  ===='
+        write(chrfmt,'(i0)') nz_disp
+        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+        
         print *
-        print *,'-=-=-=-=-=-= o2 & pyrite -=-=-=-=-=-=-='
-        print *,'o2:', (po2(iz),iz=1,nz, nz/5)
-        print *,'fe2:', (c(iz),iz=1,nz, nz/5)
-        print *,'py:', (ms(iz),iz=1,nz, nz/5)
-        print *, 'fe3:', (c2(iz),iz=1,nz, nz/5)
-        print *, 'so4:', (so4(iz),iz=1,nz, nz/5)
-        print *
-        print *,'-=-=-=-=-=-= Mg, Si, Na, Ca, Fo, Ab, An -=-=-=-=-=-=-='
-        print *, 'mg:', (mg(iz),iz=1,nz, nz/5)
-        print *, 'si:', (si(iz),iz=1,nz, nz/5)
-        print *, 'na:', (na(iz),iz=1,nz, nz/5)
-        print *, 'ca:', (ca(iz),iz=1,nz, nz/5)
-        print *, 'al:', (al(iz),iz=1,nz, nz/5)
-        print *, 'fo:', (mfo(iz),iz=1,nz, nz/5)
-        print *, 'ab:', (mab(iz),iz=1,nz, nz/5)
-        print *, 'an:', (man(iz),iz=1,nz, nz/5)
-        print *, 'ka:', (mka(iz),iz=1,nz, nz/5)
-        print *, 'cc:', (mcc(iz),iz=1,nz, nz/5)
-        print *, 'omega_fo:', (omega_fo(iz),iz=1,nz, nz/5)
-        print *, 'omega_ab:', (omega_ab(iz),iz=1,nz, nz/5)
-        print *, 'omega_an:', (omega_an(iz),iz=1,nz, nz/5)
-        print *, 'omega_ka:', (omega_ka(iz),iz=1,nz, nz/5)
-        print *, 'omega_cc:', (omega_cc(iz),iz=1,nz, nz/5)
-        print *
-        print *,'-=-=-=-=-=-= pH -=-=-=-=-=-=-='
-        print *, 'ph:', (-log10(pro(iz)),iz=1,nz, nz/5)
-        print *
+        print *,' [concs] '
+        print trim(adjustl(chrfmt)),'z',(z(iz),iz=1,nz,nz/nz_disp)
+        if (nsp_aq>0) then 
+            print *,' < aq species >'
+            do ispa = 1, nsp_aq
+                print trim(adjustl(chrfmt)), trim(adjustl(chraq(ispa))), (maqx(ispa,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        if (nsp_sld>0) then 
+            print *,' < sld species >'
+            do isps = 1, nsp_sld
+                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (msldx(isps,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        if (nsp_gas>0) then 
+            print *,' < gas species >'
+            do ispg = 1, nsp_gas
+                print trim(adjustl(chrfmt)), trim(adjustl(chrgas(ispg))), (mgasx(ispg,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
     endif      
 endif
     
@@ -1231,7 +1277,7 @@ call coefs_v2( &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all &!input
-    & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c &! output
+    & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ) 
     
@@ -1240,12 +1286,17 @@ dbl_ref = 0d0
 labs = .false.
 turbo2 = .false.
 nobio = .false.
+till = .false.
     
 if (no_biot) nobio = .true.
 if (biot_turbo2) turbo2 = .true.
+if (biot_fick) fick = .true.
+if (biot_labs) labs = .true.
+if (biot_till) till = .true.
 
+save_trans = .true.
 call make_transmx(  &
-    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref  &! input
+    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
     & ,trans,nonlocal,izml  &! output 
     & )
     
@@ -1260,8 +1311,13 @@ count_dtunchanged = 0
 
 do while (it<nt)
     call cpu_time(time_start)
+    
     if (display) then 
-        print *, 'it, time = ',it, time
+        print *
+        print *, '-----------------------------------------'
+        print '(i11,a)', it,': time iteration'
+        print '(E11.3,a)',time,': time [yr]' 
+        print *
     endif
     dt_prev = dt
     ! if (time>rectime(nrec)) exit
@@ -1308,26 +1364,27 @@ do while (it<nt)
             ! if (time<1d-2) then  
                 ! maxdt = 1d-6 
             ! elseif (time>=1d-2 .and. time<1d-1) then 
-            if (time<1d-3) then  
-                maxdt = 1d-7 
-            elseif (time>=1d-3 .and. time<1d-2) then  
-                maxdt = 1d-6 
-            elseif (time>=1d-2 .and. time<1d-1) then  
-                maxdt = 1d-5 
-            elseif (time>=1d-1 .and. time<1d0) then  
+            ! if (time<1d-3) then  
+                ! maxdt = 1d-7 
+            ! elseif (time>=1d-3 .and. time<1d-2) then  
+                ! maxdt = 1d-6 
+            ! elseif (time>=1d-2 .and. time<1d-1) then  
+                ! maxdt = 1d-5 
+            ! elseif (time>=1d-1 .and. time<1d0) then  
+            if ( time<1d0) then  
                 maxdt = 1d-4 
             elseif (time>=1d0 .and. time<1d1) then 
                 maxdt = 1d-3 
             elseif (time>=1d1 .and. time<1d2) then 
                 maxdt = 1d-2  
-            elseif (time>=1d2 .and. time<1d3) then 
-                maxdt = 1d-1 
-            elseif (time>=1d3 .and. time<1d4) then 
-                maxdt = 1d0 
-            elseif (time>=1d4 .and. time<1d5) then 
-                maxdt = 1d1 
-            elseif (time>=1d5 ) then 
-                maxdt = 1d2 
+            ! elseif (time>=1d2 .and. time<1d3) then 
+                ! maxdt = 1d-1 
+            ! elseif (time>=1d3 .and. time<1d4) then 
+                ! maxdt = 1d0 
+            ! elseif (time>=1d4 .and. time<1d5) then 
+                ! maxdt = 1d1 
+            ! elseif (time>=1d5 ) then 
+                ! maxdt = 1d2 
             endif 
             
             ! maxdt = maxdt * 1d-1
@@ -1381,7 +1438,7 @@ do while (it<nt)
         dt = dt/10d0
     end if
     
-    if (dt/=dt_prev) pre_calc = .true.
+    ! if (dt/=dt_prev) pre_calc = .true.
 
     ! incase temperature&ph change
         
@@ -1390,7 +1447,7 @@ do while (it<nt)
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all &!input
-        & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c &! output
+        & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
         & ) 
     
@@ -1429,8 +1486,9 @@ do while (it<nt)
     endif 
     
     ! nobio = .true.
+    save_trans = .false.
     call make_transmx(  &
-        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref  &! input
+        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
         & ,trans,nonlocal,izml  &! output 
         & )
 
@@ -1438,7 +1496,7 @@ do while (it<nt)
     error = 1d4
     iter=0
 
-100 print *, iter,time
+100 continue
 
     mgasx = mgas
     msldx = msld
@@ -1457,7 +1515,7 @@ do while (it<nt)
             if (no_biot) then 
                 msldsupp(isps,:) = rainpowder*rfrc_sld(isps)*exp(-z/zsupp)/zsupp
             else 
-                msldsupp(isps,1) = rainpowder*rfrc_sld(isps)
+                msldsupp(isps,1) = rainpowder*rfrc_sld(isps)/dz(1)
             endif 
         enddo 
         
@@ -1491,7 +1549,7 @@ do while (it<nt)
                     & + plant_rain/12d0*rfrc_sld_plant(isps)*exp(-z/zsupp_plant)/zsupp_plant ! when plant_
             else 
                 msldsupp(isps,1) = msldsupp(isps,1) &
-                    & + plant_rain/12d0*rfrc_sld_plant(isps) ! when plant_rain is in g_C/m2/yr
+                    & + plant_rain/12d0*rfrc_sld_plant(isps)/dz(1) ! when plant_rain is in g_C/m2/yr
             endif 
         enddo 
         
@@ -1630,8 +1688,8 @@ do while (it<nt)
         & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
         & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all &
         & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
-        & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain &
-        & ,turbo2,labs,trans,method_precalc,display &! input
+        & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all &
+        & ,turbo2,labs,trans,method_precalc,display,chrflx &! input
         !  old inputs
         & ,hr,poro,z,dz,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
         & ,ucv,torg,cplprec  &
@@ -1741,39 +1799,85 @@ do while (it<nt)
     hr = hri*rough*(poro/poroi)**(2d0/3d0)  ! SA increases with porosity 
 #endif 
     if (display) then 
+        write(chrfmt,'(i0)') nz_disp
+        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
         print *
-        print *,'-=-=-=-=-=-= Porosity & SA -=-=-=-=-=-=-='
-        print *, 'phi:', (poro(iz),iz=1,nz, nz/5)
-        print *, 'SA:', (hr(iz),iz=1,nz, nz/5)
+        print *,' [porosity & surface area]'
+        print trim(adjustl(chrfmt)),'z',(z(iz),iz=1,nz,nz/nz_disp)
+        print trim(adjustl(chrfmt)),'poro',(poro(iz),iz=1,nz, nz/nz_disp)
+        print trim(adjustl(chrfmt)),'SA',(hr(iz),iz=1,nz, nz/nz_disp)
         print *
     endif 
 #endif  
 
 
     if (display) then 
+        write(chrfmt,'(i0)') nz_disp
+        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+        
         print *
-        print *,'-=-=-=-=-=-= Aq species -=-=-=-=-=-=-='
-        do ispa = 1, nsp_aq
-            print *, trim(adjustl(chraq(ispa))), (maqx(ispa,iz),iz=1,nz, nz/5)
-        enddo 
+        print *,' [concs] '
+        print trim(adjustl(chrfmt)),'z',(z(iz),iz=1,nz,nz/nz_disp)
+        if (nsp_aq>0) then 
+            print *,' < aq species >'
+            do ispa = 1, nsp_aq
+                print trim(adjustl(chrfmt)), trim(adjustl(chraq(ispa))), (maqx(ispa,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        if (nsp_sld>0) then 
+            print *,' < sld species >'
+            do isps = 1, nsp_sld
+                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (msldx(isps,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        if (nsp_gas>0) then 
+            print *,' < gas species >'
+            do ispg = 1, nsp_gas
+                print trim(adjustl(chrfmt)), trim(adjustl(chrgas(ispg))), (mgasx(ispg,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        
         print *
-        print *,'-=-=-=-=-=-= Sld species -=-=-=-=-=-=-='
-        do isps = 1, nsp_sld
-            print *, trim(adjustl(chrsld(isps))), (msldx(isps,iz),iz=1,nz, nz/5)
-        enddo 
+        print *,' [saturation & pH] '
+        if (nsp_sld>0) then 
+            print *,' < sld species omega >'
+            do isps = 1, nsp_sld
+                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (omega(isps,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        print *,' < pH >'
+        print trim(adjustl(chrfmt)), 'ph', (-log10(prox(iz)),iz=1,nz, nz/nz_disp)
+        
+        
+        
+        write(chrfmt,'(i0)') nflx
+        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,a11))'
+        
         print *
-        do isps = 1, nsp_sld
-            print *, 'omega_'//trim(adjustl(chrsld(isps))), (omega(isps,iz),iz=1,nz, nz/5)
-        enddo 
-        print *
-        print *,'-=-=-=-=-=-= Gas species -=-=-=-=-=-=-='
-        do ispg = 1, nsp_gas
-            print *, trim(adjustl(chrgas(ispg))), (mgasx(ispg,iz),iz=1,nz, nz/5)
-        enddo 
-        print *
-        print *,'-=-=-=-=-=-= pH -=-=-=-=-=-=-='
-        print *, 'ph:', (-log10(prox(iz)),iz=1,nz, nz/5)
-        print *
+        print *,' [fluxes] '
+        print trim(adjustl(chrfmt)),' ',(chrflx(iflx),iflx=1,nflx)
+        
+        write(chrfmt,'(i0)') nflx
+        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+        if (nsp_aq>0) then 
+            print *,' < aq species >'
+            do ispa = 1, nsp_aq
+                print trim(adjustl(chrfmt)), trim(adjustl(chraq(ispa))), (sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
+            enddo 
+        endif 
+        if (nsp_sld>0) then 
+            print *,' < sld species >'
+            do isps = 1, nsp_sld
+                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
+            enddo 
+        endif 
+        if (nsp_gas>0) then 
+            print *,' < gas species >'
+            do ispg = 1, nsp_gas
+                print trim(adjustl(chrfmt)), trim(adjustl(chrgas(ispg))), (sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
+            enddo 
+        endif 
+        
     endif 
 
     ! stop
@@ -1784,21 +1888,34 @@ do while (it<nt)
     
     pro = prox
 
-    if ((.not.initial_ss) .and. time > savetime) then 
-        open (22, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-res-save.txt',  &
-            & status='replace')
-
-        open(30, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'o2profile-bsd-save.txt',  &
-            & status='replace')
+    if (time > savetime) then 
+        
+        open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_sld-save.txt', status='replace')
+        open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_gas-save.txt', status='replace')
+        open(iaqprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_aq-save.txt', status='replace')
+        open(ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+            & //'bsd-save.txt', status='replace')
+            
+        write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
+        write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
+        write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
+        write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' time '
 
         do iz = 1, Nz
-            write (22,*) z(iz),po2(iz),c(iz),ms(iz),c2(iz), so4(iz),na(iz),ca(iz),mg(iz),si(iz),al(iz) &
-                & ,mab(iz),man(iz),mfo(iz),mka(iz),mcc(iz) &
-                & ,omega_ab(iz), omega_fo(iz),omega_an(iz),omega_ka(iz),omega_cc(iz),pco2(iz),-log10(pro(iz)),time
-            write(30,*) z(iz), poro(iz),sat(iz),v(iz),deff(iz),hr(iz)
-        enddo 
-        close(22)
-        close(30)
+            write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
+            write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
+            write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),time
+        end do
+
+        close(isldprof)
+        close(iaqprof)
+        close(igasprof)
+        close(ibsd)
+        
         savetime = savetime + dsavetime
     endif 
 
@@ -1875,7 +1992,33 @@ do while (it<nt)
             write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
             close(igasflx(ispg))
         enddo 
+        
+        open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_sld-save.txt', status='replace')
+        open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_gas-save.txt', status='replace')
+        open(iaqprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_aq-save.txt', status='replace')
+        open(ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+            & //'bsd-save.txt', status='replace')
+            
+        write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
+        write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
+        write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
+        write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' time '
 
+        do iz = 1, Nz
+            write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
+            write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
+            write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),time
+        end do
+
+        close(isldprof)
+        close(iaqprof)
+        close(igasprof)
+        close(ibsd)
+        
     end if
 
     it = it + 1
@@ -1910,11 +2053,46 @@ do while (it<nt)
         endif 
     endif 
     
-    print *,'progress_rate, maxdt, count_dtunchanged',progress_rate, maxdt, count_dtunchanged
-    
-    flgreducedt_prev = flgreducedt
+    print *
+    print '(E11.3,a)',progress_rate,': computation time per iteration [sec]'
+    print '(E11.3,a)',maxdt, ': maxdt [yr]'
+    print '(i11,a)',count_dtunchanged,': count_dtunchanged'
+    print *, '-----------------------------------------'
+    print *
     
 end do
+        
+        
+open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+    & //'prof_sld-save.txt', status='replace')
+open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+    & //'prof_gas-save.txt', status='replace')
+open(iaqprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+    & //'prof_aq-save.txt', status='replace')
+open(ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+    & //'bsd-save.txt', status='replace')
+            
+write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
+write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
+write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
+write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' time '
+
+do iz = 1, Nz
+    write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
+    write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
+    write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
+    write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),time
+end do
+
+close(isldprof)
+close(iaqprof)
+close(igasprof)
+close(ibsd)
+
+call system ('cp gases.in '//trim(adjustl(workdir))//trim(adjustl(runname))//'/gases.save')
+call system ('cp solutes.in '//trim(adjustl(workdir))//trim(adjustl(runname))//'/solutes.save')
+call system ('cp slds.in '//trim(adjustl(workdir))//trim(adjustl(runname))//'/slds.save')
+call system ('cp extrxns.in '//trim(adjustl(workdir))//trim(adjustl(runname))//'/extrxns.save')
 
 endsubroutine weathering_main
 
@@ -2014,14 +2192,109 @@ endsubroutine get_variables
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine get_saved_variables_num( &
+    & workdir,runname_save &! input 
+    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
+    & )
+implicit none
+
+integer,intent(out):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+character(256),intent(in):: workdir,runname_save
+character(500) file_name
+
+file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/slds.save'
+call Console4(file_name,nsp_sld)
+file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/solutes.save'
+call Console4(file_name,nsp_aq)
+file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/gases.save'
+call Console4(file_name,nsp_gas)
+file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/extrxns.save'
+call Console4(file_name,nrxn_ext)
+
+nsp_sld = nsp_sld - 1
+nsp_aq = nsp_aq - 1
+nsp_gas = nsp_gas - 1
+nrxn_ext = nrxn_ext - 1
+
+endsubroutine get_saved_variables_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_saved_variables( &
+    & workdir,runname_save &! input 
+    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! input
+    & ,chraq,chrgas,chrsld,chrrxn_ext &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+character(5),dimension(nsp_sld),intent(out)::chrsld 
+character(5),dimension(nsp_aq),intent(out)::chraq 
+character(5),dimension(nsp_gas),intent(out)::chrgas 
+character(5),dimension(nrxn_ext),intent(out)::chrrxn_ext 
+character(256),intent(in):: workdir,runname_save
+
+character(500) file_name
+integer ispa,ispg,isps,irxn
+
+if (nsp_aq>=1) then 
+    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/solutes.save'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do ispa =1,nsp_aq
+        read(50,*) chraq(ispa) 
+    enddo 
+    close(50)
+endif 
+
+if (nsp_sld>=1) then 
+    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/slds.save'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do isps =1,nsp_sld
+        read(50,*) chrsld(isps) 
+    enddo  
+    close(50)
+endif 
+
+if (nsp_gas>=1) then 
+    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/gases.save'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do ispg =1,nsp_gas
+        read(50,*) chrgas(ispg) 
+    enddo 
+    close(50)
+endif 
+
+if (nrxn_ext>=1) then 
+    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/extrxns.save'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do irxn =1,nrxn_ext
+        read(50,*) chrrxn_ext(irxn) 
+    enddo 
+    close(50)
+endif 
+
+endsubroutine get_saved_variables
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine get_bsdvalues( &
-    & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain &! output
+    & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save &! output
     & )
 implicit none
 
 integer,intent(out):: nz
 real(kind=8),intent(out)::ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain
-character(500),intent(out)::sim_name
+character(500),intent(out)::sim_name,runname_save
 
 character(500) file_name
 
@@ -2040,11 +2313,13 @@ read(50,*) zsat
 read(50,*) w
 read(50,*) qin
 read(50,*) p80
+read(50,*) runname_save
+read(50,'()')
 read(50,*) sim_name
 close(50)
 
-print*,'nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain'
-print*,nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain
+print*,'nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save'
+print*,nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save
 
 endsubroutine get_bsdvalues
 
@@ -2272,14 +2547,14 @@ endsubroutine get_atm
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_switches( &
-    & no_biot,biot_turbo2,biot_labs,display,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc &! inout
+    & no_biot,biot_fick,biot_turbo2,biot_labs,biot_till,display,read_data,incld_rough &
+    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid &! inout
     & )
 implicit none
 
 character(100) chr_tmp
 logical,intent(inout):: no_biot,biot_turbo2,biot_labs,display,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc
+    & ,al_inhibit,timestep_fixed,method_precalc,biot_fick,biot_till,regular_grid
 
 character(500) file_name
 integer i,n_tmp
@@ -2290,14 +2565,17 @@ open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
 read(50,'()')
 
 read(50,*) no_biot,chr_tmp
+read(50,*) biot_fick,chr_tmp
 read(50,*) biot_turbo2,chr_tmp
 read(50,*) biot_labs,chr_tmp
+read(50,*) biot_till,chr_tmp
 read(50,*) display,chr_tmp
 read(50,*) read_data,chr_tmp
 read(50,*) incld_rough,chr_tmp
 read(50,*) al_inhibit,chr_tmp
 read(50,*) timestep_fixed,chr_tmp
 read(50,*) method_precalc,chr_tmp
+read(50,*) regular_grid,chr_tmp
 
 close(50)
 
@@ -2335,9 +2613,10 @@ end subroutine Console4
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-subroutine makegrid(beta,nz,ztot,dz,z)  !  making grid, after Hoffmann & Chiang, 2000
+subroutine makegrid(beta,nz,ztot,dz,z,regular_grid)  !  making grid, after Hoffmann & Chiang, 2000
 implicit none
 integer(kind=4),intent(in) :: nz
+logical,intent(in)::regular_grid
 real(kind=8),intent(in)::beta,ztot
 real(kind=8),intent(out)::dz(nz),z(nz)
 integer(kind=4) iz
@@ -2352,9 +2631,9 @@ do iz = 1, nz
     endif
 enddo
 
-#ifdef regulargrid
-dz = ztot/nz  ! when implementing regular grid
-#endif 
+if (regular_grid) then 
+    dz = ztot/nz  ! when implementing regular grid
+endif 
 
 do iz=1,nz  ! depth is defined at the middle of individual layers 
     if (iz==1) z(iz)=dz(iz)*0.5d0  
@@ -2373,7 +2652,7 @@ subroutine coefs_v2( &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all &!input
-    & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c &! output
+    & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ) 
 implicit none
@@ -2398,6 +2677,7 @@ real(kind=8),dimension(nsp_gas_all),intent(out)::dgasa_all,dgasg_all
 real(kind=8),dimension(nsp_gas_all,3),intent(out)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(out)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_c
+real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_s
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::ksld_all
 real(kind=8),dimension(nsp_sld_all),intent(out)::keqsld_all
 real(kind=8),dimension(nrxn_ext_all,nz),intent(out)::krxn1_ext_all
@@ -2418,6 +2698,9 @@ data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
 
 integer ieqaq_co3,ieqaq_hco3
 data ieqaq_co3,ieqaq_hco3/1,2/
+
+integer ieqaq_so4,ieqaq_so42
+data ieqaq_so4,ieqaq_so42/1,2/
 
 ucv = 1.0d0/(rg2*(tempk_0+tc))
 
@@ -2464,6 +2747,12 @@ keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2) = &
 
 keqaq_c = 0d0
 keqaq_h = 0d0
+keqaq_s = 0d0
+
+! SO4-2 + H+ = HSO4- 
+keqaq_s(findloc(chraq_all,'so4',dim=1),ieqaq_so4) = &
+    & k_arrhenius(10d0**(1.988d0),25d0+tempk_0,tc+tempk_0,3.85d0*cal2j,rg) ! from PHREEQC.DAT
+
 
 ! Al3+ + H2O = Al(OH)2+ + H+
 keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h1) = &
@@ -2477,6 +2766,12 @@ keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h3) = &
 ! Al3+ + 4H2O = Al(OH)4- + 4H+
 keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h4) = &
     & k_arrhenius(10d0**(-22.7d0),25d0+tempk_0,tc+tempk_0,42.30d0*cal2j,rg) ! from PHREEQC.DAT 
+! Al+3 + SO4-2 = AlSO4+
+keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so4) = &
+    & k_arrhenius(10d0**(3.5d0),25d0+tempk_0,tc+tempk_0,2.29d0*cal2j,rg) ! from PHREEQC.DAT 
+! Al+3 + 2SO4-2 = Al(SO4)2-
+keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so42) = &
+    & k_arrhenius(10d0**(5.0d0),25d0+tempk_0,tc+tempk_0,3.11d0*cal2j,rg) ! from PHREEQC.DAT 
 
 
 keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h1) = &
@@ -2494,6 +2789,9 @@ keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_co3) = &
 ! Mg2+ + H+ + CO32- = MgHCO3
 keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_hco3) = & 
     & k_arrhenius(10d0**(11.399d0),25d0+tempk_0,tc+tempk_0,-2.771d0*cal2j,rg) ! from PHREEQC.DAT 
+! Mg+2 + SO4-2 = MgSO4
+keqaq_s(findloc(chraq_all,'mg',dim=1),ieqaq_so4) = & 
+    & k_arrhenius(10d0**(2.37d0),25d0+tempk_0,tc+tempk_0, 4.550d0*cal2j,rg) ! from PHREEQC.DAT 
 
 ! Ca2+ + H2O = Ca(OH)+ + H+
 keqaq_h(findloc(chraq_all,'ca',dim=1),ieqaq_h1) =  &
@@ -2505,7 +2803,10 @@ keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_co3) = &
 ! Ca2+ + H+ + CO32- = CaHCO3
 keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_hco3) = &
     & k_arrhenius(10d0**(11.435d0),25d0+tempk_0,tc+tempk_0,-0.871d0*cal2j,rg) ! from PHREEQC.DAT 
-    
+! Ca+2 + SO4-2 = CaSO4
+keqaq_s(findloc(chraq_all,'ca',dim=1),ieqaq_so4) = &
+    & k_arrhenius(10d0**(2.25d0),25d0+tempk_0,tc+tempk_0,1.325d0*cal2j,rg) ! from PHREEQC.DAT 
+
     
 ! Fe2+ + H2O = Fe(OH)+ + H+
 keqaq_h(findloc(chraq_all,'fe2',dim=1),ieqaq_h1) = &
@@ -2517,6 +2818,9 @@ keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_co3) = &
 keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_hco3) = &
     & k_arrhenius(10d0**(1.47d0),25d0+tempk_0,tc+tempk_0, -18d0,rg) &! from Kanzaki and Murakami 2016 
     & /keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2) 
+! Fe+2 + SO4-2 = FeSO4
+keqaq_s(findloc(chraq_all,'fe2',dim=1),ieqaq_so4) = &
+    & k_arrhenius(10d0**(2.25d0),25d0+tempk_0,tc+tempk_0,3.230d0*cal2j,rg) ! from PHREEQC.DAT 
 
 
 ! Fe3+ + H2O = Fe(OH)2+ + H+
@@ -2531,7 +2835,31 @@ keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3) = &
 ! Fe3+ + 4H2O = Fe(OH)4- + 4H+
 keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4) = &
     & k_arrhenius(10d0**(-21.6d0),25d0+tempk_0,tc+tempk_0,31.9d0*cal2j,rg) ! from PHREEQC.DAT 
+! Fe+3 + SO4-2 = FeSO4+
+keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so4) = &
+    & k_arrhenius(10d0**(4.04d0),25d0+tempk_0,tc+tempk_0,3.91d0*cal2j,rg) ! from PHREEQC.DAT 
+! Fe+3 + 2 SO4-2 = Fe(SO4)2-
+keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so42) = &
+    & k_arrhenius(10d0**(5.38d0),25d0+tempk_0,tc+tempk_0,4.60d0*cal2j,rg) ! from PHREEQC.DAT 
 
+
+
+! Na+ + CO3-2 = NaCO3-
+keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_co3) = & 
+    & k_arrhenius(10d0**(1.27d0),25d0+tempk_0,tc+tempk_0, 8.91d0*cal2j,rg) ! from PHREEQC.DAT 
+! Na+ + H + CO3- = NaHCO3
+keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_hco3) = & 
+    & k_arrhenius(10d0**(-0.25d0),25d0+tempk_0,tc+tempk_0, -1d0*cal2j,rg) &! from PHREEQC.DAT for Na+ + HCO3- = NaHCO3
+    & /keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)  ! HCO3- = CO32- + H+
+! Na+ + SO4-2 = NaSO4-
+keqaq_s(findloc(chraq_all,'na',dim=1),ieqaq_so4) = & 
+    & k_arrhenius(10d0**(0.7d0),25d0+tempk_0,tc+tempk_0, 1.120d0*cal2j,rg) ! from PHREEQC.DAT 
+
+
+
+! K+ + SO4-2 = KSO4-
+keqaq_s(findloc(chraq_all,'k',dim=1),ieqaq_so4) = & 
+    & k_arrhenius(10d0**(0.85d0),25d0+tempk_0,tc+tempk_0, 2.250d0*cal2j,rg) ! from PHREEQC.DAT 
 
 
 
@@ -2730,7 +3058,7 @@ krxn2_ext_all(findloc(chrrxn_ext_all,'ombto',dim=1),:) = 2d0 ! beta value Georgi
 !! OMs
 
 krxn1_ext_all(findloc(chrrxn_ext_all,'g1dec',dim=1),:) = & 
-    & 1d0/1d0 &! mol m^-2 yr^-1, just a value assumed; picked up to represent turnover time of 1 year  
+    & 1d0/1d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
     & *merge(0d0,1d0,po2<po2th)
 krxn2_ext_all(findloc(chrrxn_ext_all,'g1dec',dim=1),:) = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
 
@@ -2738,7 +3066,7 @@ krxn2_ext_all(findloc(chrrxn_ext_all,'g1dec',dim=1),:) = 0.121d0 ! mo2 Michaelis
 
 
 krxn1_ext_all(findloc(chrrxn_ext_all,'g2dec',dim=1),:) = & 
-    & 1d0/30d0 &! mol m^-2 yr^-1, just a value assumed; picked up to represent turnover time of 30 year  
+    & 1d0/8d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 8 year as in Chen et al. (2010, AFM) 
     & *merge(0d0,1d0,po2<po2th)
 krxn2_ext_all(findloc(chrrxn_ext_all,'g2dec',dim=1),:) = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
 
@@ -3520,7 +3848,7 @@ implicit none
 integer,intent(in)::nz
 real(kind=8),intent(in)::kw
 real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al &
-    & ,k1fe2,k1fe2co3,k1fe2hco3,k1fe3,k2fe3,k3fe3,k4fe3
+    & ,k1fe2,k1fe2co3,k1fe2hco3,k1fe3,k2fe3,k3fe3,k4fe3,k1naco3,k1nahco3
 real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x,kx
 real(kind=8),dimension(nz),intent(in)::z
 real(kind=8),dimension(nz),intent(inout)::prox
@@ -3586,6 +3914,8 @@ k1fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h1)
 k2fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h2)
 k3fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3)
 k4fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4)
+k1naco3 = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_co3)
+k1nahco3  = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_hco3)
 
 nax = 0d0
 so4x = 0d0
@@ -3606,7 +3936,8 @@ elseif (any(chraq_cnst=='so4')) then
     so4x = 2d0*maqc(findloc(chraq_cnst,'so4',dim=1),:)
 endif 
 
-netcat = nax + kx -2d0*so4x
+! netcat = nax + kx -2d0*so4x
+netcat = kx -2d0*so4x
 
 six =0d0
 cax =0d0
@@ -3662,6 +3993,10 @@ endif
 ! print*,'calc_pH'
 do while (error > tol)
     f = prox**3d0 + netcat*prox**2d0 - (k1*kco2*pco2x+kw)*prox - 2d0*k2*k1*kco2*pco2x  &
+        ! na
+        & + nax*prox**2d0/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) &
+        & -1d0*nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) &
+        &       *k1naco3*k1*k2*kco2*pco2x  &
         ! si 
         ! & - six*prox**2d0/(prox/k1si + 1d0 + k2si/k1si/prox)  &
         ! & - 2d0*six*prox**2d0/(prox**2d0/k2si + prox*k1si/k2si + 1d0) &
@@ -3694,6 +4029,14 @@ do while (error > tol)
         & + fe3x*k2fe3/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) &
         & - fe3x*k4fe3/prox**2d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0) 
     df = 3d0*prox**2d0 + 2d0*netcat*prox - (k1*kco2*pco2x+kw) &
+        !
+        ! na
+        & + nax*prox*2d0/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) &
+        & + nax*prox**2d0*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox)**2d0 &
+        &       *(k1naco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1nahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0) &
+        & -1d0*nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox)**2d0 &
+        &       *k1naco3*k1*k2*kco2*pco2x  &
+        &       *(k1naco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1nahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0) &
         !
         ! si
         !
@@ -3872,7 +4215,8 @@ endif
 
 if (print_cb) then 
     open(88,file = trim(adjustl(print_loc)),status='replace')
-    write(88,*) ' z ',' h+ ',' oh- ',' na+ ', ' k+ ',' so42- ', 'hco3- ', ' co32- ',' h4sio4 ',' h3sio4- ',' h2sio42- ' &
+    write(88,*) ' z ',' h+ ',' oh- ',' na+ ',' naco3- ', ' nahco3 ', ' k+ ',' so42- ', 'hco3- ', ' co32- ' &
+        & ,' h4sio4 ',' h3sio4- ',' h2sio42- ' &
         & ,' mg2+ ', ' mg(oh)+ ', ' mgco3 ', 'mghco3+ ', ' ca2+ ', ' ca(oh)+ ', ' caco3 ', ' cahco3+ ' &
         & ,' al3+ ', ' al(oh)2+ ', ' al(oh)2+ ', ' al(oh)3 ', ' al(oh)4- ' &
         & , ' fe22+ ', ' fe2(oh)+ ', ' fe2co3 ', ' fe2hco3+ ' &
@@ -3881,7 +4225,11 @@ if (print_cb) then
         write(88,*) z(iz) &
         &, prox(iz) &
         & ,kw/prox(iz) &
-        & ,nax(iz) &
+        & ,nax(iz)/(1d0+k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0+k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)) &
+        & ,nax(iz)/(1d0+k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0+k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)) &
+        &       *k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
+        & ,nax(iz)/(1d0+k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0+k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)) &
+        &       *k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)     &
         & ,kx(iz) &
         & ,so4x(iz) &
         & ,k1*kco2*pco2x(iz)/prox(iz) &
@@ -3923,7 +4271,11 @@ if (print_cb) then
         ! charge balance 
         & ,1d0*prox(iz) &
         & +(-1d0)*kw/prox(iz) &
-        & +(1d0)*nax(iz) &
+        & +(1d0)*nax(iz)/(1d0+k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0+k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)) &
+        & +(-1d0)*nax(iz)/(1d0+k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0+k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)) &
+        &       *k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
+        & +(0d0)*nax(iz)/(1d0+k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0+k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)) &
+        &       *k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)      &
         & +(1d0)*kx(iz) &
         & +(-2d0)*so4x(iz) &
         & +(-1d0)*k1*kco2*pco2x(iz)/prox(iz) &
@@ -4240,19 +4592,20 @@ endsubroutine calc_omega_v3
 subroutine calc_omega_dev( &
     & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all &! input
+    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all &! input
     & ,prox,mineral,sp_name &! input 
-    & ,omega,domega_dmsp &! output
+    & ,omega,domega_dmsp,omega_error &! output
     & )
 implicit none
 integer,intent(in)::nz
 real(kind=8):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &
     & ,k1al,k2al,k3al,k4al,keqka,keqgb,keqct,k1fe2,k1fe2co3,k1fe2hco3,keqfa,k1fe3,k2fe3,k3fe3,k4fe3,keqgt &
-    & ,keqcabd,keqdp,keqhb,keqkfs,keqamsi,keqg1,keqg2,keqg3
+    & ,keqcabd,keqdp,keqhb,keqkfs,keqamsi,keqg1,keqg2,keqg3,po2th,k1naco3,k1nahco3
 real(kind=8),dimension(nz),intent(in):: prox
 real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x,kx
 real(kind=8),dimension(nz),intent(out):: domega_dmsp
 real(kind=8),dimension(nz),intent(out):: omega
+logical,intent(out)::omega_error
 character(5),intent(in):: mineral,sp_name
 
 integer,intent(in)::nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst
@@ -4267,6 +4620,7 @@ real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx
 real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
 real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx
 real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
+real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
@@ -4320,6 +4674,12 @@ keqamsi = keqsld_all(findloc(chrsld_all,'amsi',dim=1))
 keqg1 = keqsld_all(findloc(chrsld_all,'g1',dim=1))
 keqg2 = keqsld_all(findloc(chrsld_all,'g2',dim=1))
 keqg3 = keqsld_all(findloc(chrsld_all,'g3',dim=1))
+k1naco3 = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_co3)
+k1nahco3 = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_hco3)
+
+
+po2th = mgasth_all(findloc(chrgas_all,'po2',dim=1))
+
 
 nax = 0d0
 kx = 0d0
@@ -4478,7 +4838,7 @@ select case(trim(adjustl(mineral)))
     case('ab')
     ! NaAlSi3O8 + 4 H+ = Na+ + Al3+ + 3SiO2 + 2H2O
         omega = ( & 
-            & nax & 
+            & nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) & 
             & *alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
             & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0 &
             & /prox**4d0 &
@@ -4488,21 +4848,28 @@ select case(trim(adjustl(mineral)))
         select case(trim(adjustl(sp_name)))
             case('pro')
                 domega_dmsp = ( & 
-                    & nax & 
+                    & nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox)**2d0 & 
+                    & *(k1naco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1nahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0) &
+                    & *alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
+                    & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0 &
+                    & /prox**4d0 &
+                    & /keqab &
+                    !
+                    & +nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) & 
                     & *alx*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0)**2d0 &
                     & *(k1al*(-1d0)/prox**2d0+k2al*(-2d0)/prox**3d0+k3al*(-3d0)/prox**4d0+k4al*(-4d0)/prox**5d0) &
                     & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0 &
                     & /prox**4d0 &
                     & /keqab &
                     ! 
-                    & +nax & 
+                    & +nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) & 
                     & *alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
                     & *six**3d0*(-3d0)/(1d0+k1si/prox+k2si/prox**2d0)**4d0 &
                     & *(k1si*(-1d0)/prox**2d0+k2si*(-2d0)/prox**3d0) &
                     & /prox**4d0 &
                     & /keqab &
                     ! 
-                    & +nax & 
+                    & +nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) & 
                     & *alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
                     & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0 &
                     & *(-4d0)/prox**5d0 &
@@ -4510,7 +4877,7 @@ select case(trim(adjustl(mineral)))
                     & )
             case('na')
                 domega_dmsp = ( & 
-                    & 1d0 & 
+                    & 1d0/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) & 
                     & *alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
                     & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0 &
                     & /prox**4d0 &
@@ -4518,7 +4885,7 @@ select case(trim(adjustl(mineral)))
                     & )
             case('al')
                 domega_dmsp = ( & 
-                    & nax & 
+                    & nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) & 
                     & *1d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
                     & *six**3d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0 &
                     & /prox**4d0 &
@@ -4526,7 +4893,7 @@ select case(trim(adjustl(mineral)))
                     & )
             case('si')
                 domega_dmsp = ( & 
-                    & nax & 
+                    & nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox) & 
                     & *alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0) &
                     & *3d0*six**2d0/(1d0+k1si/prox+k2si/prox**2d0)**3d0 &
                     & /prox**4d0 &
@@ -5187,14 +5554,16 @@ select case(trim(adjustl(mineral)))
     ! omega is defined so that kpy*poro*hr*mvpy*1d-6*mpyx*(1d0-omega_py) = kpy*poro*hr*mvpy*1d-6*mpyx*po2x**0.5d0
     ! i.e., 1.0 - omega_py = po2x**0.5 
         ! omega = 1d0 - po2x**0.5d0
-        omega = 1d0 - po2x**0.5d0*merge(0d0,1d0,po2x<1d-20)
+        omega = 1d0 - po2x**0.5d0*merge(0d0,1d0,po2x<po2th)
+        ! omega = merge(1d0,1d0 - po2x**0.5d0,po2x<po2th.or. isnan(po2x**0.5d0) .or. isnan(po2x**(-0.5d0)))
         ! omega = 0d0
         
         select case(trim(adjustl(sp_name)))
             case('po2')
                 domega_dmsp = ( &
-                    & - 0.5d0*po2x**(-0.5d0)*merge(0d0,1d0,po2x<1d-20) &
+                    & - 0.5d0/po2x**(0.5d0)*merge(0d0,1d0,po2x<po2th) &
                     & )
+                ! domega_dmsp = merge(0d0,-0.5d0*po2x**(-0.5d0),po2x<po2th.or. isnan(po2x**0.5d0) .or. isnan(po2x**(-0.5d0)))
             case default 
                 domega_dmsp = 0d0
         endselect 
@@ -5297,9 +5666,11 @@ select case(trim(adjustl(mineral)))
         
 endselect
 
+omega_error = .false.
 if (any(isnan(omega)) .or. any(isnan(domega_dmsp))) then 
-    print *,'nan in calc_omega_dev'
-    stop
+    print *,'nan in calc_omega_dev',any(isnan(omega)),any(isnan(domega_dmsp)),mineral,sp_name
+    omega_error = .true.
+    ! stop
 endif 
 
 endsubroutine calc_omega_dev
@@ -5437,12 +5808,13 @@ subroutine calc_rxn_ext_dev( &
     & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
     & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
     & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain &!input
+    & ,nsp_sld_all,chrsld_all,msldth_all &! input
     & ,rxn_name,sp_name &! input 
     & ,rxn_ext,drxnext_dmsp &! output
     & )
 implicit none
 integer,intent(in)::nz
-real(kind=8):: po2th,fe2th,mwtom
+real(kind=8):: po2th,fe2th,mwtom,g1th,g2th,g3th
 real(kind=8),dimension(nz):: po2x,vmax,mo2,fe2x,koxa,vmax2,mom2,komb,beta,omx,ombx &
     & ,mo2g1,mo2g2,mo2g3,kg1,kg2,kg3,g1x,g2x,g3x
 real(kind=8),dimension(nz),intent(in):: poro,sat
@@ -5450,7 +5822,7 @@ real(kind=8),dimension(nz),intent(out):: drxnext_dmsp
 real(kind=8),dimension(nz),intent(out):: rxn_ext
 character(5),intent(in)::rxn_name,sp_name
 
-integer,intent(in)::nrxn_ext_all,nsp_gas_all,nsp_aq_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst
+integer,intent(in)::nrxn_ext_all,nsp_gas_all,nsp_aq_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst 
 
 character(5),dimension(nrxn_ext_all),intent(in)::chrrxn_ext_all
 character(5),dimension(nsp_gas),intent(in)::chrgas
@@ -5468,13 +5840,15 @@ real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
 real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
 real(kind=8),dimension(nrxn_ext_all,nz),intent(in)::krxn1_ext_all,krxn2_ext_all
 
-integer,intent(in)::nsp_sld,nsp_sld_cnst
+integer,intent(in)::nsp_sld,nsp_sld_cnst,nsp_sld_all
 
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_cnst),intent(in)::chrsld_cnst
+character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
 
 real(kind=8),dimension(nsp_sld,nz),intent(in)::msldx
 real(kind=8),dimension(nsp_sld_cnst,nz),intent(in)::msldc
+real(kind=8),dimension(nsp_sld_all),intent(in)::msldth_all
 
 real(kind=8),intent(in)::rho_grain
 
@@ -5487,6 +5861,10 @@ po2th = mgasth_all(findloc(chrgas_all,'po2',dim=1))
 koxa = krxn1_ext_all(findloc(chrrxn_ext_all,'fe2o2',dim=1),:) 
 
 fe2th = maqth_all(findloc(chraq_all,'fe2',dim=1))
+
+g1th = msldth_all(findloc(chrsld_all,'g1',dim=1))
+g2th = msldth_all(findloc(chrsld_all,'g2',dim=1))
+g3th = msldth_all(findloc(chrsld_all,'g3',dim=1))
 
 
 
@@ -5642,52 +6020,61 @@ select case(trim(adjustl(rxn_name)))
         endselect 
     
     case('g1dec')
-        rxn_ext = kg1*g1x*po2x/(po2x+mo2g1)
+        rxn_ext = kg1*g1x*po2x/(po2x+mo2g1) &
+            & *merge(0d0,1d0,po2x < po2th .or. g1x < g1th)
         
         select case(trim(adjustl(sp_name)))
             case('po2')
                 drxnext_dmsp = (&
                     & kg1*g1x*1d0/(po2x+mo2g1) &
                     & +kg1*g1x*po2x*(-1d0)/(po2x+mo2g1)**2d0 &
-                    & )
+                    & ) &
+                    & *merge(0d0,1d0,po2x < po2th .or. g1x < g1th)
             case('g1')
                 drxnext_dmsp = (&
                     & kg1*1d0*po2x/(po2x+mo2g1) &
-                    & )
+                    & ) &
+                    & *merge(0d0,1d0,po2x < po2th .or. g1x < g1th)
             case default
                 drxnext_dmsp = 0d0
         endselect 
     
     case('g2dec')
-        rxn_ext = kg2*g2x*po2x/(po2x+mo2g2)
+        rxn_ext = kg2*g2x*po2x/(po2x+mo2g2)&
+            & *merge(0d0,1d0,po2x < po2th .or. g2x < g2th)
         
         select case(trim(adjustl(sp_name)))
             case('po2')
                 drxnext_dmsp = (&
                     & kg2*g2x*1d0/(po2x+mo2g2) &
                     & +kg2*g2x*po2x*(-1d0)/(po2x+mo2g2)**2d0 &
-                    & )
+                    & ) &
+                    & *merge(0d0,1d0,po2x < po2th .or. g2x < g2th)
             case('g2')
                 drxnext_dmsp = (&
                     & kg2*1d0*po2x/(po2x+mo2g2) &
-                    & )
+                    & ) &
+                    & *merge(0d0,1d0,po2x < po2th .or. g2x < g2th)
             case default
                 drxnext_dmsp = 0d0
         endselect 
     
     case('g3dec')
-        rxn_ext = kg3*g3x*po2x/(po2x+mo2g3)
+        rxn_ext = kg3*g3x*po2x/(po2x+mo2g3)&
+            & *merge(0d0,1d0,po2x < po2th .or. g3x < g3th)
         
         select case(trim(adjustl(sp_name)))
             case('po2')
                 drxnext_dmsp = (&
                     & kg3*g3x*1d0/(po2x+mo2g3) &
                     & +kg3*g3x*po2x*(-1d0)/(po2x+mo2g3)**2d0 &
-                    & )
+                    & ) &
+                    & *merge(0d0,1d0,po2x < po2th .or. g3x < g3th)
             case('g3')
                 drxnext_dmsp = (&
                     & kg3*1d0*po2x/(po2x+mo2g3) &
-                    & )
+                    & ) &
+                    & *merge(0d0,1d0,po2x < po2th .or. g3x < g3th)
             case default
                 drxnext_dmsp = 0d0
         endselect 
@@ -5712,20 +6099,21 @@ endsubroutine calc_rxn_ext_dev
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine make_transmx(  &
-    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref  &! input
+    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
     & ,trans,nonlocal,izml  &! output 
     & )
 implicit none
 integer,intent(in)::nsp_sld,nz
-real(kind=8),intent(in)::dz(nz),poro(nz),z(nz),zml_ref,dbl_ref
+real(kind=8),intent(in)::dz(nz),poro(nz),z(nz),zml_ref,dbl_ref,tol
 real(kind=8)::sporo(nz)
-logical,intent(in)::labs(nsp_sld),turbo2(nsp_sld),nobio(nsp_sld)
+logical,intent(in)::labs(nsp_sld),turbo2(nsp_sld),nobio(nsp_sld),fick(nsp_sld),till(nsp_sld),save_trans
 real(kind=8),intent(out)::trans(nz,nz,nsp_sld)
 logical,intent(out)::nonlocal(nsp_sld)
 integer,intent(out)::izml
 integer iz,isp,iiz,izdbl
-real(kind=8) :: translabs(nz,nz),dbio(nz),transdbio(nz,nz),transturbo2(nz,nz)
+real(kind=8) :: translabs(nz,nz),dbio(nz),transdbio(nz,nz),transturbo2(nz,nz),transtill(nz,nz)
 real(kind=8) :: zml(nsp_sld),probh,dbl
+character(10) chr
 
 sporo = 1d0 - poro
 trans = 0d0
@@ -5805,6 +6193,11 @@ do isp=1,nsp_sld
             transdbio(iz+1,iz) = 0.5d0*(dbio(iz)+dbio(iz+1))*(1d0)/(0.5d0*(dz(iz)+dz(iz+1)))
         endif
     enddo
+    
+    ! Added; changes have been made here rather than in solving governing eqs.
+    do iz=1,nz
+        transdbio(:,iz) = transdbio(:,iz)/dz(iz)
+    enddo 
 
     !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
     ! transition matrix for random mixing 
@@ -5816,23 +6209,94 @@ do isp=1,nsp_sld
        transturbo2(iz,iz)=-probh*(izml-max(1,izdbl))  
     enddo
     ! trying real homogeneous 
-    ! transturbo2 = 0d0
-    ! probh = 0.0001d0
-    ! do iz=1,izml 
-        ! do iiz=1,izml
-            ! if (iiz/=iz) then 
-                ! transturbo2(iiz,iz) = probh*dz(iz)/dz(iiz)
-                ! transturbo2(iiz,iiz) = transturbo2(iiz,iiz) - transturbo2(iiz,iz)
-            ! endif 
+    transturbo2 = 0d0
+    probh = 0.0001d0
+    do iz=1,izml 
+        do iiz=1,izml
+            if (iiz/=iz) then 
+                transturbo2(iiz,iz) = probh!*dz(iz)/dz(iiz)
+                transturbo2(iiz,iiz) = transturbo2(iiz,iiz) - transturbo2(iiz,iz)
+            endif 
+        enddo
+    enddo
+    
+    ! trying inverse mixing 
+    transtill = 0d0
+    probh = 0.010d0
+    do iz=1,izml  ! when i = j, transition matrix contains probabilities with which particles are moved from other layers of sediment   
+        ! transtill(iz,iz)=-probh*dz(iz)/dz(izml+1-iz) !*(iz - izml*0.5d0)**2d0/(izml**2d0*0.25d0)
+        ! transtill(izml+1-iz,iz)=probh*dz(iz)/dz(izml+1-iz) ! *(iz - izml*0.5d0)**2d0/(izml**2d0*0.25d0)
+        ! do iiz = izml+1-iz,iz+1,-1
+            ! transtill(iiz,iz)= probh*dz(iz)/dz(iiz)*(iiz/real(izml+1-iz,kind=8))
+        ! enddo 
+        ! transtill(iz,iz) = -sum(transtill(:,iz))
+        do iiz=1,izml
+            if (iiz/=iz) then 
+                if (iiz==iz-1 .or. iiz == iz+1 .or. iiz == izml + 1 - iz ) then 
+                    transtill(iiz,iz)= probh !*dz(iz)/dz(iiz) 
+                    ! transtill(iiz,iiz) = transtill(iiz,iiz) - transtill(iiz,iz)
+                endif 
+            endif 
+        enddo 
+        transtill(iz,iz) = -sum(transtill(:,iz))
+    enddo
+    
+
+    ! if (turbo2(isp)) translabs = transturbo2   ! translabs temporarily used to represents nonlocal mixing 
+    
+    ! added 
+    do iz =1,nz
+        do iiz= 1,nz
+            translabs(iiz,iz) = translabs(iiz,iz)/dz(iz)*dz(iiz)
+            transturbo2(iiz,iz) = transturbo2(iiz,iz)/dz(iz)*dz(iiz)
+            transtill(iiz,iz) = transtill(iiz,iz)/dz(iz)*dz(iiz)
+        enddo 
+    enddo 
+    
+    trans(:,:,isp) = 0d0 
+    
+    if (nobio(isp)) cycle
+    
+    if (fick(isp)) then 
+        trans(:,:,isp) = trans(:,:,isp) + transdbio(:,:)
+    endif 
+    
+    if (turbo2(isp)) then 
+        trans(:,:,isp) = trans(:,:,isp) + transturbo2(:,:)
+    endif 
+    
+    if (labs(isp)) then 
+        trans(:,:,isp) = trans(:,:,isp) + translabs(:,:)
+    endif 
+    
+    if (till(isp)) then 
+        trans(:,:,isp) = trans(:,:,isp) + transtill(:,:)
+    endif 
+    
+    ! if (any(abs(sum(trans(:,:,isp),dim=1))>tol)) then 
+        ! print *, 'transition matrix can be non-conservative'
+        ! write(chr,'(i3.3)') isp
+        ! open(unit=88,file='./mtx-'//trim(adjustl(chr))//'.txt',action='write',status='replace')
+        ! do iz=1,nz
+            ! write(88,*) (trans(iz,iiz,isp),iiz=1,nz)  ! writing 
         ! enddo
-    ! enddo
+        ! close(88)
+        ! stop
+    ! endif 
+    
+    if (save_trans) then 
+        write(chr,'(i3.3)') isp
+        open(unit=88,file='./mtx-'//trim(adjustl(chr))//'.txt',action='write',status='replace')
+        do iz=1,nz
+            write(88,*) (trans(iz,iiz,isp),iiz=1,nz)  ! writing 
+        enddo
+        close(88)
+    endif 
+    
+    ! trans(:,:,isp) = transdbio(:,:)  !  firstly assume local mixing implemented by dbio 
 
-    if (turbo2(isp)) translabs = transturbo2   ! translabs temporarily used to represents nonlocal mixing 
-
-    trans(:,:,isp) = transdbio(:,:)  !  firstly assume local mixing implemented by dbio 
-
-    if (nonlocal(isp)) trans(:,:,isp) = translabs(:,:)  ! if nonlocal, replaced by either turbo2 mixing or labs mixing 
-    if (nobio(isp)) trans(:,:,isp) = 0d0  ! if assuming no bioturbation, transition matrix is set at zero  
+    ! if (nonlocal(isp)) trans(:,:,isp) = translabs(:,:)  ! if nonlocal, replaced by either turbo2 mixing or labs mixing 
+    ! if (nobio(isp)) trans(:,:,isp) = 0d0  ! if assuming no bioturbation, transition matrix is set at zero  
 enddo
 ! even when all are local Fickian mixing, mixing treatment must be the same as in case of nonlocal 
 ! if mixing intensity and depths are different between different species  
@@ -5860,8 +6324,8 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
     & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all &
     & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
-    & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain &
-    & ,turbo2,labs,trans,method_precalc,display &! input
+    & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all &
+    & ,turbo2,labs,trans,method_precalc,display,chrflx &! input
     !  old inputs
     & ,hr,poro,z,dz,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
     & ,ucv,torg,cplprec  &
@@ -5936,7 +6400,9 @@ real(kind=8),dimension(nsp_sld_cnst,nz),intent(in)::msldc
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
-real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all
+real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all,msldth_all
+
+character(5),dimension(nflx),intent(in)::chrflx
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
@@ -5964,19 +6430,24 @@ integer,dimension(nrxn_ext)::irxn_ext
 
 real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp &
     & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp,omega_tmp_th,rxn_ext_tmp &
-    & ,edif_tmp,edif_tmp_n,edif_tmp_p,khco2n_tmp,pco2n_tmp,edifn_tmp,caqsupp_tmp,kco2,k1,k2,kho,sw_red
+    & ,edif_tmp,edif_tmp_n,edif_tmp_p,khco2n_tmp,pco2n_tmp,edifn_tmp,caqsupp_tmp,kco2,k1,k2,kho,sw_red &
+    & ,flx_max
 
 real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8)::fact = 1d-3
 real(kind=8)::dconc = 1d-14
 real(kind=8)::threshold = 10d0
 ! real(kind=8)::threshold = 3d0
 real(kind=8),dimension(nz)::dummy,dummy2  
 
-logical print_cb,ph_error
+logical print_cb,ph_error,omega_error
 character(500) print_loc
+character(20) chrfmt
 
 integer,parameter :: iter_max = 50
 ! integer,parameter :: iter_max = 300
+
+integer :: nz_disp = 10
 
 real(kind=8) amx3(nsp3*nz,nsp3*nz),ymx3(nsp3*nz)
 integer ipiv3(nsp3*nz)
@@ -6145,10 +6616,15 @@ do while ((.not.isnan(error)).and.(error > tol))
         call calc_omega_dev( &
             & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
             & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all &! input
+            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all &! input
             & ,prox,chrsld(isps),'pro  ' &! input 
-            & ,dummy,dummy2 &! output
+            & ,dummy,dummy2,omega_error &! output
             & )
+        if (omega_error) then
+            dt = dt/10d0
+            flgback = .true.
+            exit 
+        endif 
         omega(isps,:) = dummy
         dmaq = 0d0
         dmgas = 0d0
@@ -6193,10 +6669,15 @@ do while ((.not.isnan(error)).and.(error > tol))
                 call calc_omega_dev( &
                     & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                     & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-                    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all &! input
+                    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all &! input
                     & ,prox,chrsld(isps),chraq(ispa) &! input 
-                    & ,dummy,dummy2 &! output
+                    & ,dummy,dummy2,omega_error &! output
                     & )
+                if (omega_error) then
+                    dt = dt/10d0
+                    flgback = .true.
+                    exit 
+                endif 
                 
                 domega_dmaq(isps,ispa,:) = dummy2 + domega_dpro(isps,:)*dprodmaq(ispa,:)
             endif 
@@ -6223,10 +6704,15 @@ do while ((.not.isnan(error)).and.(error > tol))
                 call calc_omega_dev( &
                     & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                     & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-                    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all &! input
+                    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all &! input
                     & ,prox,chrsld(isps),chrgas(ispg) &! input 
-                    & ,dummy,dummy2 &! output
+                    & ,dummy,dummy2,omega_error &! output
                     & )
+                if (omega_error) then
+                    dt = dt/10d0
+                    flgback = .true.
+                    exit 
+                endif 
                 
                 domega_dmgas(isps,ispg,:) = dummy2 + domega_dpro(isps,:)*dprodmgas(ispg,:)
             endif 
@@ -6264,6 +6750,7 @@ do while ((.not.isnan(error)).and.(error > tol))
             & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
             & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
             & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain &!input
+            & ,nsp_sld_all,chrsld_all,msldth_all &! input
             & ,chrrxn_ext(irxn),'pro  ' &! input 
             & ,dummy,dummy2 &! output
             & )
@@ -6290,6 +6777,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
                 & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain &!input
+                & ,nsp_sld_all,chrsld_all,msldth_all &! input
                 & ,chrrxn_ext(irxn),chrgas(ispg) &! input 
                 & ,dummy,dummy2 &! output
                 & )
@@ -6317,6 +6805,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
                 & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain &!input
+                & ,nsp_sld_all,chrsld_all,msldth_all &! input
                 & ,chrrxn_ext(irxn),chraq(ispa) &! input 
                 & ,dummy,dummy2 &! output
                 & )
@@ -6344,6 +6833,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
                 & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain &!input
+                & ,nsp_sld_all,chrsld_all,msldth_all &! input
                 & ,chrrxn_ext(irxn),chrsld(isps) &! input 
                 & ,dummy,dummy2 &! output
                 & )
@@ -6373,33 +6863,33 @@ do while ((.not.isnan(error)).and.(error > tol))
             
             if (iz==nz) mp_tmp = mi_tmp
 
-            amx3(row,row) = (1.0d0     &
-                & + w/dz(iz)*dt    &
-                & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*(1d0-omega_tmp)*dt &
+            amx3(row,row) = (1.0d0/dt     &
+                & + w/dz(iz)    &
+                & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*(1d0-omega_tmp) &
                 & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
-                & - sum(stsld_ext(:,isps)*drxnext_dmsld(:,isps,iz))*dt &
+                & - sum(stsld_ext(:,isps)*drxnext_dmsld(:,isps,iz)) &
                 & ) &
                 & * merge(1.0d0,m_tmp,m_tmp<mth_tmp*sw_red)
 
             ymx3(row) = ( &
-                & (m_tmp-mprev_tmp) &
-                & -w*(mp_tmp-m_tmp)/dz(iz)*dt  &
-                & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp)*dt &
+                & (m_tmp-mprev_tmp)/dt &
+                & -w*(mp_tmp-m_tmp)/dz(iz)  &
+                & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
                 & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
-                & -msupp_tmp*dt  &
-                & -rxn_ext_tmp*dt  &
+                & -msupp_tmp  &
+                & -rxn_ext_tmp  &
                 & ) &
                 & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
                 
-            if (iz/=nz) amx3(row,row+nsp3) = (-w/dz(iz))*dt *merge(1.0d0,mp_tmp,m_tmp<mth_tmp*sw_red)
+            if (iz/=nz) amx3(row,row+nsp3) = (-w/dz(iz)) *merge(1.0d0,mp_tmp,m_tmp<mth_tmp*sw_red)
             
             do ispa = 1, nsp_aq
                 col = nsp3*(iz-1)+nsp_sld + ispa
                 
                 amx3(row,col ) = ( &
-                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_dmaq(isps,ispa,iz))*dt &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_dmaq(isps,ispa,iz)) &
                     & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
-                    & - sum(stsld_ext(:,isps)*drxnext_dmaq(:,ispa,iz))*dt &
+                    & - sum(stsld_ext(:,isps)*drxnext_dmaq(:,ispa,iz)) &
                     & ) &
                     & *maqx(ispa,iz) &
                     & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
@@ -6409,9 +6899,9 @@ do while ((.not.isnan(error)).and.(error > tol))
                 col = nsp3*(iz-1)+nsp_sld + nsp_aq + ispg
 
                 amx3(row,col) = ( &
-                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_dmgas(isps,ispg,iz))*dt &
+                    & k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(-domega_dmgas(isps,ispg,iz)) &
                     & *merge(0d0,1d0,1d0-omega_tmp_th < 0d0) &
-                    & - sum(stsld_ext(:,isps)*drxnext_dmgas(:,ispg,iz))*dt &
+                    & - sum(stsld_ext(:,isps)*drxnext_dmgas(:,ispg,iz)) &
                     & ) &
                     & *mgasx(ispg,iz) &
                     & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
@@ -6422,51 +6912,56 @@ do while ((.not.isnan(error)).and.(error > tol))
                 col = nsp3*(iz-1)+ isps2
 
                 amx3(row,col) = ( &
-                    & - sum(stsld_ext(:,isps)*drxnext_dmsld(:,isps2,iz))*dt &
+                    & - sum(stsld_ext(:,isps)*drxnext_dmsld(:,isps2,iz)) &
                     & ) &
                     & *msldx(isps2,iz) &
                     & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
             enddo 
             
             ! diffusion terms are filled with transition matrices 
-            if (turbo2(isps).or.labs(isps)) then
-                do iiz = 1, nz
-                    col = nsp3*(iiz-1)+isps
-                    ! col = 1 + (iiz-1)*nsp
-                    if (trans(iiz,iz,isps)==0d0) cycle
-                    amx3(row,col) = amx3(row,col) &
-                        ! & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*(1d0-poro(iiz))*msldx(iiz,isps)
-                        & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*msldx(isps,iiz)*dt
-                    ymx3(row) = ymx3(row) &
-                        ! & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*(1d0-poro(iiz))*msldx(iiz,isps)
-                        & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*msldx(isps,iiz)*dt
-                        
-                    flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
-                        & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*msldx(isps,iiz) &
-                        & )
-                enddo
-            else
-                do iiz = 1, nz
-                    ! col = 1 + (iiz-1)*nsp
-                    col = nsp3*(iiz-1)+isps
-                    if (trans(iiz,iz,isps)==0d0) cycle
-                    ! amx3(row,col) = amx3(row,col) -trans(iiz,iz,isps)/dz(iz)*msldx(iiz,isps)/(1d0-poro(iiz))
-                    ! ymx3(row) = ymx3(row) - trans(iiz,iz,isps)/dz(iz)*msldx(iiz,isps)/(1d0-poro(iiz))
+            ! if (turbo2(isps).or.labs(isps)) then
+                ! do iiz = 1, nz
+                    ! col = nsp3*(iiz-1)+isps
+                    ! if (trans(iiz,iz,isps)==0d0) cycle
+                    ! amx3(row,col) = amx3(row,col) &
+                        ! & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*msldx(isps,iiz)
+                    ! ymx3(row) = ymx3(row) &
+                        ! & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*msldx(isps,iiz)
                         
                     ! flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
-                        ! & - trans(iiz,iz,isps)/dz(iz)*msldx(iiz,isps)/(1d0-poro(iiz)) &
+                        ! & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*msldx(isps,iiz) &
                         ! & )
+                ! enddo
+            ! else
+                ! do iiz = 1, nz
+                    ! col = nsp3*(iiz-1)+isps
+                    ! if (trans(iiz,iz,isps)==0d0) cycle
                         
-                    amx3(row,col) = amx3(row,col) -trans(iiz,iz,isps)/dz(iz)*msldx(isps,iiz)*dt &
-                        & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
-                    ymx3(row) = ymx3(row) - trans(iiz,iz,isps)/dz(iz)*msldx(isps,iiz)*dt &
-                        & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+                    ! amx3(row,col) = amx3(row,col) -trans(iiz,iz,isps)/dz(iz)*msldx(isps,iiz) &
+                        ! & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+                    ! ymx3(row) = ymx3(row) - trans(iiz,iz,isps)/dz(iz)*msldx(isps,iiz) &
+                        ! & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
                         
-                    flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
-                        & - trans(iiz,iz,isps)/dz(iz)*msldx(isps,iiz) &
-                        & )
-                enddo
-            endif
+                    ! flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
+                        ! & - trans(iiz,iz,isps)/dz(iz)*msldx(isps,iiz) &
+                        ! & )
+                ! enddo
+            ! endif
+            
+            ! modifications with porosity and dz are made in make_trans subroutine
+            do iiz = 1, nz
+                col = nsp3*(iiz-1)+isps
+                if (trans(iiz,iz,isps)==0d0) cycle
+                    
+                amx3(row,col) = amx3(row,col) -trans(iiz,iz,isps)*msldx(isps,iiz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+                ymx3(row) = ymx3(row) - trans(iiz,iz,isps)*msldx(isps,iiz) &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+                    
+                flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
+                    & - trans(iiz,iz,isps)*msldx(isps,iiz) &
+                    & )
+            enddo
             
             flx_sld(isps,itflx,iz) = ( &
                 & (m_tmp-mprev_tmp)/dt &
@@ -6527,30 +7022,30 @@ do while ((.not.isnan(error)).and.(error > tol))
             edif_tmp_n = 1d3*poro(max(iz-1,1))*sat(max(iz-1,1))*tora(max(iz-1,1))*d_tmp
 
             amx3(row,row) = ( &
-                & (poro(iz)*sat(iz)*1d3*1d0)  &
+                & (poro(iz)*sat(iz)*1d3*1d0)/dt  &
                 & -(0.5d0*(edif_tmp +edif_tmp_p)*merge(0d0,-1d0,iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
-                & -0.5d0*(edif_tmp +edif_tmp_n)*(1d0)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz)*dt &
-                & + poro(iz)*sat(iz)*1d3*v(iz)*(1d0)/dz(iz)*dt &
-                & -drxndisp_tmp*dt &
-                & - sum(staq_ext(:,ispa)*drxnext_dmaq(:,ispa,iz))*dt &
+                & -0.5d0*(edif_tmp +edif_tmp_n)*(1d0)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
+                & + poro(iz)*sat(iz)*1d3*v(iz)*(1d0)/dz(iz) &
+                & -drxndisp_tmp &
+                & - sum(staq_ext(:,ispa)*drxnext_dmaq(:,ispa,iz)) &
                 & ) &
                 & *merge(1.0d0,caq_tmp,caq_tmp<caqth_tmp*sw_red)
 
             ymx3(row) = ( &
-                & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)  &
+                & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/dt  &
                 & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-                & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt &
-                & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz)*dt &
-                & - rxn_tmp*dt &
-                & - caqsupp_tmp*dt &
-                & - rxn_ext_tmp*dt &
+                & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+                & - rxn_tmp &
+                & - caqsupp_tmp &
+                & - rxn_ext_tmp &
                 & ) &
                 & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
 
             if (iz/=1) then 
                 amx3(row,row-nsp3) = ( &
-                    & -(-0.5d0*(edif_tmp +edif_tmp_n)*(-1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt &
-                    & + poro(iz)*sat(iz)*1d3*v(iz)*(-1d0)/dz(iz)*dt &
+                    & -(-0.5d0*(edif_tmp +edif_tmp_n)*(-1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                    & + poro(iz)*sat(iz)*1d3*v(iz)*(-1d0)/dz(iz) &
                     & ) &
                     & *caq_tmp_n &
                     & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
@@ -6558,7 +7053,7 @@ do while ((.not.isnan(error)).and.(error > tol))
             
             if (iz/=nz) then 
                 amx3(row,row+nsp3) = ( &
-                    & -(0.5d0*(edif_tmp +edif_tmp_p)*(1d0)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                    & -(0.5d0*(edif_tmp +edif_tmp_p)*(1d0)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz) &
                     & ) &
                     & *caq_tmp_p &
                     & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
@@ -6568,9 +7063,9 @@ do while ((.not.isnan(error)).and.(error > tol))
                 col = nsp3*(iz-1)+ isps
                 
                 amx3(row, col) = (     & 
-                    & - staq(isps,ispa)*ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*1d0*(1d0-omega(isps,iz))*dt &
+                    & - staq(isps,ispa)*ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*1d0*(1d0-omega(isps,iz)) &
                     & *merge(0d0,1d0,1d0-omega(isps,iz)*nonprec(isps,iz) < 0d0)  &
-                    & - sum(staq_ext(:,ispa)*drxnext_dmsld(:,isps,iz))*dt &
+                    & - sum(staq_ext(:,ispa)*drxnext_dmsld(:,isps,iz)) &
                     & ) &
                     & *msldx(isps,iz) &
                     & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
@@ -6582,7 +7077,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 if (ispa2 == ispa) cycle
                 
                 amx3(row,col) = amx3(row,col) + (     & 
-                    & - sum(staq_ext(:,ispa)*drxnext_dmaq(:,ispa2,iz))*dt &
+                    & - sum(staq_ext(:,ispa)*drxnext_dmaq(:,ispa2,iz)) &
                     & ) &
                     & *maqx(ispa2,iz) &
                     & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
@@ -6590,7 +7085,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 do isps = 1, nsp_sld
                     amx3(row,col) = amx3(row,col) + (     & 
                         & - staq(isps,ispa)*ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz) &
-                        & *(-domega_dmaq(isps,ispa2,iz))*dt &
+                        & *(-domega_dmaq(isps,ispa2,iz)) &
                         & *merge(0d0,1d0,1d0-omega(isps,iz)*nonprec(isps,iz) < 0d0)  &
                         & ) &
                         & *maqx(ispa2,iz) &
@@ -6602,7 +7097,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 col = nsp3*(iz-1) + nsp_sld + nsp_aq + ispg
                 
                 amx3(row,col) = amx3(row,col) + (     & 
-                    & - sum(staq_ext(:,ispa)*drxnext_dmgas(:,ispg,iz))*dt &
+                    & - sum(staq_ext(:,ispa)*drxnext_dmgas(:,ispg,iz)) &
                     & ) &
                     & *mgasx(ispg,iz) &
                     & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
@@ -6610,7 +7105,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 do isps = 1, nsp_sld
                     amx3(row,col) = amx3(row,col) + (     & 
                         & - staq(isps,ispa)*ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz) &
-                        & *(-domega_dmgas(isps,ispg,iz))*dt &
+                        & *(-domega_dmgas(isps,ispg,iz)) &
                         & *merge(0d0,1d0,1d0-omega(isps,iz)*nonprec(isps,iz) < 0d0)  &
                         & ) &
                         & *mgasx(ispg,iz) &
@@ -6643,8 +7138,8 @@ do while ((.not.isnan(error)).and.(error > tol))
                 print *,chraq(ispa),iz,(flx_aq(ispa,iflx,iz),iflx=1,nflx)
             endif 
             
-            ! amx3(row,:) = amx3(row,:)/(poro(iz)*sat(iz)*1d3)
-            ! ymx3(row) = ymx3(row)/(poro(iz)*sat(iz)*1d3)
+            amx3(row,:) = amx3(row,:)*fact 
+            ymx3(row) = ymx3(row)*fact 
         
         enddo 
         
@@ -6746,28 +7241,28 @@ do while ((.not.isnan(error)).and.(error > tol))
             endif 
 
             amx3(row,row) = ( &
-                & (agasx(ispg,iz) + dagas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz)) &
+                & (agasx(ispg,iz) + dagas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dt &
                 & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*merge(0d0,-1d0,iz==nz)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
                 & +0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
                 & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-                & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
-                & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz)*dt &
-                & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz)*dt &
-                & -sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg,iz))*dt &
-                & -drxngas_dmgas(ispg,ispg,iz)*dt &
+                & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)  &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz) &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
+                & -sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg,iz)) &
+                & -drxngas_dmgas(ispg,ispg,iz) &
                 & ) &
                 & *merge(1.0d0,mgasx(ispg,iz),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
             
             ymx3(row) = ( &
-                & (agasx(ispg,iz)*mgasx(ispg,iz)-agas(ispg,iz)*mgas(ispg,iz)) &
+                & (agasx(ispg,iz)*mgasx(ispg,iz)-agas(ispg,iz)*mgas(ispg,iz))/dt &
                 & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
                 &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-                & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
-                & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz)*dt &
-                ! & -resp(iz)*dt &
-                & -sum(stgas_ext(:,ispg)*rxnext(:,iz))*dt &
-                & -rxngas(ispg,iz)*dt &
-                & -mgassupp(ispg,iz)*dt &
+                & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+                & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
+                ! & -resp(iz) &
+                & -sum(stgas_ext(:,ispg)*rxnext(:,iz)) &
+                & -rxngas(ispg,iz) &
+                & -mgassupp(ispg,iz) &
                 & ) &
                 & *merge(0.0d0,1.0d0,mgasx(ispg,iz)<mgasth(ispg)*sw_red)
             
@@ -6776,7 +7271,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                 amx3(row,row+nsp3) = ( &
                         & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,iz+1))*(1d0)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
                         & + 0.5d0*(ddgas_dmgas(ispg,ispg,iz+1))*(mgasx(ispg,iz+1)-mgasx(ispg,iz)) &
-                        &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                        &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz) &
                         & ) &
                         & *merge(0.0d0,mgasx(ispg,iz+1),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
                 
@@ -6784,7 +7279,7 @@ do while ((.not.isnan(error)).and.(error > tol))
                     col = nsp3*(iz-1) + nsp_sld + ispa 
                     amx3(row,col+nsp3) = ( &
                             & -( 0.5d0*(ddgas_dmaq(ispg,ispa,iz+1))*(mgasx(ispg,iz+1)-mgasx(ispg,iz)) &
-                            &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz)*dt &
+                            &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))))/dz(iz) &
                             & ) &
                             & *merge(0.0d0,maqx(ispa,iz+1),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
                 enddo 
@@ -6795,9 +7290,9 @@ do while ((.not.isnan(error)).and.(error > tol))
                 amx3(row,row-nsp3) = ( &
                     & -(- 0.5d0*(dgas(ispg,iz)+dgas(ispg,iz-1))*(-1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
                     & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz-1))*(mgasx(ispg,iz)-mgasx(ispg,iz-1)) &
-                    &       /(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
-                    & +poro(iz)*sat(iz)*v(iz)*1d3*(-khgasx(ispg,iz-1)*1d0)/dz(iz)*dt &
-                    & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhgas_dmgas(ispg,ispg,iz-1)*mgasx(ispg,iz-1))/dz(iz)*dt &
+                    &       /(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+                    & +poro(iz)*sat(iz)*v(iz)*1d3*(-khgasx(ispg,iz-1)*1d0)/dz(iz) &
+                    & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhgas_dmgas(ispg,ispg,iz-1)*mgasx(ispg,iz-1))/dz(iz) &
                     & ) &
                     & *merge(0.0d0,mgasx(ispg,iz-1),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
                 
@@ -6806,8 +7301,8 @@ do while ((.not.isnan(error)).and.(error > tol))
 
                     amx3(row,col-nsp3) = ( &
                         & -(- 0.5d0*(ddgas_dmaq(ispg,ispa,iz-1))*(mgasx(ispg,iz)-mgasx(ispg,iz-1)) &
-                        &       /(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)*dt  &
-                        & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhgas_dmaq(ispg,ispa,iz-1)*mgasx(ispg,iz-1))/dz(iz)*dt &
+                        &       /(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+                        & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhgas_dmaq(ispg,ispa,iz-1)*mgasx(ispg,iz-1))/dz(iz) &
                         & ) &
                         & *merge(0.0d0,maqx(ispa,iz-1),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
                 enddo 
@@ -6816,8 +7311,8 @@ do while ((.not.isnan(error)).and.(error > tol))
             do isps = 1,nsp_sld
                 col = nsp3*(iz-1) + isps 
                 amx3(row,col) = ( &
-                    & -drxngas_dmsld(ispg,isps,iz)*dt &
-                    & -sum(stgas_ext(:,ispg)*drxnext_dmsld(:,isps,iz))*dt &
+                    & -drxngas_dmsld(ispg,isps,iz) &
+                    & -sum(stgas_ext(:,ispg)*drxnext_dmsld(:,isps,iz)) &
                     & ) &
                     & *merge(1.0d0,msldx(isps,iz),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
             enddo 
@@ -6825,13 +7320,13 @@ do while ((.not.isnan(error)).and.(error > tol))
             do ispa = 1, nsp_aq
                 col = nsp3*(iz-1) + nsp_sld + ispa 
                 amx3(row,col) = ( &
-                    & (dagas_dmaq(ispg,ispa,iz)*mgasx(ispg,iz)) &
+                    & (dagas_dmaq(ispg,ispa,iz)*mgasx(ispg,iz))/dt &
                     & -( 0.5d0*(ddgas_dmaq(ispg,ispa,iz))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
                     &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-                    & - 0.5d0*(ddgas_dmaq(ispg,ispa,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
-                    & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmaq(ispg,ispa,iz)*mgasx(ispg,iz))/dz(iz)*dt &
-                    & -drxngas_dmaq(ispg,ispa,iz)*dt &
-                    & -sum(stgas_ext(:,ispg)*drxnext_dmaq(:,ispa,iz))*dt &
+                    & - 0.5d0*(ddgas_dmaq(ispg,ispa,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)  &
+                    & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmaq(ispg,ispa,iz)*mgasx(ispg,iz))/dz(iz) &
+                    & -drxngas_dmaq(ispg,ispa,iz) &
+                    & -sum(stgas_ext(:,ispg)*drxnext_dmaq(:,ispa,iz)) &
                     & ) &
                     & *merge(1.0d0,maqx(ispa,iz),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
                 
@@ -6841,18 +7336,32 @@ do while ((.not.isnan(error)).and.(error > tol))
                 if (ispg == ispg2) cycle
                 col = nsp3*(iz-1) + nsp_sld + nsp_aq + ispg2
                 amx3(row,col) = ( &
-                    & (dagas_dmgas(ispg,ispg2,iz)*mgasx(ispg,iz)) &
+                    & (dagas_dmgas(ispg,ispg2,iz)*mgasx(ispg,iz))/dt &
                     & -( 0.5d0*(ddgas_dmgas(ispg,ispg2,iz))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
                     &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
                     & - 0.5d0*(ddgas_dmgas(ispg,ispg2,iz))*(mgasx(ispg,iz)-pco2n_tmp) &
-                    &       /(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)*dt  &
-                    & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg2,iz)*mgasx(ispg,iz))/dz(iz)*dt &
-                    & -drxngas_dmgas(ispg,ispg2,iz)*dt &
-                    & -sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg2,iz))*dt &
+                    &       /(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)  &
+                    & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg2,iz)*mgasx(ispg,iz))/dz(iz) &
+                    & -drxngas_dmgas(ispg,ispg2,iz) &
+                    & -sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg2,iz)) &
                     & ) &
                     & *merge(1.0d0,mgasx(ispg2,iz),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
                 
             enddo 
+            
+            if (amx3(row,row)==0d0) then 
+                print *,amx3(row,row),mgasx(ispg,iz)<mgasth(ispg)*sw_red,mgasx(ispg,iz) 
+                print *, &
+                & (agasx(ispg,iz) + dagas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz)) &
+                & ,-( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*merge(0d0,-1d0,iz==nz)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                & +0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+                & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+                & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)  &
+                & ,+poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz) &
+                & ,+poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
+                & ,-sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg,iz)) &
+                & ,-drxngas_dmgas(ispg,ispg,iz) 
+            endif 
             
             flx_gas(ispg,itflx,iz) = ( &
                 & (agasx(ispg,iz)*mgasx(ispg,iz)-agas(ispg,iz)*mgas(ispg,iz))/dt &
@@ -6893,24 +7402,24 @@ do while ((.not.isnan(error)).and.(error > tol))
         print*,'any(isnan(amx3)),any(isnan(ymx3))'
         print*,any(isnan(amx3)),any(isnan(ymx3))
 
-        ! if (any(isnan(ymx3))) then 
-            ! do ie = 1,nsp3*(nz)
-                ! if (isnan(ymx3(ie))) then 
-                    ! print*,'NAN is here...',ie
-                ! endif
-            ! enddo
-        ! endif
+        if (any(isnan(ymx3))) then 
+            do ie = 1,nsp3*(nz)
+                if (isnan(ymx3(ie))) then 
+                    print*,'NAN is here...',ie
+                endif
+            enddo
+        endif
 
 
-        ! if (any(isnan(amx3))) then 
-            ! do ie = 1,nsp3*(nz)
-                ! do ie2 = 1,nsp3*(nz)
-                    ! if (isnan(amx3(ie,ie2))) then 
-                        ! print*,'NAN is here...',ie,ie2
-                    ! endif
-                ! enddo
-            ! enddo
-        ! endif
+        if (any(isnan(amx3))) then 
+            do ie = 1,nsp3*(nz)
+                do ie2 = 1,nsp3*(nz)
+                    if (isnan(amx3(ie,ie2))) then 
+                        print*,'NAN is here...',ie,ie2
+                    endif
+                enddo
+            enddo
+        endif
         
         open(unit=11,file='amx.txt',status = 'replace')
         open(unit=12,file='ymx.txt',status = 'replace')
@@ -6955,6 +7464,11 @@ do while ((.not.isnan(error)).and.(error > tol))
             else   
                 msldx(isps,iz) = msldx(isps,iz)*exp(ymx3(row))
             endif
+            
+            if (msldx(isps,iz)<msldth(isps)) then ! too small trancate value and not be accounted for error 
+                msldx(isps,iz)=msldth(isps)
+                ymx3(row) = 0d0
+            endif
         enddo 
         
         do ispa = 1, nsp_aq
@@ -6971,6 +7485,11 @@ do while ((.not.isnan(error)).and.(error > tol))
                 maqx(ispa,iz) = maqx(ispa,iz)*0.50d0
             else   
                 maqx(ispa,iz) = maqx(ispa,iz)*exp(ymx3(row))
+            endif
+            
+            if (maqx(ispa,iz)<maqth(ispa)) then ! too small trancate value and not be accounted for error 
+                maqx(ispa,iz)=maqth(ispa)
+                ymx3(row) = 0d0
             endif
         enddo 
         
@@ -6989,6 +7508,11 @@ do while ((.not.isnan(error)).and.(error > tol))
             else   
                 mgasx(ispg,iz) = mgasx(ispg,iz)*exp(ymx3(row))
             endif
+            
+            if (mgasx(ispg,iz)<mgasth(ispg)) then ! too small trancate value and not be accounted for error 
+                mgasx(ispg,iz)=mgasth(ispg)
+                ymx3(row) = 0d0
+            endif
         enddo 
         
     end do 
@@ -6998,8 +7522,8 @@ do while ((.not.isnan(error)).and.(error > tol))
     if (isnan(error).or.info/=0 .or. any(isnan(msldx)) .or. any(isnan(maqx)).or. any(isnan(mgasx))) then 
         error = 1d3
         print *, '!! error is NaN; values are returned to those before iteration with reducing dt'
-        print*, 'isnan(error), info/=0,any(isnan(mgx)),any(isnan(mfox)))'
-        print*,isnan(error),info/=0,any(isnan(msldx)),any(isnan(maqx)),any(isnan(mgasx))
+        print*, 'isnan(error), info/=0,any(isnan(msldx)),any(isnan(maqx)),any(isnan(mgasx))'
+        print*,isnan(error),info,any(isnan(msldx)),any(isnan(maqx)),any(isnan(mgasx))
         
         open(unit=11,file='amx.txt',status = 'replace')
         open(unit=12,file='ymx.txt',status = 'replace')
@@ -7010,29 +7534,14 @@ do while ((.not.isnan(error)).and.(error > tol))
         close(11)
         close(12)      
         
-        stop
+        dt = dt/10d0
+        flgback = .true.
+        exit
+        
+        
+        ! stop
     endif
-
-    ! prox(:) = 0.5d0* ( &
-        ! & -1d0*(nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))  &
-        ! & + sqrt((nax(:)+2d0*ca(:)+2d0*mgx(:)+2d0*cx(:)+3d0*c2x(:)-2d0*so4x(:))**2d0  &
-        ! & + 4d0*kco2*k1*pco2x(:)) &
-        ! & )
-    ! call calc_pH( &
-        ! & nz,nax+2d0*(cx+cax+mgx-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2 &! input 
-        ! & ,prox &! output
-        ! & ) 
-    ! call calc_pH_v2( &
-        ! & nz,nax+2d0*(cx+cax+mgx-so4x)+3d0*c2x,pco2x,kw,kco2,k1,k2,six,k1si,k2si &! input 
-        ! & ,prox &! output
-        ! & ) 
-    ! call calc_pH_v4( &
-        ! & nz,maqx(findloc(chraq,'na',dim=1),:),maqx(findloc(chraq,'mg',dim=1),:),maqx(findloc(chraq,'ca',dim=1),:) &! input
-        ! & ,so4x,mgasx(findloc(chrgas,'pco2',dim=1),:) &! input
-        ! & ,kw,kco2,k1,k2,maqx(findloc(chraq,'si',dim=1),:),k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
-        ! & ,maqx(findloc(chraq,'al',dim=1),:),k1al,k2al,k3al,k4al &! input
-        ! & ,prox &! output
-        ! & ) 
+    
     call calc_pH_v5( &
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
@@ -7042,7 +7551,7 @@ do while ((.not.isnan(error)).and.(error > tol))
         & ) 
 
     if (display) then 
-        print *, 'silicate_dis error',error,info,iter,dt
+        print '(a,E11.3,a,i0,a,E11.3)', 'iteration error = ',error, ', iteration = ',iter,', time step [yr] = ',dt
     endif      
     iter = iter + 1 
 
@@ -7069,25 +7578,74 @@ do while ((.not.isnan(error)).and.(error > tol))
     end if
     
 #ifdef dispiter
-    print *
-    print *,'-=-=-=-=-=-= Aq species flx -=-=-=-=-=-=-='
-    do ispa = 1, nsp_aq
-        print *, trim(adjustl(chraq(ispa))), (sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
-    enddo 
-    print *,'-=-=-=-=-=-= Sld species flx -=-=-=-=-=-=-='
-    do isps = 1, nsp_sld
-        print *, trim(adjustl(chrsld(isps))), (sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
-    enddo 
-    do isps = 1, nsp_sld
-        print *, 'omega_'//trim(adjustl(chrsld(isps))), (omega(isps,iz),iz=1,nz, nz/5)
-    enddo 
-    print *,'-=-=-=-=-=-= Gas species flx -=-=-=-=-=-=-='
-    do ispg = 1, nsp_gas
-        print *, trim(adjustl(chrgas(ispg))), (sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
-    enddo 
-    print *,'-=-=-=-=-=-= pH -=-=-=-=-=-=-='
-    print *, 'ph:', (-log10(prox(iz)),iz=1,nz, nz/5)
-    print *
+        write(chrfmt,'(i0)') nz_disp
+        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+        
+        print *
+        print *,' [concs] '
+        print trim(adjustl(chrfmt)),'z',(z(iz),iz=1,nz,nz/nz_disp)
+        if (nsp_aq>0) then 
+            print *,' < aq species >'
+            do ispa = 1, nsp_aq
+                print trim(adjustl(chrfmt)), trim(adjustl(chraq(ispa))), (maqx(ispa,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        if (nsp_sld>0) then 
+            print *,' < sld species >'
+            do isps = 1, nsp_sld
+                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (msldx(isps,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        if (nsp_gas>0) then 
+            print *,' < gas species >'
+            do ispg = 1, nsp_gas
+                print trim(adjustl(chrfmt)), trim(adjustl(chrgas(ispg))), (mgasx(ispg,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        print *
+        
+        print *
+        print *,' [saturation & pH] '
+        if (nsp_sld>0) then 
+            print *,' < sld species omega >'
+            do isps = 1, nsp_sld
+                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (omega(isps,iz),iz=1,nz, nz/nz_disp)
+            enddo 
+        endif 
+        print *,' < pH >'
+        print trim(adjustl(chrfmt)), 'ph', (-log10(prox(iz)),iz=1,nz, nz/nz_disp)
+        print *
+        
+        
+        
+        write(chrfmt,'(i0)') nflx
+        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,a11))'
+        
+        print *
+        print *,' [fluxes] '
+        print trim(adjustl(chrfmt)),'time',(chrflx(iflx),iflx=1,nflx)
+        
+        write(chrfmt,'(i0)') nflx
+        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+        if (nsp_aq>0) then 
+            print *,' < aq species >'
+            do ispa = 1, nsp_aq
+                print trim(adjustl(chrfmt)), trim(adjustl(chraq(ispa))), (sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
+            enddo 
+        endif 
+        if (nsp_sld>0) then 
+            print *,' < sld species >'
+            do isps = 1, nsp_sld
+                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
+            enddo 
+        endif 
+        if (nsp_gas>0) then 
+            print *,' < gas species >'
+            do ispg = 1, nsp_gas
+                print trim(adjustl(chrfmt)), trim(adjustl(chrgas(ispg))), (sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
+            enddo 
+        endif 
+        print *
 #endif     
 
 enddo
@@ -7101,13 +7659,6 @@ flx_gas = 0d0
 
 ! pH calculation and its derivative wrt aq and gas species
 
-! call calc_pH_v4( &
-    ! & nz,maqx(findloc(chraq,'na',dim=1),:),maqx(findloc(chraq,'mg',dim=1),:),maqx(findloc(chraq,'ca',dim=1),:) &! input
-    ! & ,so4x,mgasx(findloc(chrgas,'pco2',dim=1),:) &! input
-    ! & ,kw,kco2,k1,k2,maqx(findloc(chraq,'si',dim=1),:),k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &! input 
-    ! & ,maqx(findloc(chraq,'al',dim=1),:),k1al,k2al,k3al,k4al &! input
-    ! & ,prox &! output
-    ! & ) 
 call calc_pH_v5( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
@@ -7133,10 +7684,15 @@ do isps =1, nsp_sld
     call calc_omega_dev( &
         & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-        & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all &! input
+        & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all &! input
         & ,prox,chrsld(isps),'pro  ' &! input 
-        & ,dummy,dummy2 &! output
+        & ,dummy,dummy2,omega_error &! output
         & )
+    if (omega_error) then
+        dt = dt/10d0
+        flgback = .true.
+        exit 
+    endif 
     omega(isps,:) = dummy
 enddo 
 
@@ -7168,6 +7724,7 @@ do irxn=1,nrxn_ext
         & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
         & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
         & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain &!input
+        & ,nsp_sld_all,chrsld_all,msldth_all &! input
         & ,chrrxn_ext(irxn),'pro  ' &! input 
         & ,dummy,dummy2 &! output
         & )
@@ -7194,24 +7751,31 @@ do iz = 1, nz  !================================
         if (iz==nz) mp_tmp = mi_tmp
         
         ! diffusion terms are filled with transition matrices 
-        if (turbo2(isps).or.labs(isps)) then
-            do iiz = 1, nz
-                if (trans(iiz,iz,isps)==0d0) cycle
+        ! if (turbo2(isps).or.labs(isps)) then
+            ! do iiz = 1, nz
+                ! if (trans(iiz,iz,isps)==0d0) cycle
                     
-                flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
-                    & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*msldx(isps,iiz) &
-                    & )
-            enddo
-        else
-            do iiz = 1, nz
-                if (trans(iiz,iz,isps)==0d0) cycle
+                ! flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
+                    ! & - trans(iiz,iz,isps)/dz(iz)*dz(iiz)*msldx(isps,iiz) &
+                    ! & )
+            ! enddo
+        ! else
+            ! do iiz = 1, nz
+                ! if (trans(iiz,iz,isps)==0d0) cycle
                     
-                flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
-                    ! & - trans(iiz,iz,isps)/dz(iz)*msldx(iiz,isps)/(1d0-poro(iiz)) &
-                    & - trans(iiz,iz,isps)/dz(iz)*msldx(isps,iiz) &
-                    & )
-            enddo
-        endif
+                ! flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
+                    ! & - trans(iiz,iz,isps)/dz(iz)*msldx(isps,iiz) &
+                    ! & )
+            ! enddo
+        ! endif
+        
+        do iiz = 1, nz
+            if (trans(iiz,iz,isps)==0d0) cycle
+                
+            flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
+                & - trans(iiz,iz,isps)*msldx(isps,iiz) &
+                & )
+        enddo
         
         flx_sld(isps,itflx,iz) = ( &
             & (m_tmp-mprev_tmp)/dt &
@@ -7233,6 +7797,7 @@ do iz = 1, nz  !================================
         if (isnan(flx_sld(isps,ires,iz))) then 
             print *,chrsld(isps),iz,(flx_sld(isps,iflx,iz),iflx=1,nflx)
         endif   
+        
     enddo 
 end do  !================================
 
@@ -7374,6 +7939,51 @@ do iz = 1, nz
     enddo 
 
 end do 
+
+! do isps = 1, nsp_sld
+
+    ! flx_max = 0d0
+    ! do iflx = 1, nflx
+        ! flx_max = max(flx_max,abs(sum(flx_sld(isps,iflx,:)*dz)))
+    ! enddo 
+    
+    ! if (abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > 10d0 ) then 
+        ! print *, 'too large error in mass balance of sld phases'
+        ! print *,chrsld(isps),abs(sum(flx_sld(isps,ires,:)*dz)),flx_max
+        ! flgback = .true.
+        ! dt = dt/10d0
+    ! endif 
+! enddo 
+
+! do ispa = 1, nsp_aq
+
+    ! flx_max = 0d0
+    ! do iflx = 1, nflx
+        ! flx_max = max(flx_max,abs(sum(flx_aq(ispa,iflx,:)*dz)))
+    ! enddo 
+    
+    ! if (abs(sum(flx_aq(ispa,ires,:)*dz))/flx_max > 10d0 ) then 
+        ! print *, 'too large error in mass balance of aq phases'
+        ! print *,chraq(ispa),abs(sum(flx_aq(ispa,ires,:)*dz)),flx_max
+        ! flgback = .true.
+        ! dt = dt/10d0
+    ! endif 
+! enddo 
+
+! do ispg = 1, nsp_gas
+
+    ! flx_max = 0d0
+    ! do iflx = 1, nflx
+        ! flx_max = max(flx_max,abs(sum(flx_gas(ispg,iflx,:)*dz)))
+    ! enddo 
+    
+    ! if (abs(sum(flx_gas(ispg,ires,:)*dz))/flx_max > 10d0 ) then 
+        ! print *, 'too large error in mass balance of gas phases'
+        ! print *,chrgas(ispg),abs(sum(flx_gas(ispg,ires,:)*dz)),flx_max
+        ! flgback = .true.
+        ! dt = dt/10d0
+    ! endif 
+! enddo 
     
 
 endsubroutine alsilicate_aq_gas_1D_v3_1
