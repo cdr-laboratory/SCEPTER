@@ -11,4 +11,5 @@ false           include Al-inhibition in mineral reaction kinetics
 false           time step fixed
 false            pre-calculation before attempting to obtain flly coupled results     
 true            adopting a regular grid      
+false            enforcing solid profile (only aq and gas are explicitly simulated)
     
