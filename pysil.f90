@@ -14,7 +14,8 @@ implicit none
 integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nz
 character(5),dimension(:),allocatable::chraq,chrsld,chrgas,chrrxn_ext 
 character(500) sim_name,runname_save
-real(kind=8) ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref
+real(kind=8) ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref,tc
+integer count_dtunchanged_Max
 
 call get_variables_num( &
     & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
@@ -41,11 +42,13 @@ sim_name = 'chkchk'
 
 call get_bsdvalues( &
     & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,sim_name,plant_rain,runname_save &! output
+    & ,count_dtunchanged_Max,tc &
     & )
     
 call weathering_main( &
     & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,ttot,plant_rain  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
+    & ,count_dtunchanged_Max,tc &
     & )
 
 contains 
@@ -58,6 +61,7 @@ contains
 subroutine weathering_main( &
     & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,ttot,plant_rain  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
+    & ,count_dtunchanged_Max,tc &! input 
     & )
 
 implicit none
@@ -69,7 +73,7 @@ real(kind=8),intent(in) :: ttot  ! yr
 ! real(kind=8) dz
 integer,intent(in) :: nz != 30 
 real(kind=8) z(nz),dz(nz)
-real(kind=8) :: tc = 15.0d0 ! deg celsius
+real(kind=8),intent(in) :: tc != 15.0d0 ! deg celsius
 real(kind=8) dt  ! yr 
 integer, parameter :: nt = 50000000
 real(kind=8) time
@@ -238,6 +242,11 @@ logical :: method_precalc = .true.
 ! logical :: sld_enforce = .false.
 logical :: sld_enforce = .true.
 
+logical :: poroevol = .false.
+
+logical :: surfevol1 = .false.
+logical :: surfevol2 = .false.
+
 real(kind=8) :: wave_tau = 2d0 ! yr periodic time for wave 
 real(kind=8) :: rain_norm = 0d0
 
@@ -257,7 +266,8 @@ logical :: flgreducedt = .false.
 logical :: flgreducedt_prev = .false.
 
 real(kind=8) time_start, time_fin, progress_rate, progress_rate_prev
-integer count_dtunchanged, count_dtunchanged_Max  
+integer count_dtunchanged  
+integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 7
@@ -769,6 +779,7 @@ enddo
 call get_switches( &
     & no_biot,biot_fick,biot_turbo2,biot_labs,biot_till,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
+    & ,poroevol,surfevol1,surfevol2 &!
     & )
 
 if (sld_enforce) nsp3 = nsp_aq + nsp_gas ! excluding solid phases
@@ -802,16 +813,17 @@ if (al_inhibit) base = trim(adjustl(base))//'_alx'
 
 base = trim(adjustl(base))//'_rain-'//trim(adjustl(chrrain))    
  
-#ifdef poroevol 
-base = trim(adjustl(base))//'_pevol'
+if (poroevol) then      
+    base = trim(adjustl(base))//'_pevol'
+endif 
+if (surfevol1)then 
+    base = trim(adjustl(base))//'_sevol1'
+elseif (surfevol2) then 
+    base = trim(adjustl(base))//'_sevol2'
+#if defined(surfssa)
+    base = trim(adjustl(base))//'_ssa'
 #endif 
-#if defined(surfevol1)
-base = trim(adjustl(base))//'_sevol1'
-#elif defined(surfevol2)
-base = trim(adjustl(base))//'_sevol2'
-#elif defined(surfssa)
-base = trim(adjustl(base))//'_ssa'
-#endif 
+endif 
 
 if (.not. regular_grid) then 
     base = trim(adjustl(base))//'_irr'
@@ -1179,7 +1191,9 @@ do while (it<nt)
         ! maxdt = maxdt * 1d-1
     endif 
     
-    count_dtunchanged_Max = 1000
+    ! count_dtunchanged_Max = 1000
+    ! count_dtunchanged_Max = 10
+    ! if (sld_enforce) count_dtunchanged_Max = 10
     ! if (dt<1d-5) then 
         ! count_dtunchanged_Max = 10
     ! elseif (dt>=1d-5 .and. dt<1d0) then
@@ -1498,59 +1512,59 @@ do while (it<nt)
         go to 100
     endif    
     
-#ifdef poroevol   
-    poroprev = poro
+    if (poroevol) then 
+        poroprev = poro
 #ifdef surfssa
-    mvab = mvab_save 
-    mvan = mvan_save 
-    mvcc = mvcc_save 
-    mvfo = mvfo_save 
-    mvka = mvka_save 
+        mvab = mvab_save 
+        mvan = mvan_save 
+        mvcc = mvcc_save 
+        mvfo = mvfo_save 
+        mvka = mvka_save 
 #endif 
-    ! poro = poroi + (mabi-mabx)*(mvab)*1d-6  &
-        ! & +(mfoi-mfox)*(mvfo)*1d-6 &
-        ! & +(mani-manx)*(mvan)*1d-6 &
-        ! & +(mcci-mccx)*(mvcc)*1d-6 &
-        ! & +(mkai-mkax)*(mvka)*1d-6 
-    poro = poroi
-    do isps=1,nsp_sld
-        poro = poro + (msldi(isps)-msldx(isps,:))*mv(isps)*1d-6
-    enddo 
+        ! poro = poroi + (mabi-mabx)*(mvab)*1d-6  &
+            ! & +(mfoi-mfox)*(mvfo)*1d-6 &
+            ! & +(mani-manx)*(mvan)*1d-6 &
+            ! & +(mcci-mccx)*(mvcc)*1d-6 &
+            ! & +(mkai-mkax)*(mvka)*1d-6 
+        poro = poroi
+        do isps=1,nsp_sld
+            poro = poro + (msldi(isps)-msldx(isps,:))*mv(isps)*1d-6
+        enddo 
 #ifdef surfssa
-    mvab = mwtab 
-    mvan = mwtan 
-    mvcc = mwtcc 
-    mvfo = mwtfo 
-    mvka = mwtka 
+        mvab = mwtab 
+        mvan = mwtan 
+        mvcc = mwtcc 
+        mvfo = mwtfo 
+        mvka = mwtka 
 #endif 
-    if (any(poro<0d0)) then 
-        print*,'negative porosity: stop'
-        print*,poro
-        ! w = w*2d0
-        ! go to 100
-        stop
-    endif 
-    v = qin/poro/sat
-    torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
-    tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
-    hr = hri*rough
-#ifdef surfevol1 
-    hr = hri*rough*((1d0-poro)/(1d0-poroi))**(2d0/3d0)
-#endif 
-#ifdef surfevol2 
-    hr = hri*rough*(poro/poroi)**(2d0/3d0)  ! SA increases with porosity 
-#endif 
-    if (display) then 
-        write(chrfmt,'(i0)') nz_disp
-        chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
-        print *
-        print *,' [porosity & surface area]'
-        print trim(adjustl(chrfmt)),'z',(z(iz),iz=1,nz,nz/nz_disp)
-        print trim(adjustl(chrfmt)),'poro',(poro(iz),iz=1,nz, nz/nz_disp)
-        print trim(adjustl(chrfmt)),'SA',(hr(iz),iz=1,nz, nz/nz_disp)
-        print *
-    endif 
-#endif  
+        if (any(poro<0d0)) then 
+            print*,'negative porosity: stop'
+            print*,poro
+            ! w = w*2d0
+            ! go to 100
+            stop
+        endif 
+        v = qin/poro/sat
+        torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
+        tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+        hr = hri*rough
+        if (surfevol1 ) then 
+            hr = hri*rough*((1d0-poro)/(1d0-poroi))**(2d0/3d0)
+        endif 
+        if (surfevol2 ) then 
+            hr = hri*rough*(poro/poroi)**(2d0/3d0)  ! SA increases with porosity 
+        endif 
+        if (display) then 
+            write(chrfmt,'(i0)') nz_disp
+            chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+            print *
+            print *,' [porosity & surface area]'
+            print trim(adjustl(chrfmt)),'z',(z(iz),iz=1,nz,nz/nz_disp)
+            print trim(adjustl(chrfmt)),'poro',(poro(iz),iz=1,nz, nz/nz_disp)
+            print trim(adjustl(chrfmt)),'SA',(hr(iz),iz=1,nz, nz/nz_disp)
+            print *
+        endif 
+    endif  
 
 
     if (display) then 
@@ -2062,12 +2076,14 @@ endsubroutine get_saved_variables
 
 subroutine get_bsdvalues( &
     & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,sim_name,plant_rain,runname_save &! output
+    & ,count_dtunchanged_Max,tc &
     & )
 implicit none
 
 integer,intent(out):: nz
-real(kind=8),intent(out)::ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref
+real(kind=8),intent(out)::ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref,tc
 character(500),intent(out)::sim_name,runname_save
+integer,intent(out)::count_dtunchanged_Max
 
 character(500) file_name
 
@@ -2077,6 +2093,7 @@ read(50,'()')
 read(50,*) ztot
 read(50,*) nz
 read(50,*) ttot
+read(50,*) tc
 read(50,*) rainpowder
 read(50,*) plant_rain
 read(50,*) zsupp
@@ -2087,13 +2104,14 @@ read(50,*) zml_ref
 read(50,*) w
 read(50,*) qin
 read(50,*) p80
+read(50,*) count_dtunchanged_Max
 read(50,*) runname_save
 read(50,'()')
 read(50,*) sim_name
 close(50)
 
-print*,'nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save'
-print*,nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save
+print*,'nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save,count_dtunchanged_Max'
+print*,nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save,count_dtunchanged_Max
 
 endsubroutine get_bsdvalues
 
@@ -2323,12 +2341,14 @@ endsubroutine get_atm
 subroutine get_switches( &
     & no_biot,biot_fick,biot_turbo2,biot_labs,biot_till,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
+    & ,poroevol,surfevol1,surfevol2 &! inout
     & )
 implicit none
 
 character(100) chr_tmp
 logical,intent(inout):: no_biot,biot_turbo2,biot_labs,display,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc,biot_fick,biot_till,regular_grid,sld_enforce
+    & ,al_inhibit,timestep_fixed,method_precalc,biot_fick,biot_till,regular_grid,sld_enforce &
+    & ,poroevol,surfevol1,surfevol2
 
 character(500) file_name
 integer i,n_tmp
@@ -2351,6 +2371,9 @@ read(50,*) timestep_fixed,chr_tmp
 read(50,*) method_precalc,chr_tmp
 read(50,*) regular_grid,chr_tmp
 read(50,*) sld_enforce,chr_tmp
+read(50,*) poroevol,chr_tmp
+read(50,*) surfevol1,chr_tmp
+read(50,*) surfevol2,chr_tmp
 
 close(50)
 
@@ -9676,7 +9699,7 @@ do isp=1,nsp_sld
     ! trying inverse mixing 
     transtill = 0d0
     probh = 0.010d0
-    ! probh = 0.10d0
+    probh = 0.10d0
     do iz=1,izml  ! when i = j, transition matrix contains probabilities with which particles are moved from other layers of sediment   
         ! transtill(iz,iz)=-probh*dz(iz)/dz(izml+1-iz) !*(iz - izml*0.5d0)**2d0/(izml**2d0*0.25d0)
         ! transtill(izml+1-iz,iz)=probh*dz(iz)/dz(izml+1-iz) ! *(iz - izml*0.5d0)**2d0/(izml**2d0*0.25d0)
@@ -9918,7 +9941,7 @@ integer info
 
 external DGESV
 
-logical::chkflx = .false.
+logical::chkflx = .true.
 logical::dt_norm = .true.
 logical::kin_iter = .true.
 
@@ -9927,7 +9950,9 @@ logical,intent(in)::sld_enforce != .true.
 
 character(10) precstyle 
 real(kind=8) msld_seed 
-real(kind=8) :: fact_tol = 1d-3
+real(kind=8):: fact_tol = 1d-3
+real(kind=8):: dt_th = 1d-6
+real(kind=8) flx_tol != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 integer solve_sld 
 
 !-----------------------------------------------
@@ -9935,9 +9960,13 @@ integer solve_sld
 
 precstyle = 'def'
 ! precstyle = 'full'
+! precstyle = 'full_lim'
 ! precstyle = 'seed '
 
 msld_seed = 1d-20
+
+! flx_tol = tol*fact_tol*(z(nz)+0.5d0*dz(nz))
+flx_tol = 1d-4
 
 if (sld_enforce) then 
     solve_sld = 0
@@ -11395,7 +11424,7 @@ endif
 print *
 #endif     
 
-if (chkflx .and. dt > 1d-3) then 
+if (chkflx .and. dt > dt_th) then 
     flx_max_max = 0d0
     do isps = 1, nsp_sld
 
@@ -11425,32 +11454,34 @@ if (chkflx .and. dt > 1d-3) then
         flx_max_max = max(flx_max_max,flx_max)
     enddo 
     
-    do isps = 1, nsp_sld
+    if (.not.sld_enforce) then 
+        do isps = 1, nsp_sld
 
-        flx_max = 0d0
-        do iflx = 1, nflx
-            flx_max = max(flx_max,abs(sum(flx_sld(isps,iflx,:)*dz)))
-        enddo 
-        
-        if (flx_max/flx_max_max > 1d-9 .and.  abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > 1d-3 ) then 
-            print *, 'too large error in mass balance of sld phases'
-            print *,chrsld(isps),abs(sum(flx_sld(isps,ires,:)*dz)),flx_max
-            flgback = .true.
-            return
-        
-            open(unit=11,file='amx.txt',status = 'replace')
-            open(unit=12,file='ymx.txt',status = 'replace')
-            do ie = 1,nsp3*(nz)
-                write(11,*) (amx3(ie,ie2),ie2 = 1,nsp3*nz)
-                write(12,*) ymx3(ie)
+            flx_max = 0d0
+            do iflx = 1, nflx
+                flx_max = max(flx_max,abs(sum(flx_sld(isps,iflx,:)*dz)))
             enddo 
-            close(11)
-            close(12)     
             
-            stop
-            ! dt = dt/10d0
-        endif 
-    enddo 
+            if (flx_max/flx_max_max > 1d-9 .and.  abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > flx_tol ) then 
+                print *, 'too large error in mass balance of sld phases'
+                print *,chrsld(isps),abs(sum(flx_sld(isps,ires,:)*dz)),flx_max
+                flgback = .true.
+                return
+            
+                open(unit=11,file='amx.txt',status = 'replace')
+                open(unit=12,file='ymx.txt',status = 'replace')
+                do ie = 1,nsp3*(nz)
+                    write(11,*) (amx3(ie,ie2),ie2 = 1,nsp3*nz)
+                    write(12,*) ymx3(ie)
+                enddo 
+                close(11)
+                close(12)     
+                
+                stop
+                ! dt = dt/10d0
+            endif 
+        enddo 
+    endif 
 
     do ispa = 1, nsp_aq
 
@@ -11459,7 +11490,7 @@ if (chkflx .and. dt > 1d-3) then
             flx_max = max(flx_max,abs(sum(flx_aq(ispa,iflx,:)*dz)))
         enddo 
         
-        if (flx_max/flx_max_max > 1d-9  .and. abs(sum(flx_aq(ispa,ires,:)*dz))/flx_max > 1d-3 ) then 
+        if (flx_max/flx_max_max > 1d-9  .and. abs(sum(flx_aq(ispa,ires,:)*dz))/flx_max > flx_tol ) then 
             print *, 'too large error in mass balance of aq phases'
             print *,chraq(ispa),abs(sum(flx_aq(ispa,ires,:)*dz)),flx_max
             flgback = .true.
@@ -11486,7 +11517,7 @@ if (chkflx .and. dt > 1d-3) then
             flx_max = max(flx_max,abs(sum(flx_gas(ispg,iflx,:)*dz)))
         enddo 
         
-        if (flx_max/flx_max_max > 1d-9  .and. abs(sum(flx_gas(ispg,ires,:)*dz))/flx_max > 1d-3 ) then 
+        if (flx_max/flx_max_max > 1d-9  .and. abs(sum(flx_gas(ispg,ires,:)*dz))/flx_max > flx_tol ) then 
             print *, 'too large error in mass balance of gas phases'
             print *,chrgas(ispg),abs(sum(flx_gas(ispg,ires,:)*dz)),flx_max
             flgback = .true.

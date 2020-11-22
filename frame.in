@@ -1,18 +1,20 @@
 ** values to determine the boundary conditions
-3.              total depth of weathering profile [m]
-30              number of grids into which calculation domain is divided
-1e5             total duration of simulation [yr]
-0e2               amounts of dusts [g/m2/yr]
-0e2               OM [g C/m2/yr]
-0.6             scale depth of e-folding decrease for supplied dust distribution [m]
-0.1            initial porosity
-0.1             water saturation at the surface of profile
-1.5              depth of water table [m]
-1.             depth of mixed layer [m]
-5e-5            uplift rate [m/yr]
-0.01             net water flux [m/yr]
-1e-6           radius of particles [m]
-g3_turbo2_ss_rain-0.00E+00_pevol_sevol1_p80r-0.10E-05_q-0.10E+01_zsat-3
+2			total depth of weathering profile [m]
+30			number of grids into which calculation domain is divided
+100.0			total duration of simulation [yr]
+10.05826792			temperature [oC]
+4000.0			amounts of dusts [g/m2/yr]
+500.0			OM [g C/m2/yr]
+0.6			scale depth of e-folding decrease for supplied dust distribution [m]
+0.5			initial porosity
+0.4464186198			water saturation at the surface of profile
+1000.0			depth of water table [m]
+1.0			depth of mixed layer [m]
+5e-05			uplift rate [m/yr]
+0.963			net water flux [m/yr]
+1e-06			radius of particles [m]
+1000			interations needed to increase time step by a factor of 10
+site98_ex_v5_rain-0.00E+00_p80r-0.10E-05_q-0.10E+01_zsat-1000
 ^ directory name (only used when restart from a previous run; switch is in switches.in)
-pyfe2so4fe3_wgt_nobio_test2      
+site98_basalt_OM-500
 ^ simulation name
