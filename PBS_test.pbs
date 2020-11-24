@@ -1,0 +1,11 @@
+#PBS -N test2           # job name
+#PBS -A GT-creinhard3-FY20Phase2               # account to which job is charged
+#PBS -l nodes=1:ppn=1           # number of nodes and cores per node required
+#PBS -l pmem=2gb                # memory per core
+#PBS -l walltime=12:15:00          # duration of the job (ex: 15 min)
+#PBS -j oe                      # combine output and error messages into 1 file
+#PBS -o test2.out       # output file name
+
+cd $PBS_O_WORKDIR 
+gfortran -cpp -Dno_intr_findloc  -o f pysil_dev.f90   -lopenblas -g -fcheck=all -L/usr/local/pace-apps/spack/packages/0.12/linux-rhel7-x86_64/intel-19.0.3/openblas-0.3.7-bj3jj5bme3jfys5cilumxcr2t267luvl/lib -Wl,-rpath /usr/local/pace-apps/spack/packages/0.12/linux-rhel7-x86_64/intel-19.0.3/openblas-0.3.7-bj3jj5bme3jfys5cilumxcr2t267luvl/lib -O3
+./f

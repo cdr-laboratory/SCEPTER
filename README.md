@@ -4,9 +4,10 @@
 *pysil.f90*  
 Main code for simulation of 1D weathering.    
 
----- Prerequisite: BLAS library -----
+Compile & run:  
+A). On your computer  
 
->>> BLAS (OpenBLAS) install 
+BLAS (OpenBLAS) install 
 (Google yourself or)
 1. download: http://www.openblas.net/ -> TAR
 2. tar zxvf OpenBLAS-0.2.20.tar.gz
@@ -19,15 +20,22 @@ If you get the error 'libopenblas.so.0: cannot open shared object file: No such 
 1. sudo apt-get install libopenblas-base
 2. export LD_LIBRARY_PATH=/usr/lib/openblas-base/
 
-Compile & run:  
-```gfortran -cpp -Dporoevol -Dsurfevol1 pysil.f90 -lopenblas  ```   
-```./a```
+```$ gfortran -cpp pysil.f90 -lopenblas -O3 ```   
+```$ ./a```
+
+
+B). On GaTech cluster     
+```$ gfortran -cpp -Dno_intr_findloc pysil_dev.f90 -lopenblas -L/usr/local/pace-apps/spack/packages/0.12/linux-rhel7-x86_64/intel-19.0.3/openblas-0.3.7-bj3jj5bme3jfys5cilumxcr2t267luvl/lib -Wl,-rpath /usr/local/pace-apps/spack/packages/0.12/linux-rhel7-x86_64/intel-19.0.3/openblas-0.3.7-bj3jj5bme3jfys5cilumxcr2t267luvl/lib  ```   
+```$ ./a```
+
+or submit as a job   
+```$ qsub PBS_test.pbs```
 
 Input files:  
 *frame.in*   
 A file to define major parameters including the simulation name which becomes the directory name where simulation results are stored.     
 *slds.in*   
-A file to specify solid speces to explicitly simulate parameters including the simulation name which becomes the directory name where simulation results are stored.     
+A file to specify solid speces to explicitly simulate.     
 *solutes.in*   
 A file to specify aqueous species.     
 *gases.in*   

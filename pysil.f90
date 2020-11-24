@@ -1,14 +1,5 @@
 program weathering
-!! try to calculate o2 profile in a simple system
-!! full implicit method
-!! from ver 8 reflecting ph change in next step of pyrite weathering and assuming always wet surface 
-!! from ver 9 deterministic pH calculation; pH is not iteratively sought 
-!! from ver 9.5 pH is iteratively calculated to be consistent with pyrite; for the case excluding aqueous Fe2 oxidation 
-!! from ver 9.6 calculation is conducted within the whole domain 
-!! adding HCO3 profile recording
-!! adding calcium profile to examine the effect of CaCO3 dissolution
-!! allowing porosity & surface area change       
-!! converted to f90 from o2profile+silweath+o2_v9_7.f
+
 implicit none 
 
 integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nz
@@ -35,8 +26,6 @@ print *,chraq
 print *,chrsld 
 print *,chrgas 
 print *,chrrxn_ext 
-
-! pause
 
 sim_name = 'chkchk'
 
@@ -1840,12 +1829,14 @@ do while (it<nt)
         stop
     endif 
     
-    print *
-    print '(E11.3,a)',progress_rate,': computation time per iteration [sec]'
-    print '(E11.3,a)',maxdt, ': maxdt [yr]'
-    print '(i11,a)',count_dtunchanged,': count_dtunchanged'
-    print *, '-----------------------------------------'
-    print *
+    if (display) then 
+        print *
+        print '(E11.3,a)',progress_rate,': computation time per iteration [sec]'
+        print '(E11.3,a)',maxdt, ': maxdt [yr]'
+        print '(i11,a)',count_dtunchanged,': count_dtunchanged'
+        print *, '-----------------------------------------'
+        print *
+    endif 
     
 end do
         
@@ -2750,6 +2741,7 @@ character(5),intent(in)::mineral,dev_sp
 real(kind=8),dimension(nz),intent(out)::kin,dkin_dmsp
 real(kind=8) mh,moh,kinn_ref,kinh_ref,kinoh_ref,ean,eah,eaoh,tc_ref
 
+! real(kind=8) k_arrhenius
 
 
 kin = 0d0
@@ -3177,6 +3169,8 @@ real(kind=8) :: cal2j = 4.184d0
 real(kind=8),intent(out):: therm
 character(5),intent(in):: mineral
 real(kind=8) tc_ref,ha,therm_ref
+
+! real(kind=8) k_arrhenius
 
 therm = 0d0
 
