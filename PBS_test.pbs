@@ -7,5 +7,5 @@
 #PBS -o test2.out       # output file name
 
 cd $PBS_O_WORKDIR 
-gfortran -cpp -Dno_intr_findloc  -o f pysil_dev.f90   -lopenblas -g -fcheck=all -L/usr/local/pace-apps/spack/packages/0.12/linux-rhel7-x86_64/intel-19.0.3/openblas-0.3.7-bj3jj5bme3jfys5cilumxcr2t267luvl/lib -Wl,-rpath /usr/local/pace-apps/spack/packages/0.12/linux-rhel7-x86_64/intel-19.0.3/openblas-0.3.7-bj3jj5bme3jfys5cilumxcr2t267luvl/lib -O3
+gfortran -cpp -Dno_intr_findloc  -o f pysil.f90   -lopenblas -g -fcheck=all -L/usr/local/pace-apps/spack/packages/0.12/linux-rhel7-x86_64/intel-19.0.3/openblas-0.3.7-bj3jj5bme3jfys5cilumxcr2t267luvl/lib -Wl,-rpath /usr/local/pace-apps/spack/packages/0.12/linux-rhel7-x86_64/intel-19.0.3/openblas-0.3.7-bj3jj5bme3jfys5cilumxcr2t267luvl/lib -O3
 ./f
