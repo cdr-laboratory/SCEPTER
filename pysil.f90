@@ -97,6 +97,7 @@ real(kind=8) :: mvg3 = 5.3d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8) :: mvamsi = 25.739d0 ! cm3/mol; molar volume of amorphous silica taken as cristobalite (SiO2); Robie et al. 1978
 real(kind=8) :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et al. 1978
 real(kind=8) :: mvdlm = 64.34d0 ! cm3/mol; molar volume of dolomite; Robie et al. 1978
+real(kind=8) :: mvhm = 30.274d0 ! cm3/mol; molar volume of hematite; Robie et al. 1978
 
 real(kind=8) :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -120,6 +121,7 @@ real(kind=8) :: mwtg3 = 30d0 ! g/mol; formula weight of CH2O
 real(kind=8) :: mwtamsi = 60.085d0 ! g/mol; formula weight of amorphous silica
 real(kind=8) :: mwtarg = 100.089d0 ! g/mol; formula weight of aragonite
 real(kind=8) :: mwtdlm = 184.403d0 ! g/mol; formula weight of dolomite
+real(kind=8) :: mwthm = 159.692d0 ! g/mol; formula weight of hematite
 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -263,8 +265,8 @@ integer count_dtunchanged
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
-integer,parameter::nsp_sld_2 = 7
-integer,parameter::nsp_sld_all = 22
+integer,parameter::nsp_sld_2 = 8
+integer,parameter::nsp_sld_all = 23
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -418,7 +420,7 @@ chrflx(nflx) = 'res  '
 ! which are automatically included when associated mineral is chosen
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
-    & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','g1   ','g2   ','g3   '/)
+    & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
@@ -435,7 +437,7 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
-chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi '/) 
+chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   '/) 
 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
@@ -482,10 +484,11 @@ endif
 
 ! molar volume 
 
-mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi,mvarg,mvdlm &
+mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
+    & ,mvarg,mvdlm,mvhm &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm &
+    & ,mwtarg,mwtdlm,mwthm &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -605,6 +608,8 @@ staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'fe2',dim=1)) = 2d0
 ! Goethite; FeO(OH)
 staq_all(findloc(chrsld_all,'gt',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
+! Hematite; Fe2O3
+staq_all(findloc(chrsld_all,'hm',dim=1), findloc(chraq_all,'fe3',dim=1)) = 2d0
 ! Ca-beidellite; Ca(1/6)Al(7/3)Si(11/3)O10(OH)2
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0/6d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
@@ -3058,6 +3063,24 @@ select case(trim(adjustl(mineral)))
             & ) 
         dkin_dmsp = 0d0
 
+    case('hm')
+        mh = 1d0
+        moh = 0d0
+        kinn_ref = 10d0**(-14.60d0)*sec2yr
+        kinh_ref = 10d0**(-9.39d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 66.2d0
+        eah = 66.2d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        dkin_dmsp = 0d0
+
     case('ct')
         mh = 0d0
         moh = -0.23d0
@@ -3324,6 +3347,13 @@ select case(trim(adjustl(mineral)))
         ha = -61.53703d0
         tc_ref = 25d0
         ! from Sugimori et al. 2012 
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('hm')
+        ! Fe2O3 + 6H+ = 2Fe+3 + 3H2O
+        therm_ref = 10d0**(-1.418d0)
+        ha = -128.987d0
+        tc_ref = 25d0
+        ! from minteq.v4
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('ct')
         ! Mg3Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 3 Mg+2
@@ -8829,6 +8859,39 @@ select case(trim(adjustl(mineral)))
                     & dfe3f_dfe3 &
                     & /prox**3d0 &
                     & /keqgt &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
+    case('hm')
+    !  Fe2O3 + 6H+ = 2Fe+3 + 3H2O
+        keq_tmp = keqsld_all(findloc(chrsld_all,'hm',dim=1))
+        omega = (&
+            & fe3f**2d0 &
+            & /prox**6d0 &
+            & /keq_tmp &
+            & )
+            
+        ! copied and pasted from gb case with replacing al and gb with fe3 and gt respectively
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( & 
+                    & 2d0*fe3f*dfe3f_dpro &
+                    & /prox**6d0 &
+                    & /keq_tmp &
+                    & + &
+                    & fe3f**2d0 &
+                    & *(-6d0)/prox**7d0 &
+                    & /keq_tmp &
+                    ! 
+                    & )
+            case('fe3')
+                domega_dmsp = ( & 
+                    & 2d0*fe3f*dfe3f_dfe3 &
+                    & /prox**6d0 &
+                    & /keq_tmp &
                     & )
             case default 
                 domega_dmsp = 0d0
