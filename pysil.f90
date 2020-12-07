@@ -98,6 +98,7 @@ real(kind=8) :: mvamsi = 25.739d0 ! cm3/mol; molar volume of amorphous silica ta
 real(kind=8) :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et al. 1978
 real(kind=8) :: mvdlm = 64.34d0 ! cm3/mol; molar volume of dolomite; Robie et al. 1978
 real(kind=8) :: mvhm = 30.274d0 ! cm3/mol; molar volume of hematite; Robie et al. 1978
+real(kind=8) :: mvill = 139.35d0 ! cm3/mol; molar volume of illite (K0.6Mg0.25Al2.3Si3.5O10(OH)2); Wolery and Jove-Colon 2004
 
 real(kind=8) :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -122,6 +123,7 @@ real(kind=8) :: mwtamsi = 60.085d0 ! g/mol; formula weight of amorphous silica
 real(kind=8) :: mwtarg = 100.089d0 ! g/mol; formula weight of aragonite
 real(kind=8) :: mwtdlm = 184.403d0 ! g/mol; formula weight of dolomite
 real(kind=8) :: mwthm = 159.692d0 ! g/mol; formula weight of hematite
+real(kind=8) :: mwtill = 383.90053d0 ! g/mol; formula weight of Ill calculated from atmoic weight
 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -265,8 +267,8 @@ integer count_dtunchanged
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
-integer,parameter::nsp_sld_2 = 8
-integer,parameter::nsp_sld_all = 23
+integer,parameter::nsp_sld_2 = 9
+integer,parameter::nsp_sld_all = 24
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -420,7 +422,7 @@ chrflx(nflx) = 'res  '
 ! which are automatically included when associated mineral is chosen
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
-    & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','g1   ','g2   ','g3   '/)
+    & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
@@ -437,7 +439,7 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
-chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   '/) 
+chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  '/) 
 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
@@ -485,10 +487,10 @@ endif
 ! molar volume 
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
-    & ,mvarg,mvdlm,mvhm &
+    & ,mvarg,mvdlm,mvhm,mvill &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm,mwthm &
+    & ,mwtarg,mwtdlm,mwthm,mwtill &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -614,6 +616,11 @@ staq_all(findloc(chrsld_all,'hm',dim=1), findloc(chraq_all,'fe3',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0/6d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'si',dim=1)) = 11d0/3d0
+! Illite; K0.6Mg0.25Al2.3Si3.5O10(OH)2
+staq_all(findloc(chrsld_all,'ill',dim=1), findloc(chraq_all,'k',dim=1)) = 0.6d0
+staq_all(findloc(chrsld_all,'ill',dim=1), findloc(chraq_all,'mg',dim=1)) = 0.25d0
+staq_all(findloc(chrsld_all,'ill',dim=1), findloc(chraq_all,'al',dim=1)) = 2.3d0
+staq_all(findloc(chrsld_all,'ill',dim=1), findloc(chraq_all,'si',dim=1)) = 3.5d0
 ! Diopside (MgCaSi2O6)
 staq_all(findloc(chrsld_all,'dp',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'dp',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0
@@ -3107,7 +3114,7 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
 
-    case('cabd')
+    case('cabd','ill') ! illite kinetics is assumed to be the same as smectite (Bibi et al., 2011)
         mh = 0.34d0
         moh = -0.4d0
         kinn_ref = 10d0**(-12.78d0)*sec2yr
@@ -3366,6 +3373,13 @@ select case(trim(adjustl(mineral)))
         ! Beidellit-Ca  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .165 Ca++
         therm_ref = 10d0**(7.269946518d0)
         ha = -157.0186168d0
+        tc_ref = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('ill')
+        ! Illite  + 8 H+  = 5 H2O  + .6 K+  + .25 Mg++  + 2.3 Al+++  + 3.5 SiO2(aq)
+        therm_ref = 10d0**(10.8063184d0)
+        ha = -166.39733d0
         tc_ref = 15d0
         ! from Kanzaki & Murakami 2018
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
@@ -9023,6 +9037,128 @@ select case(trim(adjustl(mineral)))
                     & *(11d0/3d0)*sif**(11d0/3d0-1d0)*dsif_dsi &
                     & /prox**(22d0/3d0) &
                     & /keqcabd &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
+    case('ill')
+    ! Illite  + 8 H+  = 5 H2O  + .6 K+  + .25 Mg++  + 2.3 Al+++  + 3.5 SiO2(aq)
+        keq_tmp = keqsld_all(findloc(chrsld_all,'ill',dim=1))
+        omega = (  &
+            & kf**(0.6d0) &
+            & *mgf**(0.25d0) &
+            & *alf**(2.3d0)  &
+            & *sif**(3.5d0)   &
+            & /prox**(8d0)    &
+            & /keq_tmp      &
+            & )
+            
+        ! dependences from an case
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( &
+                    & 0.6d0*kf**(0.6d0-1d0)*dkf_dpro &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *0.25d0*mgf**(0.25d0-1d0)*dmgf_dpro &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *2.3d0*alf**(2.3d0-1d0)*dalf_dpro  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *3.5d0*sif**(3.5d0-1d0)*dsif_dpro   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & *(-8d0)/prox**(9d0)    &
+                    & /keq_tmp      &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & 0.6d0*kf**(0.6d0-1d0)*dkf_dpco2 &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *0.25d0*mgf**(0.25d0-1d0)*dmgf_dpco2 &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *2.3d0*alf**(2.3d0-1d0)*dalf_dpco2  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *3.5d0*sif**(3.5d0-1d0)*dsif_dpco2   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & )
+            case('k')
+                domega_dmsp = ( & 
+                    & 0.6d0*kf**(0.6d0-1d0)*dkf_dk &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & )
+            case('mg')
+                domega_dmsp = ( & 
+                    & kf**(0.6d0) &
+                    & *0.25d0*mgf**(0.25d0-1d0)*dmgf_dmg &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & )
+            case('al')
+                domega_dmsp = ( & 
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *2.3d0*alf**(2.3d0-1d0)*dalf_dal  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & )
+            case('si')
+                domega_dmsp = ( & 
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *3.5d0*sif**(3.5d0-1d0)*dsif_dsi   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
                     & )
             case default 
                 domega_dmsp = 0d0
