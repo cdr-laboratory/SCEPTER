@@ -95,13 +95,15 @@ real(kind=8) :: mvg1 = 5.3d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8) :: mvg2 = 5.3d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8) :: mvg3 = 5.3d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8) :: mvamsi = 25.739d0 ! cm3/mol; molar volume of amorphous silica taken as cristobalite (SiO2); Robie et al. 1978
+real(kind=8) :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et al. 1978
+real(kind=8) :: mvdlm = 64.34d0 ! cm3/mol; molar volume of dolomite; Robie et al. 1978
 
+real(kind=8) :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
 real(kind=8) :: mwtab = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
 real(kind=8) :: mwtan = 278.311d0 ! g/mol; formula weight of An; Robie et al. 1978
 real(kind=8) :: mwtcc = 100.089d0 ! g/mol; formula weight of Cc; Robie et al. 1978
 real(kind=8) :: mwtpy = 119.967d0 ! g/mol; formula weight of Py; Robie et al. 1978
-real(kind=8) :: mwtka = 100.089d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtgb = 78.004d0 ! g/mol; formula weight of Gb; Robie et al. 1978
 real(kind=8) :: mwtct = 277.113d0 ! g/mol; formula weight of Ct; Robie et al. 1978
 real(kind=8) :: mwtfa = 203.778d0 ! g/mol; formula weight of Fa; Robie et al. 1978
@@ -116,6 +118,8 @@ real(kind=8) :: mwtg1 = 30d0 ! g/mol; formula weight of CH2O
 real(kind=8) :: mwtg2 = 30d0 ! g/mol; formula weight of CH2O
 real(kind=8) :: mwtg3 = 30d0 ! g/mol; formula weight of CH2O
 real(kind=8) :: mwtamsi = 60.085d0 ! g/mol; formula weight of amorphous silica
+real(kind=8) :: mwtarg = 100.089d0 ! g/mol; formula weight of aragonite
+real(kind=8) :: mwtdlm = 184.403d0 ! g/mol; formula weight of dolomite
 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -260,7 +264,7 @@ integer,intent(in):: count_dtunchanged_Max
 
 integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 7
-integer,parameter::nsp_sld_all = 20
+integer,parameter::nsp_sld_all = 22
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -414,7 +418,7 @@ chrflx(nflx) = 'res  '
 ! which are automatically included when associated mineral is chosen
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
-    & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','g1   ','g2   ','g3   '/)
+    & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
@@ -478,8 +482,10 @@ endif
 
 ! molar volume 
 
-mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi,mvg1,mvg2,mvg3/)
+mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi,mvarg,mvdlm &
+    & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
+    & ,mwtarg,mwtdlm &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -613,6 +619,13 @@ staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 ! Amorphous silica; SiO2
 staq_all(findloc(chrsld_all,'amsi',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+! Aragonite (CaCO3)
+staq_all(findloc(chrsld_all,'arg',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+stgas_all(findloc(chrsld_all,'arg',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
+! Dolomite (CaMg(CO3)2)
+staq_all(findloc(chrsld_all,'dlm',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'dlm',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0
+stgas_all(findloc(chrsld_all,'dlm',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 2d0
 ! OMs; CH2O
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
@@ -2914,7 +2927,60 @@ select case(trim(adjustl(mineral)))
         eah = 14.4d0
         eaoh = 0d0
         tc_ref = 25d0
-        ! from Palandri and Kharaka, 2004
+        ! from Palandri and Kharaka, 2004 (excluding carbonate mechanism)
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
+    case('arg')
+        ! assumed to be the same as those for cc
+        mh = 1d0
+        moh = 0d0
+        kinn_ref = 10d0**(-5.81d0)*sec2yr
+        kinh_ref = 10d0**(-0.3d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 23.5d0
+        eah = 14.4d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004 (excluding carbonate mechanism)
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
+    case('dlm') ! for disordered dolomite
+        mh = 0.500d0
+        moh = 0d0
+        kinn_ref = 10d0**(-7.53d0)*sec2yr
+        kinh_ref = 10d0**(-3.19d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 52.2d0
+        eah = 36.1d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004 (excluding carbonate mechanism)
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
@@ -3223,6 +3289,20 @@ select case(trim(adjustl(mineral)))
         ha = -8.028943471d0
         tc_ref = 15d0
         ! from Kanzaki and Murakami 2015
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('arg')
+        ! CaCO3 = Ca2+ + CO32-
+        therm_ref = 10d0**(-8.3d0)
+        ha = -12d0
+        tc_ref = 25d0
+        ! from minteq.v4
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('dlm') ! disordered
+        ! CaMg(CO3)2 = Ca+2 + Mg+2 + 2CO3-2
+        therm_ref = 10d0**(-16.54d0)
+        ha = -46.4d0
+        tc_ref = 25d0
+        ! from minteq.v4
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('gb')
         ! Al(OH)3 + 3 H+ = Al+3 + 3 H2O
@@ -7947,7 +8027,7 @@ integer,intent(in)::nz
 real(kind=8):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &
     & ,k1al,k2al,k3al,k4al,keqka,keqgb,keqct,k1fe2,k1fe2co3,k1fe2hco3,keqfa,k1fe3,k2fe3,k3fe3,k4fe3,keqgt &
     & ,keqcabd,keqdp,keqhb,keqkfs,keqamsi,keqg1,keqg2,keqg3,po2th,k1naco3,k1nahco3,k1so4,k1kso4,k1naso4  &
-    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,mo2g1,mo2g2,mo2g3
+    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,mo2g1,mo2g2,mo2g3,keq_tmp
 real(kind=8),dimension(nz),intent(in):: prox,so4f
 real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x,kx
 real(kind=8),dimension(nz):: caf,mgf,sif,naf,alf,fe2f,fe3f,kf
@@ -8520,6 +8600,100 @@ select case(trim(adjustl(mineral)))
                     & 1d0*dcaf_dca &
                     & *k1*k2*kco2*pco2x/(prox**2d0) &
                     & /keqcc &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
+    case('arg')
+        keq_tmp = keqsld_all(findloc(chrsld_all,'arg',dim=1))
+        omega = ( &
+            & caf &
+            & *k1*k2*kco2*pco2x/(prox**2d0) &
+            & /keq_tmp &
+            & )
+            
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( & 
+                    & 1d0*dcaf_dpro &
+                    & *k1*k2*kco2*pco2x/(prox**2d0) &
+                    & /keq_tmp &
+                    & + &
+                    & caf &
+                    & *k1*k2*kco2*pco2x*(-2d0)/(prox**3d0) &
+                    & /keq_tmp &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & 1d0*dcaf_dpco2 &
+                    & *k1*k2*kco2*pco2x/(prox**2d0) &
+                    & /keq_tmp &
+                    & + &
+                    & caf &
+                    & *k1*k2*kco2*1d0/(prox**2d0) &
+                    & /keq_tmp &
+                    & )
+            case('ca')
+                domega_dmsp = ( & 
+                    & 1d0*dcaf_dca &
+                    & *k1*k2*kco2*pco2x/(prox**2d0) &
+                    & /keq_tmp &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
+    case('dlm')
+        keq_tmp = keqsld_all(findloc(chrsld_all,'dlm',dim=1))
+        omega = ( &
+            & caf*mgf &
+            & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
+            & /keq_tmp &
+            & )
+            
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( & 
+                    & dcaf_dpro*mgf &
+                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf*dmgf_dpro &
+                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf*mgf &
+                    & *2d0*(k1*k2*kco2*pco2x/(prox**2d0))*k1*k2*kco2*pco2x*(-2d0)/(prox**3d0) &
+                    & /keq_tmp &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & dcaf_dpco2*mgf &
+                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf*dmgf_dpco2 &
+                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf*mgf &
+                    & *2d0*(k1*k2*kco2*pco2x/(prox**2d0))*k1*k2*kco2*1d0/(prox**2d0) &
+                    & /keq_tmp &
+                    & )
+            case('ca')
+                domega_dmsp = ( & 
+                    & dcaf_dca*mgf &
+                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
+                    & /keq_tmp &
+                    & )
+            case('mg')
+                domega_dmsp = ( & 
+                    & caf*dmgf_dmg &
+                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
+                    & /keq_tmp &
                     & )
             case default 
                 domega_dmsp = 0d0
@@ -9945,7 +10119,7 @@ logical,intent(in)::sld_enforce != .true.
 character(10) precstyle 
 real(kind=8) msld_seed 
 real(kind=8):: fact_tol = 1d-3
-real(kind=8):: dt_th = 1d-6
+real(kind=8):: dt_th = 1d-9
 real(kind=8) flx_tol != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 integer solve_sld 
 

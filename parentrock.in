@@ -1,17 +1,2 @@
-** parent rock wt fraction (if not specified assumed 1e-20)
-fo      1e-20
-ab      1e-20
-an      1e-20
-cc      1e-20
-ka      1e-20
-gb      1e-20
-py      0.0056
-ct      1e-20
-fa      1e-20
-gt      1e-20
-cabd    1e-20
-dp      1e-20
-hb      1e-20
-kfs     1e-20
-om      1e-20
-omb     1e-20
+** parent rock wt fraction (e.g., 'ab      0.2' in one line and 'ka     0.001' in the next) (if not specified assumed 1e-20)
+dlm      0.03
