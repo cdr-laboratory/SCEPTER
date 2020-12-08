@@ -103,6 +103,7 @@ real(kind=8) :: mvanl = 97.49d0 ! cm3/mol; molar volume of analcime (NaAlSi2O6*H
 real(kind=8) :: mvnph = 54.16d0 ! cm3/mol; molar volume of nepheline (NaAlSiO4); Robie et al. 1978
 real(kind=8) :: mvqtz = 22.688d0 ! cm3/mol; molar volume of quartz (SiO2); Robie et al. 1978
 real(kind=8) :: mvgps = 74.69d0 ! cm3/mol; molar volume of gypsum (CaSO4*2H2O); Robie et al. 1978
+real(kind=8) :: mvtm = 272.92d0 ! cm3/mol; molar volume of tremolite (Ca2Mg5(Si8O22)(OH)2); Robie et al. 1978
 
 real(kind=8) :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -132,6 +133,7 @@ real(kind=8) :: mwtanl = 220.155d0 ! g/mol; formula weight of analcime
 real(kind=8) :: mwtnph = 142.055d0 ! g/mol; formula weight of nepheline
 real(kind=8) :: mwtqtz = 60.085d0 ! g/mol; formula weight of quartz
 real(kind=8) :: mwtgps = 172.168d0 ! g/mol; formula weight of gypsum
+real(kind=8) :: mwttm = 812.374d0 ! g/mol; formula weight of tremolite
 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -276,7 +278,7 @@ integer,intent(in):: count_dtunchanged_Max
 
 integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 11
-integer,parameter::nsp_sld_all = 28
+integer,parameter::nsp_sld_all = 29
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -431,7 +433,7 @@ chrflx(nflx) = 'res  '
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
-    & ,'qtz  ','gps  ' &
+    & ,'qtz  ','gps  ','tm   ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
@@ -497,10 +499,10 @@ endif
 ! molar volume 
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
-    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps &
+    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps &
+    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -647,6 +649,10 @@ staq_all(findloc(chrsld_all,'dp',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+! Tremolite (Ca2Mg5(Si8O22)(OH)2)
+staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'ca',dim=1)) = 2d0
+staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'mg',dim=1)) = 5d0
+staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'si',dim=1)) = 8d0
 ! Amorphous silica; SiO2
 staq_all(findloc(chrsld_all,'amsi',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Quartz; SiO2
@@ -3259,6 +3265,32 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
     
+    case('tm')
+        mh = 0.70d0
+        moh = 0d0
+        kinn_ref = 10d0**(-10.60d0)*sec2yr
+        kinh_ref = 10d0**(-8.40d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 94.4d0
+        eah = 18.9d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+    
     case('gps')
         mh = 0d0
         moh = 0d0
@@ -3508,6 +3540,13 @@ select case(trim(adjustl(mineral)))
         ! Diopside  + 4 H+  = Ca++  + 2 H2O  + Mg++  + 2 SiO2(aq)
         therm_ref = 10d0**(20.20981116d0)
         ha = -128.5d0
+        tc_ref = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('tm')
+        ! Tremolite  + 14 H+  = 8 H2O  + 8 SiO2(aq)  + 2 Ca++  + 5 Mg++
+        therm_ref = 10d0**(61.6715d0)
+        ha = -429.0d0
         tc_ref = 15d0
         ! from Kanzaki & Murakami 2018
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
@@ -8194,11 +8233,12 @@ real(kind=8):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco
     & ,keqcabd,keqdp,keqhb,keqkfs,keqamsi,keqg1,keqg2,keqg3,po2th,k1naco3,k1nahco3,k1so4,k1kso4,k1naso4  &
     & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,mo2g1,mo2g2,mo2g3,keq_tmp
 real(kind=8),dimension(nz),intent(in):: prox,so4f
-real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x,kx
+real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x,kx,so4x
 real(kind=8),dimension(nz):: caf,mgf,sif,naf,alf,fe2f,fe3f,kf
 real(kind=8),dimension(nz):: dcaf_dpro,dmgf_dpro,dsif_dpro,dnaf_dpro,dalf_dpro,dfe2f_dpro,dfe3f_dpro,dkf_dpro
 real(kind=8),dimension(nz):: dcaf_dpco2,dmgf_dpco2,dsif_dpco2,dnaf_dpco2,dalf_dpco2,dfe2f_dpco2,dfe3f_dpco2,dkf_dpco2
-real(kind=8),dimension(nz):: dcaf_dca,dmgf_dmg,dsif_dsi,dnaf_dna,dalf_dal,dfe2f_dfe2,dfe3f_dfe3,dkf_dk
+real(kind=8),dimension(nz):: dcaf_dca,dmgf_dmg,dsif_dsi,dnaf_dna,dalf_dal,dfe2f_dfe2,dfe3f_dfe3,dkf_dk,dso4f_dso4,dso4f_dpro &
+    & ,dso4f_dpco2
 real(kind=8),dimension(nz),intent(out):: domega_dmsp
 real(kind=8),dimension(nz),intent(out):: omega
 logical,intent(out)::omega_error
@@ -8318,6 +8358,7 @@ fe2x =0d0
 fe3x =0d0
 alx =0d0
 pco2x =0d0
+so4x = 0d0
 
 if (any(chraq=='si')) then 
     six = maqx(findloc(chraq,'si',dim=1),:)
@@ -8348,6 +8389,11 @@ if (any(chraq=='fe3')) then
     fe3x = maqx(findloc(chraq,'fe3',dim=1),:)
 elseif (any(chraq_cnst=='fe3')) then 
     fe3x = maqc(findloc(chraq_cnst,'fe3',dim=1),:)
+endif 
+if (any(chraq=='so4')) then 
+    so4x = maqx(findloc(chraq,'so4',dim=1),:)
+elseif (any(chraq_cnst=='so4')) then 
+    so4x = maqc(findloc(chraq_cnst,'so4',dim=1),:)
 endif 
 if (any(chrgas=='pco2')) then 
     pco2x = mgasx(findloc(chrgas,'pco2',dim=1),:)
@@ -8413,6 +8459,30 @@ dfe3f_dfe3 = 1d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0
 dfe3f_dpro = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
     & *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0)
 dfe3f_dpco2 = 0d0
+
+dso4f_dso4 = 1d0/( 1d0+k1so4/prox &
+        & +k1kso4*kf &
+        & +k1naso4*naf &
+        & +k1caso4*caf &
+        & +k1mgso4*mgf &
+        & +k1fe2so4*fe2f &
+        & +k1also4*alf &
+        & +k1fe3so4*fe3f &
+        & )
+
+dso4f_dpro = so4x*(-1d0)/( 1d0+k1so4/prox &
+        & +k1kso4*kf &
+        & +k1naso4*naf &
+        & +k1caso4*caf &
+        & +k1mgso4*mgf &
+        & +k1fe2so4*fe2f &
+        & +k1also4*alf &
+        & +k1fe3so4*fe3f &
+        & )**2d0 &
+        & * (k1so4*(-1d0)/prox**2d0 &
+        & )
+! dso4f_dpro = 0d0
+dso4f_dpco2 = 0d0
 
 select case(trim(adjustl(mineral)))
     case('fo')
@@ -9637,6 +9707,87 @@ select case(trim(adjustl(mineral)))
         endselect 
         
         
+    case('tm')
+    ! Tremolite  + 14 H+  = 8 H2O  + 8 SiO2(aq)  + 2 Ca++  + 5 Mg++
+        keq_tmp = keqsld_all(findloc(chrsld_all,'tm',dim=1))
+        omega = ( &
+            & caf**2d0 &
+            & *mgf**5d0 &
+            & *sif**8d0 &
+            & /prox**14d0 &
+            & /keq_tmp &
+            & )
+            
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( &   
+                    & 2d0*caf*dcaf_dpro &
+                    & *mgf**5d0 &
+                    & *sif**8d0 &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf**2d0 &
+                    & *5d0*mgf**4d0*dmgf_dpro &
+                    & *sif**8d0 &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf**2d0 &
+                    & *mgf**5d0 &
+                    & *8d0*sif**7d0*dsif_dpro &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf**2d0 &
+                    & *mgf**5d0 &
+                    & *sif**8d0 &
+                    & *(-14d0)/prox**15d0 &
+                    & /keq_tmp &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & 2d0*caf*dcaf_dpco2 &
+                    & *mgf**5d0 &
+                    & *sif**8d0 &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf**2d0 &
+                    & *5d0*mgf**4d0*dmgf_dpco2 &
+                    & *sif**8d0 &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & )
+            case('mg')
+                domega_dmsp = ( & 
+                    & caf**2d0 &
+                    & *5d0*mgf**4d0*dmgf_dmg &
+                    & *sif**8d0 &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & )
+            case('ca')
+                domega_dmsp = ( & 
+                    & 2d0*caf*dcaf_dca &
+                    & *mgf**5d0 &
+                    & *sif**8d0 &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & )
+            case('si')
+                domega_dmsp = ( & 
+                    & caf**2d0 &
+                    & *mgf**5d0 &
+                    & *8d0*sif**8d0*dsif_dsi &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
     case('gps')
     ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O
         keq_tmp = keqsld_all(findloc(chrsld_all,'gps',dim=1))
@@ -9653,17 +9804,31 @@ select case(trim(adjustl(mineral)))
                     & dcaf_dpro &
                     & *so4f &
                     & /keq_tmp &
+                    & + &
+                    & caf &
+                    & *dso4f_dpro &
+                    & /keq_tmp &
                     & )
             case('pco2')
                 domega_dmsp = ( & 
                     & dcaf_dpco2 &
                     & *so4f &
                     & /keq_tmp &
+                    & + &
+                    & caf &
+                    & *dso4f_dpco2 &
+                    & /keq_tmp &
                     & )
             case('ca')
                 domega_dmsp = ( & 
                     & dcaf_dca &
                     & *so4f &
+                    & /keq_tmp &
+                    & )
+            case('so4')
+                domega_dmsp = ( & 
+                    & caf &
+                    & *dso4f_dso4 &
                     & /keq_tmp &
                     & )
             case default 
@@ -10652,7 +10817,7 @@ integer info
 
 external DGESV
 
-logical::chkflx = .false.
+logical::chkflx = .true.
 logical::dt_norm = .true.
 logical::kin_iter = .true.
 
@@ -10660,7 +10825,7 @@ logical::kin_iter = .true.
 logical,intent(in)::sld_enforce != .true.
 
 character(10) precstyle 
-real(kind=8) msld_seed 
+real(kind=8) msld_seed ,fact2
 real(kind=8):: fact_tol = 1d-3
 real(kind=8):: dt_th = 1d-3
 real(kind=8) flx_tol != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
@@ -11064,7 +11229,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     drxnsld_dmgas = 0d0
     
     call sld_rxn( &
-        & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx &! input 
+        & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
         & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle &! input
         & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
         & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
@@ -11573,8 +11738,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
 
     end do 
     
-    ! amx3 = amx3/maxval(ksld)
-    ! ymx3 = ymx3/maxval(ksld)
+    fact2= maxval(abs(amx3))
+    
+    amx3 = amx3/fact2
+    ymx3 = ymx3/fact2
     
     ymx3=-1.0d0*ymx3
 
@@ -11856,7 +12023,7 @@ enddo
 rxnsld = 0d0
     
 call sld_rxn( &
-    & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx &! input 
+    & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
     & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle &! input
     & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
     & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
@@ -12257,7 +12424,7 @@ endsubroutine alsilicate_aq_gas_1D_v3_1
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine sld_rxn( &
-    & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx &! input 
+    & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
     & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle &! input
     & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
     & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
@@ -12266,7 +12433,7 @@ implicit none
 
 integer,intent(in)::nz,nsp_sld,nsp_aq,nsp_gas
 real(kind=8),intent(in)::msld_seed,dt
-real(kind=8),dimension(nz),intent(in)::hr,poro,sat
+real(kind=8),dimension(nz),intent(in)::hr,poro,sat,dz
 real(kind=8),dimension(nsp_sld),intent(in)::mv,msldth
 real(kind=8),dimension(nsp_sld,nsp_aq),intent(in)::staq
 real(kind=8),dimension(nsp_sld,nsp_gas),intent(in)::stgas
@@ -12468,6 +12635,8 @@ do isps = 1,nsp_sld
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
                     & )
             enddo 
+            
+            ! print *, 'max-rxnflx', isps, sum (ksld(isps,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*dz)
     
     endselect
 enddo   
