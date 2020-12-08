@@ -99,6 +99,8 @@ real(kind=8) :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et a
 real(kind=8) :: mvdlm = 64.34d0 ! cm3/mol; molar volume of dolomite; Robie et al. 1978
 real(kind=8) :: mvhm = 30.274d0 ! cm3/mol; molar volume of hematite; Robie et al. 1978
 real(kind=8) :: mvill = 139.35d0 ! cm3/mol; molar volume of illite (K0.6Mg0.25Al2.3Si3.5O10(OH)2); Wolery and Jove-Colon 2004
+real(kind=8) :: mvanl = 97.49d0 ! cm3/mol; molar volume of analcime (NaAlSi2O6*H2O); Robie et al. 1978
+real(kind=8) :: mvnph = 54.16d0 ! cm3/mol; molar volume of nepheline (NaAlSiO4); Robie et al. 1978
 
 real(kind=8) :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -124,6 +126,8 @@ real(kind=8) :: mwtarg = 100.089d0 ! g/mol; formula weight of aragonite
 real(kind=8) :: mwtdlm = 184.403d0 ! g/mol; formula weight of dolomite
 real(kind=8) :: mwthm = 159.692d0 ! g/mol; formula weight of hematite
 real(kind=8) :: mwtill = 383.90053d0 ! g/mol; formula weight of Ill calculated from atmoic weight
+real(kind=8) :: mwtanl = 220.155d0 ! g/mol; formula weight of analcime
+real(kind=8) :: mwtnph = 142.055d0 ! g/mol; formula weight of nepheline
 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -267,8 +271,8 @@ integer count_dtunchanged
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
-integer,parameter::nsp_sld_2 = 9
-integer,parameter::nsp_sld_all = 24
+integer,parameter::nsp_sld_2 = 10
+integer,parameter::nsp_sld_all = 26
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -422,7 +426,8 @@ chrflx(nflx) = 'res  '
 ! which are automatically included when associated mineral is chosen
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
-    & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','g1   ','g2   ','g3   '/)
+    & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
+    & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
@@ -439,7 +444,7 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
-chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  '/) 
+chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  '/) 
 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
@@ -487,10 +492,10 @@ endif
 ! molar volume 
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
-    & ,mvarg,mvdlm,mvhm,mvill &
+    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm,mwthm,mwtill &
+    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -582,6 +587,14 @@ staq_all(findloc(chrsld_all,'fo',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
 staq_all(findloc(chrsld_all,'ab',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
+! Analcime; NaAlSi2O6*H2O
+staq_all(findloc(chrsld_all,'anl',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'anl',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+staq_all(findloc(chrsld_all,'anl',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
+! Nepheline; NaAlSiO4
+staq_all(findloc(chrsld_all,'nph',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'nph',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'nph',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
 ! K-feldspar; KAlSi3O8
 staq_all(findloc(chrsld_all,'kfs',dim=1), findloc(chraq_all,'k',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'kfs',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
@@ -3140,6 +3153,32 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
 
+    case('nph','anl') ! analcime kinetics is assumed to be the same as nepherine 
+        mh = 1.130d0
+        moh = -0.200d0
+        kinn_ref = 10d0**(-8.56d0)*sec2yr
+        kinh_ref = 10d0**(-2.73d0)*sec2yr
+        kinoh_ref = 10d0**(-10.76d0)*sec2yr
+        ean = 65.4d0
+        eah = 62.9d0
+        eaoh = 37.8d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
     case('dp')
         mh = 0.71d0
         moh = 0d0
@@ -3289,6 +3328,20 @@ select case(trim(adjustl(mineral)))
         ! K-feldspar  + 4 H+  = 2 H2O  + K+  + Al+++  + 3 SiO2(aq)
         therm_ref = 10d0**0.227294204d0
         ha = -26.30862098d0
+        tc_ref = 15d0
+        ! from Kanzaki and Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('anl')
+        ! NaAlSi2O6*H2O  + 5 H2O  = Na+  + Al(OH)4-  + 2 Si(OH)4(aq)
+        therm_ref = 10d0**(-16.06d0)
+        ha = 101d0
+        tc_ref = 25d0
+        ! from Wilkin and Barnes 1998
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('nph')
+        ! Nepheline  + 4 H+  = 2 H2O  + SiO2(aq)  + Al+++  + Na+
+        therm_ref = 10d0**(14.93646757d0)
+        ha = -130.8197467d0
         tc_ref = 15d0
         ! from Kanzaki and Murakami 2018
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
@@ -9158,6 +9211,171 @@ select case(trim(adjustl(mineral)))
                     & *alf**(2.3d0)  &
                     & *3.5d0*sif**(3.5d0-1d0)*dsif_dsi   &
                     & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
+    case('anl')
+    ! NaAlSi2O6*H2O  + 5 H2O  = Na+  + Al(OH)4-  + 2 Si(OH)4(aq)
+        keq_tmp = keqsld_all(findloc(chrsld_all,'anl',dim=1))
+        omega = (  &
+            & naf &
+            & *alf*k4al/prox**4d0  &
+            & *sif**2d0   &
+            & /keq_tmp      &
+            & )
+            
+        ! dependences from an case
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( &
+                    & dnaf_dpro &
+                    & *alf*k4al/prox**4d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *dalf_dpro*k4al/prox**4d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *alf*k4al*(-4d0)/prox**5d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *alf*k4al/prox**4d0  &
+                    & *2d0*sif*dsif_dpro   &
+                    & /keq_tmp      &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & dnaf_dpco2 &
+                    & *alf*k4al/prox**4d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *dalf_dpco2*k4al/prox**4d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *alf*k4al/prox**4d0  &
+                    & *2d0*sif*dsif_dpco2   &
+                    & /keq_tmp      &
+                    & )
+            case('na')
+                domega_dmsp = ( & 
+                    & dnaf_dna &
+                    & *alf*k4al/prox**4d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & )
+            case('al')
+                domega_dmsp = ( & 
+                    & naf &
+                    & *dalf_dal*k4al/prox**4d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & )
+            case('si')
+                domega_dmsp = ( & 
+                    & naf &
+                    & *alf*k4al/prox**4d0  &
+                    & *2d0*sif*dsif_dsi   &
+                    & /keq_tmp      &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
+    case('nph')
+    ! Nepheline  + 4 H+  = 2 H2O  + SiO2(aq)  + Al+++  + Na+
+        keq_tmp = keqsld_all(findloc(chrsld_all,'nph',dim=1))
+        omega = (  &
+            & naf &
+            & *alf  &
+            & *sif   &
+            & /prox**4d0  &
+            & /keq_tmp      &
+            & )
+            
+        ! dependences from an case
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( &
+                    & dnaf_dpro &
+                    & *alf  &
+                    & *sif   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *dalf_dpro  &
+                    & *sif   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *alf  &
+                    & *dsif_dpro   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *alf  &
+                    & *sif   &
+                    & *(-4d0)/prox**5d0 &
+                    & /keq_tmp      &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & dnaf_dpco2 &
+                    & *alf  &
+                    & *sif   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *dalf_dpco2  &
+                    & *sif   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *alf  &
+                    & *dsif_dpco2   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & )
+            case('na')
+                domega_dmsp = ( & 
+                    & dnaf_dna &
+                    & *alf  &
+                    & *sif   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & )
+            case('al')
+                domega_dmsp = ( & 
+                    & naf &
+                    & *dalf_dal  &
+                    & *sif   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & )
+            case('si')
+                domega_dmsp = ( & 
+                    & naf &
+                    & *alf  &
+                    & *dsif_dsi   &
+                    & /prox**4d0 &
                     & /keq_tmp      &
                     & )
             case default 
