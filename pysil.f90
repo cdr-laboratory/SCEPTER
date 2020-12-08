@@ -101,6 +101,7 @@ real(kind=8) :: mvhm = 30.274d0 ! cm3/mol; molar volume of hematite; Robie et al
 real(kind=8) :: mvill = 139.35d0 ! cm3/mol; molar volume of illite (K0.6Mg0.25Al2.3Si3.5O10(OH)2); Wolery and Jove-Colon 2004
 real(kind=8) :: mvanl = 97.49d0 ! cm3/mol; molar volume of analcime (NaAlSi2O6*H2O); Robie et al. 1978
 real(kind=8) :: mvnph = 54.16d0 ! cm3/mol; molar volume of nepheline (NaAlSiO4); Robie et al. 1978
+real(kind=8) :: mvqtz = 22.688d0 ! cm3/mol; molar volume of quartz (SiO2); Robie et al. 1978
 
 real(kind=8) :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -128,6 +129,7 @@ real(kind=8) :: mwthm = 159.692d0 ! g/mol; formula weight of hematite
 real(kind=8) :: mwtill = 383.90053d0 ! g/mol; formula weight of Ill calculated from atmoic weight
 real(kind=8) :: mwtanl = 220.155d0 ! g/mol; formula weight of analcime
 real(kind=8) :: mwtnph = 142.055d0 ! g/mol; formula weight of nepheline
+real(kind=8) :: mwtqtz = 60.085d0 ! g/mol; formula weight of quartz
 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -272,7 +274,7 @@ integer,intent(in):: count_dtunchanged_Max
 
 integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 10
-integer,parameter::nsp_sld_all = 26
+integer,parameter::nsp_sld_all = 27
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -427,6 +429,7 @@ chrflx(nflx) = 'res  '
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
+    & ,'qtz  ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
@@ -492,10 +495,10 @@ endif
 ! molar volume 
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
-    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph &
+    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph &
+    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -644,6 +647,8 @@ staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'hb',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 ! Amorphous silica; SiO2
 staq_all(findloc(chrsld_all,'amsi',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+! Quartz; SiO2
+staq_all(findloc(chrsld_all,'qtz',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Aragonite (CaCO3)
 staq_all(findloc(chrsld_all,'arg',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'arg',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
@@ -3065,6 +3070,24 @@ select case(trim(adjustl(mineral)))
             & ) 
         dkin_dmsp = 0d0
 
+    case('qtz')
+        mh = 0d0
+        moh = 0d0
+        kinn_ref = 10d0**(-13.40d0)*sec2yr
+        kinh_ref = 0d0
+        kinoh_ref = 0d0
+        ean = 90.9d0
+        eah = 0d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        dkin_dmsp = 0d0
+
     case('gt')
         mh = 0d0
         moh = 0d0
@@ -3153,7 +3176,7 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
 
-    case('nph','anl') ! analcime kinetics is assumed to be the same as nepherine 
+    case('nph','anl') ! analcime kinetics is assumed to be the same as nepherine (cf. Ragnarsdottir, GCA, 1993)
         mh = 1.130d0
         moh = -0.200d0
         kinn_ref = 10d0**(-8.56d0)*sec2yr
@@ -3400,6 +3423,13 @@ select case(trim(adjustl(mineral)))
         ha = 3.340d0*cal2j
         tc_ref = 25d0
         ! from PHREEQC.DAT 
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('qtz')
+        ! SiO2 + 2H2O = H4SiO4
+        therm_ref = 10d0**(-4d0)
+        ha = 22.36d0
+        tc_ref = 25d0
+        ! from minteq.v4 
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('gt')
         ! Fe(OH)3 + 3 H+ = Fe+3 + 2 H2O
@@ -8899,6 +8929,30 @@ select case(trim(adjustl(mineral)))
                 domega_dmsp = 0d0
         endselect 
         
+    case('qtz')
+    !  SiO2 + 2H2O = H4SiO4
+        keq_tmp = keqsld_all(findloc(chrsld_all,'qtz',dim=1))
+        omega = ( &
+            & sif &
+            & /keq_tmp &
+            & )
+            
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( & 
+                    & 1d0*dsif_dpro &
+                    & /keq_tmp &
+                    ! 
+                    & )
+            case('si')
+                domega_dmsp = ( & 
+                    & 1d0*dsif_dsi &
+                    & /keq_tmp &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
         
     case('gt')
     !  Fe(OH)3 + 3 H+ = Fe+3 + 2 H2O
@@ -10536,7 +10590,7 @@ logical,intent(in)::sld_enforce != .true.
 character(10) precstyle 
 real(kind=8) msld_seed 
 real(kind=8):: fact_tol = 1d-3
-real(kind=8):: dt_th = 1d-9
+real(kind=8):: dt_th = 1d-3
 real(kind=8) flx_tol != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 integer solve_sld 
 
