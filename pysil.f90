@@ -102,6 +102,7 @@ real(kind=8) :: mvill = 139.35d0 ! cm3/mol; molar volume of illite (K0.6Mg0.25Al
 real(kind=8) :: mvanl = 97.49d0 ! cm3/mol; molar volume of analcime (NaAlSi2O6*H2O); Robie et al. 1978
 real(kind=8) :: mvnph = 54.16d0 ! cm3/mol; molar volume of nepheline (NaAlSiO4); Robie et al. 1978
 real(kind=8) :: mvqtz = 22.688d0 ! cm3/mol; molar volume of quartz (SiO2); Robie et al. 1978
+real(kind=8) :: mvgps = 74.69d0 ! cm3/mol; molar volume of gypsum (CaSO4*2H2O); Robie et al. 1978
 
 real(kind=8) :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -130,6 +131,7 @@ real(kind=8) :: mwtill = 383.90053d0 ! g/mol; formula weight of Ill calculated f
 real(kind=8) :: mwtanl = 220.155d0 ! g/mol; formula weight of analcime
 real(kind=8) :: mwtnph = 142.055d0 ! g/mol; formula weight of nepheline
 real(kind=8) :: mwtqtz = 60.085d0 ! g/mol; formula weight of quartz
+real(kind=8) :: mwtgps = 172.168d0 ! g/mol; formula weight of gypsum
 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -273,8 +275,8 @@ integer count_dtunchanged
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
-integer,parameter::nsp_sld_2 = 10
-integer,parameter::nsp_sld_all = 27
+integer,parameter::nsp_sld_2 = 11
+integer,parameter::nsp_sld_all = 28
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -429,7 +431,7 @@ chrflx(nflx) = 'res  '
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
-    & ,'qtz  ' &
+    & ,'qtz  ','gps  ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
@@ -447,7 +449,7 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
-chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  '/) 
+chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '/) 
 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
@@ -495,10 +497,10 @@ endif
 ! molar volume 
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
-    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz &
+    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz &
+    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -656,6 +658,9 @@ stgas_all(findloc(chrsld_all,'arg',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1
 staq_all(findloc(chrsld_all,'dlm',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'dlm',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'dlm',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 2d0
+! Gypsum; CaSO4*2H2O
+staq_all(findloc(chrsld_all,'gps',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'gps',dim=1), findloc(chraq_all,'so4',dim=1)) = 1d0
 ! OMs; CH2O
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
@@ -3253,6 +3258,32 @@ select case(trim(adjustl(mineral)))
             case default 
                 dkin_dmsp = 0d0
         endselect 
+    
+    case('gps')
+        mh = 0d0
+        moh = 0d0
+        kinn_ref = 10d0**(-2.79d0)*sec2yr
+        kinh_ref = 0d0
+        kinoh_ref = 0d0
+        ean = 0d0
+        eah = 0d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
         
     case('py')
         mh = 0d0
@@ -3479,6 +3510,13 @@ select case(trim(adjustl(mineral)))
         ha = -128.5d0
         tc_ref = 15d0
         ! from Kanzaki & Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('gps')
+        ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O
+        therm_ref = 10d0**(-4.61d0)
+        ha = 1d0
+        tc_ref = 25d0
+        ! from minteq.v4
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('g1')
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
@@ -9599,6 +9637,40 @@ select case(trim(adjustl(mineral)))
         endselect 
         
         
+    case('gps')
+    ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O
+        keq_tmp = keqsld_all(findloc(chrsld_all,'gps',dim=1))
+        omega = ( &
+            & caf &
+            & *so4f &
+            & /keq_tmp &
+            & )
+            
+        ! copied and pasted from dp case with replacing mg and dp by fe2 and hb
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( &   
+                    & dcaf_dpro &
+                    & *so4f &
+                    & /keq_tmp &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & dcaf_dpco2 &
+                    & *so4f &
+                    & /keq_tmp &
+                    & )
+            case('ca')
+                domega_dmsp = ( & 
+                    & dcaf_dca &
+                    & *so4f &
+                    & /keq_tmp &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
     case('py')
     ! omega is defined so that kpy*poro*hr*mvpy*1d-6*mpyx*(1d0-omega_py) = kpy*poro*hr*mvpy*1d-6*mpyx*po2x**0.5d0
     ! i.e., 1.0 - omega_py = po2x**0.5 
@@ -10580,7 +10652,7 @@ integer info
 
 external DGESV
 
-logical::chkflx = .true.
+logical::chkflx = .false.
 logical::dt_norm = .true.
 logical::kin_iter = .true.
 
