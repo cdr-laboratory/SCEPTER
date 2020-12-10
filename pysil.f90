@@ -277,7 +277,7 @@ integer count_dtunchanged
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
-integer,parameter::nsp_sld_2 = 11
+integer,parameter::nsp_sld_2 = 14
 integer,parameter::nsp_sld_all = 29
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
@@ -451,7 +451,8 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
-chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '/) 
+chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
+    ,'arg  ','dlm  ','qtz  '/) 
 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
@@ -1369,6 +1370,13 @@ do while (it<nt)
                 & + plant_rain/12d0*rfrc_sld_plant(isps)/dz(1) ! when plant_rain is in g_C/m2/yr
         endif 
     enddo 
+    
+    if (sld_enforce) then 
+        if (any(chrgas=='pco2')) then 
+            ! mgassupp(findloc(chrgas,'pco2',dim=1),:) = plant_rain/12d0*exp(-z/zsupp_plant)/zsupp_plant
+            mgassupp(findloc(chrgas,'pco2',dim=1),:) = plant_rain/12d0/ztot
+        endif 
+    endif 
     
     
     ! if (it==0) pre_calc = .true.
@@ -9779,7 +9787,7 @@ select case(trim(adjustl(mineral)))
                 domega_dmsp = ( & 
                     & caf**2d0 &
                     & *mgf**5d0 &
-                    & *8d0*sif**8d0*dsif_dsi &
+                    & *8d0*sif**7d0*dsif_dsi &
                     & /prox**14d0 &
                     & /keq_tmp &
                     & )
