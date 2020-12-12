@@ -183,7 +183,7 @@ real(kind=8),dimension(nz):: pro,prox,poroprev,hr,rough,hri
 
 real(kind=8) kho,ucv,kco2,k1,kw,k2,khco2i
 
-integer iz,it,ispa,ispg,isps,irxn,ispa2,ispg2,isps2
+integer iz,it,ispa,ispg,isps,irxn,ispa2,ispg2,isps2,ico2
 
 real(kind=8) error 
 real(kind=8) :: tol = 1d-6
@@ -291,7 +291,7 @@ integer ::nsp_gas_cnst != nsp_gas_all - nsp_gas
 integer ::nsp3 != nsp_sld + nsp_aq + nsp_gas
 integer,intent(in)::nrxn_ext != 1
 integer,parameter::nrxn_ext_all = 5
-integer :: nflx ! = 5 + nrxn_ext + nsp_sld 
+integer :: nflx ! = 5 + nrxn_ext + nsp_sld  
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2)::chrsld_2
 character(5),dimension(nsp_sld_all)::chrsld_all
@@ -342,6 +342,9 @@ real(kind=8),dimension(nsp_aq_all - nsp_aq,nz)::maqc
 real(kind=8),dimension(nsp_gas_all - nsp_gas,nz)::mgasc
 real(kind=8),dimension(nsp_sld_all - nsp_sld,nz)::msldc
 
+real(kind=8),dimension(4,5 + nrxn_ext + nsp_sld,nz)::flx_co2sp
+character(5),dimension(6)::chrco2sp
+
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 
@@ -357,6 +360,7 @@ data ieqaq_so4,ieqaq_so42/1,2/
 integer,dimension(nsp_aq)::iaqflx
 integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
+integer,dimension(6)::ico2flx
 
 integer,parameter::ibasaltrain = 15
 integer isldprof,isldprof2,iaqprof,igasprof,isldsat,ibsd,irate 
@@ -457,6 +461,8 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_ph = (/'pco2 '/)
+
+chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
 
 if (nsp_aq_cnst .ne. 0) then 
     do ispa = 1, nsp_aq_cnst
@@ -901,6 +907,10 @@ do ispg = 1, nsp_gas
     igasflx(ispg) = ibasaltrain + nsp_sld + nsp_aq + ispg
 enddo 
 
+do ico2 = 1, 6
+    ico2flx(ico2) = ibasaltrain + nsp_sld + nsp_aq + nsp_gas + ico2
+enddo 
+
 ! print*,workdir
 ! print*,runname
 ! pause
@@ -933,6 +943,14 @@ do ispg = 1,nsp_gas
     write(igasflx(ispg),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(igasflx(ispg))
 enddo 
+
+do ico2 = 1,6
+    open(ico2flx(ico2), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', status='replace')
+    write(ico2flx(ico2),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+    close(ico2flx(ico2))
+enddo 
+
 open(ibasaltrain, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'rain.txt', &
     & status='replace')
 close(ibasaltrain)
@@ -1516,7 +1534,7 @@ do while (it<nt)
         ! old inout
         & ,dt,flgback &    
         ! output 
-        & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld & 
+        & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp & 
         & )
 
     ! if (iter > 75) then
@@ -1813,6 +1831,23 @@ do while (it<nt)
                 & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',access='append')
             write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
             close(igasflx(ispg))
+        enddo 
+        
+        do ico2=1,6 
+            open(ico2flx(ico2), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', action='write',status='old',access='append')
+            if (ico2 .le. 4) then 
+                write(ico2flx(ico2),*) time,(sum(flx_co2sp(ico2,iflx,:)*dz(:)),iflx=1,nflx)
+            elseif (ico2 .eq. 5) then 
+                write(ico2flx(ico2),*) time &
+                    & ,(sum(flx_co2sp(2,iflx,:)*dz(:))+sum(flx_co2sp(3,iflx,:)*dz(:))+sum(flx_co2sp(4,iflx,:)*dz(:)) &
+                    & ,iflx=1,nflx)
+            elseif (ico2 .eq. 6) then 
+                write(ico2flx(ico2),*) time &
+                    & ,(sum(flx_co2sp(3,iflx,:)*dz(:))+2d0*sum(flx_co2sp(4,iflx,:)*dz(:)) &
+                    & ,iflx=1,nflx)
+            endif 
+            close(ico2flx(ico2))
         enddo 
         
         open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
@@ -10693,7 +10728,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     ! old inout
     & ,dt,flgback &    
     ! output 
-    & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld & 
+    & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp & 
     & )
     
 implicit none 
@@ -10790,6 +10825,8 @@ real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
 real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
 real(kind=8),dimension(nrxn_ext_all,nz),intent(in)::krxn1_ext_all,krxn2_ext_all
 
+real(kind=8),dimension(4,nflx,nz),intent(out)::flx_co2sp
+
 integer iz,row,ie,ie2,iflx,isps,ispa,ispg,ispa2,ispg2,col,irxn,isps2,iiz
 integer::itflx,iadv,idif,irain,ires
 data itflx,iadv,idif,irain/1,2,3,4/
@@ -10800,7 +10837,7 @@ integer,dimension(nrxn_ext)::irxn_ext
 real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp &
     & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp,omega_tmp_th,rxn_ext_tmp &
     & ,edif_tmp,edif_tmp_n,edif_tmp_p,khco2n_tmp,pco2n_tmp,edifn_tmp,caqsupp_tmp,kco2,k1,k2,kho,sw_red &
-    & ,flx_max,flx_max_max
+    & ,flx_max,flx_max_max,pco2i,proi
 
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8)::fact = 1d-3
@@ -11978,6 +12015,8 @@ flx_sld = 0d0
 flx_aq = 0d0
 flx_gas = 0d0
 
+flx_co2sp = 0d0
+
 ! pH calculation and its derivative wrt aq and gas species
 
 call calc_pH_v7_2( &
@@ -12262,7 +12301,107 @@ do iz = 1, nz
             print *,flx_gas(ispg,:,iz)
         endif 
     enddo 
-
+    
+    if (any(chrgas=='pco2')) then 
+        ispg = findloc(chrgas,'pco2',dim=1)
+        pco2i = mgasi(ispg)
+        proi = prox(max(1,iz-1))
+        if (iz==1) proi = sqrt(kco2*k1*pco2i)
+        
+        ! gaseous CO2
+        
+        edifn_tmp = ucv*poro(max(1,iz-1))*(1.0d0-sat(max(1,iz-1)))*1d3*torg(max(1,iz-1))*dgasg(ispg)
+        if (iz==1) edifn_tmp = dgasi(ispg)
+        
+        flx_co2sp(1,itflx,iz) = ( &
+            & (ucv*poro(iz)*(1.0d0-sat(Iz))*1d3*mgasx(ispg,iz)-ucv*poroprev(iz)*(1.0d0-sat(Iz))*1d3*mgas(ispg,iz))/dt &
+            & )  
+        flx_co2sp(1,idif,iz) = ( &
+            & -( 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(Iz)*dgasg(ispg) &
+            &       +ucv*poro(min(nz,iz+1))*(1.0d0-sat(min(nz,iz+1)))*1d3*torg(min(nz,iz+1))*dgasg(ispg)) &
+            &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
+            &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(Iz)*dgasg(ispg) + edifn_tmp) &
+            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            & ) 
+        flx_co2sp(1,irxn_ext(:),iz) = -stgas_ext(:,ispg)*rxnext(:,iz)
+        flx_co2sp(1,irain,iz) = - mgassupp(ispg,iz)
+        flx_co2sp(1,irxn_sld(:),iz) = ( &
+            & - stgas(:,ispg)*rxnsld(:,iz) &
+            & )
+            
+        ! dissolved CO2
+        
+        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*1d3*tora(max(1,iz-1))*dgasa(ispg)
+        if (iz==1) edifn_tmp = 0d0
+        
+        flx_co2sp(2,itflx,iz) = ( &
+            & (poro(iz)*sat(iz)*kco2*1d3*mgasx(ispg,iz)-poroprev(iz)*sat(iz)*kco2*1d3*mgas(ispg,iz))/dt &
+            & )  
+        flx_co2sp(2,idif,iz) = ( &
+            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*1d3*tora(iz)*dgasa(ispg) &
+            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*1d3*tora(min(nz,iz+1))*dgasa(ispg)) &
+            &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
+            &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(poro(iz)*sat(iz)*kco2*1d3*tora(iz)*dgasa(ispg) + edifn_tmp) &
+            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            & ) 
+        flx_co2sp(2,iadv,iz) = ( &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*(kco2*mgasx(ispg,iz)- kco2*pco2n_tmp)/dz(iz) &
+            & )
+            
+        ! HCO3-
+        
+        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*k1/prox(max(1,iz-1))*1d3*tora(max(1,iz-1))*dgasa(ispg)
+        if (iz==1) edifn_tmp = 0d0
+        
+        flx_co2sp(3,itflx,iz) = ( &
+            & (poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*mgasx(ispg,iz)-poroprev(iz)*sat(iz)*kco2*k1/pro(iz)*1d3*mgas(ispg,iz))/dt &
+            & )  
+        flx_co2sp(3,idif,iz) = ( &
+            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*tora(iz)*dgasa(ispg) &
+            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*k1/prox(min(nz,iz+1))*1d3*tora(min(nz,iz+1))*dgasa(ispg)) &
+            &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
+            &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*tora(iz)*dgasa(ispg) + edifn_tmp) &
+            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            & ) 
+        flx_co2sp(3,iadv,iz) = ( &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*( &
+            &       kco2*k1/prox(iz)*mgasx(ispg,iz) &
+            &       - kco2*k1/proi*pco2n_tmp)/dz(iz) &
+            & )
+            
+        ! CO32-
+        
+        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*k1*k2/prox(max(1,iz-1))**2d0*1d3*tora(max(1,iz-1))*dgasa(ispg)
+        if (iz==1) edifn_tmp = 0d0
+        
+        flx_co2sp(4,itflx,iz) = (  &
+            & (poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*mgasx(ispg,iz) &
+            &       -poroprev(iz)*sat(iz)*kco2*k1*k2/pro(iz)**2d0*1d3*mgas(ispg,iz))/dt &
+            & )  
+        flx_co2sp(4,idif,iz) = ( &
+            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*tora(iz)*dgasa(ispg) &
+            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*k1*k2/prox(min(nz,iz+1))**2d0*1d3*tora(min(nz,iz+1))*dgasa(ispg)) &
+            &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
+            &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+            & - 0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*tora(iz)*dgasa(ispg) + edifn_tmp) &
+            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            & ) 
+        flx_co2sp(4,iadv,iz) = ( &
+            & +poro(iz)*sat(iz)*v(iz)*1d3*( &
+            &       kco2*k1*k2/prox(iz)**2d0*mgasx(ispg,iz) &
+            &       - kco2*k1*k2/proi**2d0*pco2n_tmp)/dz(iz) &
+            & )
+            
+            
+        flx_co2sp(1,ires,iz) = sum(flx_co2sp(:,1:nflx-1,iz))
+        flx_co2sp(2,ires,iz) = sum(flx_co2sp(:,1:nflx-1,iz))
+        flx_co2sp(3,ires,iz) = sum(flx_co2sp(:,1:nflx-1,iz))
+        flx_co2sp(4,ires,iz) = sum(flx_co2sp(:,1:nflx-1,iz))
+    endif 
+    
 end do 
 
     
