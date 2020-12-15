@@ -8281,7 +8281,7 @@ real(kind=8),dimension(nz):: caf,mgf,sif,naf,alf,fe2f,fe3f,kf
 real(kind=8),dimension(nz):: dcaf_dpro,dmgf_dpro,dsif_dpro,dnaf_dpro,dalf_dpro,dfe2f_dpro,dfe3f_dpro,dkf_dpro
 real(kind=8),dimension(nz):: dcaf_dpco2,dmgf_dpco2,dsif_dpco2,dnaf_dpco2,dalf_dpco2,dfe2f_dpco2,dfe3f_dpco2,dkf_dpco2
 real(kind=8),dimension(nz):: dcaf_dca,dmgf_dmg,dsif_dsi,dnaf_dna,dalf_dal,dfe2f_dfe2,dfe3f_dfe3,dkf_dk,dso4f_dso4,dso4f_dpro &
-    & ,dso4f_dpco2
+    & ,dso4f_dpco2,dkf_dso4f,dnaf_dso4f,dcaf_dso4f,dmgf_dso4f,dalf_dso4f,dfe2f_dso4f,dfe3f_dso4f,dsif_dso4f
 real(kind=8),dimension(nz),intent(out):: domega_dmsp
 real(kind=8),dimension(nz),intent(out):: omega
 logical,intent(out)::omega_error
@@ -8455,6 +8455,7 @@ kf = kx/(1d0+k1kso4*so4f)
 dkf_dk = 1d0/(1d0+k1kso4*so4f)
 dkf_dpro = 0d0
 dkf_dpco2 = 0d0
+dkf_dso4f = kx*(-1d0)/(1d0+k1kso4*so4f)**2d0 *k1kso4
 
 naf = nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)
 dnaf_dna = 1d0/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)
@@ -8462,6 +8463,8 @@ dnaf_dpro = nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kc
     & *(k1naco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1nahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
 dnaf_dpco2 = nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)**2d0 &
     & *(k1naco3*k1*k2*kco2*1d0/prox**2d0+k1nahco3*k1*k2*kco2*1d0/prox)
+dnaf_dso4f = nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)**2d0 &
+    & * k1naso4
     
 caf = cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)
 dcaf_dca = 1d0/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)
@@ -8469,6 +8472,8 @@ dcaf_dpro = cax*(-1d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco
     & *(k1ca*(-1d0)/prox**2d0+k1caco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1cahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
 dcaf_dpco2 = cax*(-1d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)**2d0 &
     & *(k1caco3*k1*k2*kco2*1d0/prox**2d0+k1cahco3*k1*k2*kco2*1d0/prox)
+dcaf_dso4f = cax*(-1d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)**2d0 &
+    & * k1caso4
     
 mgf = mgx/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)
 dmgf_dmg = 1d0/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)
@@ -8476,6 +8481,8 @@ dmgf_dpro = mgx*(-1d0)/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco
     & *(k1mg*(-1d0)/prox**2d0+k1mgco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1mghco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
 dmgf_dpco2 = mgx*(-1d0)/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)**2d0 &
     & *(k1mgco3*k1*k2*kco2*1d0/prox**2d0+k1mghco3*k1*k2*kco2*1d0/prox)
+dmgf_dso4f = mgx*(-1d0)/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)**2d0 &
+    & * k1mgso4
     
 fe2f = fe2x/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)
 dfe2f_dfe2 = 1d0/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)
@@ -8485,23 +8492,31 @@ dfe2f_dpro = fe2x*(-1d0) &
 dfe2f_dpco2 = fe2x*(-1d0) &
     & /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)**2d0 &
     & *(k1fe2co3*k1*k2*kco2*1d0/prox**2d0+k1fe2hco3*k1*k2*kco2*1d0/prox)
+dfe2f_dso4f = fe2x*(-1d0) &
+    & /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)**2d0 &
+    & * k1fe2so4
     
 sif = six/(1d0+k1si/prox+k2si/prox**2d0)
 dsif_dsi = 1d0/(1d0+k1si/prox+k2si/prox**2d0)
 dsif_dpro = six*(-1d0)/(k1si*(-1d0)/prox**2d0+k2si*(-2d0)/prox**3d0)
 dsif_dpco2 = 0d0
+dsif_dso4f = 0d0
 
 alf = alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)
 dalf_dal = 1d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)
 dalf_dpro = alx*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)**2d0 &
     & *(k1al*(-1d0)/prox**2d0+k2al*(-2d0)/prox**3d0+k3al*(-3d0)/prox**4d0+k4al*(-4d0)/prox**5d0)
 dalf_dpco2 = 0d0
+dalf_dso4f = alx*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)**2d0 & 
+    & * k1also4
 
 fe3f = fe3x/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)
 dfe3f_dfe3 = 1d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)
 dfe3f_dpro = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
     & *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0)
 dfe3f_dpco2 = 0d0
+dfe3f_dso4f = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
+    & * k1fe3so4
 
 dso4f_dso4 = 1d0/( 1d0+k1so4/prox &
         & +k1kso4*kf &
@@ -8554,6 +8569,18 @@ select case(trim(adjustl(mineral)))
                     & *(-4d0)/prox**5d0 &
                     & /keqfo &
                     & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & mgf*2d0*dmgf_dso4f &
+                    & *sif &
+                    & /prox**4d0 &
+                    & /keqfo &
+                    !
+                    & +mgf**2d0 &
+                    & *dsif_dso4f &
+                    & /prox**4d0 &
+                    & /keqfo &
+                    & )
             case('mg')
                 domega_dmsp = ( & 
                     & mgf*2d0*dmgf_dmg &
@@ -8604,6 +8631,18 @@ select case(trim(adjustl(mineral)))
                     & +fe2f**2d0 &
                     & *sif &
                     & *(-4d0)/prox**5d0 &
+                    & /keqfa &
+                    & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & fe2f*2d0*dfe2f_dso4f &
+                    & *sif &
+                    & /prox**4d0 &
+                    & /keqfa &
+                    !
+                    & +fe2f**2d0 &
+                    & *dsif_dso4f &
+                    & /prox**4d0 &
                     & /keqfa &
                     & )
             case('fe2')
@@ -8666,6 +8705,26 @@ select case(trim(adjustl(mineral)))
                     & *alf &
                     & *sif**3d0 &
                     & *(-4d0)/prox**5d0 &
+                    & /keqab &
+                    & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & 1d0*dnaf_dso4f & 
+                    & *alf &
+                    & *sif**3d0 &
+                    & /prox**4d0 &
+                    & /keqab &
+                    !
+                    & +naf & 
+                    & *1d0*dalf_dso4f &
+                    & *sif**3d0 &
+                    & /prox**4d0 &
+                    & /keqab &
+                    ! 
+                    & +naf & 
+                    & *alf &
+                    & *3d0*sif**2d0*dsif_dso4f &
+                    & /prox**4d0 &
                     & /keqab &
                     & )
             case('na')
@@ -8742,6 +8801,26 @@ select case(trim(adjustl(mineral)))
                     & *(-4d0)/prox**5d0 &
                     & /keqkfs   &
                     & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & 1d0*dkf_dso4f &
+                    & *alf &
+                    & *sif**3d0 &
+                    & /prox**4d0 &
+                    & /keqkfs   &
+                    ! 
+                    & +kf &
+                    & *1d0*dalf_dso4f &
+                    & *sif**3d0 &
+                    & /prox**4d0 &
+                    & /keqkfs   &
+                    ! 
+                    & +kf &
+                    & *alf &
+                    & *3d0*sif**2d0*dsif_dso4f &
+                    & /prox**4d0 &
+                    & /keqkfs   &
+                    & )
             case('k')
                 domega_dmsp = ( & 
                     & 1d0*dkf_dk &
@@ -8808,6 +8887,26 @@ select case(trim(adjustl(mineral)))
                     & *(-8d0)/prox**9d0 &
                     & /keqan &
                     & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & 1d0*dcaf_dso4f &
+                    & *alf**2d0 &
+                    & *sif**2d0 &
+                    & /prox**8d0 &
+                    & /keqan &
+                    & + &
+                    & caf &
+                    & *alf*2d0*dalf_dso4f &
+                    & *sif**2d0 &
+                    & /prox**8d0 &
+                    & /keqan &
+                    & + &
+                    & caf &
+                    & *alf**2d0 &
+                    & *sif*2d0*dsif_dso4f &
+                    & /prox**8d0 &
+                    & /keqan &
+                    & )
             case('pco2')
                 domega_dmsp = ( & 
                     & 1d0*dcaf_dpco2 &
@@ -8863,6 +8962,12 @@ select case(trim(adjustl(mineral)))
                     & *k1*k2*kco2*pco2x*(-2d0)/(prox**3d0) &
                     & /keqcc &
                     & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & 1d0*dcaf_dso4f &
+                    & *k1*k2*kco2*pco2x/(prox**2d0) &
+                    & /keqcc &
+                    & )
             case('pco2')
                 domega_dmsp = ( & 
                     & 1d0*dcaf_dpco2 &
@@ -8901,6 +9006,12 @@ select case(trim(adjustl(mineral)))
                     & + &
                     & caf &
                     & *k1*k2*kco2*pco2x*(-2d0)/(prox**3d0) &
+                    & /keq_tmp &
+                    & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & 1d0*dcaf_dso4f &
+                    & *k1*k2*kco2*pco2x/(prox**2d0) &
                     & /keq_tmp &
                     & )
             case('pco2')
@@ -8945,6 +9056,16 @@ select case(trim(adjustl(mineral)))
                     & + &
                     & caf*mgf &
                     & *2d0*(k1*k2*kco2*pco2x/(prox**2d0))*k1*k2*kco2*pco2x*(-2d0)/(prox**3d0) &
+                    & /keq_tmp &
+                    & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & dcaf_dso4f*mgf &
+                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf*dmgf_dso4f &
+                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
                     & /keq_tmp &
                     & )
             case('pco2')
@@ -9007,6 +9128,20 @@ select case(trim(adjustl(mineral)))
                     & /keqka &
                     ! 
                     & )
+            case('so4f')
+                ! ph dependences of al and si are from an case
+                domega_dmsp = ( & 
+                    & alf*2d0*dalf_dso4f &
+                    & *sif**2d0 &
+                    & /prox**6d0 &
+                    & /keqka &
+                    & + &
+                    & alf**2d0 &
+                    & *sif*2d0*dsif_dso4f &
+                    & /prox**6d0 &
+                    & /keqka &
+                    ! 
+                    & )
             case('al')
                 domega_dmsp = ( & 
                     & alf*2d0*dalf_dal &
@@ -9047,6 +9182,14 @@ select case(trim(adjustl(mineral)))
                     & /keqgb &
                     ! 
                     & )
+            case('so4f')
+                ! ph dependence of al is from an case
+                domega_dmsp = ( & 
+                    & 1d0*dalf_dso4f &
+                    & /prox**3d0 &
+                    & /keqgb &
+                    ! 
+                    & )
             case('al')
                 domega_dmsp = ( & 
                     & 1d0*dalf_dal &
@@ -9071,6 +9214,12 @@ select case(trim(adjustl(mineral)))
                     & /keqamsi &
                     ! 
                     & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & 1d0*dsif_dso4f &
+                    & /keqamsi &
+                    ! 
+                    & )
             case('si')
                 domega_dmsp = ( & 
                     & 1d0*dsif_dsi &
@@ -9092,6 +9241,12 @@ select case(trim(adjustl(mineral)))
             case('pro')
                 domega_dmsp = ( & 
                     & 1d0*dsif_dpro &
+                    & /keq_tmp &
+                    ! 
+                    & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & 1d0*dsif_dso4f &
                     & /keq_tmp &
                     ! 
                     & )
@@ -9126,6 +9281,13 @@ select case(trim(adjustl(mineral)))
                     & /keqgt &
                     ! 
                     & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & dfe3f_dso4f &
+                    & /prox**3d0 &
+                    & /keqgt &
+                    ! 
+                    & )
             case('fe3')
                 domega_dmsp = ( & 
                     & dfe3f_dfe3 &
@@ -9156,6 +9318,13 @@ select case(trim(adjustl(mineral)))
                     & + &
                     & fe3f**2d0 &
                     & *(-6d0)/prox**7d0 &
+                    & /keq_tmp &
+                    ! 
+                    & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & 2d0*fe3f*dfe3f_dso4f &
+                    & /prox**6d0 &
                     & /keq_tmp &
                     ! 
                     & )
@@ -9197,6 +9366,19 @@ select case(trim(adjustl(mineral)))
                     & mgf**3d0 &
                     & *sif**2d0  &
                     & *(-6d0)/prox**7d0 &
+                    & /keqct &
+                    & )
+            case('so4f')
+                ! ph dependence of mg and si are from above
+                domega_dmsp = ( & 
+                    & 3d0*mgf**2d0*dmgf_dso4f &
+                    & *sif**2d0  &
+                    & /prox**6d0 &
+                    & /keqct &
+                    & + &
+                    & mgf**3d0 &
+                    & *sif*2d0*dsif_dso4f  &
+                    & /prox**6d0 &
                     & /keqct &
                     & )
             case('pco2')
@@ -9262,6 +9444,26 @@ select case(trim(adjustl(mineral)))
                     & *alf**(7d0/3d0) &
                     & *sif**(11d0/3d0) &
                     & *(-22d0/3d0)/prox**(22d0/3d0+1d0) &
+                    & /keqcabd &
+                    & )
+            case('so4f')
+                domega_dmsp = ( &
+                    & (1d0/6d0)*caf**(1d0/6d0-1d0)*dcaf_dso4f &
+                    & *alf**(7d0/3d0) &
+                    & *sif**(11d0/3d0) &
+                    & /prox**(22d0/3d0) &
+                    & /keqcabd &
+                    & + &
+                    & caf**(1d0/6d0) &
+                    & *(7d0/3d0)*alf**(7d0/3d0-1d0)*dalf_dso4f &
+                    & *sif**(11d0/3d0) &
+                    & /prox**(22d0/3d0) &
+                    & /keqcabd &
+                    & + &
+                    & caf**(1d0/6d0) &
+                    & *alf**(7d0/3d0) &
+                    & *(11d0/3d0)*sif**(11d0/3d0-1d0)*dsif_dso4f &
+                    & /prox**(22d0/3d0) &
                     & /keqcabd &
                     & )
             case('pco2')
@@ -9350,6 +9552,36 @@ select case(trim(adjustl(mineral)))
                     & *alf**(2.3d0)  &
                     & *sif**(3.5d0)   &
                     & *(-8d0)/prox**(9d0)    &
+                    & /keq_tmp      &
+                    & )
+            case('so4f')
+                domega_dmsp = ( &
+                    & 0.6d0*kf**(0.6d0-1d0)*dkf_dso4f &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *0.25d0*mgf**(0.25d0-1d0)*dmgf_dso4f &
+                    & *alf**(2.3d0)  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *2.3d0*alf**(2.3d0-1d0)*dalf_dso4f  &
+                    & *sif**(3.5d0)   &
+                    & /prox**(8d0)    &
+                    & /keq_tmp      &
+                    & + &
+                    & kf**(0.6d0) &
+                    & *mgf**(0.25d0) &
+                    & *alf**(2.3d0)  &
+                    & *3.5d0*sif**(3.5d0-1d0)*dsif_dso4f   &
+                    & /prox**(8d0)    &
                     & /keq_tmp      &
                     & )
             case('pco2')
@@ -9457,6 +9689,23 @@ select case(trim(adjustl(mineral)))
                     & *2d0*sif*dsif_dpro   &
                     & /keq_tmp      &
                     & )
+            case('so4f')
+                domega_dmsp = ( &
+                    & dnaf_dso4f &
+                    & *alf*k4al/prox**4d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *dalf_dso4f*k4al/prox**4d0  &
+                    & *sif**2d0   &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *alf*k4al/prox**4d0  &
+                    & *2d0*sif*dsif_dso4f   &
+                    & /keq_tmp      &
+                    & )
             case('pco2')
                 domega_dmsp = ( & 
                     & dnaf_dpco2 &
@@ -9537,6 +9786,26 @@ select case(trim(adjustl(mineral)))
                     & *alf  &
                     & *sif   &
                     & *(-4d0)/prox**5d0 &
+                    & /keq_tmp      &
+                    & )
+            case('so4f')
+                domega_dmsp = ( &
+                    & dnaf_dso4f &
+                    & *alf  &
+                    & *sif   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *dalf_dso4f  &
+                    & *sif   &
+                    & /prox**4d0 &
+                    & /keq_tmp      &
+                    & + &
+                    & naf &
+                    & *alf  &
+                    & *dsif_dso4f   &
+                    & /prox**4d0 &
                     & /keq_tmp      &
                     & )
             case('pco2')
@@ -9626,6 +9895,26 @@ select case(trim(adjustl(mineral)))
                     & *(-4d0)/prox**5d0 &
                     & /keqdp &
                     & )
+            case('so4f')
+                domega_dmsp = ( &   
+                    & dcaf_dso4f &
+                    & *mgf &
+                    & *sif**2d0 &
+                    & /prox**4d0 &
+                    & /keqdp &
+                    & + &
+                    & caf &
+                    & *dmgf_dso4f &
+                    & *sif**2d0 &
+                    & /prox**4d0 &
+                    & /keqdp &
+                    & + &
+                    & caf &
+                    & *mgf &
+                    & *sif*2d0*dsif_dso4f &
+                    & /prox**4d0 &
+                    & /keqdp &
+                    & )
             case('pco2')
                 domega_dmsp = ( & 
                     & dcaf_dpco2 &
@@ -9705,6 +9994,26 @@ select case(trim(adjustl(mineral)))
                     & *fe2f &
                     & *sif**2d0 &
                     & *(-4d0)/prox**5d0 &
+                    & /keqhb &
+                    & )
+            case('so4f')
+                domega_dmsp = ( &   
+                    & dcaf_dso4f &
+                    & *fe2f &
+                    & *sif**2d0 &
+                    & /prox**4d0 &
+                    & /keqhb &
+                    & + &
+                    & caf &
+                    & *dfe2f_dso4f &
+                    & *sif**2d0 &
+                    & /prox**4d0 &
+                    & /keqhb &
+                    & + &
+                    & caf &
+                    & *fe2f &
+                    & *sif*2d0*dsif_dso4f &
+                    & /prox**4d0 &
                     & /keqhb &
                     & )
             case('pco2')
@@ -9788,6 +10097,26 @@ select case(trim(adjustl(mineral)))
                     & *(-14d0)/prox**15d0 &
                     & /keq_tmp &
                     & )
+            case('so4f')
+                domega_dmsp = ( &   
+                    & 2d0*caf*dcaf_dso4f &
+                    & *mgf**5d0 &
+                    & *sif**8d0 &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf**2d0 &
+                    & *5d0*mgf**4d0*dmgf_dso4f &
+                    & *sif**8d0 &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & + &
+                    & caf**2d0 &
+                    & *mgf**5d0 &
+                    & *8d0*sif**7d0*dsif_dso4f &
+                    & /prox**14d0 &
+                    & /keq_tmp &
+                    & )
             case('pco2')
                 domega_dmsp = ( & 
                     & 2d0*caf*dcaf_dpco2 &
@@ -9850,6 +10179,16 @@ select case(trim(adjustl(mineral)))
                     & + &
                     & caf &
                     & *dso4f_dpro &
+                    & /keq_tmp &
+                    & )
+            case('so4f')
+                domega_dmsp = ( &   
+                    & dcaf_dso4f &
+                    & *so4f &
+                    & /keq_tmp &
+                    & + &
+                    & caf &
+                    & *1d0 &
                     & /keq_tmp &
                     & )
             case('pco2')
@@ -10762,17 +11101,17 @@ real(kind=8),dimension(nsp_sld,nz),intent(in)::msld,msldsupp
 real(kind=8),dimension(nsp_sld,nz),intent(inout)::ksld
 real(kind=8),dimension(nz,nz,nsp_sld),intent(in)::trans
 real(kind=8),dimension(nsp_sld,nz),intent(inout)::msldx,omega,nonprec,rxnsld
-real(kind=8),dimension(nsp_sld,nz)::domega_dpro,dmsld,dksld_dpro,drxnsld_dmsld
+real(kind=8),dimension(nsp_sld,nz)::domega_dpro,dmsld,dksld_dpro,drxnsld_dmsld,dksld_dso4f,domega_dso4f
 real(kind=8),dimension(nsp_sld,nsp_aq,nz)::domega_dmaq,dksld_dmaq,drxnsld_dmaq
 real(kind=8),dimension(nsp_sld,nsp_gas,nz)::domega_dmgas,dksld_dmgas,drxnsld_dmgas
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(out)::flx_sld
 real(kind=8),dimension(nsp_aq,nz),intent(in)::maq,maqsupp
 real(kind=8),dimension(nsp_aq,nz),intent(inout)::maqx 
-real(kind=8),dimension(nsp_aq,nz)::dprodmaq,dmaq 
+real(kind=8),dimension(nsp_aq,nz)::dprodmaq,dmaq,dso4fdmaq 
 real(kind=8),dimension(nsp_aq,nflx,nz),intent(out)::flx_aq
 real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas,mgassupp
 real(kind=8),dimension(nsp_gas,nz),intent(inout)::mgasx 
-real(kind=8),dimension(nsp_gas,nz)::khgasx,khgas,dgas,agasx,agas,rxngas,dkhgas_dpro,dprodmgas,dmgas
+real(kind=8),dimension(nsp_gas,nz)::khgasx,khgas,dgas,agasx,agas,rxngas,dkhgas_dpro,dprodmgas,dmgas,dso4fdmgas
 real(kind=8),dimension(nsp_gas,nsp_aq,nz)::dkhgas_dmaq,ddgas_dmaq,dagas_dmaq,drxngas_dmaq 
 real(kind=8),dimension(nsp_gas,nsp_sld,nz)::drxngas_dmsld 
 real(kind=8),dimension(nsp_gas,nsp_gas,nz)::dkhgas_dmgas,ddgas_dmgas,dagas_dmgas,drxngas_dmgas 
@@ -10971,6 +11310,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     endif 
     
     dprodmaq = 0d0
+    dso4fdmaq = 0d0
     do ispa=1,nsp_aq
         dmaq = 0d0
         dmgas = 0d0
@@ -10986,10 +11326,12 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,dummy,ph_error,dummy2 &! output
                 & ) 
             dprodmaq(ispa,:) = (dummy - prox)/dconc
+            dso4fdmaq(ispa,:) = (dummy2 - so4f)/dconc
         endif 
     enddo 
     
     dprodmgas = 0d0
+    dso4fdmgas = 0d0
     do ispg=1,nsp_gas
         dmaq = 0d0
         dmgas = 0d0
@@ -11005,6 +11347,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,dummy,ph_error,dummy2 &! output
                 & ) 
             dprodmgas(ispg,:) = (dummy - prox)/dconc
+            dso4fdmgas(ispg,:) = (dummy2 - so4f)/dconc
         endif 
     enddo
     
@@ -11012,6 +11355,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     if (kin_iter) then 
         ksld = 0d0
         dksld_dpro = 0d0
+        dksld_dso4f = 0d0
         dksld_dmaq = 0d0
         dksld_dmgas = 0d0
         do isps =1,nsp_sld 
@@ -11030,7 +11374,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         & ,chrsld(isps),chraq(ispa) &! input 
                         & ,kin,dkin_dmsp &! output
                         & ) 
-                    dksld_dmaq(isps,ispa,:) = dkin_dmsp + dksld_dpro(isps,:)*dprodmaq(ispa,:)
+                    dksld_dmaq(isps,ispa,:) = dkin_dmsp + ( &
+                        & dksld_dpro(isps,:)*dprodmaq(ispa,:) &
+                        & +dksld_dso4f(isps,:)*dso4fdmaq(ispa,:) &
+                        & )
                 endif 
             enddo 
             
@@ -11041,13 +11388,17 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         & ,chrsld(isps),chrgas(ispg) &! input 
                         & ,kin,dkin_dmsp &! output
                         & ) 
-                    dksld_dmgas(isps,ispg,:) = dkin_dmsp + dksld_dpro(isps,:)*dprodmgas(ispg,:)
+                    dksld_dmgas(isps,ispg,:) = dkin_dmsp + ( &
+                        & dksld_dpro(isps,:)*dprodmgas(ispg,:) &
+                        & +dksld_dso4f(isps,:)*dso4fdmgas(ispg,:) &
+                        & )
                 endif 
             enddo 
         
         enddo 
     else 
         dksld_dpro = 0d0
+        dksld_dso4f = 0d0
         dksld_dmaq = 0d0
         dksld_dmgas = 0d0
     endif 
@@ -11057,6 +11408,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     
     omega = 0d0
     domega_dpro = 0d0
+    domega_dso4f = 0d0
     domega_dmaq = 0d0
     domega_dmgas = 0d0
     
@@ -11078,6 +11430,22 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         omega(isps,:) = dummy
         domega_dpro(isps,:) = dummy2
         
+    
+        dummy = 0d0
+        dummy2 = 0d0
+        call calc_omega_dev_v2( &
+            & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+            & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
+            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f &! input
+            & ,prox,chrsld(isps),'so4f ' &! input 
+            & ,dummy,dummy2,omega_error &! output
+            & )
+        if (omega_error) then
+            flgback = .true.
+            return 
+        endif 
+        domega_dso4f(isps,:) = dummy2
+        
         do ispa = 1, nsp_aq
             if (any (chraq_ph == chraq(ispa)) .or. staq(isps,ispa)/=0d0 ) then 
                 
@@ -11095,7 +11463,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     return 
                 endif 
                 
-                domega_dmaq(isps,ispa,:) = dummy2 + domega_dpro(isps,:)*dprodmaq(ispa,:)
+                domega_dmaq(isps,ispa,:) = dummy2 + ( &
+                    & domega_dpro(isps,:)*dprodmaq(ispa,:) &
+                    & +domega_dso4f(isps,:)*dso4fdmaq(ispa,:) &
+                    & )
             endif 
         enddo
         do ispg = 1, nsp_gas
@@ -11115,7 +11486,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     return 
                 endif 
                 
-                domega_dmgas(isps,ispg,:) = dummy2 + domega_dpro(isps,:)*dprodmgas(ispg,:)
+                domega_dmgas(isps,ispg,:) = dummy2 + ( &
+                    & domega_dpro(isps,:)*dprodmgas(ispg,:) &
+                    & +domega_dso4f(isps,:)*dso4fdmgas(ispg,:) &
+                    & )
             endif 
         enddo
     enddo 
