@@ -26,7 +26,7 @@ If you get the error 'libopenblas.so.0: cannot open shared object file: No such 
 
 B). On GaTech cluster     
 BLAS (OpenBLAS) install  
-```$ module load gcc/8.3.0```
+```$ module load gcc/8.3.0```  
 ```$ module load openblas/0.3.7```   
 Then compile and run...    
 ```$ gfortran -cpp -Dno_intr_findloc pysil.f90 -lopenblas   ```   
