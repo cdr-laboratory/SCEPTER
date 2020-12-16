@@ -75,67 +75,71 @@ real(kind=8),parameter :: sec2yr = 60d0*60d0*24d0*365d0
 
 real(kind=8) pco2i
 
-real(kind=8) :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
-real(kind=8) :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
-real(kind=8) :: mvab = 100.07d0 ! cm3/mol; molar volume of Ab(NaAlSi3O8); Robie et al. 1978 
-real(kind=8) :: mvan = 100.79d0 ! cm3/mol; molar volume of An (CaAl2Si2O8); Robie et al. 1978
-real(kind=8) :: mvcc = 36.934d0 ! cm3/mol; molar volume of Cc (CaCO3); Robie et al. 1978
-real(kind=8) :: mvpy = 23.94d0 ! cm3/mol; molar volume of Pyrite (FeS2); Robie et al. 1978
-real(kind=8) :: mvgb = 31.956d0 ! cm3/mol; molar volume of Gibsite (Al(OH)3); Robie et al. 1978
-real(kind=8) :: mvct = 108.5d0 ! cm3/mol; molar volume of Chrysotile (Mg3Si2O5(OH)4); Robie et al. 1978
-real(kind=8) :: mvfa = 46.39d0 ! cm3/mol; molar volume of Fayalite (Fe2SiO4); Robie et al. 1978
-real(kind=8) :: mvgt = 20.82d0 ! cm3/mol; molar volume of Goethite (FeO(OH)); Robie et al. 1978
-real(kind=8) :: mvcabd = 129.77d0 ! cm3/mol; molar volume of Ca-beidellite (Ca(1/6)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
-real(kind=8) :: mvdp = 66.09d0 ! cm3/mol; molar volume of Diopside (MgCaSi2O6);  Robie et al. 1978
-real(kind=8) :: mvhb = 248.09d0/3.55d0 ! cm3/mol; molar volume of Hedenbergite (FeCaSi2O6); from a webpage
-real(kind=8) :: mvkfs = 108.72d0 ! cm3/mol; molar volume of K-feldspar (KAlSi3O8); Robie et al. 1978
-real(kind=8) :: mvom = 5.3d0 ! cm3/mol; molar volume of OM (CH2O); Lasaga and Ohmoto 2002
-real(kind=8) :: mvomb = 5.3d0 ! cm3/mol; assumed to be same as mvom
-real(kind=8) :: mvg1 = 5.3d0 ! cm3/mol; assumed to be same as mvom
-real(kind=8) :: mvg2 = 5.3d0 ! cm3/mol; assumed to be same as mvom
-real(kind=8) :: mvg3 = 5.3d0 ! cm3/mol; assumed to be same as mvom
-real(kind=8) :: mvamsi = 25.739d0 ! cm3/mol; molar volume of amorphous silica taken as cristobalite (SiO2); Robie et al. 1978
-real(kind=8) :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et al. 1978
-real(kind=8) :: mvdlm = 64.34d0 ! cm3/mol; molar volume of dolomite; Robie et al. 1978
-real(kind=8) :: mvhm = 30.274d0 ! cm3/mol; molar volume of hematite; Robie et al. 1978
-real(kind=8) :: mvill = 139.35d0 ! cm3/mol; molar volume of illite (K0.6Mg0.25Al2.3Si3.5O10(OH)2); Wolery and Jove-Colon 2004
-real(kind=8) :: mvanl = 97.49d0 ! cm3/mol; molar volume of analcime (NaAlSi2O6*H2O); Robie et al. 1978
-real(kind=8) :: mvnph = 54.16d0 ! cm3/mol; molar volume of nepheline (NaAlSiO4); Robie et al. 1978
-real(kind=8) :: mvqtz = 22.688d0 ! cm3/mol; molar volume of quartz (SiO2); Robie et al. 1978
-real(kind=8) :: mvgps = 74.69d0 ! cm3/mol; molar volume of gypsum (CaSO4*2H2O); Robie et al. 1978
-real(kind=8) :: mvtm = 272.92d0 ! cm3/mol; molar volume of tremolite (Ca2Mg5(Si8O22)(OH)2); Robie et al. 1978
+real(kind=8),parameter :: fr_an_la = 0.6d0 ! Anorthite fraction for Labradorite (Beerling et al., 2020)
 
-real(kind=8) :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
-real(kind=8) :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
-real(kind=8) :: mwtab = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
-real(kind=8) :: mwtan = 278.311d0 ! g/mol; formula weight of An; Robie et al. 1978
-real(kind=8) :: mwtcc = 100.089d0 ! g/mol; formula weight of Cc; Robie et al. 1978
-real(kind=8) :: mwtpy = 119.967d0 ! g/mol; formula weight of Py; Robie et al. 1978
-real(kind=8) :: mwtgb = 78.004d0 ! g/mol; formula weight of Gb; Robie et al. 1978
-real(kind=8) :: mwtct = 277.113d0 ! g/mol; formula weight of Ct; Robie et al. 1978
-real(kind=8) :: mwtfa = 203.778d0 ! g/mol; formula weight of Fa; Robie et al. 1978
-real(kind=8) :: mwtgt = 88.854d0 ! g/mol; formula weight of Gt; Robie et al. 1978
-real(kind=8) :: mwtcabd = 366.6252667d0 ! g/mol; formula weight of Cabd calculated from atmoic weight
-real(kind=8) :: mwtdp = 216.553d0 ! g/mol;  Robie et al. 1978
-real(kind=8) :: mwthb = 248.09d0 ! g/mol; from a webpage
-real(kind=8) :: mwtkfs = 278.33d0 ! g/mol; formula weight of Kfs; Robie et al. 1978
-real(kind=8) :: mwtom = 30d0 ! g/mol; formula weight of CH2O
-real(kind=8) :: mwtomb = 30d0 ! g/mol; formula weight of CH2O
-real(kind=8) :: mwtg1 = 30d0 ! g/mol; formula weight of CH2O
-real(kind=8) :: mwtg2 = 30d0 ! g/mol; formula weight of CH2O
-real(kind=8) :: mwtg3 = 30d0 ! g/mol; formula weight of CH2O
-real(kind=8) :: mwtamsi = 60.085d0 ! g/mol; formula weight of amorphous silica
-real(kind=8) :: mwtarg = 100.089d0 ! g/mol; formula weight of aragonite
-real(kind=8) :: mwtdlm = 184.403d0 ! g/mol; formula weight of dolomite
-real(kind=8) :: mwthm = 159.692d0 ! g/mol; formula weight of hematite
-real(kind=8) :: mwtill = 383.90053d0 ! g/mol; formula weight of Ill calculated from atmoic weight
-real(kind=8) :: mwtanl = 220.155d0 ! g/mol; formula weight of analcime
-real(kind=8) :: mwtnph = 142.055d0 ! g/mol; formula weight of nepheline
-real(kind=8) :: mwtqtz = 60.085d0 ! g/mol; formula weight of quartz
-real(kind=8) :: mwtgps = 172.168d0 ! g/mol; formula weight of gypsum
-real(kind=8) :: mwttm = 812.374d0 ! g/mol; formula weight of tremolite
+real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
+real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
+real(kind=8),parameter :: mvab = 100.07d0 ! cm3/mol; molar volume of Ab(NaAlSi3O8); Robie et al. 1978 
+real(kind=8),parameter :: mvan = 100.79d0 ! cm3/mol; molar volume of An (CaAl2Si2O8); Robie et al. 1978
+real(kind=8),parameter :: mvcc = 36.934d0 ! cm3/mol; molar volume of Cc (CaCO3); Robie et al. 1978
+real(kind=8),parameter :: mvpy = 23.94d0 ! cm3/mol; molar volume of Pyrite (FeS2); Robie et al. 1978
+real(kind=8),parameter :: mvgb = 31.956d0 ! cm3/mol; molar volume of Gibsite (Al(OH)3); Robie et al. 1978
+real(kind=8),parameter :: mvct = 108.5d0 ! cm3/mol; molar volume of Chrysotile (Mg3Si2O5(OH)4); Robie et al. 1978
+real(kind=8),parameter :: mvfa = 46.39d0 ! cm3/mol; molar volume of Fayalite (Fe2SiO4); Robie et al. 1978
+real(kind=8),parameter :: mvgt = 20.82d0 ! cm3/mol; molar volume of Goethite (FeO(OH)); Robie et al. 1978
+real(kind=8),parameter :: mvcabd = 129.77d0 ! cm3/mol; molar volume of Ca-beidellite (Ca(1/6)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
+real(kind=8),parameter :: mvdp = 66.09d0 ! cm3/mol; molar volume of Diopside (MgCaSi2O6);  Robie et al. 1978
+real(kind=8),parameter :: mvhb = 248.09d0/3.55d0 ! cm3/mol; molar volume of Hedenbergite (FeCaSi2O6); from a webpage
+real(kind=8),parameter :: mvkfs = 108.72d0 ! cm3/mol; molar volume of K-feldspar (KAlSi3O8); Robie et al. 1978
+real(kind=8),parameter :: mvom = 5.3d0 ! cm3/mol; molar volume of OM (CH2O); Lasaga and Ohmoto 2002
+real(kind=8),parameter :: mvomb = 5.3d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvg1 = 5.3d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvg2 = 5.3d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvg3 = 5.3d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvamsi = 25.739d0 ! cm3/mol; molar volume of amorphous silica taken as cristobalite (SiO2); Robie et al. 1978
+real(kind=8),parameter :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et al. 1978
+real(kind=8),parameter :: mvdlm = 64.34d0 ! cm3/mol; molar volume of dolomite; Robie et al. 1978
+real(kind=8),parameter :: mvhm = 30.274d0 ! cm3/mol; molar volume of hematite; Robie et al. 1978
+real(kind=8),parameter :: mvill = 139.35d0 ! cm3/mol; molar volume of illite (K0.6Mg0.25Al2.3Si3.5O10(OH)2); Wolery and Jove-Colon 2004
+real(kind=8),parameter :: mvanl = 97.49d0 ! cm3/mol; molar volume of analcime (NaAlSi2O6*H2O); Robie et al. 1978
+real(kind=8),parameter :: mvnph = 54.16d0 ! cm3/mol; molar volume of nepheline (NaAlSiO4); Robie et al. 1978
+real(kind=8),parameter :: mvqtz = 22.688d0 ! cm3/mol; molar volume of quartz (SiO2); Robie et al. 1978
+real(kind=8),parameter :: mvgps = 74.69d0 ! cm3/mol; molar volume of gypsum (CaSO4*2H2O); Robie et al. 1978
+real(kind=8),parameter :: mvtm = 272.92d0 ! cm3/mol; molar volume of tremolite (Ca2Mg5(Si8O22)(OH)2); Robie et al. 1978
+real(kind=8),parameter :: mvla = fr_an_la*mvan + (1d0-fr_an_la)*mvab ! cm3/mol; molar volume of Labradorite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
 
-real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
+real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
+real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
+real(kind=8),parameter :: mwtab = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
+real(kind=8),parameter :: mwtan = 278.311d0 ! g/mol; formula weight of An; Robie et al. 1978
+real(kind=8),parameter :: mwtcc = 100.089d0 ! g/mol; formula weight of Cc; Robie et al. 1978
+real(kind=8),parameter :: mwtpy = 119.967d0 ! g/mol; formula weight of Py; Robie et al. 1978
+real(kind=8),parameter :: mwtgb = 78.004d0 ! g/mol; formula weight of Gb; Robie et al. 1978
+real(kind=8),parameter :: mwtct = 277.113d0 ! g/mol; formula weight of Ct; Robie et al. 1978
+real(kind=8),parameter :: mwtfa = 203.778d0 ! g/mol; formula weight of Fa; Robie et al. 1978
+real(kind=8),parameter :: mwtgt = 88.854d0 ! g/mol; formula weight of Gt; Robie et al. 1978
+real(kind=8),parameter :: mwtcabd = 366.6252667d0 ! g/mol; formula weight of Cabd calculated from atmoic weight
+real(kind=8),parameter :: mwtdp = 216.553d0 ! g/mol;  Robie et al. 1978
+real(kind=8),parameter :: mwthb = 248.09d0 ! g/mol; from a webpage
+real(kind=8),parameter :: mwtkfs = 278.33d0 ! g/mol; formula weight of Kfs; Robie et al. 1978
+real(kind=8),parameter :: mwtom = 30d0 ! g/mol; formula weight of CH2O
+real(kind=8),parameter :: mwtomb = 30d0 ! g/mol; formula weight of CH2O
+real(kind=8),parameter :: mwtg1 = 30d0 ! g/mol; formula weight of CH2O
+real(kind=8),parameter :: mwtg2 = 30d0 ! g/mol; formula weight of CH2O
+real(kind=8),parameter :: mwtg3 = 30d0 ! g/mol; formula weight of CH2O
+real(kind=8),parameter :: mwtamsi = 60.085d0 ! g/mol; formula weight of amorphous silica
+real(kind=8),parameter :: mwtarg = 100.089d0 ! g/mol; formula weight of aragonite
+real(kind=8),parameter :: mwtdlm = 184.403d0 ! g/mol; formula weight of dolomite
+real(kind=8),parameter :: mwthm = 159.692d0 ! g/mol; formula weight of hematite
+real(kind=8),parameter :: mwtill = 383.90053d0 ! g/mol; formula weight of Ill calculated from atmoic weight
+real(kind=8),parameter :: mwtanl = 220.155d0 ! g/mol; formula weight of analcime
+real(kind=8),parameter :: mwtnph = 142.055d0 ! g/mol; formula weight of nepheline
+real(kind=8),parameter :: mwtqtz = 60.085d0 ! g/mol; formula weight of quartz
+real(kind=8),parameter :: mwtgps = 172.168d0 ! g/mol; formula weight of gypsum
+real(kind=8),parameter :: mwttm = 812.374d0 ! g/mol; formula weight of tremolite
+real(kind=8),parameter :: mwtla = fr_an_la*mwtan + (1d0-fr_an_la)*mwtab ! g/mol; formula weight of Labradorite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
+
+real(kind=8),parameter :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
 ! real(kind=8)::plant_rain = 1.4d-3 ! g C/g soil/yr; converted from 1.6d-4 mg C / g soil /hr from Georgiou et al. 2017 ! 
 real(kind=8),intent(in)::plant_rain != 1d2 ! 1 t/ha/yr; approximate values from Vanveen et al. 1991 ! 
@@ -278,7 +282,7 @@ integer,intent(in):: count_dtunchanged_Max
 
 integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 14
-integer,parameter::nsp_sld_all = 29
+integer,parameter::nsp_sld_all = 30
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -437,7 +441,7 @@ chrflx(nflx) = 'res  '
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
-    & ,'qtz  ','gps  ','tm   ' &
+    & ,'qtz  ','gps  ','tm   ','la   ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
@@ -506,10 +510,10 @@ endif
 ! molar volume 
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
-    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm &
+    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm &
+    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -617,6 +621,11 @@ staq_all(findloc(chrsld_all,'kfs',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'an',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'an',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'an',dim=1), findloc(chraq_all,'al',dim=1)) = 2d0
+! Labradorite; CaxNa(1-x)Al(1+x)Si(3-x)O8
+staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'ca',dim=1)) = fr_an_la
+staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0 - fr_an_la
+staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0 + fr_an_la
+staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0 - fr_an_la
 ! Calcite; CaCO3
 staq_all(findloc(chrsld_all,'cc',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'cc',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
@@ -990,19 +999,19 @@ poro = poroi
 torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
 tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
 
-#ifdef surfssa
-hri = ssa_cmn*1d6/poro
-mvab_save = mvab
-mvan_save = mvan
-mvcc_save = mvcc
-mvfo_save = mvfo
-mvka_save = mvka
-mvab = mwtab 
-mvan = mwtan 
-mvcc = mwtcc 
-mvfo = mwtfo 
-mvka = mwtka 
-#endif 
+! #ifdef surfssa
+! hri = ssa_cmn*1d6/poro
+! mvab_save = mvab
+! mvan_save = mvan
+! mvcc_save = mvcc
+! mvfo_save = mvfo
+! mvka_save = mvka
+! mvab = mwtab 
+! mvan = mwtan 
+! mvcc = mwtcc 
+! mvfo = mwtfo 
+! mvka = mwtka 
+! #endif 
 
 dt = maxdt
 
@@ -1026,7 +1035,7 @@ call coefs_v2( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pro,poro,hr &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
-    & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all &!input
+    & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ) 
@@ -1163,7 +1172,7 @@ call coefs_v2( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pro,poro,hr &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
-    & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all &!input
+    & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ) 
@@ -1284,7 +1293,7 @@ do while (it<nt)
         & nz,rg,rg2,tc,sec2yr,tempk_0,pro,poro,hr &! input
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
-        & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all &!input
+        & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,staq_all &!input
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
         & ) 
@@ -1526,7 +1535,7 @@ do while (it<nt)
         & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
         & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s &
         & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
-        & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all &
+        & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all &
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
         !  old inputs
         & ,hr,poro,z,dz,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
@@ -1583,13 +1592,13 @@ do while (it<nt)
     
     if (poroevol) then 
         poroprev = poro
-#ifdef surfssa
-        mvab = mvab_save 
-        mvan = mvan_save 
-        mvcc = mvcc_save 
-        mvfo = mvfo_save 
-        mvka = mvka_save 
-#endif 
+! #ifdef surfssa
+        ! mvab = mvab_save 
+        ! mvan = mvan_save 
+        ! mvcc = mvcc_save 
+        ! mvfo = mvfo_save 
+        ! mvka = mvka_save 
+! #endif 
         ! poro = poroi + (mabi-mabx)*(mvab)*1d-6  &
             ! & +(mfoi-mfox)*(mvfo)*1d-6 &
             ! & +(mani-manx)*(mvan)*1d-6 &
@@ -1599,13 +1608,13 @@ do while (it<nt)
         do isps=1,nsp_sld
             poro = poro + (msldi(isps)-msldx(isps,:))*mv(isps)*1d-6
         enddo 
-#ifdef surfssa
-        mvab = mwtab 
-        mvan = mwtan 
-        mvcc = mwtcc 
-        mvfo = mwtfo 
-        mvka = mwtka 
-#endif 
+! #ifdef surfssa
+        ! mvab = mwtab 
+        ! mvan = mwtan 
+        ! mvcc = mwtcc 
+        ! mvfo = mwtfo 
+        ! mvka = mwtka 
+! #endif 
         if (any(poro<0d0)) then 
             print*,'negative porosity: stop'
             print*,poro
@@ -2537,7 +2546,7 @@ subroutine coefs_v2( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pro,poro,hr &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
-    & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all &!input
+    & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ) 
@@ -2547,7 +2556,7 @@ integer,intent(in)::nz
 real(kind=8),intent(in)::rg,rg2,tc,sec2yr,tempk_0
 real(kind=8),dimension(nz),intent(in)::pro,poro,hr
 real(kind=8),dimension(nz)::oh,po2,kin,dkin_dmsp
-real(kind=8) kho,po2th,mv_tmp,therm
+real(kind=8) kho,po2th,mv_tmp,therm,ss_x
 real(kind=8),intent(out)::ucv,kw
 
 ! real(kind=8) k_arrhenius
@@ -2566,6 +2575,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_c
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_s
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::ksld_all
 real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all
+real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
 real(kind=8),dimension(nsp_sld_all),intent(out)::keqsld_all
 real(kind=8),dimension(nrxn_ext_all,nz),intent(out)::krxn1_ext_all
 real(kind=8),dimension(nrxn_ext_all,nz),intent(out)::krxn2_ext_all
@@ -2593,6 +2603,7 @@ integer isps
 
 ! real(kind=8)::thon = 1d0
 real(kind=8)::thon = -1d100
+character(5) mineral
 
 ucv = 1.0d0/(rg2*(tempk_0+tc))
 
@@ -2763,16 +2774,26 @@ keqsld_all = 0d0
 
 do isps = 1, nsp_sld_all
     mv_tmp = mv_all(isps)
+    mineral = chrsld_all(isps)
+    
     call sld_kin( &
         & nz,rg,tc,sec2yr,tempk_0,pro,poro,hr,kw,kho,mv_tmp &! input
-        & ,chrsld_all(isps),'xxxxx' &! input 
+        & ,mineral,'xxxxx' &! input 
         & ,kin,dkin_dmsp &! output
         & ) 
     ksld_all(isps,:) = kin
     
+    ! check for solid solution 
+    select case (trim(adjustl(mineral))) 
+        case('la')
+            ss_x = staq_all(isps, findloc(chraq_all,'ca',dim=1))
+        case default 
+            ss_x = 0d0 ! non-zero if it is a solid solution 
+    endselect 
+    
     call sld_therm( &
-        & rg,tc,tempk_0 &! input
-        & ,chrsld_all(isps) &! input
+        & rg,tc,tempk_0,ss_x &! input
+        & ,mineral &! input
         & ,therm &! output
         & ) 
     keqsld_all(isps) = therm
@@ -2983,6 +3004,32 @@ select case(trim(adjustl(mineral)))
         kinoh_ref = 0d0
         ean = 17.8d0
         eah = 16.6d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
+    case('la')
+        mh = 0.626d0
+        moh = 0d0
+        kinn_ref = 10d0**(-10.91d0)*sec2yr
+        kinh_ref = 10d0**(-7.87d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 45.2d0
+        eah = 42.1d0
         eaoh = 0d0
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
@@ -3422,17 +3469,19 @@ endsubroutine sld_kin
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine sld_therm( &
-    & rg,tc,tempk_0 &! input
+    & rg,tc,tempk_0,ss_x &! input
     & ,mineral &! input
     & ,therm &! output
     & ) 
 implicit none
 
-real(kind=8),intent(in)::rg,tc,tempk_0
+real(kind=8),intent(in)::rg,tc,tempk_0,ss_x
 real(kind=8) :: cal2j = 4.184d0 
 real(kind=8),intent(out):: therm
 character(5),intent(in):: mineral
-real(kind=8) tc_ref,ha,therm_ref
+real(kind=8) tc_ref,ha,therm_ref,delG
+real(kind=8) tc_ref_1,ha_1,therm_ref_1,therm_1,delG_1
+real(kind=8) tc_ref_2,ha_2,therm_ref_2,therm_2,delG_2
 
 ! real(kind=8) k_arrhenius
 
@@ -3600,6 +3649,25 @@ select case(trim(adjustl(mineral)))
         tc_ref = 25d0
         ! from minteq.v4
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('la')
+        ! CaxNa(1-x)Al(1+x)Si(3-x)O8 + (4x + 4) = xCa+2 + (1-x)Na+ + (1+x)Al+++ + (3-x)SiO2(aq) 
+        ! obtaining Anorthite 
+        therm_ref_1 = 10d0**28.8615308d0
+        ha_1 = -292.8769275d0
+        tc_ref_1 = 15d0
+        ! from Kanzaki and Murakami 2018
+        therm_1 = k_arrhenius(therm_ref_1,tc_ref_1+tempk_0,tc+tempk_0,ha_1,rg) ! rg in kJ mol^-1 K^-1
+        delG_1 = - rg*(tc+tempk_0)*log(therm_1) ! del-G = -RT ln K  now in kJ mol-1
+        ! Then albite 
+        therm_ref_2 = 10d0**3.412182823d0
+        ha_2 = -54.15042876d0
+        tc_ref_2 = 15d0
+        ! from Kanzaki and Murakami 2018
+        therm_2 = k_arrhenius(therm_ref_2,tc_ref_2+tempk_0,tc+tempk_0,ha_2,rg)
+        delG_2 = - rg*(tc+tempk_0)*log(therm_2) ! del-G = -RT ln K  now in kJ mol-1
+        ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
+        delG = ss_x*delG_1 + (1d0-ss_x)*delG_2 + rg*(tc+tempk_0)*(ss_x*log(ss_x)+(1d0-ss_x)*log(1d0-ss_x))
+        therm = exp(-delG/(rg*(tc+tempk_0)))
     case('g1')
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case('g2')
@@ -8265,7 +8333,7 @@ endsubroutine calc_omega_dev
 subroutine calc_omega_dev_v2( &
     & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f &! input
+    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f,staq_all &! input
     & ,prox,mineral,sp_name &! input 
     & ,omega,domega_dmsp,omega_error &! output
     & )
@@ -8274,7 +8342,7 @@ integer,intent(in)::nz
 real(kind=8):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &
     & ,k1al,k2al,k3al,k4al,keqka,keqgb,keqct,k1fe2,k1fe2co3,k1fe2hco3,keqfa,k1fe3,k2fe3,k3fe3,k4fe3,keqgt &
     & ,keqcabd,keqdp,keqhb,keqkfs,keqamsi,keqg1,keqg2,keqg3,po2th,k1naco3,k1nahco3,k1so4,k1kso4,k1naso4  &
-    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,mo2g1,mo2g2,mo2g3,keq_tmp
+    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,mo2g1,mo2g2,mo2g3,keq_tmp,ss_x
 real(kind=8),dimension(nz),intent(in):: prox,so4f
 real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x,kx,so4x
 real(kind=8),dimension(nz):: caf,mgf,sif,naf,alf,fe2f,fe3f,kf
@@ -8304,6 +8372,7 @@ real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s
 real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all
+real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
@@ -8938,6 +9007,158 @@ select case(trim(adjustl(mineral)))
                     & *sif*2d0*dsif_dsi &
                     & /prox**8d0 &
                     & /keqan &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
+    case('la')
+        ! CaxNa(1-x)Al(1+x)Si(3-x)O8 + (4x + 4) = xCa+2 + (1-x)Na+ + (1+x)Al+++ + (3-x)SiO2(aq) 
+        keq_tmp = keqsld_all(findloc(chrsld_all,'la',dim=1))
+        ss_x = staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'ca',dim=1) )
+        omega = ( & 
+            & caf**ss_x &
+            & *naf**(1d0-ss_x) &
+            & *alf**(1d0+ss_x) &
+            & *sif**(3d0-ss_x) &
+            & /prox**(4d0 + 4d0*ss_x) &
+            & /keq_tmp &
+            & )
+            
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( & 
+                    & ss_x*caf**(ss_x-1d0)*dcaf_dpro &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *(1d0-ss_x)*naf**(1d0-ss_x-1d0)*dnaf_dpro &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *(1d0+ss_x)*alf**(1d0+ss_x-1d0)*dalf_dpro &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *(3d0-ss_x)*sif**(3d0-ss_x-1d0)*dsif_dpro &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & *(-1d0*(4d0 + 4d0*ss_x))/prox**(4d0 + 4d0*ss_x+1d0) &
+                    & /keq_tmp &
+                    & )
+            case('so4f')
+                domega_dmsp = ( & 
+                    & ss_x*caf**(ss_x-1d0)*dcaf_dso4f &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *(1d0-ss_x)*naf**(1d0-ss_x-1d0)*dnaf_dso4f &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *(1d0+ss_x)*alf**(1d0+ss_x-1d0)*dalf_dso4f &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *(3d0-ss_x)*sif**(3d0-ss_x-1d0)*dsif_dso4f &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & ss_x*caf**(ss_x-1d0)*dcaf_dpco2 &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *(1d0-ss_x)*naf**(1d0-ss_x-1d0)*dnaf_dpco2 &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *(1d0+ss_x)*alf**(1d0+ss_x-1d0)*dalf_dpco2 &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & + &
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *(3d0-ss_x)*sif**(3d0-ss_x-1d0)*dsif_dpco2 &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & )
+            case('ca')
+                domega_dmsp = ( & 
+                    & ss_x*caf**(ss_x-1d0)*dcaf_dca &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & )
+            case('na')
+                domega_dmsp = ( & 
+                    & caf**ss_x &
+                    & *(1d0-ss_x)*naf**(1d0-ss_x-1d0)*dnaf_dna &
+                    & *alf**(1d0+ss_x) &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & )
+            case('al')
+                domega_dmsp = ( & 
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *(1d0+ss_x)*alf**(1d0+ss_x-1d0)*dalf_dal &
+                    & *sif**(3d0-ss_x) &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
+                    & )
+            case('si')
+                domega_dmsp = ( & 
+                    & caf**ss_x &
+                    & *naf**(1d0-ss_x) &
+                    & *alf**(1d0+ss_x) &
+                    & *(3d0-ss_x)*sif**(3d0-ss_x-1d0)*dsif_dsi &
+                    & /prox**(4d0 + 4d0*ss_x) &
+                    & /keq_tmp &
                     & )
             case default 
                 domega_dmsp = 0d0
@@ -11059,7 +11280,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
     & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s &
     & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
-    & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all &
+    & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
     !  old inputs
     & ,hr,poro,z,dz,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
@@ -11136,6 +11357,7 @@ character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
 real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
 real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
 real(kind=8),dimension(nsp_sld_cnst,nz),intent(in)::msldc
+real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
@@ -11419,7 +11641,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         call calc_omega_dev_v2( &
             & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
             & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f &! input
+            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f,staq_all &! input
             & ,prox,chrsld(isps),'pro  ' &! input 
             & ,dummy,dummy2,omega_error &! output
             & )
@@ -11436,7 +11658,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         call calc_omega_dev_v2( &
             & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
             & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f &! input
+            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f,staq_all &! input
             & ,prox,chrsld(isps),'so4f ' &! input 
             & ,dummy,dummy2,omega_error &! output
             & )
@@ -11454,7 +11676,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 call calc_omega_dev_v2( &
                     & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                     & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-                    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f &! input
+                    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f,staq_all &! input
                     & ,prox,chrsld(isps),chraq(ispa) &! input 
                     & ,dummy,dummy2,omega_error &! output
                     & )
@@ -11477,7 +11699,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 call calc_omega_dev_v2( &
                     & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                     & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-                    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f &! input
+                    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f,staq_all &! input
                     & ,prox,chrsld(isps),chrgas(ispg) &! input 
                     & ,dummy,dummy2,omega_error &! output
                     & )
@@ -12429,7 +12651,7 @@ do isps =1, nsp_sld
     call calc_omega_dev_v2( &
         & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-        & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f &! input
+        & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f,staq_all &! input
         & ,prox,chrsld(isps),'pro  ' &! input 
         & ,dummy,dummy2,omega_error &! output
         & )
