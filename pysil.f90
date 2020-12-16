@@ -75,8 +75,11 @@ real(kind=8),parameter :: sec2yr = 60d0*60d0*24d0*365d0
 
 real(kind=8) pco2i
 
-real(kind=8),parameter :: fr_an_la = 0.6d0 ! Anorthite fraction for Labradorite (Beerling et al., 2020); 0.5 - 0.7
 real(kind=8),parameter :: fr_an_ab = 0.0d0 ! Anorthite fraction for albite (Beerling et al., 2020); 0.0 - 0.1
+real(kind=8),parameter :: fr_an_olg = 0.2d0 ! Anorthite fraction for oligoclase (Beerling et al., 2020); 0.1 - 0.3
+real(kind=8),parameter :: fr_an_and = 0.4d0 ! Anorthite fraction for andesine (Beerling et al., 2020); 0.3 - 0.5
+real(kind=8),parameter :: fr_an_la = 0.6d0 ! Anorthite fraction for labradorite (Beerling et al., 2020); 0.5 - 0.7
+real(kind=8),parameter :: fr_an_by = 0.8d0 ! Anorthite fraction for bytownite (Beerling et al., 2020); 0.7 - 0.9
 real(kind=8),parameter :: fr_an_an = 1.0d0 ! Anorthite fraction for anorthite (Beerling et al., 2020); 0.9 - 1.0
 
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
@@ -85,6 +88,10 @@ real(kind=8),parameter :: mvab_0 = 100.07d0 ! cm3/mol; molar volume of Ab(NaAlSi
 real(kind=8),parameter :: mvan_0 = 100.79d0 ! cm3/mol; molar volume of An (CaAl2Si2O8); Robie et al. 1978
 real(kind=8),parameter :: mvab = fr_an_ab*mvan_0 + (1d0-fr_an_ab)*mvab_0 ! cm3/mol; molar volume of albite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing 
 real(kind=8),parameter :: mvan = fr_an_an*mvan_0 + (1d0-fr_an_an)*mvab_0 ! cm3/mol; molar volume of anorthite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing 
+real(kind=8),parameter :: mvby = fr_an_by*mvan_0 + (1d0-fr_an_by)*mvab_0 ! cm3/mol; molar volume of bytownite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing 
+real(kind=8),parameter :: mvla = fr_an_la*mvan_0 + (1d0-fr_an_la)*mvab_0 ! cm3/mol; molar volume of labradorite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mvand = fr_an_and*mvan_0 + (1d0-fr_an_and)*mvab_0 ! cm3/mol; molar volume of andesine (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mvolg = fr_an_olg*mvan_0 + (1d0-fr_an_olg)*mvab_0 ! cm3/mol; molar volume of oligoclase (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mvcc = 36.934d0 ! cm3/mol; molar volume of Cc (CaCO3); Robie et al. 1978
 real(kind=8),parameter :: mvpy = 23.94d0 ! cm3/mol; molar volume of Pyrite (FeS2); Robie et al. 1978
 real(kind=8),parameter :: mvgb = 31.956d0 ! cm3/mol; molar volume of Gibsite (Al(OH)3); Robie et al. 1978
@@ -110,7 +117,6 @@ real(kind=8),parameter :: mvnph = 54.16d0 ! cm3/mol; molar volume of nepheline (
 real(kind=8),parameter :: mvqtz = 22.688d0 ! cm3/mol; molar volume of quartz (SiO2); Robie et al. 1978
 real(kind=8),parameter :: mvgps = 74.69d0 ! cm3/mol; molar volume of gypsum (CaSO4*2H2O); Robie et al. 1978
 real(kind=8),parameter :: mvtm = 272.92d0 ! cm3/mol; molar volume of tremolite (Ca2Mg5(Si8O22)(OH)2); Robie et al. 1978
-real(kind=8),parameter :: mvla = fr_an_la*mvan_0 + (1d0-fr_an_la)*mvab_0 ! cm3/mol; molar volume of Labradorite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -118,6 +124,10 @@ real(kind=8),parameter :: mwtab_0 = 262.225d0 ! g/mol; formula weight of Ab; Rob
 real(kind=8),parameter :: mwtan_0 = 278.311d0 ! g/mol; formula weight of An; Robie et al. 1978
 real(kind=8),parameter :: mwtab = fr_an_ab*mwtan_0 + (1d0-fr_an_ab)*mwtab_0 ! g/mol; formula weight of albte (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mwtan = fr_an_an*mwtan_0 + (1d0-fr_an_an)*mwtab_0 ! g/mol; formula weight of anorthite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mwtby = fr_an_by*mwtan_0 + (1d0-fr_an_by)*mwtab_0 ! g/mol; formula weight of bytownite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mwtla = fr_an_la*mwtan_0 + (1d0-fr_an_la)*mwtab_0 ! g/mol; formula weight of labradorite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mwtand = fr_an_and*mwtan_0 + (1d0-fr_an_and)*mwtab_0 ! g/mol; formula weight of andesine (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mwtolg = fr_an_olg*mwtan_0 + (1d0-fr_an_olg)*mwtab_0 ! g/mol; formula weight of oligoclase (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mwtcc = 100.089d0 ! g/mol; formula weight of Cc; Robie et al. 1978
 real(kind=8),parameter :: mwtpy = 119.967d0 ! g/mol; formula weight of Py; Robie et al. 1978
 real(kind=8),parameter :: mwtgb = 78.004d0 ! g/mol; formula weight of Gb; Robie et al. 1978
@@ -143,7 +153,6 @@ real(kind=8),parameter :: mwtnph = 142.055d0 ! g/mol; formula weight of nephelin
 real(kind=8),parameter :: mwtqtz = 60.085d0 ! g/mol; formula weight of quartz
 real(kind=8),parameter :: mwtgps = 172.168d0 ! g/mol; formula weight of gypsum
 real(kind=8),parameter :: mwttm = 812.374d0 ! g/mol; formula weight of tremolite
-real(kind=8),parameter :: mwtla = fr_an_la*mwtan + (1d0-fr_an_la)*mwtab ! g/mol; formula weight of Labradorite (CaxNa(1-x)Al(1+x)Si(3-x)O8); assuming simple ('ideal'?) mixing
 
 real(kind=8),parameter :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -288,7 +297,7 @@ integer,intent(in):: count_dtunchanged_Max
 
 integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 14
-integer,parameter::nsp_sld_all = 30
+integer,parameter::nsp_sld_all = 33
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -447,7 +456,7 @@ chrflx(nflx) = 'res  '
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
-    & ,'qtz  ','gps  ','tm   ','la   ' &
+    & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
@@ -516,10 +525,10 @@ endif
 ! molar volume 
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
-    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla &
+    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla &
+    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -642,6 +651,21 @@ staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'ca',dim=1)) = fr_an_
 staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0 - fr_an_la
 staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0 + fr_an_la
 staq_all(findloc(chrsld_all,'la',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0 - fr_an_la
+! Andesine; CaxNa(1-x)Al(1+x)Si(3-x)O8
+staq_all(findloc(chrsld_all,'and',dim=1), findloc(chraq_all,'ca',dim=1)) = fr_an_and
+staq_all(findloc(chrsld_all,'and',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0 - fr_an_and
+staq_all(findloc(chrsld_all,'and',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0 + fr_an_and
+staq_all(findloc(chrsld_all,'and',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0 - fr_an_and
+! Oligoclase; CaxNa(1-x)Al(1+x)Si(3-x)O8
+staq_all(findloc(chrsld_all,'olg',dim=1), findloc(chraq_all,'ca',dim=1)) = fr_an_olg
+staq_all(findloc(chrsld_all,'olg',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0 - fr_an_olg
+staq_all(findloc(chrsld_all,'olg',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0 + fr_an_olg
+staq_all(findloc(chrsld_all,'olg',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0 - fr_an_olg
+! Bytownite; CaxNa(1-x)Al(1+x)Si(3-x)O8
+staq_all(findloc(chrsld_all,'by',dim=1), findloc(chraq_all,'ca',dim=1)) = fr_an_by
+staq_all(findloc(chrsld_all,'by',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0 - fr_an_by
+staq_all(findloc(chrsld_all,'by',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0 + fr_an_by
+staq_all(findloc(chrsld_all,'by',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0 - fr_an_by
 ! Calcite; CaCO3
 staq_all(findloc(chrsld_all,'cc',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'cc',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
@@ -2801,7 +2825,7 @@ do isps = 1, nsp_sld_all
     
     ! check for solid solution 
     select case (trim(adjustl(mineral))) 
-        case('la','ab','an')
+        case('la','ab','an','by','olg','and')
             ss_x = staq_all(isps, findloc(chraq_all,'ca',dim=1))
         case default 
             ss_x = 0d0 ! non-zero if it is a solid solution 
@@ -3046,6 +3070,84 @@ select case(trim(adjustl(mineral)))
         kinoh_ref = 0d0
         ean = 45.2d0
         eah = 42.1d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
+    case('and')
+        mh = 0.541d0
+        moh = 0d0
+        kinn_ref = 10d0**(-11.47d0)*sec2yr
+        kinh_ref = 10d0**(-8.88d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 57.4d0
+        eah = 53.5d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
+    case('olg')
+        mh = 0.457d0
+        moh = 0d0
+        kinn_ref = 10d0**(-11.84d0)*sec2yr
+        kinh_ref = 10d0**(-9.67d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 69.8d0
+        eah = 65.0d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
+    case('by')
+        mh = 1.018d0
+        moh = 0d0
+        kinn_ref = 10d0**(-9.82d0)*sec2yr
+        kinh_ref = 10d0**(-5.85d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 31.5d0
+        eah = 29.3d0
         eaoh = 0d0
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
@@ -3665,7 +3767,7 @@ select case(trim(adjustl(mineral)))
         tc_ref = 25d0
         ! from minteq.v4
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
-    case('la','ab','an')
+    case('la','ab','an','by','olg','and')
         ! CaxNa(1-x)Al(1+x)Si(3-x)O8 + (4x + 4) = xCa+2 + (1-x)Na+ + (1+x)Al+++ + (3-x)SiO2(aq) 
         ! obtaining Anorthite 
         therm_ref_1 = 10d0**28.8615308d0
@@ -9036,7 +9138,7 @@ select case(trim(adjustl(mineral)))
         ! endselect 
         
         
-    case('la','ab','an')
+    case('la','ab','an','by','olg','and')
         ! CaxNa(1-x)Al(1+x)Si(3-x)O8 + (4x + 4) = xCa+2 + (1-x)Na+ + (1+x)Al+++ + (3-x)SiO2(aq) 
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         ss_x = staq_all(findloc(chrsld_all,mineral,dim=1), findloc(chraq_all,'ca',dim=1) )
