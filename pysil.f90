@@ -84,6 +84,8 @@ real(kind=8),parameter :: fr_an_an = 1.0d0 ! Anorthite fraction for anorthite (B
 
 real(kind=8),parameter :: fr_hb_cpx = 0.5d0 ! Hedenbergite fraction for clinopyroxene; 0.0 - 1.0
 
+real(kind=8),parameter :: fr_fer_opx = 0.5d0 ! Ferrosilite fraction for orthopyroxene; 0.0 - 1.0
+
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
 real(kind=8),parameter :: mvab_0 = 100.07d0 ! cm3/mol; molar volume of Ab(NaAlSi3O8); Robie et al. 1978 
@@ -120,6 +122,9 @@ real(kind=8),parameter :: mvnph = 54.16d0 ! cm3/mol; molar volume of nepheline (
 real(kind=8),parameter :: mvqtz = 22.688d0 ! cm3/mol; molar volume of quartz (SiO2); Robie et al. 1978
 real(kind=8),parameter :: mvgps = 74.69d0 ! cm3/mol; molar volume of gypsum (CaSO4*2H2O); Robie et al. 1978
 real(kind=8),parameter :: mvtm = 272.92d0 ! cm3/mol; molar volume of tremolite (Ca2Mg5(Si8O22)(OH)2); Robie et al. 1978
+real(kind=8),parameter :: mven = 31.31d0 ! cm3/mol; molar volume of enstatite (MgSiO3); Robie and Hemingway 1995
+real(kind=8),parameter :: mvfer = 33.00d0 ! cm3/mol; molar volume of ferrosilite (FeSiO3); Robie and Hemingway 1995
+real(kind=8),parameter :: mvopx = fr_fer_opx*mvfer +(1d0-fr_fer_opx)*mven !  cm3/mol; molar volume of clinopyroxene (FexMg(1-x)SiO3); assuming simple ('ideal'?) mixing
 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -157,6 +162,9 @@ real(kind=8),parameter :: mwtnph = 142.055d0 ! g/mol; formula weight of nephelin
 real(kind=8),parameter :: mwtqtz = 60.085d0 ! g/mol; formula weight of quartz
 real(kind=8),parameter :: mwtgps = 172.168d0 ! g/mol; formula weight of gypsum
 real(kind=8),parameter :: mwttm = 812.374d0 ! g/mol; formula weight of tremolite
+real(kind=8),parameter :: mwten = 100.389d0 ! g/mol; formula weight of enstatite
+real(kind=8),parameter :: mwtfer = 131.931d0 ! g/mol; formula weight of ferrosilite
+real(kind=8),parameter :: mwtopx = fr_fer_opx*mwtfer + (1d0 -fr_fer_opx)*mwten ! g/mol; formula weight of clinopyroxene (FexMg(1-x)SiO3); assuming simple ('ideal'?) mixing
 
 real(kind=8),parameter :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -301,7 +309,7 @@ integer,intent(in):: count_dtunchanged_Max
 
 integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 14
-integer,parameter::nsp_sld_all = 34
+integer,parameter::nsp_sld_all = 37
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 9
@@ -460,7 +468,7 @@ chrflx(nflx) = 'res  '
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
-    & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ' &
+    & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
 chrgas_all = (/'pco2','po2 '/)
@@ -529,10 +537,10 @@ endif
 ! molar volume 
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
-    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx &
+    & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
-    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx &
+    & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -714,6 +722,16 @@ staq_all(findloc(chrsld_all,'cpx',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'cpx',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_hb_cpx
 staq_all(findloc(chrsld_all,'cpx',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0 - fr_hb_cpx
 staq_all(findloc(chrsld_all,'cpx',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+! Enstatite (MgSiO3)
+staq_all(findloc(chrsld_all,'en',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'en',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+! Ferrosilite (FeSiO3)
+staq_all(findloc(chrsld_all,'fer',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'fer',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+! Orthopyroxene (FexMg(1-x)SiO3)
+staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fer_opx
+staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0 - fr_fer_opx
+staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Tremolite (Ca2Mg5(Si8O22)(OH)2)
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'ca',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'mg',dim=1)) = 5d0
@@ -2838,6 +2856,8 @@ do isps = 1, nsp_sld_all
             ss_x = staq_all(isps, findloc(chraq_all,'ca',dim=1))
         case('cpx','hb','dp') 
             ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))
+        case('opx','en','fer') 
+            ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))
         case default 
             ss_x = 0d0 ! non-zero if it is a solid solution 
     endselect 
@@ -3484,6 +3504,32 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
     
+    case('en','opx','fer')
+        mh = 0.60d0
+        moh = 0d0
+        kinn_ref = 10d0**(-12.72d0)*sec2yr
+        kinh_ref = 10d0**(-9.02d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 80.0d0
+        eah = 80.0d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! for enstatite from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+    
     case('tm')
         mh = 0.70d0
         moh = 0d0
@@ -3825,6 +3871,32 @@ select case(trim(adjustl(mineral)))
             delG = delG_1 ! ideal hedenbergite
         elseif (ss_x == 0d0) then 
             delG = delG_2 ! ideal diopside
+        elseif (ss_x > 0d0 .and. ss_x < 1d0) then  ! solid solution 
+            ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
+            delG = ss_x*delG_1 + (1d0-ss_x)*delG_2 + rg*(tc+tempk_0)*(ss_x*log(ss_x)+(1d0-ss_x)*log(1d0-ss_x))
+        endif 
+        therm = exp(-delG/(rg*(tc+tempk_0)))
+    case('opx','en','fer')
+        ! FexMg(1-x)SiO3 + 2 H+  = xFe++ + (1-x)Mg++  +  SiO2(aq)
+        ! obtaining ferrosilite
+        therm_ref_1 = 10d0**(7.777162795d0)
+        ha_1 = -60.08612326d0
+        tc_ref_1 = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm_1 = k_arrhenius(therm_ref_1,tc_ref_1+tempk_0,tc+tempk_0,ha_1,rg) ! rg in kJ mol^-1 K^-1
+        delG_1 = - rg*(tc+tempk_0)*log(therm_1) ! del-G = -RT ln K  now in kJ mol-1
+        ! Then enstatite 
+        therm_ref_2 = 10d0**(11.99060855d0)
+        ha_2 = -85.8218778d0
+        tc_ref_2 = 15d0
+        ! from Kanzaki and Murakami 2018
+        therm_2 = k_arrhenius(therm_ref_2,tc_ref_2+tempk_0,tc+tempk_0,ha_2,rg)
+        delG_2 = - rg*(tc+tempk_0)*log(therm_2) ! del-G = -RT ln K  now in kJ mol-1
+        
+        if (ss_x == 1d0) then 
+            delG = delG_1 ! ideal ferrosilite
+        elseif (ss_x == 0d0) then 
+            delG = delG_2 ! ideal enstatite
         elseif (ss_x > 0d0 .and. ss_x < 1d0) then  ! solid solution 
             ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
             delG = ss_x*delG_1 + (1d0-ss_x)*delG_2 + rg*(tc+tempk_0)*(ss_x*log(ss_x)+(1d0-ss_x)*log(1d0-ss_x))
@@ -10587,6 +10659,114 @@ select case(trim(adjustl(mineral)))
                     & *caf &
                     & *2d0*sif*dsif_dsi &
                     & /prox**4d0 &
+                    & /keq_tmp &
+                    & )
+            case default 
+                domega_dmsp = 0d0
+        endselect 
+        
+        
+    case('opx','en','fer')
+        ! FexMg(1-x)SiO3  + 2 H+  = H2O  +  SiO2(aq)  + xFe++  +  (1-x)Mg++  
+        keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
+        ss_x = staq_all(findloc(chrsld_all,mineral,dim=1), findloc(chraq_all,'ca',dim=1) )
+        omega = ( &
+            & fe2f**ss_x &
+            & *mgf**(1d0-ss_x) &
+            & *sif &
+            & /prox**2d0 &
+            & /keq_tmp &
+            & )
+            
+        select case(trim(adjustl(sp_name)))
+            case('pro')
+                domega_dmsp = ( &   
+                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dpro &
+                    & *mgf**(1d0-ss_x) &
+                    & *sif &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & fe2f**ss_x &
+                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dpro &
+                    & *sif &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & fe2f**ss_x &
+                    & *mgf**(1d0-ss_x) &
+                    & *dsif_dpro &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & fe2f**ss_x &
+                    & *mgf**(1d0-ss_x) &
+                    & *sif &
+                    & *(-2d0)/prox**3d0 &
+                    & /keq_tmp &
+                    & )
+            case('so4f')
+                domega_dmsp = ( &   
+                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dso4f &
+                    & *mgf**(1d0-ss_x) &
+                    & *sif &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & fe2f**ss_x &
+                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dso4f &
+                    & *sif &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & fe2f**ss_x &
+                    & *mgf**(1d0-ss_x) &
+                    & *dsif_dso4f &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & )
+            case('pco2')
+                domega_dmsp = ( & 
+                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dpco2 &
+                    & *mgf**(1d0-ss_x) &
+                    & *sif &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & fe2f**ss_x &
+                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dpco2 &
+                    & *sif &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & + &
+                    & fe2f**ss_x &
+                    & *mgf**(1d0-ss_x) &
+                    & *dsif_dpco2 &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & )
+            case('fe2')
+                domega_dmsp = ( & 
+                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dfe2 &
+                    & *mgf**(1d0-ss_x) &
+                    & *sif &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & )
+            case('mg')
+                domega_dmsp = ( & 
+                    & fe2f**ss_x &
+                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dmg &
+                    & *sif &
+                    & /prox**2d0 &
+                    & /keq_tmp &
+                    & )
+            case('si')
+                domega_dmsp = ( & 
+                    & fe2f**ss_x &
+                    & *mgf**(1d0-ss_x) &
+                    & *dsif_dsi &
+                    & /prox**2d0 &
                     & /keq_tmp &
                     & )
             case default 
