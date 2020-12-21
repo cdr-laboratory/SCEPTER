@@ -312,8 +312,8 @@ integer,parameter::nsp_sld_2 = 14
 integer,parameter::nsp_sld_all = 37
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
-integer,parameter::nsp_aq_ph = 9
-integer,parameter::nsp_aq_all = 9
+integer,parameter::nsp_aq_ph = 10
+integer,parameter::nsp_aq_all = 10
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 1
@@ -470,7 +470,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ' &
     & ,'g1   ','g2   ','g3   '/)
-chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
+chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2','po2 '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3'/)
 
@@ -490,7 +490,7 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
     ,'arg  ','dlm  ','qtz  '/) 
 
 ! below are species which are sensitive to pH 
-chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    '/)
+chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_ph = (/'pco2 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
@@ -1372,7 +1372,6 @@ do while (it<nt)
     
     do ispa = 1, nsp_aq 
         daq(ispa) = daq_all(findloc(chraq_all,chraq(ispa),dim=1))
-        ! print *,chraq(ispa),daq(ispa)
     enddo 
     
     do ispg = 1, nsp_gas 
@@ -1782,6 +1781,8 @@ do while (it<nt)
     endif 
 
     ! stop
+    
+    where (msldx < 1d-20)  msldx = 1d-20
     
     mgas = mgasx
     maq = maqx
@@ -2678,6 +2679,7 @@ ucv = 1.0d0/(rg2*(tempk_0+tc))
 daq_all(findloc(chraq_all,'fe2',dim=1))= k_arrhenius(1.7016d-2    , 15d0+tempk_0, tc+tempk_0, 19.615251d0, rg)
 daq_all(findloc(chraq_all,'fe3',dim=1))= k_arrhenius(1.5664d-2    , 15d0+tempk_0, tc+tempk_0, 14.33659d0 , rg)
 daq_all(findloc(chraq_all,'so4',dim=1))= k_arrhenius(2.54d-2      , 15d0+tempk_0, tc+tempk_0, 20.67364d0 , rg)
+daq_all(findloc(chraq_all,'no3',dim=1))= k_arrhenius(4.6770059d-2 , 15d0+tempk_0, tc+tempk_0, 18.00685d0 , rg)
 daq_all(findloc(chraq_all,'na',dim=1)) = k_arrhenius(3.19d-2      , 15d0+tempk_0, tc+tempk_0, 20.58566d0 , rg)
 daq_all(findloc(chraq_all,'k',dim=1))  = k_arrhenius(4.8022699d-2 , 15d0+tempk_0, tc+tempk_0, 18.71816d0 , rg)
 daq_all(findloc(chraq_all,'mg',dim=1)) = k_arrhenius(1.7218079d-2 , 15d0+tempk_0, tc+tempk_0, 18.51979d0 , rg)
@@ -6438,7 +6440,7 @@ real(kind=8),intent(in)::kw
 real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al &
     & ,k1fe2,k1fe2co3,k1fe2hco3,k1fe3,k2fe3,k3fe3,k4fe3,k1naco3,k1nahco3,k1so4,k1kso4,k1naso4  &
     & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,so4th
-real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x,kx
+real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x,kx,no3x
 real(kind=8),dimension(nz)::naf,kf,mgf,caf,fe2f,fe3f,alf,sif
 real(kind=8),dimension(nz)::dnaf_dpro,dkf_dpro,dmgf_dpro,dcaf_dpro,dfe2f_dpro,dfe3f_dpro,dalf_dpro,dsif_dpro
 real(kind=8),dimension(nz)::dnaf_dso4f,dkf_dso4f,dmgf_dso4f,dcaf_dso4f,dfe2f_dso4f,dfe3f_dso4f,dalf_dso4f,dsif_dso4f
@@ -6446,7 +6448,7 @@ real(kind=8),dimension(nz),intent(in)::z
 real(kind=8),dimension(nz),intent(inout)::prox,so4f
 logical,intent(out)::ph_error
 
-real(kind=8),dimension(nz)::df1,f1,netcat,f2,df2,df21,df12
+real(kind=8),dimension(nz)::df1,f1,f2,df2,df21,df12
 real(kind=8) error,tol,dconc
 integer iter,iz
 
@@ -6537,6 +6539,7 @@ k1fe3so42 = keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so42)
 nax = 0d0
 so4x = 0d0
 kx = 0d0
+no3x = 0d0
 if (any(chraq=='na')) then 
     nax = maqx(findloc(chraq,'na',dim=1),:)
 elseif (any(chraq_cnst=='na')) then 
@@ -6552,10 +6555,12 @@ if (any(chraq=='so4')) then
 elseif (any(chraq_cnst=='so4')) then 
     so4x = maqc(findloc(chraq_cnst,'so4',dim=1),:)
 endif 
+if (any(chraq=='no3')) then 
+    no3x = maqx(findloc(chraq,'no3',dim=1),:)
+elseif (any(chraq_cnst=='no3')) then 
+    no3x = maqc(findloc(chraq_cnst,'no3',dim=1),:)
+endif 
 
-! netcat = nax + kx -2d0*so4x
-! netcat = kx -2d0*so4x
-netcat = 0d0
 
 six =0d0
 cax =0d0
@@ -6673,7 +6678,7 @@ do while (error > tol)
     dfe3f_dso4f = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
         & *(k1fe3so4)
     
-    f1 = prox**3d0 + netcat*prox**2d0 - (k1*kco2*pco2x+kw)*prox - 2d0*k2*k1*kco2*pco2x  &
+    f1 = prox**3d0 - (k1*kco2*pco2x+kw)*prox - 2d0*k2*k1*kco2*pco2x  - no3x*prox**2d0 &
         ! so4
         & -2d0*so4f*prox**2d0 &
         & -1d0*so4f*prox**3d0*k1so4 &
@@ -6712,7 +6717,7 @@ do while (error > tol)
         & - fe3f*k4fe3/prox**2d0 &
         & + fe3f*k1fe3so4*so4f*prox**2d0 
         
-    df1 = 3d0*prox**2d0 + 2d0*netcat*prox - (k1*kco2*pco2x+kw)*1d0  &
+    df1 = 3d0*prox**2d0 - (k1*kco2*pco2x+kw)*1d0 - no3x*prox*2d0 &
         ! so4
         & -2d0*so4f*prox*2d0 &
         & -1d0*so4f*3d0*prox**2d0*k1so4 &
@@ -6950,7 +6955,7 @@ fe3f = fe3x/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe
 
 if (print_cb) then 
     open(88,file = trim(adjustl(print_loc)),status='replace')
-    write(88,*) ' z ',' h+ ',' oh- ',' na+ ',' naco3- ', ' nahco3 ', ' naso4- ', ' k+ ',' kso4- ' &
+    write(88,*) ' z ',' h+ ',' oh- ',' no3- ',' na+ ',' naco3- ', ' nahco3 ', ' naso4- ', ' k+ ',' kso4- ' &
         & ,' so42- ', ' hso4- ', 'hco3- ', ' co32- ' &
         & ,' h4sio4 ',' h3sio4- ',' h2sio42- ' &
         & ,' mg2+ ', ' mg(oh)+ ', ' mgco3 ', 'mghco3+ ', 'mgso4 ' &
@@ -6963,6 +6968,7 @@ if (print_cb) then
         write(88,*) z(iz) &
         & ,prox(iz) &
         & ,kw/prox(iz) &
+        & ,no3x(iz) &
         & ,naf(iz) &
         & ,naf(iz)*k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
         & ,naf(iz)*k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)     &
@@ -7006,6 +7012,7 @@ if (print_cb) then
         ! charge balance 
         & ,1d0*prox(iz) &
         & +(-1d0)*kw/prox(iz) &
+        & +(-1d0)*no3x(iz) &
         & +(1d0)*naf(iz) &
         & +(-1d0)*naf(iz)*k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
         & +(0d0)*naf(iz)*k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)      &
