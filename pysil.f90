@@ -325,7 +325,7 @@ integer,parameter::nsp_gas_all = 3
 integer ::nsp_gas_cnst != nsp_gas_all - nsp_gas
 integer ::nsp3 != nsp_sld + nsp_aq + nsp_gas
 integer,intent(in)::nrxn_ext != 1
-integer,parameter::nrxn_ext_all = 6
+integer,parameter::nrxn_ext_all = 7
 integer :: nflx ! = 5 + nrxn_ext + nsp_sld  
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2)::chrsld_2
@@ -478,7 +478,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 '/)
-chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o'/)
+chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 '/)
 
 ! define the species and rxns explicitly simulated in the model in a fully coupled way
 ! should be chosen from definable species & rxn lists above 
@@ -818,6 +818,12 @@ staq_ext_all(findloc(chrrxn_ext_all,'pyfe3',dim=1), findloc(chraq_all,'so4',dim=
 staq_ext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chraq_all,'no3',dim=1)) = 1d0
 stgas_ext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = -1d0
 stgas_ext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chrgas_all,'po2',dim=1)) = -2d0
+! overall denitrification (4 NO3-  +  5 CH2O  +  4 H+  ->  2 N2  +  5 CO2  +  7 H2O) 
+staq_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chraq_all,'no3',dim=1)) = -4d0/5d0
+stsld_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrsld_all,'g2',dim=1)) = -1d0
+stgas_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
+stgas_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g2
+! stgas_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrgas_all,'pn2',dim=1)) = 2d0/5d0 ! should be added after enabling pn2 
 
 ! define 1 when a reaction is sensitive to a speces 
 stgas_dext_all = 0d0
@@ -840,6 +846,10 @@ staq_dext_all(findloc(chrrxn_ext_all,'pyfe3',dim=1), findloc(chraq_all,'fe3',dim
 ! ammonia oxidation by O2 (NH4+ + 2O2 -> NO3- + H2O + 2 H+) 
 stgas_dext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
 stgas_dext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = 1d0
+! overall denitrification (4 NO3-  +  5 CH2O  +  4 H+  ->  2 N2  +  5 CO2  +  7 H2O) 
+staq_dext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chraq_all,'no3',dim=1)) = 1d0
+stgas_dext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
+stsld_dext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrsld_all,'g2',dim=1)) = 1d0
 
 staq_ext = 0d0
 stgas_ext = 0d0
@@ -11310,9 +11320,10 @@ subroutine calc_rxn_ext_dev_2( &
     & )
 implicit none
 integer,intent(in)::nz
-real(kind=8):: po2th,fe2th,mwtom,g1th,g2th,g3th,mvpy,fe3th,knh3,k1nh3,ko2,v_tmp,km_tmp1,km_tmp2
+real(kind=8):: po2th,fe2th,mwtom,g1th,g2th,g3th,mvpy,fe3th,knh3,k1nh3,ko2,v_tmp,km_tmp1,km_tmp2,km_tmp3
 real(kind=8),dimension(nz):: po2x,vmax,mo2,fe2x,koxa,vmax2,mom2,komb,beta,omx,ombx &
-    & ,mo2g1,mo2g2,mo2g3,kg1,kg2,kg3,g1x,g2x,g3x,pyx,fe3x,koxpy,pnh3x,nh4x,dnh4_dpro,dnh4_dpnh3
+    & ,mo2g1,mo2g2,mo2g3,kg1,kg2,kg3,g1x,g2x,g3x,pyx,fe3x,koxpy,pnh3x,nh4x,dnh4_dpro,dnh4_dpnh3 &
+    & ,no3x
 real(kind=8),dimension(nz),intent(in):: poro,sat,hr,prox
 real(kind=8),dimension(nz),intent(out):: drxnext_dmsp
 real(kind=8),dimension(nz),intent(out):: rxn_ext
@@ -11415,6 +11426,13 @@ if (any(chraq=='fe3')) then
     fe3x = maqx(findloc(chraq,'fe3',dim=1),:)
 elseif (any(chraq_cnst=='fe3')) then 
     fe3x = maqc(findloc(chraq_cnst,'fe3',dim=1),:)
+endif 
+
+no3x = 0d0
+if (any(chraq=='no3')) then 
+    no3x = maqx(findloc(chraq,'no3',dim=1),:)
+elseif (any(chraq_cnst=='no3')) then 
+    no3x = maqc(findloc(chraq_cnst,'no3',dim=1),:)
 endif 
 
 omx = 0d0
@@ -11703,8 +11721,60 @@ select case(trim(adjustl(rxn_name)))
                 
             endselect
                 
+    case('g2n0') ! overall denitrification (4 NO3-  +  5 CH2O  +  4 H+  ->  2 N2  +  5 CO2  +  7 H2O) 
+        scheme = 'maggi08' ! Maggi et al. (2008) wihtout baterial, pH and water saturation functions; vmax from oxidation by N2O (rate-limiting)
+        
+        select case(trim(adjustl(scheme)))
+            case('maggi08')
+                v_tmp = 1.23d-7*60d0*60d0*24d0*365d0
+                km_tmp1 = 10d-5 * 1d6 ! mol L-1 converted to mol m-3
+                km_tmp2 = 11.3d-5
+                km_tmp3 = 2.52d-5
+                rxn_ext = ( &
+                    & v_tmp &
+                    & *g2x/(g2x + km_tmp1 ) &
+                    & *no3x/(no3x + km_tmp2 ) &
+                    & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                    & )
+                
+                select case(trim(adjustl(sp_name)))
+                    case('g2')
+                        drxnext_dmsp = ( &
+                            & v_tmp &
+                            & * ( & 
+                            & 1d0/(g2x + km_tmp1 ) &
+                            & + g2x*(-1d0)/(g2x + km_tmp1 )**2d0 * 1d0 &
+                            & ) &
+                            & *no3x/(no3x + km_tmp2 ) &
+                            & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & )
+                    case('no3')
+                        drxnext_dmsp = ( &
+                            & v_tmp &
+                            & *g2x/(g2x + km_tmp1 ) &
+                            & * ( & 
+                            & 1d0/(no3x + km_tmp2 ) &
+                            & + no3x*(-1d0)/(no3x + km_tmp2 )**2d0 * 1d0 &
+                            & ) &
+                            & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & )
+                    case('po2')
+                        drxnext_dmsp = ( &
+                            & v_tmp &
+                            & *g2x/(g2x + km_tmp1 ) &
+                            & *no3x/(no3x + km_tmp2 ) &
+                            & *km_tmp3*(-1d0)/(po2x*ko2 + km_tmp3 )**2d0 * ko2 &
+                            & )
+                    case default
+                        drxnext_dmsp = 0d0
+                endselect 
+                
+        endselect 
+        
+        
     case default 
         rxn_ext = 0d0
+        drxnext_dmsp = 0d0
         
 endselect
 
