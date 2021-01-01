@@ -1139,7 +1139,7 @@ print_loc = './ph.txt'
 call calc_pH_v7_2( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all &! input
+    & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,print_cb,print_loc,z &! input 
     & ,pro,ph_error,so4f &! output
     & ) 
@@ -1644,7 +1644,7 @@ do while (it<nt)
         & ,stgas_ext,stgas_dext,staq_ext,stsld_ext,staq_dext,stsld_dext &
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst &
         & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
-        & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s &
+        & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3 &
         & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
         & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all &
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
@@ -1877,7 +1877,7 @@ do while (it<nt)
         call calc_pH_v7_2( &
             & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
             & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all &! input
+            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
             & ,print_cb,print_loc,z &! input 
             & ,prox,ph_error,so4f &! output
             & ) 
@@ -2794,7 +2794,8 @@ keqaq_nh3(findloc(chraq_all,'so4',dim=1),ieqaq_nh3) = &
     & k_arrhenius(10d0**(1.03d0),25d0+tempk_0,tc+tempk_0,0d0,rg) ! from MINTEQV4.DAT 
 
 ! H+ + NO3- = HNO3 
-! keqaq_no3(findloc(chraq_all,'no3',dim=1),ieqaq_no3) = 1d0/35.5d0 ! from Levanov et al. 2017 
+keqaq_no3(findloc(chraq_all,'no3',dim=1),ieqaq_no3) = 1d0/35.5d0 ! from Levanov et al. 2017 
+keqaq_no3(findloc(chraq_all,'no3',dim=1),ieqaq_no3) = 1d0/(10d0**1.3d0) ! from Maggi et al. 2007 
 ! (temperature dependence is assumed to be 0) 
 
 ! Al3+ + H2O = Al(OH)2+ + H+
@@ -6519,7 +6520,7 @@ endsubroutine calc_pH_v7
 subroutine calc_pH_v7_2( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all &! input
+    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,print_cb,print_loc,z &! input 
     & ,prox,ph_error,so4f &! output
     & ) 
@@ -6535,11 +6536,12 @@ integer,intent(in)::nz
 real(kind=8),intent(in)::kw
 real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al &
     & ,k1fe2,k1fe2co3,k1fe2hco3,k1fe3,k2fe3,k3fe3,k4fe3,k1naco3,k1nahco3,k1so4,k1kso4,k1naso4  &
-    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,so4th,knh3,k1nh3
+    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,so4th,knh3,k1nh3,k1no3
 real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x,kx,no3x,pnh3x
-real(kind=8),dimension(nz)::naf,kf,mgf,caf,fe2f,fe3f,alf,sif
-real(kind=8),dimension(nz)::dnaf_dpro,dkf_dpro,dmgf_dpro,dcaf_dpro,dfe2f_dpro,dfe3f_dpro,dalf_dpro,dsif_dpro
-real(kind=8),dimension(nz)::dnaf_dso4f,dkf_dso4f,dmgf_dso4f,dcaf_dso4f,dfe2f_dso4f,dfe3f_dso4f,dalf_dso4f,dsif_dso4f
+real(kind=8),dimension(nz)::naf,kf,mgf,caf,fe2f,fe3f,alf,sif,no3f
+real(kind=8),dimension(nz)::dnaf_dpro,dkf_dpro,dmgf_dpro,dcaf_dpro,dfe2f_dpro,dfe3f_dpro,dalf_dpro,dsif_dpro,dno3f_dpro
+real(kind=8),dimension(nz)::dnaf_dso4f,dkf_dso4f,dmgf_dso4f,dcaf_dso4f,dfe2f_dso4f,dfe3f_dso4f,dalf_dso4f,dsif_dso4f &
+    & ,dno3f_dso4f
 real(kind=8),dimension(nz),intent(in)::z
 real(kind=8),dimension(nz),intent(inout)::prox,so4f
 logical,intent(out)::ph_error
@@ -6563,6 +6565,8 @@ real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
 real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
@@ -6576,6 +6580,9 @@ data ieqaq_co3,ieqaq_hco3/1,2/
 
 integer ieqaq_so4,ieqaq_so42
 data ieqaq_so4,ieqaq_so42/1,2/
+
+integer ieqaq_no3,ieqaq_no32
+data ieqaq_no3,ieqaq_no32/1,2/
 
 logical,intent(in)::print_cb
 character(500),intent(in)::print_loc
@@ -6634,6 +6641,8 @@ k1fe3so42 = keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so42)
 
 knh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h0)
 k1nh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h1)
+
+k1no3 = keqaq_no3(findloc(chraq_all,'no3',dim=1),ieqaq_no3)
 
 nax = 0d0
 so4x = 0d0
@@ -6782,8 +6791,12 @@ do while (error > tol)
         & *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0)
     dfe3f_dso4f = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
         & *(k1fe3so4)
+        
+    no3f = no3x/(1d0 + k1no3*prox)
+    dno3f_dpro = no3x*(-1d0)/(1d0 + k1no3*prox)**2d0 * k1no3
+    dno3f_dso4f = 0d0
     
-    f1 = prox**3d0 - (k1*kco2*pco2x+kw)*prox - 2d0*k2*k1*kco2*pco2x  - no3x*prox**2d0 + pnh3x*knh3/k1nh3*prox**3d0 &
+    f1 = prox**3d0 - (k1*kco2*pco2x+kw)*prox - 2d0*k2*k1*kco2*pco2x  - no3f*prox**2d0 + pnh3x*knh3/k1nh3*prox**3d0 &
         ! so4
         & -2d0*so4f*prox**2d0 &
         & -1d0*so4f*prox**3d0*k1so4 &
@@ -6822,7 +6835,7 @@ do while (error > tol)
         & - fe3f*k4fe3/prox**2d0 &
         & + fe3f*k1fe3so4*so4f*prox**2d0 
         
-    df1 = 3d0*prox**2d0 - (k1*kco2*pco2x+kw)*1d0 - no3x*prox*2d0 + pnh3x*knh3/k1nh3*3d0*prox**2d0 &
+    df1 = 3d0*prox**2d0 - (k1*kco2*pco2x+kw)*1d0 - no3f*prox*2d0 + pnh3x*knh3/k1nh3*3d0*prox**2d0 &
         ! so4
         & -2d0*so4f*prox*2d0 &
         & -1d0*so4f*3d0*prox**2d0*k1so4 &
@@ -7060,9 +7073,13 @@ alf = alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so
 
 fe3f = fe3x/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)
 
+no3f = no3x/(1d0 + k1no3*prox)
+
 if (print_cb) then 
     open(88,file = trim(adjustl(print_loc)),status='replace')
-    write(88,*) ' z ',' h+ ',' oh- ',' no3- ',' nh4+ ',' na+ ',' naco3- ', ' nahco3 ', ' naso4- ', ' k+ ',' kso4- ' &
+    write(88,*) ' z ',' h+ ',' oh- ' &
+        & ,' no3- ', ' hno3 ' &
+        & ,' nh4+ ',' na+ ',' naco3- ', ' nahco3 ', ' naso4- ', ' k+ ',' kso4- ' &
         & ,' so42- ', ' hso4- ', 'hco3- ', ' co32- ' &
         & ,' h4sio4 ',' h3sio4- ',' h2sio42- ' &
         & ,' mg2+ ', ' mg(oh)+ ', ' mgco3 ', 'mghco3+ ', 'mgso4 ' &
@@ -7075,7 +7092,8 @@ if (print_cb) then
         write(88,*) z(iz) &
         & ,prox(iz) &
         & ,kw/prox(iz) &
-        & ,no3x(iz) &
+        & ,no3f(iz) &
+        & ,no3f(iz)*k1no3*prox(iz) &
         & ,pnh3x(iz)*knh3/k1nh3*prox(iz) &
         & ,naf(iz) &
         & ,naf(iz)*k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
@@ -7120,7 +7138,8 @@ if (print_cb) then
         ! charge balance 
         & ,1d0*prox(iz) &
         & +(-1d0)*kw/prox(iz) &
-        & +(-1d0)*no3x(iz) &
+        & +(-1d0)*no3f(iz) &
+        & +(0d0)*no3f(iz)*k1no3*prox(iz) &
         & +(1d0)*pnh3x(iz)*knh3/k1nh3*prox(iz) &
         & +(1d0)*naf(iz) &
         & +(-1d0)*naf(iz)*k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
@@ -12015,7 +12034,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,stgas_ext,stgas_dext,staq_ext,stsld_ext,staq_dext,stsld_dext &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst &
     & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
-    & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s &
+    & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3 &
     & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
     & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
@@ -12099,6 +12118,8 @@ real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
 real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all,msldth_all,mv_all
 
 character(5),dimension(nflx),intent(in)::chrflx
@@ -12262,7 +12283,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     call calc_pH_v7_2( &
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-        & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all &! input
+        & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
         & ,print_cb,print_loc,z &! input 
         & ,prox,ph_error,so4f &! output
         & ) 
@@ -12283,7 +12304,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             call calc_pH_v7_2( &
                 & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-                & ,maqx+dmaq,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all &! input
+                & ,maqx+dmaq,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
                 & ,print_cb,print_loc,z &! input 
                 & ,dummy,ph_error,dummy2 &! output
                 & ) 
@@ -12304,7 +12325,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             call calc_pH_v7_2( &
                 & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
                 & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-                & ,maqx,maqc,mgasx+dmgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all &! input
+                & ,maqx,maqc,mgasx+dmgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
                 & ,print_cb,print_loc,z &! input 
                 & ,dummy,ph_error,dummy2 &! output
                 & ) 
@@ -13363,7 +13384,7 @@ flx_co2sp = 0d0
 call calc_pH_v7_2( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all &! input
+    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,print_cb,print_loc,z &! input 
     & ,prox,ph_error,so4f &! output
     & ) 
