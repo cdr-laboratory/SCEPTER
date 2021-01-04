@@ -325,7 +325,7 @@ integer,parameter::nsp_gas_all = 4
 integer ::nsp_gas_cnst != nsp_gas_all - nsp_gas
 integer ::nsp3 != nsp_sld + nsp_aq + nsp_gas
 integer,intent(in)::nrxn_ext != 1
-integer,parameter::nrxn_ext_all = 7
+integer,parameter::nrxn_ext_all = 9
 integer :: nflx ! = 5 + nrxn_ext + nsp_sld  
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2)::chrsld_2
@@ -478,7 +478,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
-chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 '/)
+chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22'/)
 
 ! define the species and rxns explicitly simulated in the model in a fully coupled way
 ! should be chosen from definable species & rxn lists above 
@@ -819,11 +819,23 @@ staq_ext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chraq_all,'no3',dim=
 stgas_ext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = -1d0
 stgas_ext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chrgas_all,'po2',dim=1)) = -2d0
 ! overall denitrification (4 NO3-  +  5 CH2O  +  4 H+  ->  2 N2  +  5 CO2  +  7 H2O) 
-staq_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chraq_all,'no3',dim=1)) = -4d0/5d0
+staq_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chraq_all,'no3',dim=1)) = -4d0/5d0 ! values relative to CH2O 
 stsld_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrsld_all,'g2',dim=1)) = -1d0
 stgas_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
 stgas_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g2
 ! stgas_ext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrgas_all,'pn2',dim=1)) = 2d0/5d0 ! should be added after enabling pn2 
+! first of 2 step denitrification (2 NO3-  +  2 CH2O  +  2 H+  ->  N2O  +  2 CO2  +  3 H2O) 
+staq_ext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chraq_all,'no3',dim=1)) = -1d0  ! values relative to CH2O
+stsld_ext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chrsld_all,'g2',dim=1)) = -1d0
+stgas_ext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
+stgas_ext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chrgas_all,'pn2o',dim=1)) = 0.5d0
+stgas_ext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g2
+! 2nd of 2 step denitrification (2 N2O  +  CH2O  ->  2 N2  +  CO2  +  H2O) 
+stsld_ext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrsld_all,'g2',dim=1)) = -1d0 ! values relative to CH2O
+stgas_ext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
+stgas_ext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'pn2o',dim=1)) = -2d0
+stgas_ext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g2
+! stgas_ext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'pn2',dim=1)) = 2d0 ! should be added after enabling pn2 
 
 ! define 1 when a reaction is sensitive to a speces 
 stgas_dext_all = 0d0
@@ -850,6 +862,14 @@ stgas_dext_all(findloc(chrrxn_ext_all,'amo2o',dim=1), findloc(chrgas_all,'pnh3',
 staq_dext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chraq_all,'no3',dim=1)) = 1d0
 stgas_dext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
 stsld_dext_all(findloc(chrrxn_ext_all,'g2n0',dim=1), findloc(chrsld_all,'g2',dim=1)) = 1d0
+! first of 2 step denitrification (2 NO3-  +  2 CH2O  +  2 H+  ->  N2O  +  2 CO2  +  3 H2O) 
+staq_dext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chraq_all,'no3',dim=1)) = 1d0
+stgas_dext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
+stsld_dext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chrsld_all,'g2',dim=1)) = 1d0
+! 2nd of 2 step denitrification (2 N2O  +  CH2O  ->  2 N2  +  CO2  +  H2O) 
+stgas_dext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
+stgas_dext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'pn2o',dim=1)) = 1d0
+stsld_dext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrsld_all,'g2',dim=1)) = 1d0
 
 staq_ext = 0d0
 stgas_ext = 0d0
@@ -11350,10 +11370,11 @@ subroutine calc_rxn_ext_dev_2( &
     & )
 implicit none
 integer,intent(in)::nz
-real(kind=8):: po2th,fe2th,mwtom,g1th,g2th,g3th,mvpy,fe3th,knh3,k1nh3,ko2,v_tmp,km_tmp1,km_tmp2,km_tmp3
+real(kind=8):: po2th,fe2th,mwtom,g1th,g2th,g3th,mvpy,fe3th,knh3,k1nh3,ko2,v_tmp,km_tmp1,km_tmp2,km_tmp3  &
+    & ,kn2o
 real(kind=8),dimension(nz):: po2x,vmax,mo2,fe2x,koxa,vmax2,mom2,komb,beta,omx,ombx &
     & ,mo2g1,mo2g2,mo2g3,kg1,kg2,kg3,g1x,g2x,g3x,pyx,fe3x,koxpy,pnh3x,nh4x,dnh4_dpro,dnh4_dpnh3 &
-    & ,no3x
+    & ,no3x,pn2ox
 real(kind=8),dimension(nz),intent(in):: poro,sat,hr,prox
 real(kind=8),dimension(nz),intent(out):: drxnext_dmsp
 real(kind=8),dimension(nz),intent(out):: rxn_ext
@@ -11419,6 +11440,8 @@ ko2 = keqgas_h(findloc(chrgas_all,'po2',dim=1),ieqgas_h0)
 knh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h0)
 k1nh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h1)
 
+kn2o = keqgas_h(findloc(chrgas_all,'pn2o',dim=1),ieqgas_h0)
+
 vmax2 = krxn1_ext_all(findloc(chrrxn_ext_all,'omomb',dim=1),:)
 mom2 = krxn2_ext_all(findloc(chrrxn_ext_all,'omomb',dim=1),:)
 
@@ -11443,6 +11466,13 @@ endif
 nh4x = pnh3x*knh3*prox/k1nh3
 dnh4_dpro = pnh3x*knh3*1d0/k1nh3
 dnh4_dpnh3 = 1d0*knh3*prox/k1nh3
+
+pn2ox = 0d0
+if (any(chrgas=='pn2o')) then 
+    pn2ox = mgasx(findloc(chrgas,'pn2o',dim=1),:)
+elseif (any(chrgas_cnst=='pn2o')) then 
+    pn2ox = mgasc(findloc(chrgas_cnst,'pn2o',dim=1),:)
+endif 
 
 fe2x = 0d0
 if (any(chraq=='fe2')) then 
@@ -11634,14 +11664,15 @@ select case(trim(adjustl(rxn_name)))
         endselect 
         
     case('amo2o')
-        ! scheme = 'maggi08' ! Maggi et al. (2008) wihtout baterial, pH and water saturation functions
-        scheme = 'Fennel' ! from biogem_box_geochem.f90 in GENIE model referring to Fennel et al. 2005 with a correction 
+        scheme = 'maggi08' ! Maggi et al. (2008) wihtout baterial, pH and water saturation functions
+        ! scheme = 'Fennel' ! from biogem_box_geochem.f90 in GENIE model referring to Fennel et al. 2005 with a correction 
         ! scheme = 'FennelOLD' ! from biogem_box_geochem.f90 in GENIE model referring to Fennel et al. 2005 without a correction 
         ! scheme = 'Ozaki' ! from biogem_box_geochem.f90 in GENIE model referring to Ozaki et al. [EPSL ... ?]
         
         select case(trim(adjustl(scheme)))
             case('maggi08')
-                v_tmp = 9.53d-6*60d0*60d0*24d0*365d0
+                v_tmp = 9.53d-6*60d0*60d0*24d0*365d0 ! (~300 /yr)
+                v_tmp = v_tmp/100d0 ! (~3 /yr; default value produces too much nitrate (pH goes down to ~1)
                 km_tmp1 = 14d-5
                 km_tmp2 = 2.41d-5
                 rxn_ext = ( &
@@ -11751,7 +11782,10 @@ select case(trim(adjustl(rxn_name)))
                 
             endselect
                 
-    case('g2n0') ! overall denitrification (4 NO3-  +  5 CH2O  +  4 H+  ->  2 N2  +  5 CO2  +  7 H2O) 
+    case('g2n0','g2n21') 
+        ! overall denitrification (4 NO3-  +  5 CH2O  +  4 H+  ->  2 N2  +  5 CO2  +  7 H2O) 
+        ! first of 2 step denitrification (2 NO3-  +  2 CH2O  +  2 H+  ->  N2O  +  2 CO2  +  3 H2O)   
+        ! (assuming that oxidation by N2O governs overall denitrification)
         scheme = 'maggi08' ! Maggi et al. (2008) wihtout baterial, pH and water saturation functions; vmax from oxidation by N2O (rate-limiting)
         
         select case(trim(adjustl(scheme)))
@@ -11793,6 +11827,56 @@ select case(trim(adjustl(rxn_name)))
                             & v_tmp &
                             & *g2x/(g2x + km_tmp1 ) &
                             & *no3x/(no3x + km_tmp2 ) &
+                            & *km_tmp3*(-1d0)/(po2x*ko2 + km_tmp3 )**2d0 * ko2 &
+                            & )
+                    case default
+                        drxnext_dmsp = 0d0
+                endselect 
+                
+        endselect 
+                
+    case('g2n22') ! 2nd of 2 step denitrification (2 N2O  +  CH2O  ->  2 N2  +  CO2  +  H2O)  
+        scheme = 'maggi08' ! Maggi et al. (2008) wihtout baterial, pH and water saturation functions
+        
+        select case(trim(adjustl(scheme)))
+            case('maggi08')
+                v_tmp = 1.23d-7*60d0*60d0*24d0*365d0
+                km_tmp1 = 10d-5 * 1d6 ! mol L-1 converted to mol m-3
+                km_tmp2 = 11.3d-5
+                km_tmp3 = 2.52d-5
+                rxn_ext = ( &
+                    & v_tmp &
+                    & *g2x/(g2x + km_tmp1 ) &
+                    & *kn2o*pn2ox/(kn2o*pn2ox + km_tmp2 ) &
+                    & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                    & )
+                
+                select case(trim(adjustl(sp_name)))
+                    case('g2')
+                        drxnext_dmsp = ( &
+                            & v_tmp &
+                            & * ( & 
+                            & 1d0/(g2x + km_tmp1 ) &
+                            & + g2x*(-1d0)/(g2x + km_tmp1 )**2d0 * 1d0 &
+                            & ) &
+                            & *kn2o*pn2ox/(kn2o*pn2ox + km_tmp2 ) &
+                            & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & )
+                    case('pn2o')
+                        drxnext_dmsp = ( &
+                            & v_tmp &
+                            & *g2x/(g2x + km_tmp1 ) &
+                            & * ( & 
+                            & kn2o/(kn2o*pn2ox + km_tmp2 ) &
+                            & + kn2o*pn2ox*(-1d0)/(kn2o*pn2ox + km_tmp2 )**2d0 * kn2o &
+                            & ) &
+                            & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & )
+                    case('po2')
+                        drxnext_dmsp = ( &
+                            & v_tmp &
+                            & *g2x/(g2x + km_tmp1 ) &
+                            & *kn2o*pn2ox/(kn2o*pn2ox + km_tmp2 ) &
                             & *km_tmp3*(-1d0)/(po2x*ko2 + km_tmp3 )**2d0 * ko2 &
                             & )
                     case default
