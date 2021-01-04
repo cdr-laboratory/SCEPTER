@@ -216,7 +216,7 @@ real(kind=8),intent(in) :: p80 != 1d-6 ! m
 ! real(kind=8) ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save,mvka_save,mvgb_save
 real(kind=8),dimension(nz):: pro,prox,poroprev,hr,rough,hri
 
-real(kind=8) kho,ucv,kco2,k1,kw,k2,khco2i,knh3,k1nh3,khnh3i
+real(kind=8) kho,ucv,kco2,k1,kw,k2,khco2i,knh3,k1nh3,khnh3i,kn2o
 
 integer iz,it,ispa,ispg,isps,irxn,ispa2,ispg2,isps2,ico2
 
@@ -321,7 +321,7 @@ integer,parameter::nsp_aq_all = 10
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 2
-integer,parameter::nsp_gas_all = 3
+integer,parameter::nsp_gas_all = 4
 integer ::nsp_gas_cnst != nsp_gas_all - nsp_gas
 integer ::nsp3 != nsp_sld + nsp_aq + nsp_gas
 integer,intent(in)::nrxn_ext != 1
@@ -477,7 +477,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
-chrgas_all = (/'pco2 ','po2  ','pnh3 '/)
+chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 '/)
 
 ! define the species and rxns explicitly simulated in the model in a fully coupled way
@@ -1411,6 +1411,7 @@ do while (it<nt)
     kho = keqgas_h(findloc(chrgas_all,'po2',dim=1),ieqgas_h0)
     kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
     knh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h0)
+    kn2o = keqgas_h(findloc(chrgas_all,'pn2o',dim=1),ieqgas_h0)
     k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
     k2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)
     k1nh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h1)
@@ -1427,6 +1428,8 @@ do while (it<nt)
                 khgasi(ispg) = kho
             case('pnh3')  
                 khgasi(ispg) = khnh3i
+            case('pn2o')  
+                khgasi(ispg) = kn2o
         endselect 
     enddo
     
@@ -2744,7 +2747,7 @@ daq_all(findloc(chraq_all,'al',dim=1)) = k_arrhenius(1.1656226d-2 , 15d0+tempk_0
 dgasa_all(findloc(chrgas_all,'po2',dim=1)) = k_arrhenius(5.49d-2 , 15d0+tempk_0, tc+tempk_0, 20.07d0 , rg)
 dgasg_all(findloc(chrgas_all,'po2',dim=1)) = k_arrhenius(6.09d2  , 15d0+tempk_0, tc+tempk_0, 4.18d0  , rg)
 
-! assuming a value of 0.14 cm2/sec and O2 gas activation energy for CO2 gas 
+! assuming a value of 0.14 cm2/sec (e.g., Pritchard and Currie, 1982) and O2 gas activation energy for CO2 gas 
 ! and CO32- diffusion from Li and Greogy 1974 for aq CO2 
 dgasa_all(findloc(chrgas_all,'pco2',dim=1)) = k_arrhenius(2.2459852d-2, 15d0+tempk_0, tc+tempk_0, 21.00564d0, rg)
 dgasg_all(findloc(chrgas_all,'pco2',dim=1)) = k_arrhenius(441.504d0   , 15d0+tempk_0, tc+tempk_0, 4.18d0    , rg)
@@ -2753,6 +2756,11 @@ dgasg_all(findloc(chrgas_all,'pco2',dim=1)) = k_arrhenius(441.504d0   , 15d0+tem
 ! NH3 diffusion in air from Massman 1998
 dgasa_all(findloc(chrgas_all,'pnh3',dim=1)) = k_arrhenius(4.64d-02    , 15d0+tempk_0, tc+tempk_0, 19.15308d0, rg)
 dgasg_all(findloc(chrgas_all,'pnh3',dim=1)) = 0.1978d0*((tc+tempk_0)/(0d0+tempk_0))**1.81d0 * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2 to m2 and sec-1 to yr-1
+
+! assuming the same diffusion as CO2 diffusion (e.g., Pritchard and Currie, 1982) for gaseous N2O 
+! N2O(aq) diffusion from Schulz and Zabel 2005
+dgasa_all(findloc(chrgas_all,'pn2o',dim=1)) = k_arrhenius(4.89d-02    , 15d0+tempk_0, tc+tempk_0, 20.33417d0, rg)
+dgasg_all(findloc(chrgas_all,'pn2o',dim=1)) = k_arrhenius(441.504d0   , 15d0+tempk_0, tc+tempk_0, 4.18d0    , rg)
 
 kw = -14.93d0+0.04188d0*tc-0.0001974d0*tc**2d0+0.000000555d0*tc**3d0-0.0000000007581d0*tc**4d0  ! Murakami et al. 2011
 kw = k_arrhenius(10d0**(-14.35d0), tempk_0+15.0d0, tempk_0+tc, 58.736742d0, rg) ! from Kanzaki and Murakami 2015
@@ -2779,7 +2787,10 @@ keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h0) = &
 keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h1) = &
     & k_arrhenius(10d0**(-9.252d0), tempk_0+25.0d0, tempk_0+tc, 12.48d0*cal2j, rg) ! from WATEQ4F.DAT (NH4+ = NH3 + H+)
 
+keqgas_h(findloc(chrgas_all,'pn2o',dim=1),ieqgas_h0) = &
+    & k_arrhenius(0.033928709d0, tempk_0+15.0d0, tempk_0+tc, -22.21661d0, rg) ! ! N2O solubility from Weiss & Price 1980 MC assuming 0 salinity
 
+    
 keqaq_c = 0d0
 keqaq_h = 0d0
 keqaq_s = 0d0
@@ -12156,7 +12167,7 @@ integer,dimension(nrxn_ext)::irxn_ext
 real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp &
     & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp,omega_tmp_th,rxn_ext_tmp &
     & ,edif_tmp,edif_tmp_n,edif_tmp_p,khco2n_tmp,pco2n_tmp,edifn_tmp,caqsupp_tmp,kco2,k1,k2,kho,sw_red &
-    & ,flx_max,flx_max_max,pco2i,proi,knh3,k1nh3
+    & ,flx_max,flx_max_max,pco2i,proi,knh3,k1nh3,kn2o
 
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8)::fact = 1d-3
@@ -12191,8 +12202,8 @@ logical,intent(in)::sld_enforce != .true.
 character(10) precstyle 
 real(kind=8) msld_seed ,fact2
 real(kind=8):: fact_tol = 1d-3
-real(kind=8):: dt_th = 1d-3
-real(kind=8) flx_tol != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
+real(kind=8):: dt_th = 1d-6
+real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 integer solve_sld 
 
 !-----------------------------------------------
@@ -12206,7 +12217,7 @@ precstyle = 'def'
 msld_seed = 1d-20
 
 ! flx_tol = tol*fact_tol*(z(nz)+0.5d0*dz(nz))
-flx_tol = 1d-4
+! flx_tol = 1d-4
 
 if (sld_enforce) then 
     solve_sld = 0
@@ -12239,6 +12250,8 @@ kho = keqgas_h(findloc(chrgas_all,'po2',dim=1),ieqgas_h0)
 
 knh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h0)
 k1nh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h1)
+
+kn2o = keqgas_h(findloc(chrgas_all,'pn2o',dim=1),ieqgas_h0)
 
     
 nonprec = 1d0 ! primary minerals only dissolve
@@ -12308,6 +12321,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,print_cb,print_loc,z &! input 
                 & ,dummy,ph_error,dummy2 &! output
                 & ) 
+            if (ph_error) then 
+                flgback = .true.
+                return
+            endif 
             dprodmaq(ispa,:) = (dummy - prox)/dconc
             dso4fdmaq(ispa,:) = (dummy2 - so4f)/dconc
         endif 
@@ -12329,6 +12346,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,print_cb,print_loc,z &! input 
                 & ,dummy,ph_error,dummy2 &! output
                 & ) 
+            if (ph_error) then 
+                flgback = .true.
+                return
+            endif 
             dprodmgas(ispg,:) = (dummy - prox)/dconc
             dso4fdmgas(ispg,:) = (dummy2 - so4f)/dconc
         endif 
@@ -12607,6 +12628,11 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 khgasx(ispg,:) = knh3*(1d0+prox/k1nh3)
         
                 dkhgas_dpro(ispg,:) = knh3*(1d0/k1nh3)
+            case('pn2o')
+                khgas(ispg,:) = kn2o ! previous value; should not change through iterations 
+                khgasx(ispg,:) = kn2o
+        
+                dkhgas_dpro(ispg,:) = 0d0
         endselect 
         
         dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*tora*dgasa(ispg)
@@ -13610,6 +13636,9 @@ do ispg = 1, nsp_gas
         case('pnh3')
             khgas(ispg,:) = knh3*(1d0+pro/k1nh3) ! previous value; should not change through iterations 
             khgasx(ispg,:) = knh3*(1d0+prox/k1nh3)
+        case('pn2o')
+            khgas(ispg,:) = kn2o ! previous value; should not change through iterations 
+            khgasx(ispg,:) = kn2o
     endselect 
     
     dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*tora*dgasa(ispg)
@@ -13854,7 +13883,9 @@ if (chkflx .and. dt > dt_th) then
             
             if (flx_max/flx_max_max > 1d-9 .and.  abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > flx_tol ) then 
                 print *, 'too large error in mass balance of sld phases'
-                print *,chrsld(isps),abs(sum(flx_sld(isps,ires,:)*dz)),flx_max
+                print *,'sp | flx that raised the flag | flx_max  | flx_tol'
+                print *,chrsld(isps),abs(sum(flx_sld(isps,ires,:)*dz)),flx_max,flx_tol
+                ! pause
                 flgback = .true.
                 return
             
@@ -13882,7 +13913,9 @@ if (chkflx .and. dt > dt_th) then
         
         if (flx_max/flx_max_max > 1d-9  .and. abs(sum(flx_aq(ispa,ires,:)*dz))/flx_max > flx_tol ) then 
             print *, 'too large error in mass balance of aq phases'
-            print *,chraq(ispa),abs(sum(flx_aq(ispa,ires,:)*dz)),flx_max
+            print *,'sp | flx that raised the flag | flx_max  | flx_tol' 
+            print *,chraq(ispa),abs(sum(flx_aq(ispa,ires,:)*dz)),flx_max,flx_tol
+            ! pause
             flgback = .true.
             return
         
@@ -13909,7 +13942,9 @@ if (chkflx .and. dt > dt_th) then
         
         if (flx_max/flx_max_max > 1d-9  .and. abs(sum(flx_gas(ispg,ires,:)*dz))/flx_max > flx_tol ) then 
             print *, 'too large error in mass balance of gas phases'
-            print *,chrgas(ispg),abs(sum(flx_gas(ispg,ires,:)*dz)),flx_max
+            print *,'sp | flx that raised the flag | flx_max  | flx_tol' 
+            print *,chrgas(ispg),abs(sum(flx_gas(ispg,ires,:)*dz)),flx_max,flx_tol
+            ! pause
             flgback = .true.
             return
         
@@ -13963,6 +13998,8 @@ real(kind=8),dimension(nsp_sld,nsp_gas,nz),intent(out)::drxnsld_dmgas
 
 integer ispa,isps,ispg,iz
 real(kind=8),dimension(nsp_sld,nz)::maxdis,maxprec
+
+real(kind=8)::auth_th = 1d2
     
 rxnsld = 0d0
 drxnsld_dmsld = 0d0
@@ -14147,6 +14184,29 @@ do isps = 1,nsp_sld
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
                     & )
             enddo 
+            
+            ! attempt to add authigenesis above some threshould for omega
+            ! do iz=1,nz 
+                ! if (nonprec(isps,iz)==0d0 .and. omega(isps,iz) > auth_th) then 
+                    ! rxnsld(isps,iz) = rxnsld(isps,iz) + ( &
+                        ! & + ksld(isps,iz)*poro(iz)*hr(iz)*(1d0-omega(isps,iz)) &
+                        ! & )
+                    
+                    ! do ispa = 1, nsp_aq
+                        ! drxnsld_dmaq(isps,ispa,iz) = drxnsld_dmaq(isps,ispa,iz) + ( &
+                            ! & + ksld(isps,iz)*poro(iz)*hr(iz)*(-domega_dmaq(isps,ispa,iz)) &
+                            ! & + dksld_dmaq(isps,ispa,iz)*poro(iz)*hr(iz)*(1d0-omega(isps,iz)) &
+                            ! & )
+                    ! enddo 
+                    
+                    ! do ispg = 1, nsp_gas
+                        ! drxnsld_dmgas(isps,ispg,iz) = drxnsld_dmgas(isps,ispg,iz) + ( &
+                            ! & + ksld(isps,iz)*poro(iz)*hr(iz)*(-domega_dmgas(isps,ispg,iz)) &
+                            ! & + dksld_dmgas(isps,ispg,iz)*poro(iz)*hr(iz)*(1d0-omega(isps,iz)) &
+                            ! & )
+                    ! enddo 
+                ! endif 
+            ! enddo 
             
             ! print *, 'max-rxnflx', isps, sum (ksld(isps,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*dz)
     

@@ -1,4 +1,5 @@
 ** atmospheric composition in atm (if not specified assumed 1 PAL)
-pco2    3.16e-4
-po2     0.21
-pnh3    0.0
+pco2      3.16e-4
+po2       0.21
+pnh3      1.0e-9
+pn2o      270e-9
