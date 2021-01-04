@@ -867,7 +867,8 @@ staq_dext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chraq_all,'no3',dim
 stgas_dext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
 stsld_dext_all(findloc(chrrxn_ext_all,'g2n21',dim=1), findloc(chrsld_all,'g2',dim=1)) = 1d0
 ! 2nd of 2 step denitrification (2 N2O  +  CH2O  ->  2 N2  +  CO2  +  H2O) 
-stgas_dext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
+staq_dext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chraq_all,'no3',dim=1)) = 1d0
+! stgas_dext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'po2',dim=1)) = 1d0
 stgas_dext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrgas_all,'pn2o',dim=1)) = 1d0
 stsld_dext_all(findloc(chrrxn_ext_all,'g2n22',dim=1), findloc(chrsld_all,'g2',dim=1)) = 1d0
 
@@ -11374,7 +11375,7 @@ real(kind=8):: po2th,fe2th,mwtom,g1th,g2th,g3th,mvpy,fe3th,knh3,k1nh3,ko2,v_tmp,
     & ,kn2o
 real(kind=8),dimension(nz):: po2x,vmax,mo2,fe2x,koxa,vmax2,mom2,komb,beta,omx,ombx &
     & ,mo2g1,mo2g2,mo2g3,kg1,kg2,kg3,g1x,g2x,g3x,pyx,fe3x,koxpy,pnh3x,nh4x,dnh4_dpro,dnh4_dpnh3 &
-    & ,no3x,pn2ox
+    & ,no3x,pn2ox,dv_dph_tmp
 real(kind=8),dimension(nz),intent(in):: poro,sat,hr,prox
 real(kind=8),dimension(nz),intent(out):: drxnext_dmsp
 real(kind=8),dimension(nz),intent(out):: rxn_ext
@@ -11672,14 +11673,38 @@ select case(trim(adjustl(rxn_name)))
         select case(trim(adjustl(scheme)))
             case('maggi08')
                 v_tmp = 9.53d-6*60d0*60d0*24d0*365d0 ! (~300 /yr)
-                v_tmp = v_tmp/100d0 ! (~3 /yr; default value produces too much nitrate (pH goes down to ~1)
+                ! v_tmp = v_tmp/100d0 ! (~3 /yr; default value produces too much nitrate (pH goes down to ~1)
                 km_tmp1 = 14d-5
                 km_tmp2 = 2.41d-5
                 rxn_ext = ( &
                     & v_tmp &
                     & *nh4x/(nh4x + km_tmp1 ) &
                     & *po2x*ko2/(po2x*ko2 + km_tmp2 ) &
+                    & *min(2d0*sat,1d0) &
+                    ! & *max( min( 0.25d0*(-log10(prox))-0.75d0, -0.25d0*(-log10(prox))+2.75d0 ), 0d0 ) &
+                    & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                     & )
+                
+                dv_dph_tmp = 0d0
+                where (3d0 < -log10(prox) .and. -log10(prox) < 7d0)
+                    dv_dph_tmp = 0.25d0
+                elsewhere (7d0 < -log10(prox) .and. -log10(prox) < 11d0)
+                    dv_dph_tmp = -0.25d0
+                elsewhere (-log10(prox) == 7d0)
+                    dv_dph_tmp = 0d0
+                elsewhere (-log10(prox) == 3d0)
+                    dv_dph_tmp = 0.125d0
+                elsewhere (-log10(prox) == 11d0)
+                    dv_dph_tmp = -0.125d0
+                elsewhere 
+                    dv_dph_tmp = 0d0
+                endwhere 
+                
+                ! when using modified version using normal distribution with sigma = 1 
+                dv_dph_tmp = exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &
+                    & *-0.5d0*2d0*((-log10(prox)-7d0)/1d0)  &
+                    & *(-1d0) &
+                    & *1d0/log(10d0)/prox
                 
                 select case(trim(adjustl(sp_name)))
                     case('po2')
@@ -11690,6 +11715,9 @@ select case(trim(adjustl(rxn_name)))
                             & 1d0*ko2/(po2x*ko2 + km_tmp2) &
                             & + po2x*ko2*(-1d0)/(po2x*ko2 + km_tmp2)**2d0 * ko2 &
                             & ) &
+                            & *min(2d0*sat,1d0) &
+                            ! & *max( min( 0.25d0*(-log10(prox))-0.75d0, -0.25d0*(-log10(prox))+2.75d0 ), 0d0 ) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                             & )
                     case('pnh3')
                         drxnext_dmsp = ( &
@@ -11699,6 +11727,9 @@ select case(trim(adjustl(rxn_name)))
                             & + nh4x*(-1d0)/(nh4x + km_tmp1 )**2d0 * dnh4_dpnh3 &
                             & ) &
                             & *po2x*ko2/(po2x*ko2 + km_tmp2) &
+                            & *min(2d0*sat,1d0) &
+                            ! & *max( min( 0.25d0*(-log10(prox))-0.75d0, -0.25d0*(-log10(prox))+2.75d0 ), 0d0 ) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                             & )
                     case('pro')
                         drxnext_dmsp = ( &
@@ -11708,6 +11739,15 @@ select case(trim(adjustl(rxn_name)))
                             & + nh4x*(-1d0)/(nh4x + km_tmp1 )**2d0 * dnh4_dpro &
                             & ) &
                             & *po2x*ko2/(po2x*ko2 + km_tmp2) &
+                            & *min(2d0*sat,1d0) &
+                            ! & *max( min( 0.25d0*(-log10(prox))-0.75d0, -0.25d0*(-log10(prox))+2.75d0 ), 0d0 ) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
+                            & + &
+                            & v_tmp &
+                            & *nh4x/(nh4x + km_tmp1 ) &
+                            & *po2x*ko2/(po2x*ko2 + km_tmp2 ) &
+                            & *min(2d0*sat,1d0) &
+                            & *dv_dph_tmp &
                             & )
                     case default
                         drxnext_dmsp = 0d0
@@ -11799,8 +11839,16 @@ select case(trim(adjustl(rxn_name)))
                     & *g2x/(g2x + km_tmp1 ) &
                     & *no3x/(no3x + km_tmp2 ) &
                     & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                    & *min(2d0*sat,1d0) &
+                    & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                     & )
                 
+                ! when using modified version using normal distribution with sigma = 1 
+                dv_dph_tmp = exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &
+                    & *-0.5d0*2d0*((-log10(prox)-7d0)/1d0)  &
+                    & *(-1d0) &
+                    & *1d0/log(10d0)/prox
+                    
                 select case(trim(adjustl(sp_name)))
                     case('g2')
                         drxnext_dmsp = ( &
@@ -11811,6 +11859,8 @@ select case(trim(adjustl(rxn_name)))
                             & ) &
                             & *no3x/(no3x + km_tmp2 ) &
                             & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & *min(2d0*sat,1d0) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                             & )
                     case('no3')
                         drxnext_dmsp = ( &
@@ -11821,6 +11871,8 @@ select case(trim(adjustl(rxn_name)))
                             & + no3x*(-1d0)/(no3x + km_tmp2 )**2d0 * 1d0 &
                             & ) &
                             & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & *min(2d0*sat,1d0) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                             & )
                     case('po2')
                         drxnext_dmsp = ( &
@@ -11828,6 +11880,17 @@ select case(trim(adjustl(rxn_name)))
                             & *g2x/(g2x + km_tmp1 ) &
                             & *no3x/(no3x + km_tmp2 ) &
                             & *km_tmp3*(-1d0)/(po2x*ko2 + km_tmp3 )**2d0 * ko2 &
+                            & *min(2d0*sat,1d0) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
+                            & )
+                    case('pro')
+                        drxnext_dmsp = ( &
+                            & v_tmp &
+                            & *g2x/(g2x + km_tmp1 ) &
+                            & *no3x/(no3x + km_tmp2 ) &
+                            & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & *min(2d0*sat,1d0) &
+                            & *dv_dph_tmp &! modified version using normal distribution with sigma = 1 
                             & )
                     case default
                         drxnext_dmsp = 0d0
@@ -11848,9 +11911,18 @@ select case(trim(adjustl(rxn_name)))
                     & v_tmp &
                     & *g2x/(g2x + km_tmp1 ) &
                     & *kn2o*pn2ox/(kn2o*pn2ox + km_tmp2 ) &
-                    & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                    ! & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                    & *km_tmp3/(no3x + km_tmp3 ) &
+                    & *min(2d0*sat,1d0) &
+                    & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                     & )
                 
+                ! when using modified version using normal distribution with sigma = 1 
+                dv_dph_tmp = exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &
+                    & *-0.5d0*2d0*((-log10(prox)-7d0)/1d0)  &
+                    & *(-1d0) &
+                    & *1d0/log(10d0)/prox
+                    
                 select case(trim(adjustl(sp_name)))
                     case('g2')
                         drxnext_dmsp = ( &
@@ -11860,7 +11932,10 @@ select case(trim(adjustl(rxn_name)))
                             & + g2x*(-1d0)/(g2x + km_tmp1 )**2d0 * 1d0 &
                             & ) &
                             & *kn2o*pn2ox/(kn2o*pn2ox + km_tmp2 ) &
-                            & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            ! & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & *km_tmp3/(no3x + km_tmp3 ) &
+                            & *min(2d0*sat,1d0) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                             & )
                     case('pn2o')
                         drxnext_dmsp = ( &
@@ -11870,14 +11945,39 @@ select case(trim(adjustl(rxn_name)))
                             & kn2o/(kn2o*pn2ox + km_tmp2 ) &
                             & + kn2o*pn2ox*(-1d0)/(kn2o*pn2ox + km_tmp2 )**2d0 * kn2o &
                             & ) &
-                            & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            ! & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & *km_tmp3/(no3x + km_tmp3 ) &
+                            & *min(2d0*sat,1d0) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
                             & )
-                    case('po2')
+                    ! case('po2')
+                        ! drxnext_dmsp = ( &
+                            ! & v_tmp &
+                            ! & *g2x/(g2x + km_tmp1 ) &
+                            ! & *kn2o*pn2ox/(kn2o*pn2ox + km_tmp2 ) &
+                            ! & *km_tmp3*(-1d0)/(po2x*ko2 + km_tmp3 )**2d0 * ko2 &
+                            ! & *min(2d0*sat,1d0) &
+                            ! & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
+                            ! & )
+                    case('no3')
                         drxnext_dmsp = ( &
                             & v_tmp &
                             & *g2x/(g2x + km_tmp1 ) &
                             & *kn2o*pn2ox/(kn2o*pn2ox + km_tmp2 ) &
-                            & *km_tmp3*(-1d0)/(po2x*ko2 + km_tmp3 )**2d0 * ko2 &
+                            ! & *km_tmp3*(-1d0)/(po2x*ko2 + km_tmp3 )**2d0 * ko2 &
+                            & *km_tmp3*(-1d0)/(no3x + km_tmp3 )**2d0 * 1d0 &
+                            & *min(2d0*sat,1d0) &
+                            & *exp(-0.5d0*((-log10(prox)-7d0)/1d0)**2d0) &! modified version using normal distribution with sigma = 1 
+                            & )
+                    case('pro')
+                        drxnext_dmsp = ( &
+                            & v_tmp &
+                            & *g2x/(g2x + km_tmp1 ) &
+                            & *kn2o*pn2ox/(kn2o*pn2ox + km_tmp2 ) &
+                            ! & *km_tmp3/(po2x*ko2 + km_tmp3 ) &
+                            & *km_tmp3/(no3x + km_tmp3 ) &
+                            & *min(2d0*sat,1d0) &
+                            & *dv_dph_tmp &! modified version using normal distribution with sigma = 1 
                             & )
                     case default
                         drxnext_dmsp = 0d0
