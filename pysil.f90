@@ -1691,7 +1691,7 @@ do while (it<nt)
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
         !  old inputs
         & ,hr,poro,z,dz,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
-        & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0  &
+        & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi  &
         ! old inout
         & ,dt,flgback &    
         ! output 
@@ -15962,7 +15962,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
     !  old inputs
     & ,hr,poro,z,dz,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
-    & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0  &
+    & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi  &
     ! old inout
     & ,dt,flgback &    
     ! output 
@@ -15972,7 +15972,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
 implicit none 
 
 integer,intent(in)::nz,nflx
-real(kind=8),intent(in)::w,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0
+real(kind=8),intent(in)::w,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi
 real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,tora,v,poroprev,dz,torg,pro
 real(kind=8),dimension(nz),intent(out)::prox,so4f
 integer,intent(inout)::it
@@ -16087,7 +16087,7 @@ integer,dimension(nrxn_ext)::irxn_ext
 real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp &
     & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp,omega_tmp_th,rxn_ext_tmp &
     & ,edif_tmp,edif_tmp_n,edif_tmp_p,khco2n_tmp,pco2n_tmp,edifn_tmp,caqsupp_tmp,kco2,k1,k2,kho,sw_red &
-    & ,flx_max,flx_max_max,pco2i,proi,knh3,k1nh3,kn2o
+    & ,flx_max,flx_max_max,proi_tmp,knh3,k1nh3,kn2o
 
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8)::fact = 1d-3
@@ -17892,9 +17892,13 @@ do iz = 1, nz
     
     if (any(chrgas=='pco2')) then 
         ispg = findloc(chrgas,'pco2',dim=1)
-        pco2i = mgasi(ispg)
-        proi = prox(max(1,iz-1))
-        if (iz==1) proi = sqrt(kco2*k1*pco2i)
+        
+        pco2n_tmp = mgasx(ispg,max(1,iz-1))
+        proi_tmp = prox(max(1,iz-1))
+        if (iz == 1) then 
+            pco2n_tmp = mgasi(ispg)
+            proi_tmp = proi
+        endif 
         
         ! gaseous CO2
         
@@ -17957,7 +17961,7 @@ do iz = 1, nz
         flx_co2sp(3,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*( &
             &       kco2*k1/prox(iz)*mgasx(ispg,iz) &
-            &       - kco2*k1/proi*pco2n_tmp)/dz(iz) &
+            &       - kco2*k1/proi_tmp*pco2n_tmp)/dz(iz) &
             & )
             
         ! CO32-
@@ -17980,7 +17984,7 @@ do iz = 1, nz
         flx_co2sp(4,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*( &
             &       kco2*k1*k2/prox(iz)**2d0*mgasx(ispg,iz) &
-            &       - kco2*k1*k2/proi**2d0*pco2n_tmp)/dz(iz) &
+            &       - kco2*k1*k2/proi_tmp**2d0*pco2n_tmp)/dz(iz) &
             & )
             
             
