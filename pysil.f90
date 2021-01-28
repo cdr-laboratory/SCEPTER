@@ -230,6 +230,7 @@ real(kind=8) rectime(nrec)
 character(3) chr
 character(256) runname,workdir, chrz(3), chrq(3),base,fname, chrrain
 character(500),intent(in):: runname_save
+character(500) loc_runname_save
 integer irec, iter
 
 
@@ -1192,17 +1193,19 @@ poroprev = poro
 if (read_data) then 
     ! runname_save = 'test_cpl_rain-0.40E+04_pevol_sevol1_q-0.10E-01_zsat-5' ! specifiy the file where restart data is stored 
     ! runname_save = runname  ! the working folder has the restart data 
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'prof_sld-save.txt '  &
+    loc_runname_save = runname_save
+    if (trim(adjustl(runname_save)) == 'self') loc_runname_save = runname
+    call system('cp '//trim(adjustl(workdir))//trim(adjustl(loc_runname_save))//'/'//'prof_sld-save.txt '  &
         & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_sld-restart.txt')
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'prof_aq-save.txt '  &
+    call system('cp '//trim(adjustl(workdir))//trim(adjustl(loc_runname_save))//'/'//'prof_aq-save.txt '  &
         & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_aq-restart.txt')
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'prof_gas-save.txt '  &
+    call system('cp '//trim(adjustl(workdir))//trim(adjustl(loc_runname_save))//'/'//'prof_gas-save.txt '  &
         & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_gas-restart.txt')
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(runname_save))//'/'//'bsd-save.txt '  &
+    call system('cp '//trim(adjustl(workdir))//trim(adjustl(loc_runname_save))//'/'//'bsd-save.txt '  &
         & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'bsd-restart.txt')
         
     call get_saved_variables_num( &
-        & workdir,runname_save &! input
+        & workdir,loc_runname_save &! input
         & ,nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save &! output
         & )
     
@@ -1211,7 +1214,7 @@ if (read_data) then
         
     
     call get_saved_variables( &
-        & workdir,runname_save &! input
+        & workdir,loc_runname_save &! input
         & ,nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save &! input
         & ,chraq_save,chrgas_save,chrsld_save,chrrxn_ext_save &! output
         & )
@@ -1551,8 +1554,8 @@ do while (it<nt)
                 & + plant_rain/12d0*rfrc_sld_plant(isps)/dz(1) ! when plant_rain is in g_C/m2/yr
         endif 
     enddo 
-    
-    if (sld_enforce) then 
+    ! when enforcing solid states without previous OM spin-up
+    if (sld_enforce .and. (.not.read_data)) then 
         if (any(chrgas=='pco2')) then 
             ! mgassupp(findloc(chrgas,'pco2',dim=1),:) = plant_rain/12d0*exp(-z/zsupp_plant)/zsupp_plant
             mgassupp(findloc(chrgas,'pco2',dim=1),:) = plant_rain/12d0/ztot
@@ -2885,9 +2888,10 @@ keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so4) = &
 ! keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so42) = &
     ! & k_arrhenius(10d0**(5.0d0),25d0+tempk_0,tc+tempk_0,3.11d0*cal2j,rg) ! from PHREEQC.DAT 
 
-
+! H4SiO4 = H3SiO4- + H+
 keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h1) = &
     & k_arrhenius(10d0**(-9.83d0),25d0+tempk_0,tc+tempk_0,6.12d0*cal2j,rg) ! from PHREEQC.DAT 
+! H4SiO4 = H2SiO4-2 + 2 H+
 keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h2) = &
     & k_arrhenius(10d0**(-23d0),25d0+tempk_0,tc+tempk_0,17.6d0*cal2j,rg) ! from PHREEQC.DAT 
 
