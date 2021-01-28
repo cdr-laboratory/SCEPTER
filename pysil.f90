@@ -107,6 +107,9 @@ real(kind=8),parameter :: mvct = 108.5d0 ! cm3/mol; molar volume of Chrysotile (
 real(kind=8),parameter :: mvfa = 46.39d0 ! cm3/mol; molar volume of Fayalite (Fe2SiO4); Robie et al. 1978
 real(kind=8),parameter :: mvgt = 20.82d0 ! cm3/mol; molar volume of Goethite (FeO(OH)); Robie et al. 1978
 real(kind=8),parameter :: mvcabd = 129.77d0 ! cm3/mol; molar volume of Ca-beidellite (Ca(1/6)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
+real(kind=8),parameter :: mvkbd = 134.15d0 ! cm3/mol; molar volume of K-beidellite (K(1/3)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
+real(kind=8),parameter :: mvnabd = 130.73d0 ! cm3/mol; molar volume of Na-beidellite (Na(1/3)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
+real(kind=8),parameter :: mvmgbd = 128.73d0 ! cm3/mol; molar volume of Mg-beidellite (Mg(1/6)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
 real(kind=8),parameter :: mvdp = 66.09d0 ! cm3/mol; molar volume of Diopside (MgCaSi2O6);  Robie et al. 1978
 real(kind=8),parameter :: mvhb = 248.09d0/3.55d0 ! cm3/mol; molar volume of Hedenbergite (FeCaSi2O6); from a webpage
 real(kind=8),parameter :: mvcpx = fr_hb_cpx*fr_hb_cpx + (1d0-fr_hb_cpx)*mvdp  ! cm3/mol; molar volume of clinopyroxene (FexMg(1-x)CaSi2O6); assuming simple ('ideal'?) mixing
@@ -147,6 +150,9 @@ real(kind=8),parameter :: mwtct = 277.113d0 ! g/mol; formula weight of Ct; Robie
 real(kind=8),parameter :: mwtfa = 203.778d0 ! g/mol; formula weight of Fa; Robie et al. 1978
 real(kind=8),parameter :: mwtgt = 88.854d0 ! g/mol; formula weight of Gt; Robie et al. 1978
 real(kind=8),parameter :: mwtcabd = 366.6252667d0 ! g/mol; formula weight of Cabd calculated from atmoic weight
+real(kind=8),parameter :: mwtkbd = 372.9783667d0 ! g/mol; formula weight of Kbd calculated from atmoic weight
+real(kind=8),parameter :: mwtnabd = 367.6088333d0 ! g/mol; formula weight of Nabd calculated from atmoic weight
+real(kind=8),parameter :: mwtmgbd = 363.9964333d0 ! g/mol; formula weight of Mgbd calculated from atmoic weight
 real(kind=8),parameter :: mwtdp = 216.553d0 ! g/mol;  Robie et al. 1978
 real(kind=8),parameter :: mwthb = 248.09d0 ! g/mol; from a webpage
 real(kind=8),parameter :: mwtcpx = fr_hb_cpx*fr_hb_cpx + (1d0-fr_hb_cpx)*mvdp ! g/mol; formula weight of clinopyroxene (FexMg(1-x)CaSi2O6); assuming simple ('ideal'?) mixing
@@ -314,8 +320,8 @@ integer count_dtunchanged
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
-integer,parameter::nsp_sld_2 = 14
-integer,parameter::nsp_sld_all = 37
+integer,parameter::nsp_sld_2 = 17
+integer,parameter::nsp_sld_all = 40
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -479,7 +485,8 @@ chrflx(nflx) = 'res  '
 
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
-    & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ' &
+    & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
+    & ,'mgbd ','nabd ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -498,7 +505,7 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n2
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    ,'arg  ','dlm  ','qtz  '/) 
+    ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  '/) 
 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
@@ -549,9 +556,11 @@ endif
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
+    & ,mvkbd,mvmgbd,mvnabd &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
+    & ,mwtkbd,mwtmgbd,mwtnabd &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -715,6 +724,18 @@ staq_all(findloc(chrsld_all,'hm',dim=1), findloc(chraq_all,'fe3',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0/6d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'si',dim=1)) = 11d0/3d0
+! Mg-beidellite; Mg(1/6)Al(7/3)Si(11/3)O10(OH)2
+staq_all(findloc(chrsld_all,'mgbd',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0/6d0
+staq_all(findloc(chrsld_all,'mgbd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
+staq_all(findloc(chrsld_all,'mgbd',dim=1), findloc(chraq_all,'si',dim=1)) = 11d0/3d0
+! K-beidellite; K(1/3)Al(7/3)Si(11/3)O10(OH)2
+staq_all(findloc(chrsld_all,'kbd',dim=1), findloc(chraq_all,'k',dim=1)) = 1d0/3d0
+staq_all(findloc(chrsld_all,'kbd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
+staq_all(findloc(chrsld_all,'kbd',dim=1), findloc(chraq_all,'si',dim=1)) = 11d0/3d0
+! Na-beidellite; Na(1/3)Al(7/3)Si(11/3)O10(OH)2
+staq_all(findloc(chrsld_all,'nabd',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0/3d0
+staq_all(findloc(chrsld_all,'nabd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
+staq_all(findloc(chrsld_all,'nabd',dim=1), findloc(chraq_all,'si',dim=1)) = 11d0/3d0
 ! Illite; K0.6Mg0.25Al2.3Si3.5O10(OH)2
 staq_all(findloc(chrsld_all,'ill',dim=1), findloc(chraq_all,'k',dim=1)) = 0.6d0
 staq_all(findloc(chrsld_all,'ill',dim=1), findloc(chraq_all,'mg',dim=1)) = 0.25d0
@@ -3570,7 +3591,7 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
 
-    case('cabd','ill') ! illite kinetics is assumed to be the same as smectite (Bibi et al., 2011)
+    case('cabd','ill','kbd','nabd','mgbd') ! illite kinetics is assumed to be the same as smectite (Bibi et al., 2011)
         mh = 0.34d0
         moh = -0.4d0
         kinn_ref = 10d0**(-12.78d0)*sec2yr
@@ -3956,6 +3977,27 @@ select case(trim(adjustl(mineral)))
         ! Beidellit-Ca  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .165 Ca++
         therm_ref = 10d0**(7.269946518d0)
         ha = -157.0186168d0
+        tc_ref = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('mgbd')
+        ! Beidellit-Mg  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .165 Mg++
+        therm_ref = 10d0**(7.270517113d0)
+        ha = -160.1864268d0
+        tc_ref = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('nabd')
+        ! Beidellit-Na  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .33 Na+
+        therm_ref = 10d0**(7.288837383d0)
+        ha = -150.7328834d0
+        tc_ref = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('kbd')
+        ! Beidellit-K  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .33 K+
+        therm_ref = 10d0**(6.928086412d0)
+        ha = -145.6776905d0
         tc_ref = 15d0
         ! from Kanzaki & Murakami 2018
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
@@ -14582,7 +14624,7 @@ select case(trim(adjustl(mineral)))
     ! case default ! (almino)silicates & oxides
     case ( &
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
-        & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx' &
+        & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
