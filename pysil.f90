@@ -405,10 +405,17 @@ data ieqaq_co3,ieqaq_hco3/1,2/
 integer ieqaq_so4,ieqaq_so42
 data ieqaq_so4,ieqaq_so42/1,2/
 
+#ifdef full_flux_report
+integer,dimension(nsp_aq,nz)::iaqflx
+integer,dimension(nsp_gas,nz)::igasflx
+integer,dimension(nsp_sld,nz)::isldflx
+integer,dimension(6,nz)::ico2flx
+#else
 integer,dimension(nsp_aq)::iaqflx
 integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
 integer,dimension(6)::ico2flx
+#endif 
 
 integer,parameter::ibasaltrain = 15
 integer isldprof,isldprof2,iaqprof,igasprof,isldsat,ibsd,irate 
@@ -430,6 +437,7 @@ character(500),intent(in):: sim_name
 
 real(kind=8) def_dust,def_rain,def_pr,def_OM_frc
 character(5),dimension(5 + nrxn_ext + nsp_sld)::chrflx
+character(3) chriz
 character(20) chrfmt
 
 integer::itflx,iadv,idif,irain,ires
@@ -1045,6 +1053,35 @@ endif
 write(runname,*) trim(adjustl(base))//'_q-'//trim(adjustl(chrq(3)))//'_zsat-'  &
     & //trim(adjustl(chrz(3)))
 
+#ifdef full_flux_report
+do isps = 1, nsp_sld 
+    do iz = 1, nz
+        isldflx(isps,iz) = ibasaltrain + (isps-1)*nz + iz
+        ! print *,isldflx(isps,iz)
+    enddo 
+enddo     
+do ispa = 1, nsp_aq 
+    do iz=1,nz
+        iaqflx(ispa,iz) = ibasaltrain + nsp_sld*nz  + (ispa - 1)*nz + iz
+        ! print *,iaqflx(ispa,iz)
+    enddo
+enddo 
+
+do ispg = 1, nsp_gas
+    do iz= 1,nz
+        igasflx(ispg,iz) = ibasaltrain + nsp_sld*nz + nsp_aq*nz + (ispg-1)*nz + iz
+        ! print*,igasflx(ispg,iz)
+    enddo 
+enddo 
+
+do ico2 = 1, 6
+    do iz = 1, nz
+        ico2flx(ico2,iz) = ibasaltrain + nsp_sld*nz + nsp_aq*nz + nsp_gas*nz + (ico2 - 1)*nz + iz
+        ! print*,ico2flx(ico2,iz)
+    enddo 
+enddo 
+! pause
+#else 
 do isps = 1, nsp_sld 
     isldflx(isps) = ibasaltrain + isps
 enddo 
@@ -1060,6 +1097,7 @@ enddo
 do ico2 = 1, 6
     ico2flx(ico2) = ibasaltrain + nsp_sld + nsp_aq + nsp_gas + ico2
 enddo 
+#endif 
 
 ! print*,workdir
 ! print*,runname
@@ -1068,6 +1106,58 @@ enddo
 call system ('mkdir -p '//trim(adjustl(workdir))//trim(adjustl(runname)))
 
 call system ('cp gases.in solutes.in slds.in extrxns.in '//trim(adjustl(workdir))//trim(adjustl(runname)))
+
+#ifdef full_flux_report
+
+write(chrfmt,'(i0)') nflx+2
+
+chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a))'
+
+do isps = 1,nsp_sld
+    do iz = 1,nz
+        write(chriz,'(i3.3)') iz
+        open(isldflx(isps,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'-'//trim(adjustl(chriz))//'.txt' &
+            & , status='replace')
+        write(isldflx(isps,iz),trim(adjustl(chrfmt))) 'time','z',(chrflx(iflx),iflx=1,nflx)
+        close(isldflx(isps,iz))
+    enddo 
+enddo 
+
+do ispa = 1,nsp_aq
+    do iz= 1,nz
+        write(chriz,'(i3.3)') iz
+        open(iaqflx(ispa,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'-'//trim(adjustl(chriz))//'.txt' &
+            & , status='replace')
+        write(iaqflx(ispa,iz),trim(adjustl(chrfmt))) 'time','z',(chrflx(iflx),iflx=1,nflx)
+        close(iaqflx(ispa,iz))
+    enddo 
+enddo 
+
+do ispg = 1,nsp_gas
+    do iz=1,nz
+        write(chriz,'(i3.3)') iz
+        open(igasflx(ispg,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'-'//trim(adjustl(chriz))//'.txt' &
+            & , status='replace')
+        write(igasflx(ispg,iz),trim(adjustl(chrfmt))) 'time','z',(chrflx(iflx),iflx=1,nflx)
+        close(igasflx(ispg,iz))
+    enddo 
+enddo 
+
+do ico2 = 1,6
+    do iz= 1,nz
+        write(chriz,'(i3.3)') iz
+        open(ico2flx(ico2,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'-'//trim(adjustl(chriz))//'.txt' &
+            & , status='replace')
+        write(ico2flx(ico2,iz),trim(adjustl(chrfmt))) 'time','z',(chrflx(iflx),iflx=1,nflx)
+        close(ico2flx(ico2,iz))
+    enddo 
+enddo 
+
+#else 
 
 write(chrfmt,'(i0)') nflx+1
 
@@ -1100,6 +1190,8 @@ do ico2 = 1,6
     write(ico2flx(ico2),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(ico2flx(ico2))
 enddo 
+
+#endif 
 
 open(ibasaltrain, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'rain.txt', &
     & status='replace')
@@ -2011,6 +2103,62 @@ do while (it<nt)
         close(ibsd)
         close(irate)
         
+#ifdef full_flux_report
+        do isps=1,nsp_sld 
+            do iz=1,nz
+                write(chriz,'(i3.3)') iz
+                open(isldflx(isps,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                    & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'-'//trim(adjustl(chriz))//'.txt' &
+                    & , action='write',status='old',position='append')
+                write(isldflx(isps,iz),*) time,z(iz),(sum(flx_sld(isps,iflx,1:iz)*dz(1:iz)),iflx=1,nflx)
+                close(isldflx(isps,iz))
+            enddo 
+        enddo 
+        
+        do ispa=1,nsp_aq 
+            do iz= 1,nz
+                write(chriz,'(i3.3)') iz
+                open(iaqflx(ispa,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                    & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'-'//trim(adjustl(chriz))//'.txt' &
+                    & , action='write',status='old',position='append')
+                write(iaqflx(ispa,iz),*) time,z(iz),(sum(flx_aq(ispa,iflx,1:iz)*dz(1:iz)),iflx=1,nflx)
+                close(iaqflx(ispa,iz))
+            enddo 
+        enddo 
+        
+        do ispg=1,nsp_gas 
+            do iz=1,nz
+                write(chriz,'(i3.3)') iz
+                open(igasflx(ispg,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                    & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'-'//trim(adjustl(chriz))//'.txt'  &
+                    & , action='write',status='old',position='append')
+                write(igasflx(ispg,iz),*) time,z(iz),(sum(flx_gas(ispg,iflx,1:iz)*dz(1:iz)),iflx=1,nflx)
+                close(igasflx(ispg,iz))
+            enddo 
+        enddo 
+        
+        do ico2=1,6 
+            do iz=1,nz
+                write(chriz,'(i3.3)') iz
+                open(ico2flx(ico2,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                    & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'-'//trim(adjustl(chriz))//'.txt' &
+                    & , action='write',status='old',position='append')
+                if (ico2 .le. 4) then 
+                    write(ico2flx(ico2,iz),*) time,z(iz),(sum(flx_co2sp(ico2,iflx,1:iz)*dz(1:iz)),iflx=1,nflx)
+                elseif (ico2 .eq. 5) then 
+                    write(ico2flx(ico2,iz),*) time,z(iz) &
+                        & ,(sum(flx_co2sp(2,iflx,1:iz)*dz(1:iz))+sum(flx_co2sp(3,iflx,1:iz)*dz(1:iz)) &
+                        &       +sum(flx_co2sp(4,iflx,1:iz)*dz(1:iz)) &
+                        & ,iflx=1,nflx)
+                elseif (ico2 .eq. 6) then 
+                    write(ico2flx(ico2,iz),*) time,z(iz) &
+                        & ,(sum(flx_co2sp(3,iflx,1:iz)*dz(1:iz))+2d0*sum(flx_co2sp(4,iflx,1:iz)*dz(1:iz)) &
+                        & ,iflx=1,nflx)
+                endif 
+                close(ico2flx(ico2,iz))
+            enddo 
+        enddo 
+#else
         do isps=1,nsp_sld 
             open(isldflx(isps), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
                 & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
@@ -2048,6 +2196,7 @@ do while (it<nt)
             endif 
             close(ico2flx(ico2))
         enddo 
+#endif 
         
         open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
             & //'prof_sld-save.txt', status='replace')
