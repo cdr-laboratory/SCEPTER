@@ -20,8 +20,8 @@ If you get the error 'libopenblas.so.0: cannot open shared object file: No such 
 1. sudo apt-get install libopenblas-base
 2. export LD_LIBRARY_PATH=/usr/lib/openblas-base/
 
-```$ gfortran -cpp pysil.f90 -lopenblas -O3 ```   
-```$ ./a```
+```$ make ```   
+```$ ./weathering```
 
 
 B). On GaTech cluster     
@@ -29,8 +29,8 @@ BLAS (OpenBLAS) install
 ```$ module load gcc/8.3.0```  
 ```$ module load openblas/0.3.7```   
 Then compile and run...    
-```$ gfortran -cpp -Dno_intr_findloc pysil.f90 -lopenblas   ```   
-```$ ./a```
+```$ make   ```   
+```$ ./weathering```
 
 or submit as a job   
 ```$ qsub PBS_test.pbs```
