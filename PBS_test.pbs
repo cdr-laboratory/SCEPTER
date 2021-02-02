@@ -1,13 +1,15 @@
-#PBS -N la           # job name
+#PBS -N weathering_test           # job name
 #PBS -A GT-creinhard3-FY20Phase2               # account to which job is charged
 #PBS -l nodes=1:ppn=1           # number of nodes and cores per node required
 #PBS -l pmem=2gb                # memory per core
-#PBS -l walltime=02:20:00          # duration of the job (ex: 15 min)
+#PBS -l walltime=05:20:00          # duration of the job (ex: 15 min)
 #PBS -j oe                      # combine output and error messages into 1 file
-#PBS -o la.out       # output file name
+#PBS -o weathering_test.out       # output file name
 
 cd $PBS_O_WORKDIR 
 module load gcc/8.3.0
 module load openblas/0.3.7
-gfortran -cpp -Dno_intr_findloc  -o f pysil_dev.f90   -lopenblas -g -fcheck=all -O3
-./f
+dos2unix weather_test.sh
+chmod u+x weather_test.sh
+./weather_test.sh
+

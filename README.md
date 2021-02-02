@@ -23,6 +23,8 @@ If you get the error 'libopenblas.so.0: cannot open shared object file: No such 
 ```$ make ```   
 ```$ ./weathering```
 
+or run with a shell script, e.g.,      
+```$ ./weather_test.sh```
 
 B). On GaTech cluster     
 BLAS (OpenBLAS) install  
@@ -31,6 +33,9 @@ BLAS (OpenBLAS) install
 Then compile and run...    
 ```$ make   ```   
 ```$ ./weathering```
+
+or run with a shell script, e.g.,      
+```$ ./weather_test.sh```
 
 or submit as a job   
 ```$ qsub PBS_test.pbs```
