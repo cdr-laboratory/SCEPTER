@@ -418,7 +418,7 @@ integer,dimension(6)::ico2flx
 #endif 
 
 integer,parameter::ibasaltrain = 15
-integer isldprof,isldprof2,iaqprof,igasprof,isldsat,ibsd,irate 
+integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate 
 
 logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
 real(kind=8),dimension(nz,nz,nsp_sld)::trans
@@ -460,11 +460,12 @@ nsp3 = nsp_sld + nsp_aq + nsp_gas
 
 isldprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 1
 isldprof2 = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 2
-iaqprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 3
-igasprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 4
-isldsat = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
-ibsd = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 6
-irate = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 7
+isldprof3 = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 3
+iaqprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 4
+igasprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
+isldsat = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 6
+ibsd = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 7
+irate = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 8
 
 nflx = 5 + nrxn_ext + nsp_sld
 
@@ -2055,6 +2056,8 @@ do while (it<nt)
             & //'prof_sld-'//chr//'.txt', status='replace')
         open(isldprof2,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
             & //'prof_sld(wt%)-'//chr//'.txt', status='replace')
+        open(isldprof3,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            & //'prof_sld(v%)-'//chr//'.txt', status='replace')
         open(isldsat,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
             & //'sat_sld-'//chr//'.txt', status='replace')
         open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
@@ -2070,6 +2073,7 @@ do while (it<nt)
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(isldprof,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),'time'
         write(isldprof2,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),'time'
+        write(isldprof3,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),'time'
         write(isldsat,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),'time'
         write(chrfmt,'(i0)') nsp_aq+3
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
@@ -2087,6 +2091,7 @@ do while (it<nt)
         do iz = 1, Nz
             write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
             write(isldprof2,*) z(iz),(msldx(isps,iz)*mwt(isps)*1d2/(rho_grain*1d6),isps = 1, nsp_sld),time
+            write(isldprof3,*) z(iz),(msldx(isps,iz)*mv(isps)*1d-6*1d2,isps = 1, nsp_sld),time
             write(isldsat,*) z(iz),(omega(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(ispg,iz),ispg = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(ispa,iz),ispa = 1, nsp_aq),-log10(prox(iz)),time
@@ -2097,6 +2102,7 @@ do while (it<nt)
 
         close(isldprof)
         close(isldprof2)
+        close(isldprof3)
         close(isldsat)
         close(iaqprof)
         close(igasprof)
