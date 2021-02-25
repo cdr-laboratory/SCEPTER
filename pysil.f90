@@ -48,7 +48,7 @@ contains
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
  
 subroutine weathering_main( &
-    & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,ttot,plant_rain  &! input
+    & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w0,qin,p80,ttot,plant_rain  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
     & ,count_dtunchanged_Max,tc &! input 
     & )
@@ -203,9 +203,9 @@ real(kind=8),intent(in) :: satup != 0.10d0
 real(kind=8),intent(in) :: zsat != 5d0  ! water table depth [m] 
 ! real(kind=8) :: zsat = 15d0
 
-real(kind=8),intent(in) :: w != 5.0d-5 ! m yr^-1, uplift rate ** default 
+real(kind=8),intent(in) :: w0 != 5.0d-5 ! m yr^-1, uplift rate ** default 
 ! real(kind=8), parameter :: w = 1.0d-4 ! m yr^-1, uplift rate
-
+real(kind=8) w(nz)
 
 ! real(kind=8) :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)  ** default
 real(kind=8),intent(in) :: qin != 10d-1 ! m yr^-1 
@@ -1232,6 +1232,7 @@ v = qin/poroi/sat
 poro = poroi
 torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
 tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+w = w0
 
 ! #ifdef surfssa
 ! hri = ssa_cmn*1d6/poro
@@ -1732,7 +1733,7 @@ do while (it<nt)
             ! & )
             
         call precalc_slds_v2_1( &
-            & nz,dt,w,dz,poro,hr,sat &! input
+            & nz,dt,w0,dz,poro,hr,sat &! input
             & ,nsp_sld,nsp_sld_2,chrsld,chrsld_2,msldth,msldi,mv,msld,msldsupp,ksld,omega &! input
             & ,nrxn_ext,rxnext,stsld_ext &!input
             & ,labs,turbo2,trans &! input
@@ -16293,8 +16294,8 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
 implicit none 
 
 integer,intent(in)::nz,nflx
-real(kind=8),intent(in)::w,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi
-real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,tora,v,poroprev,dz,torg,pro
+real(kind=8),intent(in)::tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi
+real(kind=8),dimension(nz),intent(in)::w,hr,poro,z,sat,tora,v,poroprev,dz,torg,pro
 real(kind=8),dimension(nz),intent(out)::prox,so4f
 integer,intent(inout)::it
 integer iter
@@ -17246,7 +17247,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 if (iz==nz) mp_tmp = mi_tmp
 
                 amx3(row,row) = ((1d0-poro(iz))/merge(1d0,dt,dt_norm)     &
-                    & + w/dz(iz)*merge(dt,1d0,dt_norm)    &
+                    & + w(iz)/dz(iz)*merge(dt,1d0,dt_norm)    &
                     & + drxnsld_dmsld(isps,iz)*merge(dt,1d0,dt_norm) &
                     & - sum(stsld_ext(:,isps)*drxnext_dmsld(:,isps,iz))*merge(dt,1d0,dt_norm) &
                     & ) &
@@ -17254,14 +17255,15 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
 
                 ymx3(row) = ( &
                     & ((1d0-poro(iz))*m_tmp-(1d0-poroprev(iz))*mprev_tmp)/merge(1d0,dt,dt_norm) &
-                    & -w*(mp_tmp-m_tmp)/dz(iz)*merge(dt,1d0,dt_norm)  &
+                    & -(w(min(nz,iz+1))*mp_tmp - w(iz)* m_tmp)/dz(iz)*merge(dt,1d0,dt_norm)  &
                     & + rxnsld(isps,iz)*merge(dt,1d0,dt_norm) &
                     & -msupp_tmp*merge(dt,1d0,dt_norm)  &
                     & -rxn_ext_tmp*merge(dt,1d0,dt_norm)  &
                     & ) &
                     & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
                     
-                if (iz/=nz) amx3(row,row+nsp3) = (-w/dz(iz))*merge(dt,1d0,dt_norm) *merge(1.0d0,mp_tmp,m_tmp<mth_tmp*sw_red)
+                if (iz/=nz) amx3(row,row+nsp3) = &
+                    & (-w(min(nz,iz+1))/dz(iz))*merge(dt,1d0,dt_norm) *merge(1.0d0,mp_tmp,m_tmp<mth_tmp*sw_red)
                 
                 do ispa = 1, nsp_aq
                     col = nsp3*(iz-1) + nsp_sld + ispa
@@ -17346,7 +17348,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     & ((1d0-poro(iz))*m_tmp-(1d0-poroprev(iz))*mprev_tmp)/dt &
                     & )
                 flx_sld(isps,iadv,iz) = ( &
-                    & -w*(mp_tmp-m_tmp)/dz(iz)  &
+                    & - ( w(min(nz,iz+1))*mp_tmp - w(iz)*m_tmp )/dz(iz)  &
                     & )
                 flx_sld(isps,irxn_sld(isps),iz) = ( &
                     & + rxnsld(isps,iz) &
@@ -18084,7 +18086,7 @@ if (.not.sld_enforce)then
                 & ((1d0-poro(iz))*m_tmp-(1d0-poroprev(iz))*mprev_tmp)/dt &
                 & )
             flx_sld(isps,iadv,iz) = ( &
-                & -w*(mp_tmp-m_tmp)/dz(iz)  &
+                & - ( w(min(nz,iz+1))*mp_tmp - w(iz)*m_tmp )/dz(iz)  &
                 & )
             ! flx_sld(isps,irxn_sld(isps),iz) = ( &
                 ! & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
