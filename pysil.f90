@@ -297,6 +297,9 @@ logical :: poroevol = .false.
 logical :: surfevol1 = .false.
 logical :: surfevol2 = .false.
 
+! logical :: noncnstw = .false. ! constant uplift rate 
+logical :: noncnstw = .true.  ! varied with porosity
+
 real(kind=8) :: wave_tau = 2d0 ! yr periodic time for wave 
 real(kind=8) :: rain_norm = 0d0
 
@@ -1234,8 +1237,7 @@ poro = poroi
 torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
 tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
 w = w0
-! w*poro = w0*poroi --- isovolumetric weathering?
-w = w0*poroi/poro ! --- isovolumetric weathering?
+if (noncnstw) w = w0*poroi/poro ! from w*poro = w0*poroi --- isovolumetric weathering?
 
 ! #ifdef surfssa
 ! hri = ssa_cmn*1d6/poro
@@ -1899,7 +1901,8 @@ do while (it<nt)
         v = qin/poro/sat
         torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
         tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
-        w = w0*poroi/poro ! --- isovolumetric weathering?
+        w = w0  
+        if (noncnstw) w = w0*poroi/poro ! --- isovolumetric weathering?
         hr = hri*rough
         if (surfevol1 ) then 
             hr = hri*rough*((1d0-poro)/(1d0-poroi))**(2d0/3d0)
@@ -16420,7 +16423,8 @@ real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8),parameter::fact = 1d-3
 real(kind=8),parameter::dconc = 1d-14
 real(kind=8),parameter::maxfact = 1d200
-real(kind=8),parameter::threshold = log(maxfact)
+! real(kind=8),parameter::threshold = log(maxfact)
+real(kind=8),parameter::threshold = 10d0
 ! real(kind=8),parameter::threshold = 3d0
 ! real(kind=8),parameter::corr = 1.5d0
 real(kind=8),parameter::corr = exp(threshold)
@@ -17732,6 +17736,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             enddo
         endif
         
+#ifdef errmtx_printout
         open(unit=11,file='amx.txt',status = 'replace')
         open(unit=12,file='ymx.txt',status = 'replace')
         do ie = 1,nsp3*(nz)
@@ -17739,7 +17744,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             write(12,*) ymx3(ie)
         enddo 
         close(11)
-        close(12)       
+        close(12) 
+#endif 
         
         flgback = .true.
         ! pause
@@ -17753,6 +17759,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     if (any(isnan(ymx3))) then
         print*,'error in soultion'
         
+#ifdef errmtx_printout
         open(unit=11,file='amx.txt',status = 'replace')
         open(unit=12,file='ymx.txt',status = 'replace')
         do ie = 1,nsp3*(nz)
@@ -17760,7 +17767,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             write(12,*) ymx3(ie)
         enddo 
         close(11)
-        close(12)       
+        close(12)   
+#endif     
         
         flgback = .true.
         ! pause
@@ -17860,6 +17868,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         print*, 'isnan(error), info/=0,any(isnan(msldx)),any(isnan(maqx)),any(isnan(mgasx))'
         print*,isnan(error),info,any(isnan(msldx)),any(isnan(maqx)),any(isnan(mgasx))
         
+#ifdef errmtx_printout
         open(unit=11,file='amx.txt',status = 'replace')
         open(unit=12,file='ymx.txt',status = 'replace')
         do ie = 1,nsp3*(nz)
@@ -17867,7 +17876,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             write(12,*) ymx3(ie)
         enddo 
         close(11)
-        close(12)      
+        close(12)         
+#endif 
         
         ! dt = dt/10d0
         flgback = .true.
@@ -17890,6 +17900,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         if (dt==0d0) then 
             print *, 'dt==0d0; stop'
         
+#ifdef errmtx_printout
             open(unit=11,file='amx.txt',status = 'replace')
             open(unit=12,file='ymx.txt',status = 'replace')
             do ie = 1,nsp3*(nz)
@@ -17898,6 +17909,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             enddo 
             close(11)
             close(12)      
+#endif 
             stop
         endif 
         flgback = .true.
@@ -18609,27 +18621,21 @@ do isps = 1,nsp_sld
             
             do iz = 1,nz
                 if (1d0-omega(isps,iz) > 0d0) then 
-                    rxnsld(isps,iz) = ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz)*(1d0-omega(isps,iz)) &
-                        & /(1d0-poro(iz))
+                    rxnsld(isps,iz) = ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz)*(1d0-omega(isps,iz)) 
                     if (rxnsld(isps,iz)> maxdis(isps,iz)) then 
                         rxnsld(isps,iz) = maxdis(isps,iz)
                         drxnsld_dmsld(isps,iz) = 0d0
                         drxnsld_dmaq(isps,:,iz) = 0d0
                         drxnsld_dmgas(isps,:,iz) = 0d0
                     else 
-                        drxnsld_dmsld(isps,iz) = ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*1d0*(1d0-omega(isps,iz)) &
-                            & /(1d0-poro(iz))
+                        drxnsld_dmsld(isps,iz) = ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*1d0*(1d0-omega(isps,iz)) 
                         drxnsld_dmaq(isps,:,iz) = ( &
                             & +ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz)*(-domega_dmaq(isps,:,iz)) &
-                            & /(1d0-poro(iz)) &
                             & +dksld_dmaq(isps,:,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz)*(1d0-omega(isps,iz)) &
-                            & /(1d0-poro(iz)) &
                             & )
                         drxnsld_dmgas(isps,:,iz) = ( &
                             & +ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz)*(-domega_dmgas(isps,:,iz)) &
-                            & /(1d0-poro(iz)) &
                             & +dksld_dmgas(isps,:,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz)*(1d0-omega(isps,iz)) &
-                            & /(1d0-poro(iz)) &
                             & )
                     endif 
                 elseif (1d0-omega(isps,iz) < 0d0) then 
@@ -18673,17 +18679,14 @@ do isps = 1,nsp_sld
             drxnsld_dmsld(isps,:) = ( &
                 & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*1d0*(1d0-omega(isps,:)) &
                 & *merge(0d0,1d0,1d0-omega(isps,:) < 0d0) &
-                & /(1d0-poro) &
                 & )
                 
             do ispa = 1,nsp_aq
                 drxnsld_dmaq(isps,ispa,:) = ( &
                     & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*(-domega_dmaq(isps,ispa,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & + dksld_dmaq(isps,ispa,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*(1d0-omega(isps,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     &  + ksld(isps,:)*poro*hr*(-domega_dmaq(isps,ispa,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*(1d0-nonprec(isps,:)) > 0d0) &
                     &  + dksld_dmaq(isps,ispa,:)*poro*hr*(1d0-omega(isps,:)) &
@@ -18711,23 +18714,19 @@ do isps = 1,nsp_sld
             rxnsld(isps,:) = ( &
                 & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*(msldx(isps,:)+msld_seed)*(1d0-omega(isps,:)) &
                 & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                & /(1d0-poro) &
                 & )
         
             drxnsld_dmsld(isps,:) = ( &
                 & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*1d0*(1d0-omega(isps,:)) &
                 & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                & /(1d0-poro) &
                 & )
             
             do ispa = 1, nsp_aq
                 drxnsld_dmaq(isps,ispa,:) = ( &
                     & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*(msldx(isps,:)+msld_seed)*(-domega_dmaq(isps,ispa,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & + dksld_dmaq(isps,ispa,:)*poro*hr*mv(isps)*1d-6*(msldx(isps,:)+msld_seed)*(1d0-omega(isps,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & )
             enddo 
             
@@ -18735,10 +18734,8 @@ do isps = 1,nsp_sld
                 drxnsld_dmgas(isps,ispg,:) = ( &
                     & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*(msldx(isps,:)+msld_seed)*(-domega_dmgas(isps,ispg,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & + dksld_dmgas(isps,ispg,:)*poro*hr*mv(isps)*1d-6*(msldx(isps,:)+msld_seed)*(1d0-omega(isps,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & )
             enddo 
         
@@ -18747,23 +18744,19 @@ do isps = 1,nsp_sld
             rxnsld(isps,:) = ( &
                 & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*(1d0-omega(isps,:)) &
                 & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                & /(1d0-poro) &
                 & )
         
             drxnsld_dmsld(isps,:) = ( &
                 & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*1d0*(1d0-omega(isps,:)) &
                 & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                & /(1d0-poro) &
                 & )
             
             do ispa = 1, nsp_aq
                 drxnsld_dmaq(isps,ispa,:) = ( &
                     & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*(-domega_dmaq(isps,ispa,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & + dksld_dmaq(isps,ispa,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*(1d0-omega(isps,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & )
             enddo 
             
@@ -18771,12 +18764,18 @@ do isps = 1,nsp_sld
                 drxnsld_dmgas(isps,ispg,:) = ( &
                     & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*(-domega_dmgas(isps,ispg,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & + dksld_dmgas(isps,ispg,:)*poro*hr*mv(isps)*1d-6*msldx(isps,:)*(1d0-omega(isps,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-                    & /(1d0-poro) &
                     & )
             enddo 
+            
+            ! correcting for solid fraction available to porewater 
+            
+            ! rxnsld(isps,:) = rxnsld(isps,:)/(1d0-poro)
+            ! drxnsld_dmsld(isps,:) = drxnsld_dmsld(isps,:)/(1d0-poro)
+            ! drxnsld_dmaq(isps,:,:) = drxnsld_dmaq(isps,:,:)/(1d0-poro)
+            ! drxnsld_dmgas(isps,:,:) = drxnsld_dmgas(isps,:,:)/(1d0-poro)
+            
             
             ! attempt to add authigenesis above some threshould for omega
             ! do iz=1,nz 
