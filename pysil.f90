@@ -4,9 +4,24 @@ implicit none
 
 integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nz
 character(5),dimension(:),allocatable::chraq,chrsld,chrgas,chrrxn_ext 
-character(500) sim_name,runname_save
+character(500) sim_name,runname_save,cwd,path,path2,cmd
 real(kind=8) ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref,tc
 integer count_dtunchanged_Max
+
+
+CALL getcwd(cwd)
+WRITE(*,*) TRIM(cwd)
+
+call getarg(0,path)
+WRITE(*,*) TRIM(path)
+! call get_command_argument(0, cmd)
+! WRITE(*,*) TRIM(cmd)
+path2 = path(:index(path,'weathering')-2)
+WRITE(*,*) TRIM(path2)
+
+CALL chdir(TRIM(path2))
+CALL getcwd(path)
+WRITE(*,*) TRIM(path)
 
 call get_variables_num( &
     & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
@@ -234,7 +249,7 @@ real(kind=8) :: tol = 1d-6
 integer, parameter :: nrec = 20
 real(kind=8) rectime(nrec)
 character(3) chr
-character(256) runname,workdir, chrz(3), chrq(3),base,fname, chrrain
+character(256) runname,workdir, chrz(3), chrq(3),base,fname, chrrain, cwd,flxdir, profdir
 character(500),intent(in):: runname_save
 character(500) loc_runname_save
 integer irec, iter
@@ -1012,7 +1027,10 @@ write(chrz(3),'(i0)') nint(zsat)
 write(chrrain,'(E10.2)') rainpowder
 
 
-write(workdir,*) '../pyweath_output/'     
+! write(workdir,*) '../pyweath_output/'     
+write(workdir,*) './'    
+write(flxdir,*) './flx'    
+write(profdir,*) './prof'     
 
 ! if (cplprec) then 
     ! write(base,*) 'test_cplp_test'
@@ -1057,6 +1075,10 @@ endif
 
 write(runname,*) trim(adjustl(base))//'_q-'//trim(adjustl(chrq(3)))//'_zsat-'  &
     & //trim(adjustl(chrz(3)))
+    
+! directly name runname from input 
+! write(runname,*) trim(adjustl(sim_name))
+write(runname,*) 'output'
 
 #ifdef full_flux_report
 do isps = 1, nsp_sld 
@@ -1108,9 +1130,11 @@ enddo
 ! print*,runname
 ! pause
 
-call system ('mkdir -p '//trim(adjustl(workdir))//trim(adjustl(runname)))
+! call system ('mkdir -p '//trim(adjustl(workdir))//trim(adjustl(runname)))
+call system ('mkdir -p '//trim(adjustl(flxdir)))
+call system ('mkdir -p '//trim(adjustl(profdir)))
 
-call system ('cp gases.in solutes.in slds.in extrxns.in '//trim(adjustl(workdir))//trim(adjustl(runname)))
+! call system ('cp gases.in solutes.in slds.in extrxns.in '//trim(adjustl(workdir))//trim(adjustl(runname)))
 
 #ifdef full_flux_report
 
@@ -1121,7 +1145,7 @@ chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a))'
 do isps = 1,nsp_sld
     do iz = 1,nz
         write(chriz,'(i3.3)') iz
-        open(isldflx(isps,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(isldflx(isps,iz), file=trim(adjustl(flxdir))//'/' &
             & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'-'//trim(adjustl(chriz))//'.txt' &
             & , status='replace')
         write(isldflx(isps,iz),trim(adjustl(chrfmt))) 'time','z',(chrflx(iflx),iflx=1,nflx)
@@ -1132,7 +1156,7 @@ enddo
 do ispa = 1,nsp_aq
     do iz= 1,nz
         write(chriz,'(i3.3)') iz
-        open(iaqflx(ispa,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(iaqflx(ispa,iz), file=trim(adjustl(flxdir))//'/' &
             & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'-'//trim(adjustl(chriz))//'.txt' &
             & , status='replace')
         write(iaqflx(ispa,iz),trim(adjustl(chrfmt))) 'time','z',(chrflx(iflx),iflx=1,nflx)
@@ -1143,7 +1167,7 @@ enddo
 do ispg = 1,nsp_gas
     do iz=1,nz
         write(chriz,'(i3.3)') iz
-        open(igasflx(ispg,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(igasflx(ispg,iz), file=trim(adjustl(flxdir))//'/' &
             & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'-'//trim(adjustl(chriz))//'.txt' &
             & , status='replace')
         write(igasflx(ispg,iz),trim(adjustl(chrfmt))) 'time','z',(chrflx(iflx),iflx=1,nflx)
@@ -1154,7 +1178,7 @@ enddo
 do ico2 = 1,6
     do iz= 1,nz
         write(chriz,'(i3.3)') iz
-        open(ico2flx(ico2,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(ico2flx(ico2,iz), file=trim(adjustl(flxdir))//'/' &
             & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'-'//trim(adjustl(chriz))//'.txt' &
             & , status='replace')
         write(ico2flx(ico2,iz),trim(adjustl(chrfmt))) 'time','z',(chrflx(iflx),iflx=1,nflx)
@@ -1169,28 +1193,28 @@ write(chrfmt,'(i0)') nflx+1
 chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a))'
 
 do isps = 1,nsp_sld
-    open(isldflx(isps), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+    open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
         & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', status='replace')
     write(isldflx(isps),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(isldflx(isps))
 enddo 
 
 do ispa = 1,nsp_aq
-    open(iaqflx(ispa), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+    open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
         & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', status='replace')
     write(iaqflx(ispa),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(iaqflx(ispa))
 enddo 
 
 do ispg = 1,nsp_gas
-    open(igasflx(ispg), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+    open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
         & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', status='replace')
     write(igasflx(ispg),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(igasflx(ispg))
 enddo 
 
 do ico2 = 1,6
-    open(ico2flx(ico2), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+    open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
         & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', status='replace')
     write(ico2flx(ico2),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(ico2flx(ico2))
@@ -1198,7 +1222,7 @@ enddo
 
 #endif 
 
-open(ibasaltrain, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'rain.txt', &
+open(ibasaltrain, file=trim(adjustl(flxdir))//'/'//'rain.txt', &
     & status='replace')
 close(ibasaltrain)
 
@@ -1313,16 +1337,16 @@ poroprev = poro
 if (read_data) then 
     ! runname_save = 'test_cpl_rain-0.40E+04_pevol_sevol1_q-0.10E-01_zsat-5' ! specifiy the file where restart data is stored 
     ! runname_save = runname  ! the working folder has the restart data 
-    loc_runname_save = runname_save
-    if (trim(adjustl(runname_save)) == 'self') loc_runname_save = runname
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(loc_runname_save))//'/'//'prof_sld-save.txt '  &
-        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_sld-restart.txt')
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(loc_runname_save))//'/'//'prof_aq-save.txt '  &
-        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_aq-restart.txt')
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(loc_runname_save))//'/'//'prof_gas-save.txt '  &
-        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_gas-restart.txt')
-    call system('cp '//trim(adjustl(workdir))//trim(adjustl(loc_runname_save))//'/'//'bsd-save.txt '  &
-        & //trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'bsd-restart.txt')
+    loc_runname_save = '../'//trim(adjustl(runname_save))//'/'//trim(adjustl(profdir(3:)))
+    if (trim(adjustl(runname_save)) == 'self') loc_runname_save = trim(adjustl(profdir))
+    call system('cp '//trim(adjustl(loc_runname_save))//'/'//'prof_sld-save.txt '  &
+        & //trim(adjustl(profdir))//'/'//'prof_sld-restart.txt')
+    call system('cp '//trim(adjustl(loc_runname_save))//'/'//'prof_aq-save.txt '  &
+        & //trim(adjustl(profdir))//'/'//'prof_aq-restart.txt')
+    call system('cp '//trim(adjustl(loc_runname_save))//'/'//'prof_gas-save.txt '  &
+        & //trim(adjustl(profdir))//'/'//'prof_gas-restart.txt')
+    call system('cp '//trim(adjustl(loc_runname_save))//'/'//'bsd-save.txt '  &
+        & //trim(adjustl(profdir))//'/'//'bsd-restart.txt')
         
     call get_saved_variables_num( &
         & workdir,loc_runname_save &! input
@@ -1340,13 +1364,13 @@ if (read_data) then
         & )
     
         
-    open (isldprof, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_sld-restart.txt',  &
+    open (isldprof, file=trim(adjustl(profdir))//'/'//'prof_sld-restart.txt',  &
         & status ='old',action='read')
-    open (iaqprof, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_aq-restart.txt',  &
+    open (iaqprof, file=trim(adjustl(profdir))//'/'//'prof_aq-restart.txt',  &
         & status ='old',action='read')
-    open (igasprof, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'prof_gas-restart.txt',  &
+    open (igasprof, file=trim(adjustl(profdir))//'/'//'prof_gas-restart.txt',  &
         & status ='old',action='read')
-    open (ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'bsd-restart.txt',  &
+    open (ibsd, file=trim(adjustl(profdir))//'/'//'bsd-restart.txt',  &
         & status ='old',action='read')
     
     read (isldprof,'()')
@@ -1651,7 +1675,7 @@ do while (it<nt)
             endif 
         enddo 
         if (time==0d0 .or. rain_norm /= merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))) then
-            open(ibasaltrain, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'//'rain.txt', &
+            open(ibasaltrain, file=trim(adjustl(flxdir))//'/'//'rain.txt', &
                 & status='old',action='write',position='append')
             write(ibasaltrain,*) time-dt,rain_norm
             write(ibasaltrain,*) time,merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
@@ -1894,6 +1918,13 @@ do while (it<nt)
         if (any(poro<0d0)) then 
             print*,'negative porosity: stop'
             print*,poro
+            
+            flgback = .false. 
+            flgreducedt = .true.
+            ! pre_calc = .true.
+            dt = dt/1d1
+            go to 100
+            
             ! w = w*2d0
             ! go to 100
             stop
@@ -2004,13 +2035,13 @@ do while (it<nt)
 
     if (time > savetime) then 
         
-        open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(isldprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld-save.txt', status='replace')
-        open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(igasprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_gas-save.txt', status='replace')
-        open(iaqprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(iaqprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_aq-save.txt', status='replace')
-        open(ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+        open(ibsd, file=trim(adjustl(profdir))//'/'  &
             & //'bsd-save.txt', status='replace')
             
         write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
@@ -2038,7 +2069,7 @@ do while (it<nt)
         
         
         print_cb = .true. 
-        print_loc = trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        print_loc = trim(adjustl(profdir))//'/' &
             & //'chrge_balance-'//chr//'.txt'
 
 #ifdef phv7_2
@@ -2060,21 +2091,21 @@ do while (it<nt)
             & ) 
 #endif
         
-        open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(isldprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld-'//chr//'.txt', status='replace')
-        open(isldprof2,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(isldprof2,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld(wt%)-'//chr//'.txt', status='replace')
-        open(isldprof3,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(isldprof3,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld(v%)-'//chr//'.txt', status='replace')
-        open(isldsat,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(isldsat,file=trim(adjustl(profdir))//'/' &
             & //'sat_sld-'//chr//'.txt', status='replace')
-        open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(igasprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_gas-'//chr//'.txt', status='replace')
-        open(iaqprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(iaqprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_aq-'//chr//'.txt', status='replace')
-        open(ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+        open(ibsd, file=trim(adjustl(profdir))//'/'  &
             & //'bsd-'//chr//'.txt', status='replace')
-        open(irate, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+        open(irate, file=trim(adjustl(profdir))//'/'  &
             & //'rate-'//chr//'.txt', status='replace')
             
         write(chrfmt,'(i0)') nsp_sld+2
@@ -2121,7 +2152,7 @@ do while (it<nt)
         do isps=1,nsp_sld 
             do iz=1,nz
                 write(chriz,'(i3.3)') iz
-                open(isldflx(isps,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                open(isldflx(isps,iz), file=trim(adjustl(flxdir))//'/' &
                     & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'-'//trim(adjustl(chriz))//'.txt' &
                     & , action='write',status='old',position='append')
                 write(isldflx(isps,iz),*) time,z(iz),(sum(flx_sld(isps,iflx,1:iz)*dz(1:iz)),iflx=1,nflx)
@@ -2132,7 +2163,7 @@ do while (it<nt)
         do ispa=1,nsp_aq 
             do iz= 1,nz
                 write(chriz,'(i3.3)') iz
-                open(iaqflx(ispa,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                open(iaqflx(ispa,iz), file=trim(adjustl(flxdir))//'/' &
                     & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'-'//trim(adjustl(chriz))//'.txt' &
                     & , action='write',status='old',position='append')
                 write(iaqflx(ispa,iz),*) time,z(iz),(sum(flx_aq(ispa,iflx,1:iz)*dz(1:iz)),iflx=1,nflx)
@@ -2143,7 +2174,7 @@ do while (it<nt)
         do ispg=1,nsp_gas 
             do iz=1,nz
                 write(chriz,'(i3.3)') iz
-                open(igasflx(ispg,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                open(igasflx(ispg,iz), file=trim(adjustl(flxdir))//'/' &
                     & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'-'//trim(adjustl(chriz))//'.txt'  &
                     & , action='write',status='old',position='append')
                 write(igasflx(ispg,iz),*) time,z(iz),(sum(flx_gas(ispg,iflx,1:iz)*dz(1:iz)),iflx=1,nflx)
@@ -2154,7 +2185,7 @@ do while (it<nt)
         do ico2=1,6 
             do iz=1,nz
                 write(chriz,'(i3.3)') iz
-                open(ico2flx(ico2,iz), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+                open(ico2flx(ico2,iz), file=trim(adjustl(flxdir))//'/' &
                     & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'-'//trim(adjustl(chriz))//'.txt' &
                     & , action='write',status='old',position='append')
                 if (ico2 .le. 4) then 
@@ -2174,28 +2205,28 @@ do while (it<nt)
         enddo 
 #else
         do isps=1,nsp_sld 
-            open(isldflx(isps), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
                 & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
             write(isldflx(isps),*) time,(sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
             close(isldflx(isps))
         enddo 
         
         do ispa=1,nsp_aq 
-            open(iaqflx(ispa), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
                 & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
             write(iaqflx(ispa),*) time,(sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
             close(iaqflx(ispa))
         enddo 
         
         do ispg=1,nsp_gas 
-            open(igasflx(ispg), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
                 & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
             write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
             close(igasflx(ispg))
         enddo 
         
         do ico2=1,6 
-            open(ico2flx(ico2), file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+            open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
                 & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', action='write',status='old',position='append')
             if (ico2 .le. 4) then 
                 write(ico2flx(ico2),*) time,(sum(flx_co2sp(ico2,iflx,:)*dz(:)),iflx=1,nflx)
@@ -2212,13 +2243,13 @@ do while (it<nt)
         enddo 
 #endif 
         
-        open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(isldprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld-save.txt', status='replace')
-        open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(igasprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_gas-save.txt', status='replace')
-        open(iaqprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+        open(iaqprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_aq-save.txt', status='replace')
-        open(ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+        open(ibsd, file=trim(adjustl(profdir))//'/'  &
             & //'bsd-save.txt', status='replace')
             
         write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
@@ -2300,13 +2331,13 @@ do while (it<nt)
 end do
         
         
-open(isldprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+open(isldprof,file=trim(adjustl(profdir))//'/' &
     & //'prof_sld-save.txt', status='replace')
-open(igasprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+open(igasprof,file=trim(adjustl(profdir))//'/' &
     & //'prof_gas-save.txt', status='replace')
-open(iaqprof,file=trim(adjustl(workdir))//trim(adjustl(runname))//'/' &
+open(iaqprof,file=trim(adjustl(profdir))//'/' &
     & //'prof_aq-save.txt', status='replace')
-open(ibsd, file=trim(adjustl(workdir))//trim(adjustl(runname))//'/'  &
+open(ibsd, file=trim(adjustl(profdir))//'/'  &
     & //'bsd-save.txt', status='replace')
             
 write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
@@ -2326,10 +2357,10 @@ close(iaqprof)
 close(igasprof)
 close(ibsd)
 
-call system ('cp gases.in '//trim(adjustl(workdir))//trim(adjustl(runname))//'/gases.save')
-call system ('cp solutes.in '//trim(adjustl(workdir))//trim(adjustl(runname))//'/solutes.save')
-call system ('cp slds.in '//trim(adjustl(workdir))//trim(adjustl(runname))//'/slds.save')
-call system ('cp extrxns.in '//trim(adjustl(workdir))//trim(adjustl(runname))//'/extrxns.save')
+call system ('cp gases.in '//trim(adjustl(profdir))//'/gases.save')
+call system ('cp solutes.in '//trim(adjustl(profdir))//'/solutes.save')
+call system ('cp slds.in '//trim(adjustl(profdir))//'/slds.save')
+call system ('cp extrxns.in '//trim(adjustl(profdir))//'/extrxns.save')
 
 endsubroutine weathering_main
 
