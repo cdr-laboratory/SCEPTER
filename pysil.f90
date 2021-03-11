@@ -2,8 +2,9 @@ program weathering
 
 implicit none 
 
-integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nz
-character(5),dimension(:),allocatable::chraq,chrsld,chrgas,chrrxn_ext 
+integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nz,nsld_kinspc
+character(5),dimension(:),allocatable::chraq,chrsld,chrgas,chrrxn_ext,chrsld_kinspc 
+real(kind=8),dimension(:),allocatable::kin_sld_spc
 character(500) sim_name,runname_save,cwd,path,path2,cmd
 real(kind=8) ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref,tc
 integer count_dtunchanged_Max
@@ -24,24 +25,26 @@ CALL getcwd(path)
 WRITE(*,*) TRIM(path)
 
 call get_variables_num( &
-    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext,nsld_kinspc &! output
     & )
 
 print *,nsp_sld,nsp_aq,nsp_gas,nrxn_ext
 
 allocate(chraq(nsp_aq),chrsld(nsp_sld),chrgas(nsp_gas),chrrxn_ext(nrxn_ext))
-
+allocate(chrsld_kinspc(nsld_kinspc),kin_sld_spc(nsld_kinspc))
     
 call get_variables( &
-    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! input
-    & ,chraq,chrgas,chrsld,chrrxn_ext &! output
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext,nsld_kinspc &! input
+    & ,chraq,chrgas,chrsld,chrrxn_ext,chrsld_kinspc,kin_sld_spc &! output
     & ) 
     
 print *,chraq
 print *,chrsld 
 print *,chrgas 
 print *,chrrxn_ext 
-
+print *,chrsld_kinspc 
+print *,kin_sld_spc 
+! pause
 sim_name = 'chkchk'
 
 call get_bsdvalues( &
@@ -52,7 +55,8 @@ call get_bsdvalues( &
 call weathering_main( &
     & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,ttot,plant_rain  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
-    & ,count_dtunchanged_Max,tc &
+    & ,count_dtunchanged_Max,tc &! input 
+    & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
     & )
 
 contains 
@@ -66,6 +70,7 @@ subroutine weathering_main( &
     & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w0,qin,p80,ttot,plant_rain  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
     & ,count_dtunchanged_Max,tc &! input 
+    & ,nsld_kinspc_in,chrsld_kinspc_in,kin_sld_spc_in &! input 
     & )
 
 implicit none
@@ -240,7 +245,7 @@ real(kind=8),dimension(nz):: dummy
 
 real(kind=8) kho,ucv,kco2,k1,kw,k2,khco2i,knh3,k1nh3,khnh3i,kn2o
 
-integer iz,it,ispa,ispg,isps,irxn,ispa2,ispg2,isps2,ico2,ph_iter
+integer iz,it,ispa,ispg,isps,irxn,ispa2,ispg2,isps2,ico2,ph_iter,isps_kinspc
 
 real(kind=8) error 
 real(kind=8) :: tol = 1d-6
@@ -353,6 +358,8 @@ integer ::nsp3 != nsp_sld + nsp_aq + nsp_gas
 integer,intent(in)::nrxn_ext != 1
 integer,parameter::nrxn_ext_all = 9
 integer :: nflx ! = 5 + nrxn_ext + nsp_sld  
+integer,intent(in)::nsld_kinspc_in
+integer :: nsld_kinspc,nsld_kinspc_add
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2)::chrsld_2
 character(5),dimension(nsp_sld_all)::chrsld_all
@@ -367,6 +374,8 @@ character(5),dimension(nsp_gas_all)::chrgas_all
 character(5),dimension(nsp_gas_all - nsp_gas)::chrgas_cnst
 character(5),dimension(nrxn_ext),intent(in)::chrrxn_ext
 character(5),dimension(nrxn_ext_all)::chrrxn_ext_all
+character(5),dimension(nsld_kinspc_in),intent(in)::chrsld_kinspc_in
+character(5),dimension(:),allocatable ::chrsld_kinspc
 real(kind=8),dimension(nsp_sld)::msldi,msldth,mv,rfrc_sld,mwt,rfrc_sld_plant
 real(kind=8),dimension(nsp_sld,nsp_aq)::staq
 real(kind=8),dimension(nsp_sld,nsp_gas)::stgas
@@ -382,6 +391,8 @@ real(kind=8),dimension(nrxn_ext,nz)::rxnext
 real(kind=8),dimension(nrxn_ext,nsp_gas)::stgas_ext,stgas_dext
 real(kind=8),dimension(nrxn_ext,nsp_aq)::staq_ext,staq_dext
 real(kind=8),dimension(nrxn_ext,nsp_sld)::stsld_ext,stsld_dext
+real(kind=8),dimension(nsld_kinspc_in),intent(in)::kin_sld_spc_in
+real(kind=8),dimension(:),allocatable::kin_sld_spc
 
 real(kind=8),dimension(nsp_aq_all)::daq_all,maqi_all,maqth_all
 real(kind=8),dimension(nsp_gas_all)::dgasa_all,dgasg_all,mgasi_all,mgasth_all
@@ -464,9 +475,11 @@ data itflx,iadv,idif,irain/1,2,3,4/
 integer,dimension(nsp_sld)::irxn_sld 
 integer,dimension(nrxn_ext)::irxn_ext
 
-integer nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save 
-character(5),dimension(:),allocatable::chraq_save,chrsld_save,chrgas_save,chrrxn_ext_save 
+integer nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save,nsld_kinspc_save 
+character(5),dimension(:),allocatable::chraq_save,chrsld_save,chrgas_save,chrrxn_ext_save &
+    & ,chrsld_kinspc_save
 real(kind=8),dimension(:,:),allocatable::msld_save,mgas_save,maq_save
+real(kind=8),dimension(:),allocatable::kin_sldspc_save
 
 integer t1,t2,t_rate,t_max,diff
 !-------------------------
@@ -1294,6 +1307,13 @@ enddo
 omega = 0d0
 
 pro = 1d-5
+
+if (allocated(kin_sld_spc)) deallocate(kin_sld_spc)
+if (allocated(chrsld_kinspc)) deallocate(chrsld_kinspc)
+nsld_kinspc = nsld_kinspc_in
+allocate(chrsld_kinspc(nsld_kinspc),kin_sld_spc(nsld_kinspc))
+chrsld_kinspc = chrsld_kinspc_in
+kin_sld_spc = kin_sld_spc_in
     
 call coefs_v2( &
     & nz,rg,rg2,tc,sec2yr,tempk_0,pro,poro,hr &! input
@@ -1350,17 +1370,18 @@ if (read_data) then
         
     call get_saved_variables_num( &
         & workdir,loc_runname_save &! input
-        & ,nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save &! output
+        & ,nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save,nsld_kinspc_save &! output
         & )
     
     allocate(chraq_save(nsp_aq_save),chrsld_save(nsp_sld_save),chrgas_save(nsp_gas_save),chrrxn_ext_save(nrxn_ext_save))
     allocate(maq_save(nsp_aq_save,nz),msld_save(nsp_sld_save,nz),mgas_save(nsp_gas_save,nz))
+    allocate(chrsld_kinspc_save(nsld_kinspc_save),kin_sldspc_save(nsld_kinspc_save))
         
     
     call get_saved_variables( &
         & workdir,loc_runname_save &! input
-        & ,nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save &! input
-        & ,chraq_save,chrgas_save,chrsld_save,chrrxn_ext_save &! output
+        & ,nsp_aq_save,nsp_sld_save,nsp_gas_save,nrxn_ext_save,nsld_kinspc_save &! input
+        & ,chraq_save,chrgas_save,chrsld_save,chrrxn_ext_save,chrsld_kinspc_save,kin_sldspc_save &! output
         & )
     
         
@@ -1421,6 +1442,40 @@ if (read_data) then
             print *,'error in re-assignment of gas conc.'
         endif 
     enddo 
+    
+    ! counting sld species whose values are to be specificed in kinspc.save and not so yet when reading from kinspc.in
+    nsld_kinspc_add = 0
+    do isps_kinspc = 1,nsld_kinspc_save
+        if (any(chrsld_kinspc_in == chrsld_kinspc_save(isps_kinspc))) then ! already specified 
+            continue
+        else 
+            nsld_kinspc_add = nsld_kinspc_add + 1
+        endif 
+    enddo 
+    
+    if (nsld_kinspc_add > 0) then 
+        ! deallocate 
+        if (allocated(kin_sld_spc)) deallocate (kin_sld_spc)
+        if (allocated(chrsld_kinspc)) deallocate (chrsld_kinspc)
+        ! re-define sld species number whose rate const. is specified 
+        nsld_kinspc = nsld_kinspc + nsld_kinspc_add
+        ! allocate 
+        allocate(kin_sld_spc(nsld_kinspc),chrsld_kinspc(nsld_kinspc))
+        ! saving already specified consts. 
+        chrsld_kinspc(1:nsld_kinspc_in) = chrsld_kinspc_in
+        kin_sld_spc(1:nsld_kinspc_in) = kin_sld_spc_in
+        ! adding previously specified rate const. 
+        nsld_kinspc_add = 0
+        do isps_kinspc = 1,nsld_kinspc_save
+            if (any(chrsld_kinspc_in == chrsld_kinspc_save(isps_kinspc))) then 
+                continue
+            else 
+                nsld_kinspc_add = nsld_kinspc_add + 1
+                chrsld_kinspc(nsld_kinspc_in + nsld_kinspc_add) = chrsld_kinspc_save(isps_kinspc)
+                kin_sld_spc(nsld_kinspc_in + nsld_kinspc_add) = kin_sldspc_save(isps_kinspc)
+            endif 
+        enddo 
+    endif 
         
     if (display) then
         write(chrfmt,'(i0)') nz_disp
@@ -1837,6 +1892,7 @@ do while (it<nt)
         & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
         & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
+        & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
         !  old inputs
         & ,hr,poro,z,dz,w0,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi  &
@@ -2361,6 +2417,7 @@ call system ('cp gases.in '//trim(adjustl(profdir))//'/gases.save')
 call system ('cp solutes.in '//trim(adjustl(profdir))//'/solutes.save')
 call system ('cp slds.in '//trim(adjustl(profdir))//'/slds.save')
 call system ('cp extrxns.in '//trim(adjustl(profdir))//'/extrxns.save')
+call system ('cp kinspc.in '//trim(adjustl(profdir))//'/kinspc.save')
 
 endsubroutine weathering_main
 
@@ -2370,11 +2427,11 @@ endsubroutine weathering_main
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_variables_num( &
-    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext,nsld_kinspc &! output
     & )
 implicit none
 
-integer,intent(out):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+integer,intent(out):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nsld_kinspc
 character(500) file_name
 
 file_name = './slds.in'
@@ -2385,11 +2442,14 @@ file_name = './gases.in'
 call Console4(file_name,nsp_gas)
 file_name = './extrxns.in'
 call Console4(file_name,nrxn_ext)
+file_name = './kinspc.in'
+call Console4(file_name,nsld_kinspc)
 
 nsp_sld = nsp_sld - 1
 nsp_aq = nsp_aq - 1
 nsp_gas = nsp_gas - 1
 nrxn_ext = nrxn_ext - 1
+nsld_kinspc = nsld_kinspc - 1
 
 endsubroutine get_variables_num
 
@@ -2399,19 +2459,21 @@ endsubroutine get_variables_num
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_variables( &
-    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! input
-    & ,chraq,chrgas,chrsld,chrrxn_ext &! output
+    & nsp_aq,nsp_sld,nsp_gas,nrxn_ext,nsld_kinspc &! input
+    & ,chraq,chrgas,chrsld,chrrxn_ext,chrsld_kinspc,kin_sld_spc &! output
     & )
 implicit none
 
-integer,intent(in):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+integer,intent(in):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nsld_kinspc
 character(5),dimension(nsp_sld),intent(out)::chrsld 
 character(5),dimension(nsp_aq),intent(out)::chraq 
 character(5),dimension(nsp_gas),intent(out)::chrgas 
 character(5),dimension(nrxn_ext),intent(out)::chrrxn_ext 
+character(5),dimension(nsld_kinspc),intent(out)::chrsld_kinspc
+real(kind=8),dimension(nsld_kinspc),intent(out)::kin_sld_spc
 
 character(500) file_name
-integer ispa,ispg,isps,irxn
+integer ispa,ispg,isps,irxn,isldspc
 
 if (nsp_aq>=1) then 
     file_name = './solutes.in'
@@ -2453,6 +2515,16 @@ if (nrxn_ext>=1) then
     close(50)
 endif 
 
+if (nsld_kinspc>=1) then 
+    file_name = './kinspc.in'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do isldspc =1,nsld_kinspc
+        read(50,*) chrsld_kinspc(isldspc), kin_sld_spc(isldspc) 
+    enddo 
+    close(50)
+endif 
+
 endsubroutine get_variables
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -2462,11 +2534,11 @@ endsubroutine get_variables
 
 subroutine get_saved_variables_num( &
     & workdir,runname_save &! input 
-    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! output
+    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,nsld_kinspc &! output
     & )
 implicit none
 
-integer,intent(out):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+integer,intent(out):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nsld_kinspc
 character(256),intent(in):: workdir,runname_save
 character(500) file_name
 
@@ -2478,11 +2550,14 @@ file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/gases.save'
 call Console4(file_name,nsp_gas)
 file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/extrxns.save'
 call Console4(file_name,nrxn_ext)
+file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/kinspc.save'
+call Console4(file_name,nsld_kinspc)
 
 nsp_sld = nsp_sld - 1
 nsp_aq = nsp_aq - 1
 nsp_gas = nsp_gas - 1
 nrxn_ext = nrxn_ext - 1
+nsld_kinspc = nsld_kinspc - 1
 
 endsubroutine get_saved_variables_num
 
@@ -2493,20 +2568,22 @@ endsubroutine get_saved_variables_num
 
 subroutine get_saved_variables( &
     & workdir,runname_save &! input 
-    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext &! input
-    & ,chraq,chrgas,chrsld,chrrxn_ext &! output
+    & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,nsld_kinspc &! input
+    & ,chraq,chrgas,chrsld,chrrxn_ext,chrsld_kinspc,kin_sld_spc &! output
     & )
 implicit none
 
-integer,intent(in):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext
+integer,intent(in):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nsld_kinspc
 character(5),dimension(nsp_sld),intent(out)::chrsld 
 character(5),dimension(nsp_aq),intent(out)::chraq 
 character(5),dimension(nsp_gas),intent(out)::chrgas 
 character(5),dimension(nrxn_ext),intent(out)::chrrxn_ext 
+character(5),dimension(nsld_kinspc),intent(out)::chrsld_kinspc 
 character(256),intent(in):: workdir,runname_save
+real(kind=8),dimension(nsld_kinspc),intent(out)::kin_sld_spc
 
 character(500) file_name
-integer ispa,ispg,isps,irxn
+integer ispa,ispg,isps,irxn,isldspc
 
 if (nsp_aq>=1) then 
     file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/solutes.save'
@@ -2544,6 +2621,16 @@ if (nrxn_ext>=1) then
     read(50,'()')
     do irxn =1,nrxn_ext
         read(50,*) chrrxn_ext(irxn) 
+    enddo 
+    close(50)
+endif 
+
+if (nsld_kinspc>=1) then 
+    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/kinspc.save'
+    open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+    read(50,'()')
+    do isldspc =1,nsld_kinspc
+        read(50,*) chrsld_kinspc(isldspc), kin_sld_spc(isldspc) 
     enddo 
     close(50)
 endif 
@@ -16321,6 +16408,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
     & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
+    & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
     !  old inputs
     & ,hr,poro,z,dz,w0,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi  &
@@ -16343,7 +16431,7 @@ logical,intent(inout)::flgback
 real(kind=8),intent(in)::dt
 real(kind=8) error
 
-integer,intent(in)::nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext
+integer,intent(in)::nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext,nsld_kinspc
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2),intent(in)::chrsld_2
 character(5),dimension(nsp_aq),intent(in)::chraq
@@ -16351,6 +16439,7 @@ character(5),dimension(nsp_aq_ph),intent(in)::chraq_ph
 character(5),dimension(nsp_gas_ph),intent(in)::chrgas_ph
 character(5),dimension(nsp_gas),intent(in)::chrgas
 character(5),dimension(nrxn_ext),intent(in)::chrrxn_ext
+character(5),dimension(nsld_kinspc),intent(in)::chrsld_kinspc
 real(kind=8),dimension(nsp_sld),intent(in)::msldi,msldth,mv
 real(kind=8),dimension(nsp_aq),intent(in)::maqi,maqth,daq 
 real(kind=8),dimension(nsp_gas),intent(in)::mgasi,mgasth,dgasa,dgasg,khgasi
@@ -16384,6 +16473,7 @@ real(kind=8),dimension(nrxn_ext,nsp_sld),intent(in)::stsld_ext,stsld_dext
 real(kind=8),dimension(nrxn_ext,nsp_gas,nz)::drxnext_dmgas
 real(kind=8),dimension(nrxn_ext,nsp_aq,nz)::drxnext_dmaq
 real(kind=8),dimension(nrxn_ext,nsp_sld,nz)::drxnext_dmsld
+real(kind=8),dimension(nsld_kinspc)::kin_sld_spc
 logical,dimension(nsp_sld),intent(in)::labs,turbo2
 
 integer,intent(in)::nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst,nsp_sld_cnst
@@ -16437,7 +16527,7 @@ real(kind=8),dimension(nrxn_ext_all,nz),intent(in)::krxn1_ext_all,krxn2_ext_all
 
 real(kind=8),dimension(4,nflx,nz),intent(out)::flx_co2sp
 
-integer iz,row,ie,ie2,iflx,isps,ispa,ispg,ispa2,ispg2,col,irxn,isps2,iiz
+integer iz,row,ie,ie2,iflx,isps,ispa,ispg,ispa2,ispg2,col,irxn,isps2,iiz,isps_kinspc
 integer::itflx,iadv,idif,irain,ires
 integer::ph_iter,ph_iter2
 data itflx,iadv,idif,irain/1,2,3,4/
@@ -16489,6 +16579,8 @@ real(kind=8) msld_seed ,fact2
 real(kind=8):: fact_tol = 1d-3
 real(kind=8):: dt_th = 1d-6
 real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
+! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
+real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
 
 !-----------------------------------------------
@@ -16829,6 +16921,35 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         dksld_dmaq = 0d0
         dksld_dmgas = 0d0
     endif 
+    
+    ! if kin const. is specified in input file 
+    if (nsld_kinspc > 0) then 
+        do isps_kinspc=1,nsld_kinspc    
+            if ( any( chrsld == chrsld_kinspc(isps_kinspc))) then 
+                select case (trim(adjustl(chrsld_kinspc(isps_kinspc))))
+                    case('g1','g2','g3') ! for OMs, turn over year needs to be provided [yr]
+                        ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                            
+                            & 1d0/(poro*hr*mv(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1))*1d-6) &
+                            & *1d0/kin_sld_spc(isps_kinspc) &
+                            & ) 
+                        dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                        dksld_dso4f(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                        dksld_dmaq(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
+                        dksld_dmgas(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
+                    case default ! otherwise, usual rate constant [mol/m2/yr]
+                        ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                            
+                            & kin_sld_spc(isps_kinspc) &
+                            & ) 
+                        dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                        dksld_dso4f(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                        dksld_dmaq(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
+                        dksld_dmgas(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
+                end select 
+            endif 
+        enddo 
+    endif 
+                    
+    
     ! saturation state calc. and their derivatives wrt aq and gas species
     
     ! print *,'ksld',ksld(findloc(chrsld,'gt',dim=1),:)
@@ -18024,6 +18145,33 @@ if (kin_iter) then
     enddo 
 
 endif 
+    
+! if kin const. is specified in input file 
+if (nsld_kinspc > 0) then 
+    do isps_kinspc=1,nsld_kinspc    
+        if ( any( chrsld == chrsld_kinspc(isps_kinspc))) then 
+            select case (trim(adjustl(chrsld_kinspc(isps_kinspc))))
+                case('g1','g2','g3') ! for OMs, turn over year needs to be provided [yr]
+                    ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                            
+                        & 1d0/(poro*hr*mv(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1))*1d-6) &
+                        & *1d0/kin_sld_spc(isps_kinspc) &
+                        & ) 
+                    dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                    dksld_dso4f(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                    dksld_dmaq(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
+                    dksld_dmgas(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
+                case default ! otherwise, usual rate constant [mol/m2/yr]
+                    ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                            
+                        & kin_sld_spc(isps_kinspc) &
+                        & ) 
+                    dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                    dksld_dso4f(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                    dksld_dmaq(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
+                    dksld_dmgas(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
+            end select 
+        endif 
+    enddo 
+endif 
 
 ! saturation state calc. and their derivatives wrt aq and gas species
 
@@ -18494,7 +18642,7 @@ if (chkflx .and. dt > dt_th) then
                 flx_max = max(flx_max,abs(sum(flx_sld(isps,iflx,:)*dz)))
             enddo 
             
-            if (flx_max/flx_max_max > 1d-9 .and.  abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > flx_tol ) then 
+            if (flx_max/flx_max_max > flx_max_tol .and.  abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > flx_tol ) then 
                 print *, 'too large error in mass balance of sld phases'
                 print *,'sp | flx that raised the flag | flx_max  | flx_tol'
                 print *,chrsld(isps),abs(sum(flx_sld(isps,ires,:)*dz)),flx_max,flx_tol
@@ -18524,7 +18672,7 @@ if (chkflx .and. dt > dt_th) then
             flx_max = max(flx_max,abs(sum(flx_aq(ispa,iflx,:)*dz)))
         enddo 
         
-        if (flx_max/flx_max_max > 1d-9  .and. abs(sum(flx_aq(ispa,ires,:)*dz))/flx_max > flx_tol ) then 
+        if (flx_max/flx_max_max > flx_max_tol  .and. abs(sum(flx_aq(ispa,ires,:)*dz))/flx_max > flx_tol ) then 
             print *, 'too large error in mass balance of aq phases'
             print *,'sp | flx that raised the flag | flx_max  | flx_tol' 
             print *,chraq(ispa),abs(sum(flx_aq(ispa,ires,:)*dz)),flx_max,flx_tol
@@ -18553,7 +18701,7 @@ if (chkflx .and. dt > dt_th) then
             flx_max = max(flx_max,abs(sum(flx_gas(ispg,iflx,:)*dz)))
         enddo 
         
-        if (flx_max/flx_max_max > 1d-9  .and. abs(sum(flx_gas(ispg,ires,:)*dz))/flx_max > flx_tol ) then 
+        if (flx_max/flx_max_max > flx_max_tol  .and. abs(sum(flx_gas(ispg,ires,:)*dz))/flx_max > flx_tol ) then 
             print *, 'too large error in mass balance of gas phases'
             print *,'sp | flx that raised the flag | flx_max  | flx_tol' 
             print *,chrgas(ispg),abs(sum(flx_gas(ispg,ires,:)*dz)),flx_max,flx_tol
