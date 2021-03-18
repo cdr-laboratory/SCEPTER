@@ -4,15 +4,10 @@
 FC            = gfortran
 
 CPFLAGS       = 
-CPFLAGS       += -Dphiter2 # attempt to do analytical solution for derivatives 
-CPFLAGS       += -Dtest_anal 
-# CPFLAGS       += -Dphiter1 # numerical solution 
-# CPFLAGS       += -Dphiter2_chk # chk difference between two methods (both methods should be enabled)
-# CPFLAGS       += -Dphv7_2  # using old routine
-# CPFLAGS       += -Ddebug 
-# CPFLAGS       += -Dtiming
 CPFLAGS       += -Dno_intr_findloc # need to use in cluster
 # CPFLAGS       += -Dfull_flux_report # output all cumulative flux
+CPFLAGS       += -Ddisp_lim # limiting the display of results
+# CPFLAGS       += -Ddiss_only # not allowing precipitation of minerals
 
 # CFLAGS        = -fcheck=all -g -O3  
 CFLAGS        = -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  \
@@ -22,8 +17,14 @@ CFLAGS        = -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 LDFLAGS       = 
 
 LIBS          = -lopenblas
-OBJS          = pysil.o 
-SRC           = pysil.f90 
+OBJS          = pysil_dev.o 
+SRC           = pysil_dev.f90 
+# OBJS          = pysil.o 
+# SRC           = pysil.f90  
+# OBJS          = pysil_save02242021.o 
+# SRC           = pysil_save02242021.f90 
+# OBJS          = pysil_dev_save_tmp.o 
+# SRC           = pysil_dev_save_tmp.f90 
 PROGRAM       = weathering
 
 all:            $(PROGRAM)

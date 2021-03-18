@@ -320,6 +320,9 @@ logical :: surfevol2 = .false.
 ! logical :: noncnstw = .false. ! constant uplift rate 
 logical :: noncnstw = .true.  ! varied with porosity
 
+logical :: display_lim = .false. ! limiting display fluxes and concs. 
+! logical :: display_lim = .true.
+
 real(kind=8) :: wave_tau = 2d0 ! yr periodic time for wave 
 real(kind=8) :: rain_norm = 0d0
 
@@ -343,7 +346,11 @@ integer count_dtunchanged
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
+#ifdef diss_only
+integer,parameter::nsp_sld_2 = 0
+#else
 integer,parameter::nsp_sld_2 = 17
+#endif 
 integer,parameter::nsp_sld_all = 40
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
@@ -544,9 +551,12 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n2
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
+#ifdef diss_only
+chrsld_2(:) = '     '
+#else
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
     ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  '/) 
-
+#endif 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
@@ -1022,6 +1032,11 @@ call get_switches( &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2 &!
     & )
+
+
+#ifdef disp_lim
+display_lim = .true.
+#endif 
 
 if (sld_enforce) nsp3 = nsp_aq + nsp_gas ! excluding solid phases
 
@@ -1997,7 +2012,7 @@ do while (it<nt)
         if (surfevol2 ) then 
             hr = hri*rough*(poro/poroi)**(2d0/3d0)  ! SA increases with porosity 
         endif 
-        if (display) then 
+        if (display .and. (.not. display_lim)) then 
             write(chrfmt,'(i0)') nz_disp
             chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
             print *
@@ -2010,7 +2025,7 @@ do while (it<nt)
     endif  
 
 
-    if (display) then 
+    if (display  .and. (.not. display_lim)) then 
         write(chrfmt,'(i0)') nz_disp
         chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
         
@@ -2077,6 +2092,10 @@ do while (it<nt)
             enddo 
         endif 
         
+#ifdef disp_lim
+        display_lim = .true.
+#endif 
+        
     endif 
 
     ! stop
@@ -2118,6 +2137,11 @@ do while (it<nt)
         close(ibsd)
         
         savetime = savetime + dsavetime
+
+! #ifdef disp_lim
+        ! display_lim = .false.
+! #endif 
+        
     endif 
 
     if (time>=rectime(irec+1)) then
@@ -2325,6 +2349,10 @@ do while (it<nt)
         close(igasprof)
         close(ibsd)
         
+#ifdef disp_lim
+        display_lim = .false.
+#endif 
+        
     end if
 
     it = it + 1
@@ -2375,7 +2403,7 @@ do while (it<nt)
         stop
     endif 
     
-    if (display) then 
+    if (display  .and. (.not. display_lim)) then 
         print *
         print '(E11.3,a)',progress_rate,': computation time per iteration [sec]'
         print '(E11.3,a)',maxdt, ': maxdt [yr]'
@@ -8810,10 +8838,6 @@ real(kind=8),allocatable::amx(:,:),ymx(:)
 integer,allocatable::ipiv(:)
 integer info,nmx
 
-! external DGESV
-#ifdef timing
-real(kind=8) :: t1, t2
-#endif 
 
 error = 1d4
 tol = 1d-6
@@ -8851,10 +8875,6 @@ nmx = 2*nz
 ! if (all(so4x==0d0)) then 
 if (all(so4x<=so4th)) then 
     nmx = nz
-#ifdef debug
-    print * , 'v7_3'
-    print *, 'so4f is assumed to be constant'
-#endif 
 endif  
 
 if (allocated(amx)) deallocate(amx)
@@ -8866,18 +8886,12 @@ ph_error = .false.
 
 print_res = .false.
 
-#ifdef debug
-    print *, 'v7_3 nmx = :',nmx
-#endif 
 ! print*,'calc_pH'
 if (.not. print_cb) then
     ! obtaining ph and so4f from scratch
   
     so4f  = so4x 
     prox = 1d0 
-#ifdef timing
-    call cpu_time( t1 )
-#endif 
     do while (error > tol)
         ! free SO42- (for simplicity only consider XSO4 complex where X is a cation)
         
@@ -8932,27 +8946,6 @@ if (.not. print_cb) then
             & ,f1,df1,df12,df1dmaq,df1dmgas &!output
             & ,f2,df2,df21,df2dmaq,df2dmgas &!output
             & )
-        
-#ifdef debug 
-        print *, 'v7_3'
-        print *, iter
-        print *, 'f1',f1
-        print *
-        print *, 'df1',df1
-        print *
-        print *, 'df12',df12
-        print *
-        print *, 'f2',f2
-        print *
-        print *, 'df2',df2
-        print *
-        print *, 'df21',df21
-        print *
-        print *, 'prox',prox
-        print *
-        print *, 'so4f',so4f
-        print *
-#endif 
         
         df1 = df1*prox
         df21 = df21*prox
@@ -9011,10 +9004,6 @@ if (.not. print_cb) then
             return
         endif 
     enddo  
-#ifdef timing
-    call cpu_time( t2 )
-    print *, "cpu time:", t2-t1, "seconds [v7_3] per ph & SO4f soultion."
-#endif 
 endif 
 
 ph_iter = iter
@@ -9152,7 +9141,6 @@ do ispg=1,nsp_gas_all
     dprodmgas_all(ispg,:) = -f1_dum/df1_dum/dconc!/mgasx_loc(ispg,:)  
     dso4fdmgas_all(ispg,:) = -f2_dum/df2_dum/dconc !/mgasx_loc(ispg,:)
 enddo 
-#ifdef test_anal
 ! 
 ! solving two equations analytically:
 ! df1/dph * dph/dmsp + df1/dso4f * dso4f/dmsp + df1/dmsp = 0 
@@ -9170,22 +9158,6 @@ do ispg = 1, nsp_gas_all
     dprodmgas_all(ispg,:) = - (df2*df1dmgas(ispg,:) - df12*df2dmgas(ispg,:) )/(df2*df1 -df12*df21)
     dso4fdmgas_all(ispg,:) = - ( df21*df1dmgas(ispg,:) - df1*df2dmgas(ispg,:) )/(df21*df12 - df1*df2 )  
     ! dso4fdmgas_all(ispg,:) = - df1dmgas(ispg,:)/df12
-#ifdef phiter2_chk
-    if (chrgas_all(ispg)=='pco2') then 
-        print*,'df1dmgas',df1dmgas(ispg,:)
-        print*
-        print*,'df2dmgas',df2dmgas(ispg,:)
-        print*
-        print*,'df1',df1
-        print*
-        print*,'df12',df12
-        print*
-        print*,'df2',df2
-        print*
-        print*,'df21',df21
-        print*
-    endif 
-#endif 
     ! if (chrgas_all(ispg)=='pco2') then 
         ! print *,'df1dmgas(ispg,:)/df1'
         ! print *,df1dmgas(ispg,:)/df1
@@ -9209,7 +9181,6 @@ do ispg = 1, nsp_gas_all
         ! print * 
     ! endif 
 enddo 
-#endif 
 
 endsubroutine calc_pH_v7_3
 
@@ -16239,6 +16210,7 @@ do isp=1,nsp_sld
             ! dbio(iz) =  2d-4*exp(z(iz)/0.1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
             ! dbio(iz) =  2d-7*exp(z(iz)/1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
             ! dbio(iz) =  2d-10   !  just a small value 
+            ! dbio(iz) =  2d-3   !  just a value changed 
             izml = iz   ! determine grid of bottom of mixed layer 
         else
             dbio(iz) =  0d0 ! no biodiffusion in deeper depths 
@@ -16579,6 +16551,7 @@ real(kind=8) msld_seed ,fact2
 real(kind=8):: fact_tol = 1d-3
 real(kind=8):: dt_th = 1d-6
 real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
+! real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
 ! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
 real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
@@ -16670,16 +16643,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     
     ! pH calculation and its derivative wrt aq and gas species
     
-        
-#ifdef phv7_2
-    call calc_pH_v7_2( &
-        & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-        & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-        & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-        & ,print_cb,print_loc,z &! input 
-        & ,prox,ph_error,so4f,ph_iter2 &! output
-        & ) 
-#else
+    
     call calc_pH_v7_3( &
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
@@ -16688,70 +16652,18 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
         & ,prox,ph_error,so4f,ph_iter &! output
         & ) 
-#endif 
-! #ifdef debug
-    ! call calc_pH_v7_2( &
-        ! & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-        ! & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-        ! & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-        ! & ,print_cb,print_loc,z &! input 
-        ! & ,dummy,ph_error,dummy2,ph_iter2 &! output
-        ! & ) 
-    ! pause
-! #endif 
-    ! print*,ph_iter,ph_iter2
-    ! if (maxval(abs((dummy-prox)/prox))>1d-6) then 
-        ! print *, 'checking sub calc_pH_v7_3 ph'
-        ! print *, maxval(abs((dummy-prox)/prox)),ph_error
-        ! print *,'calc_pH_v7_3',prox
-        ! print *
-        ! print *
-        ! print *,'calc_pH_v7_2',dummy
-        ! pause
-    ! endif 
-
-    ! if (maxval(abs((dummy2-so4f)/so4f))>1d-6) then 
-        ! print *, 'checking sub calc_pH_v7_3 so4f'
-        ! print *, maxval(abs((dummy2-so4f)/so4f)),ph_error
-        ! print *,'calc_pH_v7_3',so4f
-        ! print *
-        ! print *
-        ! print *,'calc_pH_v7_2',dummy2
-        ! pause
-    ! endif 
-    
-    ! if (ph_iter > ph_iter2) then
-        ! print *, 'checking sub calc_pH_v7_3 iter'
-        ! print *,'calc_pH_v7_3',ph_iter
-        ! print *
-        ! print *
-        ! print *,'calc_pH_v7_2',ph_iter2
-        ! pause
-    ! endif 
-
 
     if (ph_error) then 
         flgback = .true.
         return
     endif 
     
-#ifdef phiter2
     dprodmaq = 0d0
     dso4fdmaq = 0d0
     do ispa=1,nsp_aq
         if (any (chraq_ph == chraq(ispa))) then 
             dprodmaq(ispa,:)=dprodmaq_all(findloc(chraq_all,chraq(ispa),dim=1),:)
             dso4fdmaq(ispa,:)=dso4fdmaq_all(findloc(chraq_all,chraq(ispa),dim=1),:)
-#ifdef phiter2_chk
-            if (chraq(ispa) == 'ca') then 
-                print *
-                print *,'dprodmgaq(ica,:) -- analytical'
-                print *, dprodmaq(ispa,:) 
-                print *,'dso4fdmaq(ica,:) -- analytical'
-                print *, dso4fdmaq(ispa,:)
-                print *
-            endif 
-#endif
         endif 
     enddo 
     
@@ -16761,115 +16673,9 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         if (any (chrgas_ph == chrgas(ispg))) then 
             dprodmgas(ispg,:)=dprodmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
             dso4fdmGas(ispg,:)=dso4fdmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
-#ifdef phiter2_chk
-            if (chrgas(ispg) == 'pco2') then 
-                print *
-                print *,'dprodmgas(ipco2,:) -- analytical'
-                print *, dprodmgas(ispg,:) 
-                print *,'dso4fdmGas(ipco2,:) -- analytical'
-                print *, dso4fdmGas(ispg,:)
-                print *
-            endif 
-#endif
         endif 
     enddo 
     
-#endif     
-
-#ifdef phiter1    
-    dprodmaq = 0d0
-    dso4fdmaq = 0d0
-    do ispa=1,nsp_aq
-        dmaq = 0d0
-        dmgas = 0d0
-        if (any (chraq_ph == chraq(ispa))) then 
-            dmaq(ispa,:) = dconc
-            dummy = 0d0
-            dummy2 = 0d0
-#ifdef phv7_2
-            call calc_pH_v7_2( &
-                & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-                & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-                & ,maqx+dmaq,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-                & ,print_cb,print_loc,z &! input 
-                & ,dummy,ph_error,dummy2,ph_iter &! output
-                & ) 
-#else
-            call calc_pH_v7_3( &
-                & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-                & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-                & ,maqx+dmaq,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-                & ,print_cb,print_loc,z &! input 
-                & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
-                & ,dummy,ph_error,dummy2,ph_iter &! output
-                & ) 
-#endif 
-            if (ph_error) then 
-                flgback = .true.
-                return
-            endif 
-            dprodmaq(ispa,:) = (dummy - prox)/dconc
-            dso4fdmaq(ispa,:) = (dummy2 - so4f)/dconc
-#ifdef phiter2_chk
-            if (chraq(ispa) == 'ca') then 
-                print *
-                print *,'dprodmgaq(ica,:) -- numerical'
-                print *, dprodmaq(ispa,:) 
-                print *,'dso4fdmaq(ica,:) -- numerical'
-                print *, dso4fdmaq(ispa,:)
-                print *
-            endif 
-#endif 
-        endif 
-    enddo 
-    
-    dprodmgas = 0d0
-    dso4fdmgas = 0d0
-    do ispg=1,nsp_gas
-        dmaq = 0d0
-        dmgas = 0d0
-        if (any (chrgas_ph == chrgas(ispg))) then 
-            dmgas(ispg,:) = dconc
-            dummy = 0d0
-            dummy2 = 0d0
-#ifdef phv7_2
-            call calc_pH_v7_2( &
-                & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-                & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-                & ,maqx,maqc,mgasx+dmgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-                & ,print_cb,print_loc,z &! input 
-                & ,dummy,ph_error,dummy2,ph_iter &! output
-                & ) 
-#else
-            call calc_pH_v7_3( &
-                & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-                & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-                & ,maqx,maqc,mgasx+dmgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-                & ,print_cb,print_loc,z &! input 
-                & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
-                & ,dummy,ph_error,dummy2,ph_iter &! output
-                & ) 
-#endif 
-            if (ph_error) then 
-                flgback = .true.
-                return
-            endif 
-            dprodmgas(ispg,:) = (dummy - prox)/dconc
-            dso4fdmgas(ispg,:) = (dummy2 - so4f)/dconc
-#ifdef phiter2_chk
-            if (chrgas(ispg) == 'pco2') then 
-                print *
-                print *,'dprodmgas(ipco2,:) -- numerical'
-                print *, dprodmgas(ispg,:) 
-                print *,'dso4fdmgas(ipco2,:) -- numerical'
-                print *, dso4fdmgas(ispg,:)
-                print *
-            endif 
-#endif
-        endif 
-    enddo
-#endif 
-
     ! recalculation of rate constants for mineral reactions
     if (kin_iter) then 
         ksld = 0d0
@@ -18110,15 +17916,7 @@ flx_co2sp = 0d0
 
 ! pH calculation and its derivative wrt aq and gas species
 
-#ifdef phv7_2
-call calc_pH_v7_2( &
-    & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    & ,print_cb,print_loc,z &! input 
-    & ,prox,ph_error,so4f,ph_iter &! output
-    & ) 
-#else
+
 call calc_pH_v7_3( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
@@ -18127,7 +17925,6 @@ call calc_pH_v7_3( &
     & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
     & ,prox,ph_error,so4f,ph_iter &! output
     & ) 
-#endif 
     
 ! recalculation of rate constants for mineral reactions
 
