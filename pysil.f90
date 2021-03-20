@@ -152,6 +152,9 @@ real(kind=8),parameter :: mvtm = 272.92d0 ! cm3/mol; molar volume of tremolite (
 real(kind=8),parameter :: mven = 31.31d0 ! cm3/mol; molar volume of enstatite (MgSiO3); Robie and Hemingway 1995
 real(kind=8),parameter :: mvfer = 33.00d0 ! cm3/mol; molar volume of ferrosilite (FeSiO3); Robie and Hemingway 1995
 real(kind=8),parameter :: mvopx = fr_fer_opx*mvfer +(1d0-fr_fer_opx)*mven !  cm3/mol; molar volume of clinopyroxene (FexMg(1-x)SiO3); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mvmscv = 140.71d0 ! cm3/mol; molar volume of muscovite (KAl2(AlSi3O10)(OH)2); Robie et al. 1978
+real(kind=8),parameter :: mvplgp = 149.91d0 ! cm3/mol; molar volume of phlogopite (KMg3(AlSi3O10)(OH)2); Robie et al. 1978
+real(kind=8),parameter :: mvantp = 274.00d0 ! cm3/mol; molar volume of anthophyllite (Mg7Si8O22(OH)2); Robie and Bethke 1962
 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -195,6 +198,9 @@ real(kind=8),parameter :: mwttm = 812.374d0 ! g/mol; formula weight of tremolite
 real(kind=8),parameter :: mwten = 100.389d0 ! g/mol; formula weight of enstatite
 real(kind=8),parameter :: mwtfer = 131.931d0 ! g/mol; formula weight of ferrosilite
 real(kind=8),parameter :: mwtopx = fr_fer_opx*mwtfer + (1d0 -fr_fer_opx)*mwten ! g/mol; formula weight of clinopyroxene (FexMg(1-x)SiO3); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mwtmscv = 398.311d0 ! g/mol; formula weight of muscovite
+real(kind=8),parameter :: mwtplgp = 417.262d0 ! g/mol; formula weight of phlogopite
+real(kind=8),parameter :: mwtantp = 780.976d0 ! g/mol; formula weight of anthophyllite
 
 real(kind=8),parameter :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
@@ -351,7 +357,7 @@ integer,parameter::nsp_sld_2 = 0
 #else
 integer,parameter::nsp_sld_2 = 17
 #endif 
-integer,parameter::nsp_sld_all = 40
+integer,parameter::nsp_sld_all = 43
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -533,7 +539,7 @@ chrflx(nflx) = 'res  '
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
-    & ,'mgbd ','nabd ' &
+    & ,'mgbd ','nabd ','mscv ','plgp ','antp ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -606,11 +612,11 @@ endif
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
-    & ,mvkbd,mvmgbd,mvnabd &
+    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
-    & ,mwtkbd,mwtmgbd,mwtnabd &
+    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -819,6 +825,18 @@ staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'ca',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'mg',dim=1)) = 5d0
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'si',dim=1)) = 8d0
+! Anthophyllite (Mg2Mg5(Si8O22)(OH)2)
+staq_all(findloc(chrsld_all,'antp',dim=1), findloc(chraq_all,'mg',dim=1)) = 7d0
+staq_all(findloc(chrsld_all,'antp',dim=1), findloc(chraq_all,'si',dim=1)) = 8d0
+! Muscovite; KAl2(AlSi3O10)(OH)2
+staq_all(findloc(chrsld_all,'mscv',dim=1), findloc(chraq_all,'k',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'mscv',dim=1), findloc(chraq_all,'al',dim=1)) = 3d0
+staq_all(findloc(chrsld_all,'mscv',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
+! Phlogopite; KMg3(AlSi3O10)(OH)2
+staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'k',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'mg',dim=1)) = 3d0
+staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
 ! Amorphous silica; SiO2
 staq_all(findloc(chrsld_all,'amsi',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Quartz; SiO2
@@ -3900,6 +3918,58 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
 
+    case('mscv')
+        mh = 0.370d0
+        moh = -0.22d0
+        kinn_ref = 10d0**(-13.55d0)*sec2yr
+        kinh_ref = 10d0**(-11.85d0)*sec2yr
+        kinoh_ref = 10d0**(-13.55d0)*sec2yr
+        ean = 22d0
+        eah = 22d0
+        eaoh = 22d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
+    case('plgp')
+        mh = 0d0
+        moh = 0d0
+        kinn_ref = 10d0**(-12.4d0)*sec2yr
+        kinh_ref = 0d0
+        kinoh_ref = 0d0
+        ean = 29d0
+        eah = 0d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
     case('cabd','ill','kbd','nabd','mgbd') ! illite kinetics is assumed to be the same as smectite (Bibi et al., 2011)
         mh = 0.34d0
         moh = -0.4d0
@@ -4038,6 +4108,32 @@ select case(trim(adjustl(mineral)))
         kinoh_ref = 0d0
         ean = 94.4d0
         eah = 18.9d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+    
+    case('antp')
+        mh = 0.440d0
+        moh = 0d0
+        kinn_ref = 10d0**(-14.24d0)*sec2yr
+        kinh_ref = 10d0**(-11.94d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 51.0d0
+        eah = 51.0d0
         eaoh = 0d0
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
@@ -4282,6 +4378,20 @@ select case(trim(adjustl(mineral)))
         tc_ref = 25d0
         ! from PHREEQC.DAT 
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('mscv')
+        ! KAl2(AlSi3O10)(OH)2 + 10 H+  = 6 H2O  + 3 SiO2(aq)  + K+  + 3 Al+++
+        therm_ref = 10d0**(15.97690572d0)
+        ha = -230.7845245d0
+        tc_ref = 15d0
+        ! from Kanzaki & Murakami 2018 
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('plgp')
+        ! KMg3(AlSi3O10)(OH)2 + 10 H+  = 6 H2O  + 3 SiO2(aq)  + Al+++  + K+  + 3 Mg++
+        therm_ref = 10d0**(40.12256823d0)
+        ha = -312.7817497d0
+        tc_ref = 15d0
+        ! from Kanzaki & Murakami 2018 
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('cabd')
         ! Beidellit-Ca  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .165 Ca++
         therm_ref = 10d0**(7.269946518d0)
@@ -4335,6 +4445,13 @@ select case(trim(adjustl(mineral)))
         ! Tremolite  + 14 H+  = 8 H2O  + 8 SiO2(aq)  + 2 Ca++  + 5 Mg++
         therm_ref = 10d0**(61.6715d0)
         ha = -429.0d0
+        tc_ref = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('antp')
+        ! Anthophyllite (Mg2Mg5(Si8O22)(OH)2) + 14 H+  = 8 H2O  + 7 Mg++  + 8 SiO2(aq)
+        therm_ref = 10d0**(70.83527792d0)
+        ha = -508.6621624d0
         tc_ref = 15d0
         ! from Kanzaki & Murakami 2018
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
@@ -14876,7 +14993,7 @@ select case(trim(adjustl(mineral)))
     ! case default ! (almino)silicates & oxides
     case ( &
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
-        & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd' &
+        & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
