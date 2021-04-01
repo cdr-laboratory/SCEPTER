@@ -270,6 +270,9 @@ integer  iflx
 ! real(kind=8) :: maxdt = 10d0
 real(kind=8) :: maxdt = 0.2d0 ! for basalt exp?
 
+real(kind=8) :: maxdt_max = 1d2  ! default  
+! real(kind=8) :: maxdt_max = 1d1  
+
 logical :: pre_calc = .false.
 ! logical :: pre_calc = .true.
 
@@ -2400,7 +2403,7 @@ do while (it<nt)
             else
                 ! maxdt = maxdt* (progress_rate/progress_rate_prev)**0.33d0
                 maxdt = maxdt* (progress_rate/progress_rate_prev)**(-0.33d0)
-                if (maxdt > 1d2) maxdt = 1d2
+                if (maxdt > maxdt_max) maxdt = maxdt_max
                 if (dt < maxdt) count_dtunchanged = 0
                 ! if (dt > maxdt) dt = maxdt
             endif 
