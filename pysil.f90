@@ -3111,6 +3111,8 @@ real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas
 real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
 real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
 
+real(kind=8),dimension(nsp_gas_all,nz)::mgas_loc
+
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 
@@ -3350,12 +3352,20 @@ keqaq_s(findloc(chraq_all,'k',dim=1),ieqaq_so4) = &
 ksld_all = 0d0 
 keqsld_all = 0d0
 
+call get_mgasx_all( &
+    & nz,nsp_gas_all,nsp_gas,nsp_gas_cnst &
+    & ,chrgas,chrgas_all,chrgas_cnst &
+    & ,mgas,mgasc &
+    & ,mgas_loc  &! output
+    & )
+
 do isps = 1, nsp_sld_all
     mv_tmp = mv_all(isps)
     mineral = chrsld_all(isps)
     
     call sld_kin( &
         & nz,rg,tc,sec2yr,tempk_0,pro,poro,hr,kw,kho,mv_tmp &! input
+        & ,nsp_gas_all,chrgas_all,mgas_loc &! input
         & ,mineral,'xxxxx' &! input 
         & ,kin,dkin_dmsp &! output
         & ) 
@@ -3436,6 +3446,7 @@ endsubroutine coefs_v2
 
 subroutine sld_kin( &
     & nz,rg,tc,sec2yr,tempk_0,prox,poro,hr,kw,kho,mv_tmp &! input
+    & ,nsp_gas_all,chrgas_all,mgas_loc &! input
     & ,mineral,dev_sp &! input 
     & ,kin,dkin_dmsp &! output
     & ) 
@@ -3450,6 +3461,13 @@ real(kind=8) :: cal2j = 4.184d0
 character(5),intent(in)::mineral,dev_sp
 real(kind=8),dimension(nz),intent(out)::kin,dkin_dmsp
 real(kind=8) mh,moh,kinn_ref,kinh_ref,kinoh_ref,ean,eah,eaoh,tc_ref
+
+integer,intent(in)::nsp_gas_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgas_loc
+
+real(kind=8),dimension(nz) :: pco2
+real(kind=8) mco2,kinco2_ref,eaco2
 
 ! real(kind=8) k_arrhenius
 
@@ -3728,17 +3746,27 @@ select case(trim(adjustl(mineral)))
         eah = 14.4d0
         eaoh = 0d0
         tc_ref = 25d0
+        ! adding co2 mechanism
+        mco2 = 1d0
+        kinco2_ref = 10d0**(-3.48d0)*sec2yr
+        eaco2 = 35.4d0
+        pco2 = mgas_loc(findloc(chrgas_all,'pco2',dim=1),:)
         ! from Palandri and Kharaka, 2004 (excluding carbonate mechanism)
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
             & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & + pco2**mco2*k_arrhenius(kinco2_ref,tc_ref+tempk_0,tc+tempk_0,eaco2,rg) &
             & ) 
         select case(trim(adjustl(dev_sp)))
             case('pro')
                 dkin_dmsp = ( & 
                     & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
                     & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case('pco2')
+                dkin_dmsp = ( & 
+                    & + mco2*pco2**(mco2-1d0)*k_arrhenius(kinco2_ref,tc_ref+tempk_0,tc+tempk_0,eaco2,rg) &
                     & ) 
             case default 
                 dkin_dmsp = 0d0
@@ -3755,17 +3783,27 @@ select case(trim(adjustl(mineral)))
         eah = 14.4d0
         eaoh = 0d0
         tc_ref = 25d0
+        ! adding co2 mechanism
+        mco2 = 1d0
+        kinco2_ref = 10d0**(-3.48d0)*sec2yr
+        eaco2 = 35.4d0
+        pco2 = mgas_loc(findloc(chrgas_all,'pco2',dim=1),:)
         ! from Palandri and Kharaka, 2004 (excluding carbonate mechanism)
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
             & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & + pco2**mco2*k_arrhenius(kinco2_ref,tc_ref+tempk_0,tc+tempk_0,eaco2,rg) &
             & ) 
         select case(trim(adjustl(dev_sp)))
             case('pro')
                 dkin_dmsp = ( & 
                     & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
                     & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case('pco2')
+                dkin_dmsp = ( & 
+                    & + mco2*pco2**(mco2-1d0)*k_arrhenius(kinco2_ref,tc_ref+tempk_0,tc+tempk_0,eaco2,rg) &
                     & ) 
             case default 
                 dkin_dmsp = 0d0
@@ -3781,17 +3819,27 @@ select case(trim(adjustl(mineral)))
         eah = 36.1d0
         eaoh = 0d0
         tc_ref = 25d0
+        ! adding co2 mechanism
+        mco2 = 0.5d0
+        kinco2_ref = 10d0**(-5.11d0)*sec2yr
+        eaco2 = 34.8d0
+        pco2 = mgas_loc(findloc(chrgas_all,'pco2',dim=1),:)
         ! from Palandri and Kharaka, 2004 (excluding carbonate mechanism)
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
             & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & + pco2**mco2*k_arrhenius(kinco2_ref,tc_ref+tempk_0,tc+tempk_0,eaco2,rg) &
             & ) 
         select case(trim(adjustl(dev_sp)))
             case('pro')
                 dkin_dmsp = ( & 
                     & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
                     & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case('pco2')
+                dkin_dmsp = ( & 
+                    & + mco2*pco2**(mco2-1d0)*k_arrhenius(kinco2_ref,tc_ref+tempk_0,tc+tempk_0,eaco2,rg) &
                     & ) 
             case default 
                 dkin_dmsp = 0d0
@@ -15217,6 +15265,43 @@ endsubroutine get_base_charge
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine get_mgasx_all( &
+    & nz,nsp_gas_all,nsp_gas,nsp_gas_cnst &
+    & ,chrgas,chrgas_all,chrgas_cnst &
+    & ,mgasx,mgasc &
+    & ,mgasx_loc  &! output
+    & )
+implicit none
+
+integer,intent(in)::nz,nsp_gas_all,nsp_gas,nsp_gas_cnst
+character(5),dimension(nsp_gas),intent(in)::chrgas
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
+real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx
+real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
+
+real(kind=8),dimension(nsp_gas_all,nz),intent(out)::mgasx_loc
+
+integer ispg
+
+mgasx_loc = 0d0
+
+do ispg = 1, nsp_gas_all
+    if (any(chrgas==chrgas_all(ispg))) then 
+        mgasx_loc(ispg,:) =  mgasx(findloc(chrgas,chrgas_all(ispg),dim=1),:)
+    elseif (any(chrgas_cnst==chrgas_all(ispg))) then 
+        mgasx_loc(ispg,:) =  mgasc(findloc(chrgas_cnst,chrgas_all(ispg),dim=1),:)
+    endif 
+enddo 
+
+
+endsubroutine get_mgasx_all
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine get_maqgasx_all( &
     & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
     & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
@@ -16595,6 +16680,8 @@ real(kind=8),dimension(nz)::domega_dpro_loc,domega_dso4f_loc
 real(kind=8),dimension(nsp_gas_all,nz)::domega_dmgas_all
 real(kind=8),dimension(nsp_aq_all,nz)::domega_dmaq_all
 
+real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
+
 character(5),dimension(nflx),intent(in)::chrflx
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
@@ -16803,9 +16890,18 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         dksld_dso4f = 0d0
         dksld_dmaq = 0d0
         dksld_dmgas = 0d0
+        
+        call get_mgasx_all( &
+            & nz,nsp_gas_all,nsp_gas,nsp_gas_cnst &
+            & ,chrgas,chrgas_all,chrgas_cnst &
+            & ,mgasx,mgasc &
+            & ,mgasx_loc  &! output
+            & )
+        
         do isps =1,nsp_sld 
             call sld_kin( &
                 & nz,rg,tc,sec2yr,tempk_0,prox,poro,hr,kw,kho,mv(isps) &! input
+                & ,nsp_gas_all,chrgas_all,mgasx_loc &! input
                 & ,chrsld(isps),'pro  ' &! input 
                 & ,kin,dkin_dmsp &! output
                 & ) 
@@ -16816,6 +16912,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 if (any (chraq_ph == chraq(ispa)) .or. staq(isps,ispa)/=0d0 ) then 
                     call sld_kin( &
                         & nz,rg,tc,sec2yr,tempk_0,prox,poro,hr,kw,kho,mv(isps) &! input
+                        & ,nsp_gas_all,chrgas_all,mgasx_loc &! input
                         & ,chrsld(isps),chraq(ispa) &! input 
                         & ,kin,dkin_dmsp &! output
                         & ) 
@@ -16830,6 +16927,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 if (any (chrgas_ph == chrgas(ispg)) .or. stgas(isps,ispg)/=0d0) then 
                     call sld_kin( &
                         & nz,rg,tc,sec2yr,tempk_0,prox,poro,hr,kw,kho,mv(isps) &! input
+                        & ,nsp_gas_all,chrgas_all,mgasx_loc &! input
                         & ,chrsld(isps),chrgas(ispg) &! input 
                         & ,kin,dkin_dmsp &! output
                         & ) 
@@ -18051,10 +18149,18 @@ call calc_pH_v7_3( &
 if (kin_iter) then 
 
     ksld = 0d0
+        
+    call get_mgasx_all( &
+        & nz,nsp_gas_all,nsp_gas,nsp_gas_cnst &
+        & ,chrgas,chrgas_all,chrgas_cnst &
+        & ,mgasx,mgasc &
+        & ,mgasx_loc  &! output
+        & )
 
     do isps =1,nsp_sld 
         call sld_kin( &
             & nz,rg,tc,sec2yr,tempk_0,prox,poro,hr,kw,kho,mv(isps) &! input
+            & ,nsp_gas_all,chrgas_all,mgasx_loc &! input
             & ,chrsld(isps),'pro  ' &! input 
             & ,kin,dkin_dmsp &! output
             & ) 
