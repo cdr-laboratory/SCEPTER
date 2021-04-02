@@ -107,8 +107,9 @@ real(kind=8),parameter :: fr_an_by = 0.8d0 ! Anorthite fraction for bytownite (B
 real(kind=8),parameter :: fr_an_an = 1.0d0 ! Anorthite fraction for anorthite (Beerling et al., 2020); 0.9 - 1.0
 
 real(kind=8),parameter :: fr_hb_cpx = 0.5d0 ! Hedenbergite fraction for clinopyroxene; 0.0 - 1.0
-
 real(kind=8),parameter :: fr_fer_opx = 0.5d0 ! Ferrosilite fraction for orthopyroxene; 0.0 - 1.0
+real(kind=8),parameter :: fr_fer_agt = 0.5d0 ! Ferrosilite (and Hedenbergite; or Fe/(Fe+Mg)) fraction for Augite; 0.0 - 1.0
+real(kind=8),parameter :: fr_opx_agt = 0.5d0 ! OPX (or Ca/(Fe+Mg)) fraction for Augite; 0.0 - 1.0
 
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
@@ -132,7 +133,7 @@ real(kind=8),parameter :: mvnabd = 130.73d0 ! cm3/mol; molar volume of Na-beidel
 real(kind=8),parameter :: mvmgbd = 128.73d0 ! cm3/mol; molar volume of Mg-beidellite (Mg(1/6)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
 real(kind=8),parameter :: mvdp = 66.09d0 ! cm3/mol; molar volume of Diopside (MgCaSi2O6);  Robie et al. 1978
 real(kind=8),parameter :: mvhb = 248.09d0/3.55d0 ! cm3/mol; molar volume of Hedenbergite (FeCaSi2O6); from a webpage
-real(kind=8),parameter :: mvcpx = fr_hb_cpx*fr_hb_cpx + (1d0-fr_hb_cpx)*mvdp  ! cm3/mol; molar volume of clinopyroxene (FexMg(1-x)CaSi2O6); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mvcpx = fr_hb_cpx*mvhb + (1d0-fr_hb_cpx)*mvdp  ! cm3/mol; molar volume of clinopyroxene (FexMg(1-x)CaSi2O6); assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mvkfs = 108.72d0 ! cm3/mol; molar volume of K-feldspar (KAlSi3O8); Robie et al. 1978
 real(kind=8),parameter :: mvom = 5.3d0 ! cm3/mol; molar volume of OM (CH2O); Lasaga and Ohmoto 2002
 real(kind=8),parameter :: mvomb = 5.3d0 ! cm3/mol; assumed to be same as mvom
@@ -155,7 +156,12 @@ real(kind=8),parameter :: mvopx = fr_fer_opx*mvfer +(1d0-fr_fer_opx)*mven !  cm3
 real(kind=8),parameter :: mvmscv = 140.71d0 ! cm3/mol; molar volume of muscovite (KAl2(AlSi3O10)(OH)2); Robie et al. 1978
 real(kind=8),parameter :: mvplgp = 149.91d0 ! cm3/mol; molar volume of phlogopite (KMg3(AlSi3O10)(OH)2); Robie et al. 1978
 real(kind=8),parameter :: mvantp = 274.00d0 ! cm3/mol; molar volume of anthophyllite (Mg7Si8O22(OH)2); Robie and Bethke 1962
-
+real(kind=8),parameter :: mvagt = (fr_fer_agt*mvfer +(1d0-fr_fer_agt)*mven)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y)
+                                & + (fr_fer_agt*mvhb + (1d0-fr_fer_agt)*mvdp)*(1d0-fr_opx_agt) ! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y))
+                                !  cm3/mol; molar volume of augite 
+                                ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6)
+                                ! ; assuming simple ('ideal'?) mixing
+                                
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
 real(kind=8),parameter :: mwtab_0 = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
@@ -178,7 +184,7 @@ real(kind=8),parameter :: mwtnabd = 367.6088333d0 ! g/mol; formula weight of Nab
 real(kind=8),parameter :: mwtmgbd = 363.9964333d0 ! g/mol; formula weight of Mgbd calculated from atmoic weight
 real(kind=8),parameter :: mwtdp = 216.553d0 ! g/mol;  Robie et al. 1978
 real(kind=8),parameter :: mwthb = 248.09d0 ! g/mol; from a webpage
-real(kind=8),parameter :: mwtcpx = fr_hb_cpx*fr_hb_cpx + (1d0-fr_hb_cpx)*mvdp ! g/mol; formula weight of clinopyroxene (FexMg(1-x)CaSi2O6); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mwtcpx = fr_hb_cpx*mwthb + (1d0-fr_hb_cpx)*mwtdp ! g/mol; formula weight of clinopyroxene (FexMg(1-x)CaSi2O6); assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mwtkfs = 278.33d0 ! g/mol; formula weight of Kfs; Robie et al. 1978
 real(kind=8),parameter :: mwtom = 30d0 ! g/mol; formula weight of CH2O
 real(kind=8),parameter :: mwtomb = 30d0 ! g/mol; formula weight of CH2O
@@ -201,7 +207,12 @@ real(kind=8),parameter :: mwtopx = fr_fer_opx*mwtfer + (1d0 -fr_fer_opx)*mwten !
 real(kind=8),parameter :: mwtmscv = 398.311d0 ! g/mol; formula weight of muscovite
 real(kind=8),parameter :: mwtplgp = 417.262d0 ! g/mol; formula weight of phlogopite
 real(kind=8),parameter :: mwtantp = 780.976d0 ! g/mol; formula weight of anthophyllite
-
+real(kind=8),parameter :: mwtagt = (fr_fer_agt*mwtfer +(1d0-fr_fer_agt)*mwten)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y)
+                                & + (fr_fer_agt*mwthb + (1d0-fr_fer_agt)*mwtdp)*(1d0-fr_opx_agt) ! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y))
+                                !  g/mol; formula weight of augite 
+                                ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6)
+                                ! ; assuming simple ('ideal'?) mixing
+                                
 real(kind=8),parameter :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 
 ! real(kind=8)::plant_rain = 1.4d-3 ! g C/g soil/yr; converted from 1.6d-4 mg C / g soil /hr from Georgiou et al. 2017 ! 
@@ -360,7 +371,7 @@ integer,parameter::nsp_sld_2 = 0
 #else
 integer,parameter::nsp_sld_2 = 17
 #endif 
-integer,parameter::nsp_sld_all = 43
+integer,parameter::nsp_sld_all = 44
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -542,7 +553,7 @@ chrflx(nflx) = 'res  '
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
-    & ,'mgbd ','nabd ','mscv ','plgp ','antp ' &
+    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ' &
     & ,'g1   ','g2   ','g3   '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -615,11 +626,11 @@ endif
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
-    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp &
+    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt &
     & ,mvg1,mvg2,mvg3/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
-    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp &
+    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt &
     & ,mwtg1,mwtg2,mwtg3/)
 
 do isps = 1, nsp_sld 
@@ -824,6 +835,11 @@ staq_all(findloc(chrsld_all,'fer',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fer_opx
 staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0 - fr_fer_opx
 staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+! Augite (Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6); x=fr_fer_agt ; y=fr_opx_agt 
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fer_agt* (1d0 + fr_opx_agt)
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'mg',dim=1)) = (1d0 - fr_fer_agt )*(fr_opx_agt + 1d0)
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0 - fr_opx_agt
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 ! Tremolite (Ca2Mg5(Si8O22)(OH)2)
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'ca',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'mg',dim=1)) = 5d0
@@ -3078,7 +3094,7 @@ integer,intent(in)::nz
 real(kind=8),intent(in)::rg,rg2,tc,sec2yr,tempk_0
 real(kind=8),dimension(nz),intent(in)::pro,poro,hr
 real(kind=8),dimension(nz)::oh,po2,kin,dkin_dmsp
-real(kind=8) kho,po2th,mv_tmp,therm,ss_x
+real(kind=8) kho,po2th,mv_tmp,therm,ss_x,ss_y
 real(kind=8),intent(out)::ucv,kw
 
 ! real(kind=8) k_arrhenius
@@ -3375,16 +3391,23 @@ do isps = 1, nsp_sld_all
     select case (trim(adjustl(mineral))) 
         case('la','ab','an','by','olg','and')
             ss_x = staq_all(isps, findloc(chraq_all,'ca',dim=1))
+            ss_y = 0d0 ! non-zero if it is a solid solution 
         case('cpx','hb','dp') 
             ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))
+            ss_y = 0d0 ! non-zero if it is a solid solution 
         case('opx','en','fer') 
             ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))
+            ss_y = 0d0 ! non-zero if it is a solid solution 
+        case('agt') 
+            ss_y = 1d0 - staq_all(isps, findloc(chraq_all,'ca',dim=1))
+            ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))/(1d0+ ss_y ) ! non-zero if it is a solid solution 
         case default 
             ss_x = 0d0 ! non-zero if it is a solid solution 
+            ss_y = 0d0 ! non-zero if it is a solid solution 
     endselect 
     
     call sld_therm( &
-        & rg,tc,tempk_0,ss_x &! input
+        & rg,tc,tempk_0,ss_x,ss_y &! input
         & ,mineral &! input
         & ,therm &! output
         & ) 
@@ -4099,7 +4122,7 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
     
-    case('hb','cpx')
+    case('hb','cpx','agt')
         mh = 0.70d0
         moh = 0d0
         kinn_ref = 10d0**(-11.97d0)*sec2yr
@@ -4291,19 +4314,23 @@ endsubroutine sld_kin
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine sld_therm( &
-    & rg,tc,tempk_0,ss_x &! input
+    & rg,tc,tempk_0,ss_x,ss_y &! input
     & ,mineral &! input
     & ,therm &! output
     & ) 
 implicit none
 
-real(kind=8),intent(in)::rg,tc,tempk_0,ss_x
+real(kind=8),intent(in)::rg,tc,tempk_0,ss_x,ss_y
 real(kind=8) :: cal2j = 4.184d0 
 real(kind=8),intent(out):: therm
 character(5),intent(in):: mineral
 real(kind=8) tc_ref,ha,therm_ref,delG
 real(kind=8) tc_ref_1,ha_1,therm_ref_1,therm_1,delG_1
 real(kind=8) tc_ref_2,ha_2,therm_ref_2,therm_2,delG_2
+real(kind=8) tc_ref_3,ha_3,therm_ref_3,therm_3,delG_3
+real(kind=8) tc_ref_4,ha_4,therm_ref_4,therm_4,delG_4
+real(kind=8) tc_ref_5,ha_5,therm_ref_5,therm_5,delG_5
+real(kind=8) tc_ref_6,ha_6,therm_ref_6,therm_6,delG_6
 
 ! real(kind=8) k_arrhenius
 
@@ -4591,6 +4618,75 @@ select case(trim(adjustl(mineral)))
             delG = ss_x*delG_1 + (1d0-ss_x)*delG_2 + rg*(tc+tempk_0)*(ss_x*log(ss_x)+(1d0-ss_x)*log(1d0-ss_x))
         endif 
         therm = exp(-delG/(rg*(tc+tempk_0)))
+    case('agt')
+        ! obtaining opx (FexMg(1-x)SiO3 + 2 H+  = xFe++ + (1-x)Mg++  +  SiO2(aq))
+        ! obtaining ferrosilite
+        therm_ref_1 = 10d0**(7.777162795d0)
+        ha_1 = -60.08612326d0
+        tc_ref_1 = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm_1 = k_arrhenius(therm_ref_1,tc_ref_1+tempk_0,tc+tempk_0,ha_1,rg) ! rg in kJ mol^-1 K^-1
+        ! converting to the formula Fe2Si2O6 + 4 H+  = 2Fe++ + 2SiO2(aq)
+        therm_1 = therm_1**2d0
+        delG_1 = - rg*(tc+tempk_0)*log(therm_1) ! del-G = -RT ln K  now in kJ mol-1
+        
+        ! Then enstatite 
+        therm_ref_2 = 10d0**(11.99060855d0)
+        ha_2 = -85.8218778d0
+        tc_ref_2 = 15d0
+        ! from Kanzaki and Murakami 2018
+        therm_2 = k_arrhenius(therm_ref_2,tc_ref_2+tempk_0,tc+tempk_0,ha_2,rg)
+        ! converting to the formula Mg2Si2O6 + 4 H+  = 2Mg++ + 2SiO2(aq)
+        therm_2 = therm_2**2d0
+        delG_2 = - rg*(tc+tempk_0)*log(therm_2) ! del-G = -RT ln K  now in kJ mol-1
+        
+        if (ss_x == 1d0) then 
+            delG_3 = delG_1 ! ideal ferrosilite
+        elseif (ss_x == 0d0) then 
+            delG_3 = delG_2 ! ideal enstatite
+        elseif (ss_x > 0d0 .and. ss_x < 1d0) then  ! solid solution 
+            ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
+            delG_3 = ss_x*delG_1 + (1d0-ss_x)*delG_2 + rg*(tc+tempk_0)*(ss_x*log(ss_x)+(1d0-ss_x)*log(1d0-ss_x))
+        endif 
+        therm_3 = exp(-delG_3/(rg*(tc+tempk_0)))
+        
+        ! obtaining cpx (FexMg(1-x)CaSi2O6 + 4 H+  = Ca++  + 2 H2O  + xFe++ + (1-x)Mg++  + 2 SiO2(aq))
+        ! obtaining hedenbergite 
+        therm_ref_4 = 10d0**(20.20981116d0)
+        ha_4 = -128.5d0
+        tc_ref_4 = 15d0
+        ! from Kanzaki & Murakami 2018
+        therm_4 = k_arrhenius(therm_ref_4,tc_ref_4+tempk_0,tc+tempk_0,ha_4,rg) ! rg in kJ mol^-1 K^-1
+        delG_4 = - rg*(tc+tempk_0)*log(therm_4) ! del-G = -RT ln K  now in kJ mol-1
+        ! Then diopside 
+        therm_ref_5 = 10d0**(21.79853309d0)
+        ha_5 = -138.6020832d0
+        tc_ref_5 = 15d0
+        ! from Kanzaki and Murakami 2018
+        therm_5 = k_arrhenius(therm_ref_5,tc_ref_5+tempk_0,tc+tempk_0,ha_5,rg)
+        delG_5 = - rg*(tc+tempk_0)*log(therm_5) ! del-G = -RT ln K  now in kJ mol-1
+        
+        if (ss_x == 1d0) then 
+            delG_6 = delG_4 ! ideal hedenbergite
+        elseif (ss_x == 0d0) then 
+            delG_6 = delG_5 ! ideal diopside
+        elseif (ss_x > 0d0 .and. ss_x < 1d0) then  ! solid solution 
+            ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
+            delG_6 = ss_x*delG_4 + (1d0-ss_x)*delG_5 + rg*(tc+tempk_0)*(ss_x*log(ss_x)+(1d0-ss_x)*log(1d0-ss_x))
+        endif 
+        therm_6 = exp(-delG_6/(rg*(tc+tempk_0)))
+        
+        ! finally mixing opx and cpx 
+        if (ss_y == 1d0) then 
+            delG = delG_3 ! ideal opx
+        elseif (ss_y == 0d0) then 
+            delG = delG_6 ! ideal cpx
+        elseif (ss_y > 0d0 .and. ss_y < 1d0) then  ! solid solution 
+            ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
+            delG = ss_y*delG_3 + (1d0-ss_y)*delG_6 + rg*(tc+tempk_0)*(ss_y*log(ss_y)+(1d0-ss_y)*log(1d0-ss_y))
+        endif 
+        therm = exp(-delG/(rg*(tc+tempk_0)))
+        
     case('g1')
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case('g2')
@@ -15045,6 +15141,7 @@ select case(trim(adjustl(mineral)))
     case ( &
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
+        & ,'agt' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
