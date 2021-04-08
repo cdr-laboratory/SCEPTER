@@ -652,7 +652,8 @@ call get_parentrock( &
     & nsp_sld_all,chrsld_all,def_pr &! input
     & ,msldi_all &! output
     & )
-
+! adding the case where input wt% exceeds 100% 
+if ( sum(msldi_all) > 1d0) msldi_all = msldi_all/sum(msldi_all) 
 msldi_all = msldi_all/mwt_all*rho_grain*1d6 ! converting g/g to mol/sld m3
 msldi_all = (1d0 - poroi) * msldi_all       ! mol/sld m3 to mol/bulk m3 
 
