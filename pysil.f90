@@ -4281,22 +4281,19 @@ select case(trim(adjustl(mineral)))
         
     case('g1')
         kin = ( &
-            & 1d0/(poro*hr*mv_tmp*1d-6) &
-            & *1d0/1d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
+            & 1d0/1d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
             & )
         dkin_dmsp = 0d0
         
     case('g2')
         kin = ( &
-            & 1d0/(poro*hr*mv_tmp*1d-6) &
-            & *1d0/8d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 8 year as in Chen et al. (2010, AFM) 
+            & 1d0/8d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 8 year as in Chen et al. (2010, AFM) 
             & )
         dkin_dmsp = 0d0
         
     case('g3')
         kin = ( &
-            & 1d0/(poro*hr*mv_tmp*1d-6) &
-            & *1d0/1d3 &! mol m^-2 yr^-1, just a value assumed; picked up to represent turnover time of 1k year  
+            & 1d0/1d3 &! mol m^-2 yr^-1, just a value assumed; picked up to represent turnover time of 1k year  
             & )
         dkin_dmsp = 0d0
         
@@ -16851,7 +16848,7 @@ logical::kin_iter = .true.
 ! logical::sld_enforce = .false.
 logical,intent(in)::sld_enforce != .true.
 
-character(10) precstyle 
+character(10),dimension(nsp_sld):: precstyle 
 real(kind=8) msld_seed ,fact2
 real(kind=8):: fact_tol = 1d-3
 real(kind=8):: dt_th = 1d-6
@@ -16868,6 +16865,18 @@ precstyle = 'def'
 ! precstyle = 'full'
 ! precstyle = 'full_lim'
 ! precstyle = 'seed '
+! precstyle = '2/3'
+
+do isps = 1, nsp_sld
+    select case(trim(adjustl(chrsld(isps))))
+        case('g1','g2','g3')
+            precstyle(isps) = 'decay'
+        case default 
+            precstyle(isps) = 'def'
+            ! precstyle(isps) = '2/3'
+            ! precstyle(isps) = '2/3noporo'
+    endselect
+enddo 
 
 msld_seed = 1d-20
 
@@ -17050,9 +17059,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             if ( any( chrsld == chrsld_kinspc(isps_kinspc))) then 
                 select case (trim(adjustl(chrsld_kinspc(isps_kinspc))))
                     case('g1','g2','g3') ! for OMs, turn over year needs to be provided [yr]
-                        ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                            
-                            & 1d0/(poro*hr*mv(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1))*1d-6) &
-                            & *1d0/kin_sld_spc(isps_kinspc) &
+                        ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                   
+                            & 1d0/kin_sld_spc(isps_kinspc) &
                             & ) 
                         dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
                         dksld_dso4f(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
@@ -18273,9 +18281,8 @@ if (nsld_kinspc > 0) then
         if ( any( chrsld == chrsld_kinspc(isps_kinspc))) then 
             select case (trim(adjustl(chrsld_kinspc(isps_kinspc))))
                 case('g1','g2','g3') ! for OMs, turn over year needs to be provided [yr]
-                    ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                            
-                        & 1d0/(poro*hr*mv(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1))*1d-6) &
-                        & *1d0/kin_sld_spc(isps_kinspc) &
+                    ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                   
+                        & 1d0/kin_sld_spc(isps_kinspc) &
                         & ) 
                     dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
                     dksld_dso4f(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
@@ -18873,7 +18880,7 @@ real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas,agas
 real(kind=8),dimension(nsp_sld,nz),intent(in)::ksld,omega,nonprec,msldx,msld
 real(kind=8),dimension(nsp_sld,nsp_aq,nz),intent(in)::dksld_dmaq,domega_dmaq
 real(kind=8),dimension(nsp_sld,nsp_gas,nz),intent(in)::dksld_dmgas,domega_dmgas
-character(10),intent(in)::precstyle
+character(10),dimension(nsp_sld),intent(in)::precstyle
 real(kind=8),dimension(nsp_sld,nz),intent(out)::rxnsld,drxnsld_dmsld
 real(kind=8),dimension(nsp_sld,nsp_aq,nz),intent(out)::drxnsld_dmaq
 real(kind=8),dimension(nsp_sld,nsp_gas,nz),intent(out)::drxnsld_dmgas
@@ -18915,7 +18922,7 @@ do isps=1,nsp_sld
 enddo 
 
 do isps = 1,nsp_sld
-    select case(trim(adjustl(precstyle)))
+    select case(trim(adjustl(precstyle(isps))))
     
         case ('full_lim') 
             
@@ -19035,6 +19042,98 @@ do isps = 1,nsp_sld
                     & + ksld(isps,:)*poro*hr*mv(isps)*1d-6*(msldx(isps,:)+msld_seed)*(-domega_dmgas(isps,ispg,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
                     & + dksld_dmgas(isps,ispg,:)*poro*hr*mv(isps)*1d-6*(msldx(isps,:)+msld_seed)*(1d0-omega(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & )
+            enddo 
+        
+        
+        case('decay')
+            rxnsld(isps,:) = ( &
+                & + ksld(isps,:)*msldx(isps,:)*(1d0-omega(isps,:)) &
+                & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                & )
+        
+            drxnsld_dmsld(isps,:) = ( &
+                & + ksld(isps,:)*1d0*(1d0-omega(isps,:)) &
+                & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                & )
+            
+            do ispa = 1, nsp_aq
+                drxnsld_dmaq(isps,ispa,:) = ( &
+                    & + ksld(isps,:)*msldx(isps,:)*(-domega_dmaq(isps,ispa,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & + dksld_dmaq(isps,ispa,:)*msldx(isps,:)*(1d0-omega(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & )
+            enddo 
+            
+            do ispg = 1, nsp_gas
+                drxnsld_dmgas(isps,ispg,:) = ( &
+                    & + ksld(isps,:)*msldx(isps,:)*(-domega_dmgas(isps,ispg,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & + dksld_dmgas(isps,ispg,:)*msldx(isps,:)*(1d0-omega(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & )
+            enddo 
+        
+        
+        case('2/3noporo')
+            rxnsld(isps,:) = ( &
+                & + ksld(isps,:)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(1d0-omega(isps,:)) &
+                & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                & )
+        
+            drxnsld_dmsld(isps,:) = ( &
+                & + ksld(isps,:)*hr*(mv(isps)*1d-6)**(2d0/3d0) &
+                &       *(2d0/3d0)*msldx(isps,:)**(-1d0/3d0)*(1d0-omega(isps,:)) &
+                & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                & )
+            
+            do ispa = 1, nsp_aq
+                drxnsld_dmaq(isps,ispa,:) = ( &
+                    & + ksld(isps,:)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(-domega_dmaq(isps,ispa,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & + dksld_dmaq(isps,ispa,:)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(1d0-omega(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & )
+            enddo 
+            
+            do ispg = 1, nsp_gas
+                drxnsld_dmgas(isps,ispg,:) = ( &
+                    & + ksld(isps,:)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(-domega_dmgas(isps,ispg,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & + dksld_dmgas(isps,ispg,:)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(1d0-omega(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & )
+            enddo 
+        
+        
+        case('2/3')
+            rxnsld(isps,:) = ( &
+                & + ksld(isps,:)*poro**(2d0/3d0)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(1d0-omega(isps,:)) &
+                & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                & )
+        
+            drxnsld_dmsld(isps,:) = ( &
+                & + ksld(isps,:)*poro**(2d0/3d0)*hr*(mv(isps)*1d-6)**(2d0/3d0) &
+                &       *(2d0/3d0)*msldx(isps,:)**(-1d0/3d0)*(1d0-omega(isps,:)) &
+                & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                & )
+            
+            do ispa = 1, nsp_aq
+                drxnsld_dmaq(isps,ispa,:) = ( &
+                    & + ksld(isps,:)*poro**(2d0/3d0)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(-domega_dmaq(isps,ispa,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & + dksld_dmaq(isps,ispa,:)*poro**(2d0/3d0)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(1d0-omega(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & )
+            enddo 
+            
+            do ispg = 1, nsp_gas
+                drxnsld_dmgas(isps,ispg,:) = ( &
+                    & + ksld(isps,:)*poro**(2d0/3d0)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(-domega_dmgas(isps,ispg,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & + dksld_dmgas(isps,ispg,:)*poro**(2d0/3d0)*hr*(mv(isps)*1d-6*msldx(isps,:))**(2d0/3d0)*(1d0-omega(isps,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
                     & )
             enddo 
