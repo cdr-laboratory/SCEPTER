@@ -2091,86 +2091,14 @@ do while (it<nt)
             ! & ,ps,dps,ps_min,ps_max &! in 
             ! & ,psd &! inout
             ! & )
-        
-        ! attempt to do psd ( defined with particle number / bulk m3 / log (r) )
-        ! assumptions: 
-        ! 1. particle numbers are only affected by transport (including raining/dusting) 
-        ! 2. dissolution does not change particle numbers: it only affect particle distribution 
-        ! unless particle is the minimum radius. in this case particle can be lost via dissolution 
-        ! 3. when a mineral precipitates, it is assumed to increase particle radius?
-        ! e.g., when a 1 um of particle is dissolved by X m3, its radius is changed and this particle is put into a different bin of (smaller) radius 
-
-        ! now accounting for advection 
-        ! sum of volume change of minerals at iz is DV = sum(flx_sld(iadv,iz)*mv(:)*1d-6)*dt (m3 / m3) 
-        ! in general sum(msld*mv*1d-6) (m3/m3) must be equal to sum( 4/3(pi)r3 * psd * dps) 
-        ! so governing equation for msld must also be applicabple to psd?
-        ! (wp_tmp*mp_tmp - w_tmp* m_tmp)/dz(iz)
-        ! where 
-        
-        dpsd = 0d0
-        psd_old = psd
-        do iz = 1, nz
-
-            DV(iz) = 0d0
-            do isps = 1,nsp_sld 
-                DV(iz) = DV(iz) + flx_sld(isps, iadv ,iz)*mv(isps)*1d-6*dt 
-            enddo 
             
-            ! explicit way 
-            if (iz == nz) then 
-                ! dpsd(:,iz) = - ( w0 * 4d0/3d0*(pi)*(10d0**ps(:))**3d0  * psd_pr(:) * dps(:)  &
-                    ! & - w(iz) * 4d0/3d0*(pi)*(10d0**ps(:))**3d0  * psd(:,iz) * dps(:) ) /dz(iz) * dt
-                dpsd(:,iz) = dpsd(:,iz) - ( w0 * psd_pr(:)  - w(iz) *  psd(:,iz) ) /dz(iz) * dt
-            else 
-                ! dpsd(:,iz) = - ( w(iz+1) * 4d0/3d0*(pi)*(10d0**ps(:))**3d0  * psd(:,iz+1) * dps(:)  &
-                    ! & - w(iz) * 4d0/3d0*(pi)*(10d0**ps(:))**3d0  * psd(:,iz) * dps(:) ) /dz(iz) * dt
-                dpsd(:,iz) = dpsd(:,iz) - ( w(iz+1) * psd(:,iz+1) - w(iz) * psd(:,iz) ) /dz(iz) * dt
-            endif 
-            ! solution can diverge ?
-            
-            ! rather enforcing dpsd from DV
-            ! i.e., sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:)) - DV(iz) = 0
-            ! sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:)) = DV(iz)
-            dpsd(:,iz) = psd(:,iz) ! *DV(iz) / sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  psd(:,iz)  * dps(:))
-            dpsd(:,iz) = dpsd(:,iz)*DV(iz) / sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:))
-            
-            
-            if (DV(iz) > tol &
-                & .and. abs((sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:)) - DV(iz))/DV(iz)) > tol) then 
-                print *, DV(iz), sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:))
-                pause
-            endif 
-            
-        enddo 
-
-        if (any(isnan(psd))) then 
-            print *, 'nan in psd'
-            stop
-        endif 
-        if (any(psd<0d0)) then 
-            print *, 'negative psd'
-            stop
-        endif 
-        if (any(isnan(dpsd))) then 
-            print *, 'nan in dpsd' 
-            do iz = 1, nz
-                do ips=1,nps
-                    if (isnan(dpsd(ips,iz))) then 
-                        print *, 'ips,iz,dpsd,psd',ips,iz,dpsd(ips,iz),psd(ips,iz)
-                    endif 
-                enddo 
-            enddo 
-            stop
-        endif 
-
-        psd = psd + dpsd
-
-        open(ipsd,file = trim(adjustl(profdir))//'/'//'pds_tmp.txt',status = 'replace')
-        write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps)
-        do iz = 1, nz
-            write(ipsd,*) z(iz),(psd(ips,iz),ips=1,nps)
-        enddo 
-        close(ipsd)
+        call psd_adv( &
+            & nsp_sld,nps,nflx,iadv &! in
+            & ,z,flx_sld,mv,dt,pi,tol,w,w0,dz &! in 
+            & ,profdir,ipsd &! in
+            & ,ps,dps,psd_pr &! in 
+            & ,psd &! inout
+            & )
         
 ! #ifdef surfssa
         ! mvab = mwtab 
@@ -19639,6 +19567,117 @@ close(ipsd)
 
    
 endsubroutine psd_diss
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine psd_adv( &
+    & nsp_sld,nps,nflx,iadv &! in
+    & ,z,flx_sld,mv,dt,pi,tol,w,w0,dz &! in 
+    & ,profdir,ipsd &! in
+    & ,ps,dps,psd_pr &! in 
+    & ,psd &! inout
+    & )
+implicit none 
+
+integer,intent(in)::nsp_sld,nps,nflx,ipsd,iadv
+real(kind=8),intent(in)::dt,pi,tol,w0 
+real(kind=8),dimension(nz),intent(in)::z,w,dz
+real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
+real(kind=8),dimension(nsp_sld),intent(in)::mv
+real(kind=8),dimension(nps),intent(in)::ps,dps,psd_pr
+character(256),intent(in)::profdir
+real(kind=8),dimension(nps,nz),intent(inout)::psd
+! local 
+real(kind=8),dimension(nps,nz)::psd_old,dpsd
+real(kind=8),dimension(nz)::DV
+integer iz,isps,ips
+
+        
+! attempt to do psd ( defined with particle number / bulk m3 / log (r) )
+! assumptions: 
+! 1. particle numbers are only affected by transport (including raining/dusting) 
+! 2. dissolution does not change particle numbers: it only affect particle distribution 
+! unless particle is the minimum radius. in this case particle can be lost via dissolution 
+! 3. when a mineral precipitates, it is assumed to increase particle radius?
+! e.g., when a 1 um of particle is dissolved by X m3, its radius is changed and this particle is put into a different bin of (smaller) radius 
+
+! now accounting for advection 
+! sum of volume change of minerals at iz is DV = sum(flx_sld(iadv,iz)*mv(:)*1d-6)*dt (m3 / m3) 
+! in general sum(msld*mv*1d-6) (m3/m3) must be equal to sum( 4/3(pi)r3 * psd * dps) 
+! so governing equation for msld must also be applicabple to psd?
+! (wp_tmp*mp_tmp - w_tmp* m_tmp)/dz(iz)
+
+dpsd = 0d0
+psd_old = psd
+do iz = 1, nz
+
+    DV(iz) = 0d0
+    do isps = 1,nsp_sld 
+        DV(iz) = DV(iz) + flx_sld(isps, iadv ,iz)*mv(isps)*1d-6*dt 
+    enddo 
+    
+    ! explicit way 
+    if (iz == nz) then 
+        ! dpsd(:,iz) = - ( w0 * 4d0/3d0*(pi)*(10d0**ps(:))**3d0  * psd_pr(:) * dps(:)  &
+            ! & - w(iz) * 4d0/3d0*(pi)*(10d0**ps(:))**3d0  * psd(:,iz) * dps(:) ) /dz(iz) * dt
+        dpsd(:,iz) = dpsd(:,iz) - ( w0 * psd_pr(:)  - w(iz) *  psd(:,iz) ) /dz(iz) * dt
+    else 
+        ! dpsd(:,iz) = - ( w(iz+1) * 4d0/3d0*(pi)*(10d0**ps(:))**3d0  * psd(:,iz+1) * dps(:)  &
+            ! & - w(iz) * 4d0/3d0*(pi)*(10d0**ps(:))**3d0  * psd(:,iz) * dps(:) ) /dz(iz) * dt
+        dpsd(:,iz) = dpsd(:,iz) - ( w(iz+1) * psd(:,iz+1) - w(iz) * psd(:,iz) ) /dz(iz) * dt
+    endif 
+    ! solution can diverge ?
+    
+    ! rather enforcing dpsd from DV
+    ! i.e., sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:)) - DV(iz) = 0
+    ! sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:)) = DV(iz)
+    ! assumption is advection occurs in a linear function of psd 
+    dpsd(:,iz) = (10d0**ps(:))**3d0 * psd(:,iz) ! *DV(iz) / sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  psd(:,iz)  * dps(:))
+    dpsd(:,iz) = dpsd(:,iz)*DV(iz) / sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:))
+    
+    
+    if (DV(iz) > tol &
+        & .and. abs((sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:)) - DV(iz))/DV(iz)) > tol) then 
+        print *, DV(iz), sum(4d0/3d0*(pi)*(10d0**ps(:))**3d0 *  dpsd(:,iz) * dps(:))
+        pause
+    endif 
+    
+enddo 
+
+if (any(isnan(psd))) then 
+    print *, 'nan in psd'
+    stop
+endif 
+if (any(psd<0d0)) then 
+    print *, 'negative psd'
+    stop
+endif 
+if (any(isnan(dpsd))) then 
+    print *, 'nan in dpsd' 
+    do iz = 1, nz
+        do ips=1,nps
+            if (isnan(dpsd(ips,iz))) then 
+                print *, 'ips,iz,dpsd,psd',ips,iz,dpsd(ips,iz),psd(ips,iz)
+            endif 
+        enddo 
+    enddo 
+    stop
+endif 
+
+psd = psd + dpsd
+
+open(ipsd,file = trim(adjustl(profdir))//'/'//'pds_tmp.txt',status = 'replace')
+write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps)
+do iz = 1, nz
+    write(ipsd,*) z(iz),(psd(ips,iz),ips=1,nps)
+enddo 
+close(ipsd)
+
+   
+endsubroutine psd_adv
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
