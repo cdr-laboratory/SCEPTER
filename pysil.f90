@@ -463,6 +463,8 @@ real(kind=8),dimension(nps,nz)::psd_rain
 real(kind=8),dimension(nps)::psd_tmp,dvd_tmp
 real(kind=8),dimension(nps)::psd_pr,dps
 real(kind=8),dimension(nz)::DV
+integer,parameter :: nps_rain_char = 3
+real(kind=8),dimension(nps_rain_char)::pssigma_rain_list,psu_rain_list 
 real(kind=8) psu_pr,pssigma_pr,psu_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd
 integer ips,iips,ips_new
 logical psd_error_flg
@@ -1091,7 +1093,7 @@ enddo
 call get_switches( &
     & no_biot,biot_fick,biot_turbo2,biot_labs,biot_till,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
-    & ,poroevol,surfevol1,surfevol2 &!
+    & ,poroevol,surfevol1,surfevol2,do_psd &!
     & )
 
 
@@ -1383,19 +1385,16 @@ if (do_psd) then
         stop
     endif 
 
-    ! initially particle is distributed as in parent rock 
-    do ips = 1, nps 
-        psd(ips,:) = psd_pr(ips) 
-    enddo 
-
-    open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_000.txt',status = 'replace')
-
+    open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_pr.txt',status = 'replace')
     write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'time'
+    write(ipsd,*) ztot,(psd_pr(ips),ips=1,nps), 0d0
+    close(ipsd)
+    
+
+    ! initially particle is distributed as in parent rock 
     do iz = 1, nz
         psd(:,iz) = psd_pr(:) 
-        write(ipsd,*) z(iz),(psd(ips,iz),ips=1,nps), 0d0
     enddo 
-    close(ipsd)
 
     ! dM = M * [psd*dps*S(r)] * k *dt 
     ! so hr = sum (psd(:)*dps(:)*S(:) ) where S in units m2/m3 and simplest way 1/r 
@@ -1504,6 +1503,8 @@ if (read_data) then
         & //trim(adjustl(profdir))//'/'//'prof_gas-restart.txt')
     call system('cp '//trim(adjustl(loc_runname_save))//'/'//'bsd-save.txt '  &
         & //trim(adjustl(profdir))//'/'//'bsd-restart.txt')
+    call system('cp '//trim(adjustl(loc_runname_save))//'/'//'psd-save.txt '  &
+        & //trim(adjustl(profdir))//'/'//'psd-restart.txt')
         
     call get_saved_variables_num( &
         & workdir,loc_runname_save &! input
@@ -1530,19 +1531,27 @@ if (read_data) then
         & status ='old',action='read')
     open (ibsd, file=trim(adjustl(profdir))//'/'//'bsd-restart.txt',  &
         & status ='old',action='read')
+    open (ipsd, file=trim(adjustl(profdir))//'/'//'psd-restart.txt',  &
+        & status ='old',action='read')
     
     read (isldprof,'()')
     read (iaqprof,'()')
     read (igasprof,'()')
     read (ibsd,'()')
+    read (ipsd,'()')
     
     do iz = 1, Nz
         read (isldprof,*) z(iz),(msld_save(isps,iz),isps=1,nsp_sld_save),time
         read (iaqprof,*) z(iz),(maq_save(ispa,iz),ispa=1,nsp_aq_save),pro(iz),time
         read (igasprof,*) z(iz),(mgas_save(ispg,iz),ispg=1,nsp_gas_save),time
         read (ibsd,*) z(iz),poro(iz),sat(iz),v(iz),hr(iz),w(iz),time
+        read (ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
     enddo 
     close(isldprof)
+    close(iaqprof)
+    close(igasprof)
+    close(ibsd)
+    close(ipsd)
 
     pro = 10d0**(-pro) ! read data is -log10 (pro)
     time = 0d0
@@ -1900,14 +1909,30 @@ do while (it<nt)
     
     ! do PSD for raining dust & OM 
     if (do_psd) then 
-    
-        psu_rain = log10(p80)
-        pssigma_rain = 1d0
+        
+        psu_rain_list = (/ log10(20d-6),  log10(50d-6), log10(70d-6) /)
+        ! pssigma_rain_list = (/ 0.5d0,  0.5d0, 0.5d0 /)
+        pssigma_rain_list = (/ 0.2d0,  0.2d0, 0.2d0 /)
+
+        open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_rain.txt',status = 'replace')
+        write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'dt'
         
         do iz = 1,nz
+        
             ! rained particle distribution 
-            psd_rain(:,iz) = 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
-
+            if (read_data) then 
+                psd_rain(:,iz) = 0d0
+                do ips = 1, nps_rain_char
+                    psu_rain = psu_rain_list(ips)
+                    pssigma_rain = pssigma_rain_list(ips)
+                    psd_rain(:,iz) = psd_rain(:,iz) &
+                        & + 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
+                enddo 
+            else
+                psu_rain = log10(p80)
+                pssigma_rain = 1d0
+                psd_rain(:,iz) = 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
+            endif 
             ! to ensure sum is 1
             ! print *, sum(psd_rain*dps)
             psd_rain(:,iz) = psd_rain(:,iz)/sum(psd_rain(:,iz)*dps(:)) 
@@ -1924,7 +1949,11 @@ do while (it<nt)
                 print *,iz, sum(msldsupp(:,iz)*mv(:)*1d-6)*dt,sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_rain(:,iz)*dps(:))
                 stop
             endif 
+            
+            write(ipsd,*) z(iz),(psd_rain(ips,iz),ips=1,nps), dt
         enddo 
+        
+        close(ipsd)
     endif 
     
     
@@ -2246,12 +2275,12 @@ do while (it<nt)
                 ! stop
             endif 
 
-            open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_tmp.txt',status = 'replace')
-            write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps)
-            do iz = 1, nz
-                write(ipsd,*) z(iz),(psd(ips,iz),ips=1,nps)
-            enddo 
-            close(ipsd)
+            ! open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_tmp.txt',status = 'replace')
+            ! write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps)
+            ! do iz = 1, nz
+                ! write(ipsd,*) z(iz),(psd(ips,iz),ips=1,nps)
+            ! enddo 
+            ! close(ipsd)
             
             if (display) then 
                 print *, '-- ending PSD'
@@ -2658,23 +2687,28 @@ do while (it<nt)
             & //'prof_aq-save.txt', status='replace')
         open(ibsd, file=trim(adjustl(profdir))//'/'  &
             & //'bsd-save.txt', status='replace')
+        open(ipsd, file=trim(adjustl(profdir))//'/'  &
+            & //'psd-save.txt', status='replace')
             
         write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
         write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
         write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
         write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] ', ' time '
+        write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
 
         do iz = 1, Nz
             write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
             write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),time
+            write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
         end do
 
         close(isldprof)
         close(iaqprof)
         close(igasprof)
         close(ibsd)
+        close(ipsd)
         
 #ifdef disp_lim
         display_lim = .false.
@@ -3266,14 +3300,14 @@ endsubroutine get_atm
 subroutine get_switches( &
     & no_biot,biot_fick,biot_turbo2,biot_labs,biot_till,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
-    & ,poroevol,surfevol1,surfevol2 &! inout
+    & ,poroevol,surfevol1,surfevol2,do_psd &! inout
     & )
 implicit none
 
 character(100) chr_tmp
 logical,intent(inout):: no_biot,biot_turbo2,biot_labs,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,biot_fick,biot_till,regular_grid,sld_enforce &
-    & ,poroevol,surfevol1,surfevol2
+    & ,poroevol,surfevol1,surfevol2,do_psd
 
 character(500) file_name
 integer i,n_tmp
@@ -3299,6 +3333,7 @@ read(50,*) sld_enforce,chr_tmp
 read(50,*) poroevol,chr_tmp
 read(50,*) surfevol1,chr_tmp
 read(50,*) surfevol2,chr_tmp
+read(50,*) do_psd,chr_tmp
 
 close(50)
 
