@@ -1633,19 +1633,19 @@ if (read_data) then
         if (nsp_aq>0) then 
             print *,' < aq species >'
             do ispa = 1, nsp_aq
-                print trim(adjustl(chrfmt)), trim(adjustl(chraq(ispa))), (maqx(ispa,iz),iz=1,nz, nz/nz_disp)
+                print trim(adjustl(chrfmt)), trim(adjustl(chraq(ispa))), (maq(ispa,iz),iz=1,nz, nz/nz_disp)
             enddo 
         endif 
         if (nsp_sld>0) then 
             print *,' < sld species >'
             do isps = 1, nsp_sld
-                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (msldx(isps,iz),iz=1,nz, nz/nz_disp)
+                print trim(adjustl(chrfmt)), trim(adjustl(chrsld(isps))), (msld(isps,iz),iz=1,nz, nz/nz_disp)
             enddo 
         endif 
         if (nsp_gas>0) then 
             print *,' < gas species >'
             do ispg = 1, nsp_gas
-                print trim(adjustl(chrfmt)), trim(adjustl(chrgas(ispg))), (mgasx(ispg,iz),iz=1,nz, nz/nz_disp)
+                print trim(adjustl(chrfmt)), trim(adjustl(chrgas(ispg))), (mgas(ispg,iz),iz=1,nz, nz/nz_disp)
             enddo 
         endif 
     endif      
