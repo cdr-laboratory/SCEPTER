@@ -298,8 +298,8 @@ logical :: incld_rough = .true.
 ! logical :: cplprec = .false.
 logical :: cplprec = .true.
 
-logical :: rain_wave = .false.
-! logical :: rain_wave = .true.
+logical :: dust_wave = .false.
+! logical :: dust_wave = .true.
 
 logical :: al_inhibit = .false.
 ! logical :: al_inhibit = .true.
@@ -345,8 +345,15 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
+! logical :: dust_step = .false.
+logical :: dust_step = .true.
+
+real(kind=8) :: step_tau = 0.1d0 ! yr time duration during which dust is added
+real(kind=8) :: tol_step_tau = 1d-6 ! yr time duration during which dust is added
+
 real(kind=8) :: wave_tau = 2d0 ! yr periodic time for wave 
-real(kind=8) :: rain_norm = 0d0
+real(kind=8) :: dust_norm = 0d0
+real(kind=8) :: dust_norm_prev = 0d0
 
 data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
@@ -463,7 +470,7 @@ real(kind=8),dimension(nps,nz)::psd_rain
 real(kind=8),dimension(nps)::psd_tmp,dvd_tmp
 real(kind=8),dimension(nps)::psd_pr,dps
 real(kind=8),dimension(nz)::DV
-integer,parameter :: nps_rain_char = 3
+integer,parameter :: nps_rain_char = 4
 real(kind=8),dimension(nps_rain_char)::pssigma_rain_list,psu_rain_list 
 real(kind=8) psu_pr,pssigma_pr,psu_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd
 integer ips,iips,ips_new
@@ -495,7 +502,7 @@ integer,dimension(nsp_sld)::isldflx
 integer,dimension(6)::ico2flx
 #endif 
 
-integer,parameter::ibasaltrain = 15
+integer,parameter::idust = 15
 integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds 
 
 logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
@@ -538,17 +545,17 @@ nsp_aq_cnst = nsp_aq_all - nsp_aq
 nsp_gas_cnst = nsp_gas_all - nsp_gas
 nsp3 = nsp_sld + nsp_aq + nsp_gas
 
-isldprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 1
-isldprof2 = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 2
-isldprof3 = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 3
-iaqprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 4
-igasprof = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 5
-isldsat = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 6
-ibsd = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 7
-irate = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 8
-ipsd = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 9
-ipsdv = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 10
-ipsds = ibasaltrain + nsp_sld + nsp_gas + nsp_aq + 11
+isldprof = idust + nsp_sld + nsp_gas + nsp_aq + 1
+isldprof2 = idust + nsp_sld + nsp_gas + nsp_aq + 2
+isldprof3 = idust + nsp_sld + nsp_gas + nsp_aq + 3
+iaqprof = idust + nsp_sld + nsp_gas + nsp_aq + 4
+igasprof = idust + nsp_sld + nsp_gas + nsp_aq + 5
+isldsat = idust + nsp_sld + nsp_gas + nsp_aq + 6
+ibsd = idust + nsp_sld + nsp_gas + nsp_aq + 7
+irate = idust + nsp_sld + nsp_gas + nsp_aq + 8
+ipsd = idust + nsp_sld + nsp_gas + nsp_aq + 9
+ipsdv = idust + nsp_sld + nsp_gas + nsp_aq + 10
+ipsds = idust + nsp_sld + nsp_gas + nsp_aq + 11
 
 nflx = 5 + nrxn_ext + nsp_sld
 
@@ -1151,7 +1158,7 @@ if (.not. regular_grid) then
     base = trim(adjustl(base))//'_irr'
 endif 
 
-if (rain_wave)then 
+if (dust_wave)then 
     write(chrrain,'(E10.2)') wave_tau
     base = trim(adjustl(base))//'_rwave-'//trim(adjustl(chrrain))
 endif 
@@ -1174,46 +1181,46 @@ write(runname,*) 'output'
 #ifdef full_flux_report
 do isps = 1, nsp_sld 
     do iz = 1, nz
-        isldflx(isps,iz) = ibasaltrain + (isps-1)*nz + iz
+        isldflx(isps,iz) = idust + (isps-1)*nz + iz
         ! print *,isldflx(isps,iz)
     enddo 
 enddo     
 do ispa = 1, nsp_aq 
     do iz=1,nz
-        iaqflx(ispa,iz) = ibasaltrain + nsp_sld*nz  + (ispa - 1)*nz + iz
+        iaqflx(ispa,iz) = idust + nsp_sld*nz  + (ispa - 1)*nz + iz
         ! print *,iaqflx(ispa,iz)
     enddo
 enddo 
 
 do ispg = 1, nsp_gas
     do iz= 1,nz
-        igasflx(ispg,iz) = ibasaltrain + nsp_sld*nz + nsp_aq*nz + (ispg-1)*nz + iz
+        igasflx(ispg,iz) = idust + nsp_sld*nz + nsp_aq*nz + (ispg-1)*nz + iz
         ! print*,igasflx(ispg,iz)
     enddo 
 enddo 
 
 do ico2 = 1, 6
     do iz = 1, nz
-        ico2flx(ico2,iz) = ibasaltrain + nsp_sld*nz + nsp_aq*nz + nsp_gas*nz + (ico2 - 1)*nz + iz
+        ico2flx(ico2,iz) = idust + nsp_sld*nz + nsp_aq*nz + nsp_gas*nz + (ico2 - 1)*nz + iz
         ! print*,ico2flx(ico2,iz)
     enddo 
 enddo 
 ! pause
 #else 
 do isps = 1, nsp_sld 
-    isldflx(isps) = ibasaltrain + isps
+    isldflx(isps) = idust + isps
 enddo 
     
 do ispa = 1, nsp_aq 
-    iaqflx(ispa) = ibasaltrain + nsp_sld  + ispa
+    iaqflx(ispa) = idust + nsp_sld  + ispa
 enddo 
 
 do ispg = 1, nsp_gas
-    igasflx(ispg) = ibasaltrain + nsp_sld + nsp_aq + ispg
+    igasflx(ispg) = idust + nsp_sld + nsp_aq + ispg
 enddo 
 
 do ico2 = 1, 6
-    ico2flx(ico2) = ibasaltrain + nsp_sld + nsp_aq + nsp_gas + ico2
+    ico2flx(ico2) = idust + nsp_sld + nsp_aq + nsp_gas + ico2
 enddo 
 #endif 
 
@@ -1313,9 +1320,10 @@ enddo
 
 #endif 
 
-open(ibasaltrain, file=trim(adjustl(flxdir))//'/'//'rain.txt', &
+open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
     & status='replace')
-close(ibasaltrain)
+write(idust,*) ' time ', ' dust(relative_to_average) '
+close(idust)
 
 
 
@@ -1866,8 +1874,16 @@ do while (it<nt)
         endif 
     enddo 
     
+    ! dust options check 
+    if (dust_wave .and. dust_step) then 
+        print *
+        print *, 'CAUTION: options of dust_wave and dust_step are both ON'
+        print * 
+        stop
+    endif 
     
-    if (rain_wave) then 
+    ! if defined wave function is imposed on dust 
+    if (dust_wave) then 
         do isps = 1, nsp_sld
             if (no_biot) then 
                 msldsupp(isps,:) = msldsupp(isps,:)*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
@@ -1875,16 +1891,54 @@ do while (it<nt)
                 msldsupp(isps,1) = msldsupp(isps,1)*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
             endif 
         enddo 
-        if (time==0d0 .or. rain_norm /= merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))) then
-            open(ibasaltrain, file=trim(adjustl(flxdir))//'/'//'rain.txt', &
+        if (time==0d0 .or. dust_norm /= merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))) then
+            open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
                 & status='old',action='write',position='append')
-            write(ibasaltrain,*) time-dt,rain_norm
-            write(ibasaltrain,*) time,merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
-            rain_norm = merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
-            close(ibasaltrain)
+            write(idust,*) time-dt,dust_norm
+            write(idust,*) time,merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
+            dust_norm = merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
+            close(idust)
         endif 
     endif 
     
+    ! non continueous
+    if (dust_step) then 
+        
+        dust_norm_prev = dust_norm
+        
+        if (dt > step_tau) then 
+            dt = step_tau
+            ! go to 100
+        endif 
+        
+        if (time - floor(time) < step_tau .and. time + dt - floor(time) >= step_tau ) then 
+            if ( abs (step_tau - ( time - floor(time) ) ) > step_tau * tol_step_tau ) then 
+                dt = step_tau - ( time - floor(time) )
+                ! go to 100
+            endif 
+        endif 
+        
+        if (time - floor(time) >= step_tau) then 
+            ! print *, 'no dust time', time 
+            msldsupp = 0d0
+            dust_norm = 0d0
+        else 
+            ! print *, 'dust time !!', time 
+            msldsupp = msldsupp/step_tau
+            dust_norm = 1d0/step_tau
+        endif 
+        
+        if ( dust_norm /= dust_norm_prev ) then
+            open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
+                & status='old',action='write',position='append')
+            write(idust,*) time-dt,dust_norm_prev
+            write(idust,*) time,dust_norm
+            close(idust)
+        endif 
+        
+    endif 
+    
+    ! overload with OM rain 
     do isps = 1, nsp_sld
         if (no_biot) then 
             ! msldsupp(isps,:) = msldsupp(isps,:) &
@@ -1910,9 +1964,9 @@ do while (it<nt)
     ! do PSD for raining dust & OM 
     if (do_psd) then 
         
-        psu_rain_list = (/ log10(20d-6),  log10(50d-6), log10(70d-6) /)
+        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
         ! pssigma_rain_list = (/ 0.5d0,  0.5d0, 0.5d0 /)
-        pssigma_rain_list = (/ 0.2d0,  0.2d0, 0.2d0 /)
+        pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
 
         open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_rain.txt',status = 'replace')
         write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'dt'
@@ -2425,8 +2479,9 @@ do while (it<nt)
     endif 
 
     ! stop
-    
-    ! where (msldx < 1d-20)  msldx = 1d-20
+#ifdef lim_minsld
+    where (msldx < 1d-20)  msldx = 1d-20
+#endif 
     
     mgas = mgasx
     maq = maqx
