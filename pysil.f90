@@ -213,7 +213,10 @@ real(kind=8),parameter :: mwtagt = (fr_fer_agt*mwtfer +(1d0-fr_fer_agt)*mwten)*2
                                 ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6)
                                 ! ; assuming simple ('ideal'?) mixing
                                 
-real(kind=8),parameter :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
+real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
+real(kind=8) :: rho_grain_calc,rho_grain_calcx != 2.7d0 ! g/cm3 as soil grain density 
+real(kind=8) :: rho_grain_z(nz),sldvolfrac(nz) != 2.7d0 ! g/cm3 as soil grain density 
+real(kind=8) :: rho_error,rho_tol, poroi_calc 
 
 ! real(kind=8)::plant_rain = 1.4d-3 ! g C/g soil/yr; converted from 1.6d-4 mg C / g soil /hr from Georgiou et al. 2017 ! 
 real(kind=8),intent(in)::plant_rain != 1d2 ! 1 t/ha/yr; approximate values from Vanveen et al. 1991 ! 
@@ -242,7 +245,7 @@ real(kind=8),intent(in) :: zsat != 5d0  ! water table depth [m]
 
 real(kind=8),intent(in) :: w0 != 5.0d-5 ! m yr^-1, uplift rate ** default 
 ! real(kind=8), parameter :: w = 1.0d-4 ! m yr^-1, uplift rate
-real(kind=8) w(nz)
+real(kind=8) w(nz),w_btm,wx(nz),ssa(nz),wexp(nz)
 
 ! real(kind=8) :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)  ** default
 real(kind=8),intent(in) :: qin != 10d-1 ! m yr^-1 
@@ -257,8 +260,8 @@ real(kind=8) :: hrii = 1d5
 real(kind=8),intent(in) :: p80 != 1d-6 ! m 
 
 ! real(kind=8) ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save,mvka_save,mvgb_save
-real(kind=8),dimension(nz):: pro,prox,poroprev,hr,rough,hri
-real(kind=8),dimension(nz):: dummy
+real(kind=8),dimension(nz):: pro,prox,poroprev,hr,rough,hri,hrprev,vprev,torgprev,toraprev,wprev
+real(kind=8),dimension(nz):: dummy,up,dwn,cnr,adf
 real(kind=8) :: rough_c0 = 10d0**(3.3d0)
 real(kind=8) :: rough_c1 = 0.33d0
 
@@ -345,8 +348,8 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
-! logical :: dust_step = .false.
-logical :: dust_step = .true.
+logical :: dust_step = .false.
+! logical :: dust_step = .true.
 
 real(kind=8) :: step_tau = 0.1d0 ! yr time duration during which dust is added
 real(kind=8) :: tol_step_tau = 1d-6 ! yr time duration during which dust is added
@@ -354,6 +357,17 @@ real(kind=8) :: tol_step_tau = 1d-6 ! yr time duration during which dust is adde
 real(kind=8) :: wave_tau = 2d0 ! yr periodic time for wave 
 real(kind=8) :: dust_norm = 0d0
 real(kind=8) :: dust_norm_prev = 0d0
+
+! type of uplift vs porosity relationship
+#ifndef iwtypein 
+#define iwtypein  0
+#endif 
+integer iwtype 
+parameter(iwtype = iwtypein)
+integer,parameter :: iwtype_cnst = 0
+integer,parameter :: iwtype_pwcnst = 1
+integer,parameter :: iwtype_spwcnst = 2
+integer,parameter :: iwtype_pcnst = 3
 
 data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
@@ -363,6 +377,10 @@ data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
 ! & ,31d6,32d6,33d6,34d6,35d6,36d6,37d6,38d6,39d6,40d6,41d6,42d6/
 real(kind=8) :: savetime = 1d3
 real(kind=8) :: dsavetime = 1d3
+
+
+integer poro_iter , poro_iter_max
+real(kind=8) poro_error, poro_tol, porox(nz), dwsporo(nz), wsporo(nz) 
 
 real(kind=8) beta 
 
@@ -441,7 +459,7 @@ real(kind=8),dimension(nsp_aq_all,2)::keqaq_nh3
 real(kind=8),dimension(nsp_sld_all,nz)::ksld_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_gas_all)::stgas_all
-real(kind=8),dimension(nsp_sld_all)::keqsld_all,mv_all,msldi_all,msldth_all,rfrc_sld_all,mwt_all,rfrc_sld_plant_all
+real(kind=8),dimension(nsp_sld_all)::keqsld_all,mv_all,msldi_all,msldth_all,rfrc_sld_all,mwt_all,rfrc_sld_plant_all,msldi_allx
 real(kind=8),dimension(nrxn_ext_all,nz)::krxn1_ext_all
 real(kind=8),dimension(nrxn_ext_all,nz)::krxn2_ext_all
 real(kind=8),dimension(nrxn_ext_all,nsp_aq_all)::staq_ext_all,staq_dext_all
@@ -538,12 +556,19 @@ real(kind=8),dimension(:,:),allocatable::msld_save,mgas_save,maq_save
 real(kind=8),dimension(:),allocatable::kin_sldspc_save
 
 integer t1,t2,t_rate,t_max,diff
+! character(3):: msldunit = 'sld '
+character(3):: msldunit = 'blk'
+real(kind=8) ucvsld1,ucvsld2
 !-------------------------
 
 nsp_sld_cnst = nsp_sld_all - nsp_sld
 nsp_aq_cnst = nsp_aq_all - nsp_aq
 nsp_gas_cnst = nsp_gas_all - nsp_gas
 nsp3 = nsp_sld + nsp_aq + nsp_gas
+
+#ifdef calcw_full
+nsp3 = nsp3 + 1
+#endif 
 
 isldprof = idust + nsp_sld + nsp_gas + nsp_aq + 1
 isldprof2 = idust + nsp_sld + nsp_gas + nsp_aq + 2
@@ -685,9 +710,51 @@ call get_parentrock( &
     & ,msldi_all &! output
     & )
 ! adding the case where input wt% exceeds 100% 
-if ( sum(msldi_all) > 1d0) msldi_all = msldi_all/sum(msldi_all) 
-msldi_all = msldi_all/mwt_all*rho_grain*1d6 ! converting g/g to mol/sld m3
-msldi_all = (1d0 - poroi) * msldi_all       ! mol/sld m3 to mol/bulk m3 
+if ( sum(msldi_all) > 1d0) then 
+    print *, 'parent rock comp. exceeds 100% so rescale'
+    msldi_all = msldi_all/sum(msldi_all)  ! now the units are g/g
+endif 
+! msldi_all = msldi_all/mwt_all*rho_grain*1d6 ! converting g/g to mol/sld m3
+! msldi_all = (1d0 - poroi) * msldi_all       ! mol/sld m3 to mol/bulk m3 
+
+rho_grain_calc = rho_grain
+msldi_allx = msldi_all/mwt_all*rho_grain_calc*1d6 !  converting g/g to mol/sld m3
+msldi_allx = msldi_allx/sum(msldi_allx*mv_all*1d-6)  !  try to make sure volume total must be 1 
+if (msldunit=='blk') msldi_allx = msldi_allx*(1d0 - poroi)  !  try to make sure volume total must be 1 - poroi
+! then the follwoing must be satisfied
+! (1d0 - poroi)*rho_grain_calc = msldi_all*mwt_all*1d-6
+! (1d0 - poroi) = msldi_all*mv_all*1d-6
+rho_error = 1d4
+rho_tol = 1d-6
+poroi_calc = 1d0 - sum(msldi_allx*mv_all*1d-6)
+do while (rho_error > rho_tol) 
+    rho_grain_calcx = rho_grain_calc
+    
+    rho_grain_calc = sum(msldi_allx(:)*mwt_all(:)*1d-6) ! /(1d0-poroi_calc)
+    if (msldunit=='blk') rho_grain_calc = rho_grain_calc / (1d0-poroi_calc)
+     
+    msldi_allx = msldi_all/mwt_all*rho_grain_calc*1d6 !  converting g/g to mol/sld m3
+    msldi_allx = msldi_allx/sum(msldi_allx*mv_all*1d-6)  !  try to make sure volume total must be 1 
+    if (msldunit=='blk')  msldi_allx = (1d0 - poroi) * msldi_allx  !  converting mol/sld m3 to mol/bulk m3
+    
+    poroi_calc = 1d0 - sum(msldi_allx*mv_all*1d-6)
+    
+    rho_error = abs ((rho_grain_calc - rho_grain_calcx)/rho_grain_calc) 
+    
+    print*,rho_error
+    
+enddo
+
+if (msldunit=='sld') then 
+    print *,1d0,sum(msldi_allx*mv_all*1d-6)
+    print *,sum(msldi_allx*mwt_all*1d-6),rho_grain_calc
+elseif (msldunit=='blk') then 
+    print *,1d0,sum(msldi_allx*mv_all*1d-6) /(1d0 - poroi)
+    print *,sum(msldi_allx*mwt_all*1d-6)/(1d0 - poroi),rho_grain_calc
+endif 
+! stop
+msldi_all = msldi_allx
+rho_grain = rho_grain_calc
 
 call get_atm( &
     & nsp_gas_all,chrgas_all &! input
@@ -1360,8 +1427,20 @@ v = qin/poroi/sat
 poro = poroi
 torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
 tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
-w = w0
-if (noncnstw) w = w0*poroi/poro ! from w*poro = w0*poroi --- isovolumetric weathering?
+
+w_btm = w0
+w = w_btm
+! if (noncnstw) then 
+    ! w(:) = w0/(1d0- poro(:)) ! from w*(1- poro) = w0*(1 - poroi) --- isovolumetric weathering?
+    ! w_btm = w0/(1d0- poroi) ! from w*(1- poro) = w0*(1 - poroi) --- isovolumetric weathering?
+! endif 
+
+
+! ------------ determine calculation scheme for advection (from IMP code)
+call calcupwindscheme(  &
+    up,dwn,cnr,adf & ! output 
+    ,w,nz   & ! input &
+    )
 
 ! attempting to do psd 
 if (do_psd) then 
@@ -1386,11 +1465,35 @@ if (do_psd) then
 
     ! balance for volumes
     ! sum(msldi*mv*1d-6) (m3/m3) must be equal to sum( 4/3(pi)r3 * psd_pr * dps) 
-    ! where psd is number / bulk m3 / log r
-    psd_pr = psd_pr*sum(msldi*mv*1d-6)/sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_pr(:)*dps(:))
-    if ( abs( (sum(msldi*mv*1d-6)-sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_pr(:)*dps(:)))/sum(msldi*mv*1d-6)) > tol) then 
-        print *,sum(msldi*mv*1d-6),sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_pr(:)*dps(:))
-        stop
+    ! where psd is number / bulk m3 / log r 
+    ! (if msld is defined as mol/sld m3 then msldi needs to be multiplied by (1 - poro)
+    psd_pr = psd_pr*sum(msldi*mv*1d-6) &
+        & /sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_pr(:)*dps(:))
+    
+    if ( msldunit == 'sld') then 
+        psd_pr = psd_pr*(1d0-poroi)
+    
+        if ( abs( (sum(msldi*mv*1d-6) &
+            & * (1d0-poroi) & 
+            & -sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_pr(:)*dps(:))) &
+            & / ( sum(msldi*mv*1d-6) &
+            & * (1d0-poroi) & 
+            & )  ) > tol) then 
+            print *,sum(msldi*mv*1d-6) &
+                & * (1d0-poroi) & 
+                & ,sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_pr(:)*dps(:))
+            stop
+        endif 
+    elseif ( msldunit == 'blk') then 
+    
+        if ( abs( (sum(msldi*mv*1d-6) &
+            & -sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_pr(:)*dps(:))) &
+            & / ( sum(msldi*mv*1d-6) &
+            & )  ) > tol) then 
+            print *,sum(msldi*mv*1d-6) &
+                & ,sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_pr(:)*dps(:))
+            stop
+        endif 
     endif 
 
     open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_pr.txt',status = 'replace')
@@ -1416,6 +1519,9 @@ if (do_psd) then
             hr(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))
         enddo 
     endif 
+    ssa = hr
+    ! hr = ssa *(1-poro)/poro ! converting m2/sld-m3 to m2/pore-m3
+    hr = ssa 
 else 
     psd = 0d0
 endif 
@@ -1552,7 +1658,7 @@ if (read_data) then
         read (isldprof,*) z(iz),(msld_save(isps,iz),isps=1,nsp_sld_save),time
         read (iaqprof,*) z(iz),(maq_save(ispa,iz),ispa=1,nsp_aq_save),pro(iz),time
         read (igasprof,*) z(iz),(mgas_save(ispg,iz),ispg=1,nsp_gas_save),time
-        read (ibsd,*) z(iz),poro(iz),sat(iz),v(iz),hr(iz),w(iz),time
+        read (ibsd,*) z(iz),poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
         read (ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
     enddo 
     close(isldprof)
@@ -1861,7 +1967,17 @@ do while (it<nt)
     maqx = maq
     
     prox = pro  
-
+    
+    poroprev = poro
+    hrprev = hr
+    vprev = v
+    torgprev = torg
+    toraprev = tora
+    wprev = w 
+    
+    ! whether or not you are using psd
+    psd_old = psd
+    psd_error_flg = .false.
 
     !  raining dust & OM 
     maqsupp = 0d0
@@ -1997,10 +2113,18 @@ do while (it<nt)
             ! sum(msldsupp*mv*1d-6) *dt (m3/m3) must be equal to sum( 4/3(pi)r3 * psd_rain * dps) 
             ! where psd is number / bulk m3 / log r
             psd_rain(:,iz) = psd_rain(:,iz) * sum(msldsupp(:,iz)*mv(:)*1d-6)*dt &
+                ! & /(1d0 - poroi)  &
                 & /sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_rain(:,iz)*dps(:))
-            if ( abs( (sum(msldsupp(:,iz)*mv(:)*1d-6)*dt - sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_rain(:,iz)*dps(:))) &
-                & / sum(msldsupp(:,iz)*mv(:)*1d-6)*dt  ) > tol) then 
-                print *,iz, sum(msldsupp(:,iz)*mv(:)*1d-6)*dt,sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_rain(:,iz)*dps(:))
+                
+            if ( abs( (sum(msldsupp(:,iz)*mv(:)*1d-6)*dt &
+                ! & /(1d0 - poroi) &
+                & - sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_rain(:,iz)*dps(:))) &
+                & / ( sum(msldsupp(:,iz)*mv(:)*1d-6)*dt &
+                ! & /(1d0 - poroi) &
+                & ) ) > tol) then 
+                print *,iz, sum(msldsupp(:,iz)*mv(:)*1d-6)*dt &
+                    ! & /(1d0 - poroi) &
+                    & ,sum(4d0/3d0*pi*(10d0**ps(:))**3d0*psd_rain(:,iz)*dps(:))
                 stop
             endif 
             
@@ -2128,6 +2252,21 @@ do while (it<nt)
             ! endif 
         ! enddo
     ! endif 
+    
+    poro_iter = 0
+    poro_error = 1d4
+    poro_tol = 1d-6
+    poro_iter_max = 50
+    
+#ifdef poroiter
+    poro_tol = 1d-9
+    ! if (iwtype == iwtype_pcnst) poro_tol = 1d-14
+    do while (poro_error > poro_tol) ! start of porosity iteration 
+#endif 
+
+    porox = poro
+    wx = w
+    
     call alsilicate_aq_gas_1D_v3_1( &
         ! new input 
         & nz,nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext &
@@ -2143,48 +2282,19 @@ do while (it<nt)
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
         & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
         !  old inputs
-        & ,hr,poro,z,dz,w0,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
-        & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi  &
+        & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
+        & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
         ! old inout
-        & ,dt,flgback &    
+        & ,dt,flgback,w &    
         ! output 
         & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,so4f & 
         & )
-
-    ! if (iter > 75) then
-        ! maxdt = maxdt/2d0
-    ! end if
-    ! if (iter<5) then 
-        ! maxdt = maxdt*2d0
-        ! if (maxdt >1d2) maxdt = 1d2
-    ! endif 
-    ! print*,iter,maxdt
-    
-    
-    
-    ! nobio = .false.
-    ! nobio = .true.
-    ! do isps =1,nsp_sld
-        ! if (rfrc_sld(isps)>0d0 .or. rfrc_sld_plant(isps)>0d0) then 
-            ! nobio(isps) = .false.
-        ! else 
-            ! nobio(isps) = .true.
-        ! endif 
-    ! enddo
-    ! call make_transmx(  &
-        ! & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref  &! input
-        ! & ,trans,nonlocal,izml  &! output 
-        ! & )
-    ! print *,trans(:,:,1)
-    ! print *
-    ! print *,trans(:,:,2)
-    
-    ! call sld_biomix_sep( &
-        ! & nz,nsp_sld,chrsld,turbo2,labs,trans,msldth &! input
-        ! & ,poro,z,dz,tol,nflx,izml,nobio &! input 
-        ! & ,dt,flgback,flx_sld &! inout    
-        ! & ,msldx &! output 
-        ! & )
+        
+    save_trans = .false.
+    call make_transmx(  &
+        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
+        & ,trans,nonlocal,izml  &! output 
+        & )
     
 
     if (flgback) then 
@@ -2192,11 +2302,22 @@ do while (it<nt)
         flgreducedt = .true.
         ! pre_calc = .true.
         dt = dt/1d1
+        psd = psd_old
+        poro = poroprev
+        torg = torgprev
+        tora = toraprev
+        v = vprev
+        hr = hrprev
+        w = wprev
+        call calcupwindscheme(  &
+            up,dwn,cnr,adf & ! output 
+            ,w,nz   & ! input &
+            )
         go to 100
     endif    
     
     if (poroevol) then 
-        poroprev = poro
+        ! poroprev = poro
 ! #ifdef surfssa
         ! mvab = mvab_save 
         ! mvan = mvan_save 
@@ -2209,140 +2330,77 @@ do while (it<nt)
             ! & +(mani-manx)*(mvan)*1d-6 &
             ! & +(mcci-mccx)*(mvcc)*1d-6 &
             ! & +(mkai-mkax)*(mvka)*1d-6 
-        poro = poroi
-        do isps=1,nsp_sld
-            poro = poro + (msldi(isps)-msldx(isps,:))*mv(isps)*1d-6
-        enddo 
-        
-        ! attempt to do psd
-        if (do_psd) then 
-            
-            if (display) then 
-                print *
-                print *, '-- doing PSD'
-            endif 
-        
-            dpsd = 0d0
-            psd_old = psd
-            psd_error_flg = .false.
-            
-            call psd_diss( &
-                & nsp_sld,nps,nflx &! in
-                & ,z,flx_sld,mv,dt,pi,tol &! in 
-                & ,incld_rough,rough_c0,rough_c1 &! in
-                & ,profdir,ipsd &! in
-                & ,ps,dps,ps_min,ps_max &! in 
-                & ,psd,dpsd,psd_error_flg &! inout
-                & )
-                
-            if (psd_error_flg) then 
-                flgback = .false. 
-                flgreducedt = .true.
-                psd = psd_old
-                dt = dt/1d1
-                go to 100
-            endif 
-            
-            ! call psd_adv( &
-                ! & nsp_sld,nps,nflx,iadv &! in
-                ! & ,z,flx_sld,mv,dt,pi,tol,w,w0,dz &! in 
-                ! & ,profdir,ipsd &! in
-                ! & ,ps,dps,psd_pr &! in 
-                ! & ,psd,dpsd &! inout
-                ! & )
-            
-            ! call psd_adv_implicit( &
-                ! & nsp_sld,nps,nflx,iadv &! in
-                ! & ,z,flx_sld,mv,dt,pi,tol,w,w0,dz &! in 
-                ! & ,profdir,ipsd &! in
-                ! & ,ps,dps,psd_pr &! in 
-                ! & ,psd,dpsd &! inout
-                ! & )
-            
-            ! call psd_dif( &
-                ! & nsp_sld,nps,nflx,idif &! in
-                ! & ,z,flx_sld,mv,dt,pi,tol &! in 
-                ! & ,trans &! in
-                ! & ,profdir,ipsd &! in
-                ! & ,ps,dps &! in 
-                ! & ,psd,dpsd &! inout
-                ! & )
-                
-            ! call psd_dif_implicit( &
-                ! & nsp_sld,nps,nflx,idif,iadv &! in
-                ! & ,z,dz,flx_sld,mv,dt,pi,tol,w0,w,hr &! in 
-                ! & ,incld_rough,rough_c0,rough_c1 &! in
-                ! & ,trans &! in
-                ! & ,msldx &! in
-                ! & ,profdir,ipsd &! in
-                ! & ,psd,psd_pr,ps,dps &! in  
-                ! & ,flgback &! inout
-                ! & ,psdx &! out
-                ! & )
-                
-            call psd_implicit_all_v2( &
-                & nsp_sld,nps,nflx,idif,iadv &! in
-                & ,z,dz,flx_sld,mv,dt,pi,tol,w0,w,hr &! in 
-                & ,incld_rough,rough_c0,rough_c1 &! in
-                & ,trans &! in
-                & ,msldx &! in
-                & ,profdir,ipsd &! in
-                & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in  
-                & ,flgback &! inout
-                & ,psdx &! out
-                & )
-                
-            if (flgback) then 
-                flgback = .false. 
-                flgreducedt = .true.
-                ! pre_calc = .true.
-                dt = dt/1d1
-                go to 100
-            endif    
-
-            ! psd = psd + dpsd
-            psd = psdx 
-
-            if (any(isnan(psd))) then 
-                print *, 'nan in psd'
-                stop
-            endif 
-            if (any(psd<0d0)) then 
-                error_psd = 0d0
-                do iz = 1, nz
-                    do ips=1,nps
-                        if (psd(ips,iz)<0d0) then 
-                            ! print *, 'ips,iz,dpsd,psd',ips,iz,dpsd(ips,iz),psd(ips,iz)
-                            error_psd = min(error_psd,psd(ips,iz))
-                            psd(ips,iz) = 0d0
-                        endif 
-                    enddo 
-                enddo 
-                if (abs(error_psd/maxval(psd)) > tol) then 
-                    print *, 'negative psd'
-                    flgback = .false. 
-                    flgreducedt = .true.
-                    psd = psd_old
-                    dt = dt/1d1
-                    go to 100
-                endif 
-                ! stop
-            endif 
-
-            ! open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_tmp.txt',status = 'replace')
-            ! write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps)
-            ! do iz = 1, nz
-                ! write(ipsd,*) z(iz),(psd(ips,iz),ips=1,nps)
-            ! enddo 
-            ! close(ipsd)
-            
-            if (display) then 
-                print *, '-- ending PSD'
-                print *
-            endif 
-        
+        if (iwtype == iwtype_pcnst) then 
+            poro = poroi
         else 
-            psd = 0d0
+            call calc_poro( &
+                & nz,nsp_sld,nflx,idif,irain &! in
+                & ,flx_sld,mv,poroprev,w,poroi,w_btm,dz,tol,dt &! in
+                & ,poro &! inout
+                & )
+        endif 
+        ! poro = poroi
+        ! do isps=1,nsp_sld
+            ! poro = poro + (msldi(isps)-msldx(isps,:))*mv(isps)*1d-6
+        ! enddo
+        ! do iz=1,nz
+            ! DV(iz) = 0d0
+            ! do isps = 1,nsp_sld 
+                ! DV(iz) = DV(iz) + ( flx_sld(isps, 4 + isps,iz) + flx_sld(isps, idif ,iz) + flx_sld(isps, irain ,iz) ) &
+                    ! & *mv(isps)*1d-6*dt 
+            ! enddo 
+            ! poro(iz) = poroprev(iz) - DV(iz)
+        ! enddo 
+        
+        if (any(poro<0d0)) then 
+            print*,'negative porosity: stop'
+            print*,poro
+            
+            flgback = .false. 
+            flgreducedt = .true.
+            ! pre_calc = .true.
+            dt = dt/1d1
+            psd = psd_old
+            poro = poroprev
+            torg = torgprev
+            tora = toraprev
+            v = vprev
+            hr = hrprev
+            w = wprev
+            call calcupwindscheme(  &
+                up,dwn,cnr,adf & ! output 
+                ,w,nz   & ! input &
+                )
+            go to 100
+            
+            ! w = w*2d0
+            ! go to 100
+            stop
+        endif 
+        if (any(poro>1d0)) then 
+            print*,'porosity exceeds 1: stop'
+            print*,poro
+            
+            flgback = .false. 
+            flgreducedt = .true.
+            ! pre_calc = .true.
+            dt = dt/1d1
+            psd = psd_old
+            poro = poroprev
+            torg = torgprev
+            tora = toraprev
+            v = vprev
+            hr = hrprev
+            w = wprev
+            call calcupwindscheme(  &
+                up,dwn,cnr,adf & ! output 
+                ,w,nz   & ! input &
+                )
+            go to 100
+            
+            ! w = w*2d0
+            ! go to 100
+            stop
         endif 
         
 ! #ifdef surfssa
@@ -2352,25 +2410,56 @@ do while (it<nt)
         ! mvfo = mwtfo 
         ! mvka = mwtka 
 ! #endif 
-        if (any(poro<0d0)) then 
-            print*,'negative porosity: stop'
-            print*,poro
-            
-            flgback = .false. 
-            flgreducedt = .true.
-            ! pre_calc = .true.
-            dt = dt/1d1
-            go to 100
-            
-            ! w = w*2d0
-            ! go to 100
-            stop
-        endif 
         v = qin/poro/sat
         torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
         tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
-        w = w0  
-        if (noncnstw) w = w0*poroi/poro ! --- isovolumetric weathering?
+        
+#ifndef calcw_full
+        w(:) = w0 
+        dwsporo = 0d0        
+        wsporo = w_btm*(1d0 - poroi)
+        if (noncnstw) then 
+            ! w(:) = w0/(1d0-poro(:)) ! --- isovolumetric weathering?
+            do iz=1,nz
+                DV(iz) = 0d0
+                do isps = 1,nsp_sld 
+                    DV(iz) = DV(iz) + ( flx_sld(isps, 4 + isps,iz) + flx_sld(isps, idif ,iz) + flx_sld(isps, irain ,iz) ) &
+                        & *mv(isps)*1d-6*dt 
+                enddo 
+                dwsporo(iz) = -( ( poro(iz) - poroprev(iz))/dt - DV(iz)/dt )
+            enddo 
+            
+            do iz = nz,1,-1
+                if (iz==nz) then 
+                    ! (wsporo(iz+1) - wsporo(iz))/dz(iz) = dwsporo(iz)
+                    wsporo(iz) =  w_btm*(1d0 - poroi) - dwsporo(iz)*dz(iz)
+                else
+                    wsporo(iz) =  wsporo(iz+1) - dwsporo(iz)*dz(iz)
+                endif 
+            enddo 
+            ! wsporo = w * (1d0 - poro)
+            w = wsporo/(1d0-poro)
+        endif 
+        
+        wsporo = w_btm*(1d0 - poroi)
+        w = wsporo/(1d0-poro)
+        
+        w = w_btm
+        
+        call calc_uplift( &
+            & nz,nsp_sld,nflx,idif,irain &! IN
+            & ,iwtype &! in
+            & ,flx_sld,mv,poroi,w_btm,dz,poro &! in
+            & ,w &! inout
+            & )
+        
+        ! ------------ determine calculation scheme for advection (from IMP code)
+        call calcupwindscheme(  &
+            up,dwn,cnr,adf & ! output 
+            ,w,nz   & ! input &
+            )
+#endif 
+        
         hr = hri*rough
         if (surfevol1 ) then 
             hr = hri*rough*((1d0-poro)/(1d0-poroi))**(2d0/3d0)
@@ -2378,18 +2467,10 @@ do while (it<nt)
         if (surfevol2 ) then 
             hr = hri*rough*(poro/poroi)**(2d0/3d0)  ! SA increases with porosity 
         endif 
-        
         ! if doing psd SA is calculated reflecting psd
         if (do_psd) then 
-            if (.not. incld_rough) then 
-                do iz=1,nz
-                    hr(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*psd(:,iz)*dps(:))
-                enddo 
-            else 
-                do iz=1,nz
-                    hr(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))
-                enddo 
-            endif 
+            ! hr = ssa*(1-poro)/poro ! converting m2/sld-m3 to m2/pore-m3
+            hr = ssa
         endif 
         
         if (display .and. (.not. display_lim)) then 
@@ -2403,7 +2484,218 @@ do while (it<nt)
             print *
         endif 
     endif  
+    
+#ifdef poroiter
+    if (iwtype == iwtype_pcnst) then 
+        ! poro_error = maxval ( abs (( w - wx )/wx ) )
+        poro_error = maxval ( abs ( w - wx ) )
+    else
+        ! poro_error = maxval ( abs (( poro - porox )/porox ) )
+        poro_error = maxval ( abs ( poro - porox ) )
+    endif 
+    
+    print *, 'porosity iteration: ',poro_iter,poro_error
+    poro_iter = poro_iter + 1
+                
+    if (poro_iter > poro_iter_max) then 
+        print *, 'too much porosity iteration but does not converge within assumed threshold'
+        print *, 'reducing dt and move back'
+        flgback = .false. 
+        flgreducedt = .true.
+        psd = psd_old
+        poro = poroprev
+        torg = torgprev
+        tora = toraprev
+        v = vprev
+        hr = hrprev
+        w = wprev
+        call calcupwindscheme(  &
+            up,dwn,cnr,adf & ! output 
+            ,w,nz   & ! input &
+            )
+        ! pre_calc = .true.
+        dt = dt/1d1
+        go to 100
+    endif    
+    
+    enddo ! porosity iteration end
+#endif 
+    ! attempt to do psd
+    if (do_psd) then 
+        
+        if (display) then 
+            print *
+            print *, '-- doing PSD'
+        endif 
+    
+        dpsd = 0d0
+        
+        call psd_diss( &
+            & nsp_sld,nps,nflx &! in
+            & ,z,flx_sld,mv,dt,pi,tol,poro &! in 
+            & ,incld_rough,rough_c0,rough_c1 &! in
+            & ,profdir,ipsd &! in
+            & ,ps,dps,ps_min,ps_max &! in 
+            & ,psd,dpsd,psd_error_flg &! inout
+            & )
+            
+        if (psd_error_flg) then 
+            flgback = .false. 
+            flgreducedt = .true.
+            psd = psd_old
+            poro = poroprev
+            torg = torgprev
+            tora = toraprev
+            v = vprev
+            hr = hrprev
+            w = wprev
+            call calcupwindscheme(  &
+                up,dwn,cnr,adf & ! output 
+                ,w,nz   & ! input &
+                )
+            dt = dt/1d1
+            go to 100
+        endif 
+        
+        ! call psd_adv( &
+            ! & nsp_sld,nps,nflx,iadv &! in
+            ! & ,z,flx_sld,mv,dt,pi,tol,w,w0,dz &! in 
+            ! & ,profdir,ipsd &! in
+            ! & ,ps,dps,psd_pr &! in 
+            ! & ,psd,dpsd &! inout
+            ! & )
+        
+        ! call psd_adv_implicit( &
+            ! & nsp_sld,nps,nflx,iadv &! in
+            ! & ,z,flx_sld,mv,dt,pi,tol,w,w0,dz &! in 
+            ! & ,profdir,ipsd &! in
+            ! & ,ps,dps,psd_pr &! in 
+            ! & ,psd,dpsd &! inout
+            ! & )
+        
+        ! call psd_dif( &
+            ! & nsp_sld,nps,nflx,idif &! in
+            ! & ,z,flx_sld,mv,dt,pi,tol &! in 
+            ! & ,trans &! in
+            ! & ,profdir,ipsd &! in
+            ! & ,ps,dps &! in 
+            ! & ,psd,dpsd &! inout
+            ! & )
+            
+        ! call psd_dif_implicit( &
+            ! & nsp_sld,nps,nflx,idif,iadv &! in
+            ! & ,z,dz,flx_sld,mv,dt,pi,tol,w0,w,hr &! in 
+            ! & ,incld_rough,rough_c0,rough_c1 &! in
+            ! & ,trans &! in
+            ! & ,msldx &! in
+            ! & ,profdir,ipsd &! in
+            ! & ,psd,psd_pr,ps,dps &! in  
+            ! & ,flgback &! inout
+            ! & ,psdx &! out
+            ! & )
+            
+        call psd_implicit_all_v2( &
+            & nsp_sld,nps,nflx,idif,iadv &! in
+            & ,z,dz,flx_sld,mv,dt,pi,tol,w_btm,w,hr,poro,poroi,poroprev &! in 
+            & ,incld_rough,rough_c0,rough_c1 &! in
+            & ,trans &! in
+            & ,msldx &! in
+            & ,profdir,ipsd &! in
+            & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in  
+            & ,flgback &! inout
+            & ,psdx &! out
+            & )
+            
+        if (flgback) then 
+            flgback = .false. 
+            flgreducedt = .true.
+            psd = psd_old
+            poro = poroprev
+            torg = torgprev
+            tora = toraprev
+            v = vprev
+            hr = hrprev
+            w = wprev
+            call calcupwindscheme(  &
+                up,dwn,cnr,adf & ! output 
+                ,w,nz   & ! input &
+                )
+            ! pre_calc = .true.
+            dt = dt/1d1
+            go to 100
+        endif    
 
+        ! psd = psd + dpsd
+        psd = psdx 
+
+        if (any(isnan(psd))) then 
+            print *, 'nan in psd'
+            stop
+        endif 
+        if (any(psd<0d0)) then 
+            error_psd = 0d0
+            do iz = 1, nz
+                do ips=1,nps
+                    if (psd(ips,iz)<0d0) then 
+                        ! print *, 'ips,iz,dpsd,psd',ips,iz,dpsd(ips,iz),psd(ips,iz)
+                        error_psd = min(error_psd,psd(ips,iz))
+                        psd(ips,iz) = 0d0
+                    endif 
+                enddo 
+            enddo 
+            if (abs(error_psd/maxval(psd)) > tol) then 
+                print *, 'negative psd'
+                flgback = .false. 
+                flgreducedt = .true.
+                psd = psd_old
+                poro = poroprev
+                torg = torgprev
+                tora = toraprev
+                v = vprev
+                hr = hrprev
+                w = wprev
+                call calcupwindscheme(  &
+                    up,dwn,cnr,adf & ! output 
+                    ,w,nz   & ! input &
+                    )
+                dt = dt/1d1
+                go to 100
+            endif 
+            ! stop
+        endif 
+
+        ! open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_tmp.txt',status = 'replace')
+        ! write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps)
+        ! do iz = 1, nz
+            ! write(ipsd,*) z(iz),(psd(ips,iz),ips=1,nps)
+        ! enddo 
+        ! close(ipsd)
+        
+        if (display) then 
+            print *, '-- ending PSD'
+            print *
+        endif 
+    
+    else 
+        psd = 0d0
+    endif 
+        
+    ! if doing psd SA is calculated reflecting psd
+    if (do_psd) then 
+        if (.not. incld_rough) then 
+            do iz=1,nz
+                hr(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*psd(:,iz)*dps(:))
+            enddo 
+        else 
+            do iz=1,nz
+                hr(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))
+            enddo 
+        endif 
+        ssa  = hr
+        ! hr = ssa*(1-poro)/poro ! converting m2/sld-m3 to m2/pore-m3
+        hr = ssa
+        
+    endif 
 
     if (display  .and. (.not. display_lim)) then 
         write(chrfmt,'(i0)') nz_disp
@@ -2488,6 +2780,17 @@ do while (it<nt)
     msld = msldx
     
     pro = prox
+    
+    do iz = 1, nz
+        rho_grain_z(iz) = sum(msldx(:,iz)*mwt(:)*1d-6)
+        sldvolfrac(iz) = sum(msldx(:,iz)*mv(:)*1d-6)
+        
+        if (msldunit=='blk') then 
+            rho_grain_z(iz) = rho_grain_z(iz) / ( 1d0 - poro(iz) )
+            sldvolfrac(iz) = sldvolfrac(iz) / ( 1d0 - poro(iz) )
+        endif 
+            
+    enddo 
 
     if (time > savetime) then 
         
@@ -2503,13 +2806,14 @@ do while (it<nt)
         write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
         write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
         write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
-        write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' , ' w[m/yr] ' ,' time '
+        write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' , ' w[m/yr] '  &
+            & , ' vol[m3/m3] ',' dens[g/cm3] ',' time '
 
         do iz = 1, Nz
             write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
-            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
         end do
 
         close(isldprof)
@@ -2587,9 +2891,10 @@ do while (it<nt)
         write(chrfmt,'(i0)') nsp_gas+2
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(igasprof,trim(adjustl(chrfmt))) 'z',(chrgas(isps),isps=1,nsp_gas),'time'
-        write(chrfmt,'(i0)') 7
-        chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a10))'
-        write(ibsd,trim(adjustl(chrfmt))) 'z','poro', 'sat', 'v[m/yr]', 'm2/m3' , 'w[m/yr]' ,'time'
+        write(chrfmt,'(i0)') 9
+        chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a11))'
+        write(ibsd,trim(adjustl(chrfmt))) 'z','poro', 'sat', 'v[m/yr]', 'm2/m3' , 'w[m/yr]' &
+            & , 'vol[m3/m3]','dens[g/cm3]','time'
         write(chrfmt,'(i0)') 2 + nsp_sld + nrxn_ext
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(irate,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),(chrrxn_ext(irxn),irxn=1,nrxn_ext),'time'
@@ -2600,28 +2905,37 @@ do while (it<nt)
         write(ipsds,trim(adjustl(chrfmt))) 'z[m]\log10(r[m])',(ps(ips),ips=1,nps),'time'
 
         do iz = 1, Nz
+            ucvsld1 = 1d0
+            ucvsld2 = 1d0 - poro(iz)
+            if (msldunit == 'blk') then 
+                ucvsld1 = 1d0 - poro(iz)
+                ucvsld2 = 1d0
+            endif 
             write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
-            write(isldprof2,*) z(iz),(msldx(isps,iz)*mwt(isps)*1d2/(rho_grain*1d6)/(1d0-poro(iz)),isps = 1, nsp_sld),time
-            write(isldprof3,*) z(iz),(msldx(isps,iz)*mv(isps)*1d-6*1d2/(1d0-poro(iz)),isps = 1, nsp_sld),time
+            write(isldprof2,*) z(iz),(msldx(isps,iz)*mwt(isps)*1d2/ucvsld1/(rho_grain_z(iz)*1d6),isps = 1, nsp_sld),time
+            write(isldprof3,*) z(iz),(msldx(isps,iz)*mv(isps)/ucvsld1*1d-6*1d2,isps = 1, nsp_sld),time
             write(isldsat,*) z(iz),(omega(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(ispg,iz),ispg = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(ispa,iz),ispa = 1, nsp_aq),-log10(prox(iz)),time
-            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
             write(irate,*) z(iz), (rxnsld(isps,iz),isps=1,nsp_sld),(rxnext(irxn,iz),irxn=1,nrxn_ext), time 
             write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
             write(ipsdv,*) z(iz), (4d0/3d0*pi*(10d0**ps(ips))**3d0*psd(ips,iz)*dps(ips) &
                 ! & /sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*psd(:,iz)*dps(:))  * 1d2 &
                 & /sum( msld(:,iz)*mv(:)*1d-6)  * 1d2 &
+                & /ucvsld2  &
                 & ,ips=1,nps), time 
             if (.not.incld_rough) then 
                 write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0*psd(ips,iz)*dps(ips) &
                     ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*psd(:,iz)*dps(:))  * 1d2 &
                     & / hr(iz)  * 1d2 &
+                    ! & /( poro(iz)/(1d0 - poro(iz) ))  &
                     & ,ips=1,nps), time 
             else
                 write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0*rough_c0*(10d0**ps(ips))**rough_c1*psd(ips,iz)*dps(ips) &
                     ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))  * 1d2 &
                     & / hr(iz)  * 1d2 &
+                    ! & /( poro(iz)/(1d0 - poro(iz) ))  &
                     & ,ips=1,nps), time 
             endif 
         end do
@@ -2748,14 +3062,15 @@ do while (it<nt)
         write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
         write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
         write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
-        write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] ', ' time '
+        write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] '  &
+            & , ' vol[m3/m3] ',' dens[g/cm3] ', ' time '
         write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
 
         do iz = 1, Nz
             write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
-            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
             write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
         end do
 
@@ -2843,13 +3158,14 @@ open(ibsd, file=trim(adjustl(profdir))//'/'  &
 write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
 write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
 write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
-write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] ',' time '
+write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] ' &
+    & , ' vol[m3/m3] ',' dens[g/cm3] ',' time '
 
 do iz = 1, Nz
     write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
     write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
     write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
-    write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),time
+    write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
 end do
 
 close(isldprof)
@@ -5068,6 +5384,10 @@ select case(trim(adjustl(mineral)))
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case('g2')
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
+        ! therm = 0.121d-1 ! mo2 Michaelis, Davidson et al. (2012) x 0.1
+        ! therm = 0.121d-2 ! mo2 Michaelis, Davidson et al. (2012) x 0.01
+        ! therm = 0.121d-3 ! mo2 Michaelis, Davidson et al. (2012) x 0.001
+        ! therm = 0.121d-6 ! mo2 Michaelis, Davidson et al. (2012) x 1e-6
     case('g3')
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case default 
@@ -17061,10 +17381,10 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
     & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
     !  old inputs
-    & ,hr,poro,z,dz,w0,w,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
-    & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi  &
+    & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
+    & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
     ! old inout
-    & ,dt,flgback &    
+    & ,dt,flgback,w &    
     ! output 
     & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,so4f & 
     & )
@@ -17072,13 +17392,15 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
 implicit none 
 
 integer,intent(in)::nz,nflx
-real(kind=8),intent(in)::w0,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi
-real(kind=8),dimension(nz),intent(in)::w,hr,poro,z,sat,tora,v,poroprev,dz,torg,pro
+real(kind=8),intent(in)::w_btm,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi,poroi
+real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf
 real(kind=8),dimension(nz),intent(out)::prox,so4f
+real(kind=8),dimension(nz),intent(inout)::w
 integer,intent(inout)::it
 integer iter
 logical,intent(in)::cplprec,method_precalc,display
 logical,intent(inout)::flgback
+character(3),intent(in)::msldunit
 real(kind=8),intent(in)::dt
 real(kind=8) error
 
@@ -17180,7 +17502,7 @@ real(kind=8),dimension(nrxn_ext_all,nz),intent(in)::krxn1_ext_all,krxn2_ext_all
 
 real(kind=8),dimension(4,nflx,nz),intent(out)::flx_co2sp
 
-integer iz,row,ie,ie2,iflx,isps,ispa,ispg,ispa2,ispg2,col,irxn,isps2,iiz,isps_kinspc
+integer iz,row,ie,ie2,iflx,isps,ispa,ispg,ispa2,ispg2,col,irxn,isps2,iiz,isps_kinspc,row_w,col_w
 integer::itflx,iadv,idif,irain,ires
 integer::ph_iter,ph_iter2
 data itflx,iadv,idif,irain/1,2,3,4/
@@ -17191,7 +17513,8 @@ integer,dimension(nrxn_ext)::irxn_ext
 real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tmp_prev,drxndisp_tmp &
     & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp,omega_tmp_th,rxn_ext_tmp &
     & ,edif_tmp,edif_tmp_n,edif_tmp_p,khco2n_tmp,pco2n_tmp,edifn_tmp,caqsupp_tmp,kco2,k1,k2,kho,sw_red &
-    & ,flx_max,flx_max_max,proi_tmp,knh3,k1nh3,kn2o,wp_tmp,w_tmp
+    & ,flx_max,flx_max_max,proi_tmp,knh3,k1nh3,kn2o,wp_tmp,w_tmp,sporo_tmp,sporop_tmp,sporoprev_tmp  &
+    & ,mn_tmp,wn_tmp,sporon_tmp
 
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8),parameter::fact = 1d-3
@@ -17203,7 +17526,7 @@ real(kind=8),parameter::threshold = 10d0
 ! real(kind=8),parameter::corr = 1.5d0
 real(kind=8),parameter::corr = exp(threshold)
 
-real(kind=8),dimension(nz)::dummy,dummy2,dummy3,kin,dkin_dmsp,dumtest
+real(kind=8),dimension(nz)::dummy,dummy2,dummy3,kin,dkin_dmsp,dumtest,sporo
 
 logical print_cb,ph_error,omega_error,rxnext_error
 character(500) print_loc
@@ -17296,6 +17619,10 @@ k1nh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h1)
 
 kn2o = keqgas_h(findloc(chrgas_all,'pn2o',dim=1),ieqgas_h0)
 
+sporo = 1d0 - poro
+if (msldunit=='blk') sporo = 1d0
+
+! w = win
     
 nonprec = 1d0 ! primary minerals only dissolve
 if (cplprec)then
@@ -17907,40 +18234,75 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 mv_tmp = mv(isps)
                 omega_tmp = omega(isps,iz)
                 omega_tmp_th = omega_tmp*nonprec(isps,iz)
-                m_tmp = msldx(isps,iz)
+                m_tmp = msldx(isps,iz) 
                 mth_tmp = msldth(isps) 
                 mi_tmp = msldi(isps)
                 mp_tmp = msldx(isps,min(nz,iz+1))
                 msupp_tmp = msldsupp(isps,iz) 
                 rxn_ext_tmp = sum(stsld_ext(:,isps)*rxnext(:,iz))
-                mprev_tmp = msld(isps,iz)
-                w_tmp = w(iz)
-                wp_tmp = w(min(nz,iz+1))
+                mprev_tmp = msld(isps,iz)  
+                w_tmp = w(iz) 
+                wp_tmp = w(min(nz,iz+1)) 
+                sporo_tmp = 1d0-poro(iz)
+                sporop_tmp = 1d0-poro(min(nz,iz+1)) 
+                sporoprev_tmp = 1d0-poroprev(iz)
+                mn_tmp = msldx(isps,max(1,iz-1))
+                wn_tmp = w(max(1,iz-1))
+                sporon_tmp = 1d0-poro(max(1,iz-1))
+                
+                if (iz==1) then 
+                    mn_tmp = 0d0
+                    wn_tmp = 0d0
+                    sporon_tmp = 0d0
+                endif 
                 
                 if (iz==nz) then 
                     mp_tmp = mi_tmp
-                    wp_tmp = w0
+                    wp_tmp = w_btm 
+                    sporop_tmp = 1d0- poroi
+                endif 
+                
+                if (msldunit == 'blk') then 
+                    sporo_tmp = 1d0
+                    sporop_tmp = 1d0
+                    sporon_tmp = 1d0
+                    sporoprev_tmp = 1d0
                 endif 
 
                 amx3(row,row) = ( &
-                    & 1d0/merge(1d0,dt,dt_norm)     &
-                    & + w_tmp/dz(iz)*merge(dt,1d0,dt_norm)    &
+                    & 1d0 *  sporo_tmp /merge(1d0,dt,dt_norm)     &
+                    ! & + adf(iz)*up(iz)*sporo_tmp*w_tmp/dz(iz)*merge(dt,1d0,dt_norm)    &
+                    ! & - adf(iz)*dwn(iz)*sporo_tmp*w_tmp/dz(iz)*merge(dt,1d0,dt_norm)    &
+                    & + sporo_tmp*w_tmp/dz(iz)*merge(dt,1d0,dt_norm)    &
                     & + drxnsld_dmsld(isps,iz)*merge(dt,1d0,dt_norm) &
                     & - sum(stsld_ext(:,isps)*drxnext_dmsld(:,isps,iz))*merge(dt,1d0,dt_norm) &
                     & ) &
                     & * merge(1.0d0,m_tmp,m_tmp<mth_tmp*sw_red)
 
                 ymx3(row) = ( &
-                    & (m_tmp-mprev_tmp)/merge(1d0,dt,dt_norm) &
-                    & -(wp_tmp*mp_tmp - w_tmp* m_tmp)/dz(iz)*merge(dt,1d0,dt_norm)  &
+                    & ( sporo_tmp*m_tmp - sporoprev_tmp*mprev_tmp )/merge(1d0,dt,dt_norm) &
+                    & - ( sporop_tmp*wp_tmp*mp_tmp - sporo_tmp*w_tmp* m_tmp)/dz(iz)*merge(dt,1d0,dt_norm)  &
+                    ! & - adf(iz)*up(iz)*( sporop_tmp*wp_tmp*mp_tmp - sporo_tmp*w_tmp* m_tmp)/dz(iz)*merge(dt,1d0,dt_norm)  &
+                    ! & - adf(iz)*dwn(iz)*( sporo_tmp*w_tmp* m_tmp - sporon_tmp*wn_tmp*mn_tmp )/dz(iz)*merge(dt,1d0,dt_norm)  &
+                    ! & - adf(iz)*cnr(iz)*( sporop_tmp*wp_tmp*mp_tmp - sporon_tmp*wn_tmp*mn_tmp )/dz(iz)*merge(dt,1d0,dt_norm)  &
                     & + rxnsld(isps,iz)*merge(dt,1d0,dt_norm) &
                     & -msupp_tmp*merge(dt,1d0,dt_norm)  &
                     & -rxn_ext_tmp*merge(dt,1d0,dt_norm)  &
                     & ) &
                     & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
                     
-                if (iz/=nz) amx3(row,row+nsp3) = &
-                    & (-wp_tmp/dz(iz))*merge(dt,1d0,dt_norm) *merge(1.0d0,mp_tmp,m_tmp<mth_tmp*sw_red)
+                if (iz/=nz) amx3(row,row+nsp3) = ( &
+                    & (- sporop_tmp*wp_tmp/dz(iz))*merge(dt,1d0,dt_norm) &
+                    ! & (- adf(iz)*up(iz)* sporop_tmp*wp_tmp/dz(iz))*merge(dt,1d0,dt_norm) &
+                    ! & +(- adf(iz)*cnr(iz)* sporop_tmp*wp_tmp/dz(iz))*merge(dt,1d0,dt_norm) &
+                    & ) &
+                    & *merge(1.0d0,mp_tmp,m_tmp<mth_tmp*sw_red)
+                    
+                ! if (iz/=1) amx3(row,row-nsp3) = ( &
+                    ! & (+ adf(iz)*dwn(iz)* sporon_tmp*wn_tmp/dz(iz))*merge(dt,1d0,dt_norm) &
+                    ! & +(+ adf(iz)*cnr(iz)* sporon_tmp*wn_tmp/dz(iz))*merge(dt,1d0,dt_norm) &
+                    ! & ) &
+                    ! & *merge(1.0d0,mn_tmp,m_tmp<mth_tmp*sw_red)
                 
                 do ispa = 1, nsp_aq
                     col = nsp3*(iz-1) + nsp_sld + ispa
@@ -17974,7 +18336,23 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         & *msldx(isps2,iz) &
                         & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
                 enddo 
-                
+
+#ifdef calcw_full
+                col =  nsp3*(iz-1)+ nsp3
+                amx3(row,col) = ( &
+                    & - ( - sporo_tmp* m_tmp)/dz(iz)*merge(dt,1d0,dt_norm)  &
+                    & ) &
+                    ! & * w_tmp &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+                    
+                if (iz/=nz) amx3(row,col+nsp3) = ( &
+                    & (- sporop_tmp*mp_tmp/dz(iz))*merge(dt,1d0,dt_norm) &
+                    ! & (- adf(iz)*up(iz)* sporop_tmp*wp_tmp/dz(iz))*merge(dt,1d0,dt_norm) &
+                    ! & +(- adf(iz)*cnr(iz)* sporop_tmp*wp_tmp/dz(iz))*merge(dt,1d0,dt_norm) &
+                    & ) &
+                    ! & *wp_tmp  &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+#endif 
                 ! diffusion terms are filled with transition matrices 
                 ! if (turbo2(isps).or.labs(isps)) then
                     ! do iiz = 1, nz
@@ -18010,22 +18388,24 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     col = nsp3*(iiz-1)+isps
                     if (trans(iiz,iz,isps)==0d0) cycle
                         
-                    amx3(row,col) = amx3(row,col) -trans(iiz,iz,isps)*msldx(isps,iiz)*merge(dt,1d0,dt_norm) &
+                    amx3(row,col) = amx3(row,col) - trans(iiz,iz,isps)*msldx(isps,iiz)* sporo(iiz)* merge(dt,1d0,dt_norm) &
                         & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
-                    ymx3(row) = ymx3(row) - trans(iiz,iz,isps)*msldx(isps,iiz)*merge(dt,1d0,dt_norm) &
+                    ymx3(row) = ymx3(row) - trans(iiz,iz,isps)*msldx(isps,iiz)* sporo(iiz)* merge(dt,1d0,dt_norm) &
                         & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
                         
                     flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
-                        & - trans(iiz,iz,isps)*msldx(isps,iiz) &
+                        & - trans(iiz,iz,isps)*msldx(isps,iiz)* sporo(iiz) &
                         & )
                 enddo
                 
                 flx_sld(isps,itflx,iz) = ( &
-                    & (m_tmp-mprev_tmp)/dt &
-                    ! & ((1d0-poro(iz))*m_tmp-(1d0-poroprev(iz))*mprev_tmp)/dt &
+                    & ( sporo_tmp*m_tmp- sporoprev_tmp*mprev_tmp)/dt &
                     & )
                 flx_sld(isps,iadv,iz) = ( &
-                    & - ( wp_tmp*mp_tmp - w_tmp*m_tmp )/dz(iz)  &
+                    & - ( sporop_tmp*wp_tmp*mp_tmp - sporo_tmp*w_tmp* m_tmp)/dz(iz)  &
+                    ! & - adf(iz)*up(iz)*( sporop_tmp*wp_tmp*mp_tmp - sporo_tmp*w_tmp* m_tmp)/dz(iz)  &
+                    ! & - adf(iz)*dwn(iz)*( sporo_tmp*w_tmp* m_tmp - sporon_tmp*wn_tmp*mn_tmp )/dz(iz)  &
+                    ! & - adf(iz)*cnr(iz)*( sporop_tmp*wp_tmp*mp_tmp - sporon_tmp*wn_tmp*mn_tmp )/dz(iz)  &
                     & )
                 flx_sld(isps,irxn_sld(isps),iz) = ( &
                     & + rxnsld(isps,iz) &
@@ -18044,6 +18424,134 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         end do  !================================
     
     endif 
+    
+#ifdef calcw_full
+    do iz=1,nz
+        row = nsp3*(iz-1) + nsp3
+                
+        w_tmp = w(iz) 
+        wp_tmp = w(min(nz,iz+1)) 
+        sporo_tmp = 1d0-poro(iz)
+        sporop_tmp = 1d0-poro(min(nz,iz+1)) 
+        sporoprev_tmp = 1d0-poroprev(iz)
+        wn_tmp = w(max(1,iz-1))
+        sporon_tmp = 1d0-poro(max(1,iz-1))
+        
+        if (iz==1) then 
+            wn_tmp = 0d0
+            sporon_tmp = 0d0
+        endif 
+        
+        if (iz==nz) then 
+            wp_tmp = w_btm 
+            sporop_tmp = 1d0- poroi
+        endif 
+                
+        ymx3(row) = ( &
+            & ( sporo_tmp - sporoprev_tmp )/merge(1d0,dt,dt_norm) &
+            & - ( sporop_tmp*wp_tmp - sporo_tmp*w_tmp)/dz(iz)*merge(dt,1d0,dt_norm)  &
+            & ) 
+            
+        amx3(row,row) = amx3(row,row) + ( &
+            & - (- sporo_tmp*1d0)/dz(iz)*merge(dt,1d0,dt_norm)  &
+            & ) &
+            ! & *w_tmp &
+            & *1d0
+            
+        if (iz/=nz) amx3(row,row+nsp3) = amx3(row,row) + ( &
+            & - ( sporop_tmp*1d0 )/dz(iz)*merge(dt,1d0,dt_norm)  &
+            & ) &
+            ! & *wp_tmp &
+            & *1d0
+            
+        do isps = 1, nsp_sld
+            
+            col = nsp3*(iz-1)+isps
+            
+            k_tmp = ksld(isps,iz)
+            mv_tmp = mv(isps)
+            omega_tmp = omega(isps,iz)
+            omega_tmp_th = omega_tmp*nonprec(isps,iz)
+            m_tmp = msldx(isps,iz) 
+            mth_tmp = msldth(isps) 
+            mi_tmp = msldi(isps)
+            mp_tmp = msldx(isps,min(nz,iz+1))
+            msupp_tmp = msldsupp(isps,iz) 
+            rxn_ext_tmp = sum(stsld_ext(:,isps)*rxnext(:,iz))
+            mprev_tmp = msld(isps,iz)  
+
+            ymx3(row) = ymx3(row) + ( &
+                & + rxnsld(isps,iz)*merge(dt,1d0,dt_norm) &
+                & -msupp_tmp*merge(dt,1d0,dt_norm)  &
+                & -rxn_ext_tmp*merge(dt,1d0,dt_norm)  &
+                & ) &
+                & * mv(isps) * 1d-6 &
+                & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+
+            amx3(row,col) = amx3(row,col) + ( &  
+                & + drxnsld_dmsld(isps,iz)*merge(dt,1d0,dt_norm) &
+                & - sum(stsld_ext(:,isps)*drxnext_dmsld(:,isps,iz))*merge(dt,1d0,dt_norm) &
+                & ) &
+                & * mv(isps) * 1d-6 &
+                & * merge(1.0d0,m_tmp,m_tmp<mth_tmp*sw_red)
+                
+            do iiz = 1, nz
+                col = nsp3*(iiz-1)+isps
+                ymx3(row) = ymx3(row) + ( &
+                    & - trans(iiz,iz,isps)*msldx(isps,iiz)* sporo(iiz)* merge(dt,1d0,dt_norm) &
+                    & ) &
+                    & * mv(isps) * 1d-6 &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+                
+                amx3(row,col) = amx3(row,col) + ( &
+                    & - trans(iiz,iz,isps)*msldx(isps,iiz)* sporo(iiz)* merge(dt,1d0,dt_norm) &
+                    & ) &
+                    & * mv(isps) * 1d-6 &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+            enddo 
+                
+            do ispa = 1, nsp_aq
+                col = nsp3*(iz-1) + nsp_sld + ispa
+                
+                amx3(row,col ) = amx3(row,col ) + ( &
+                    & + drxnsld_dmaq(isps,ispa,iz)*merge(dt,1d0,dt_norm) &
+                    & - sum(stsld_ext(:,isps)*drxnext_dmaq(:,ispa,iz))*merge(dt,1d0,dt_norm) &
+                    & ) &
+                    & *maqx(ispa,iz) &
+                    & * mv(isps) * 1d-6 &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+            enddo 
+            
+            do ispg = 1, nsp_gas 
+                col = nsp3*(iz-1)+nsp_sld + nsp_aq + ispg
+
+                amx3(row,col) = amx3(row,col ) + ( &
+                    & + drxnsld_dmgas(isps,ispg,iz)*merge(dt,1d0,dt_norm) &
+                    & - sum(stsld_ext(:,isps)*drxnext_dmgas(:,ispg,iz))*merge(dt,1d0,dt_norm) &
+                    & ) &
+                    & *mgasx(ispg,iz) &
+                    & * mv(isps) * 1d-6 &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+            enddo 
+            
+            do isps2 = 1,nsp_sld 
+                if (isps2 == isps) cycle
+                col = nsp3*(iz-1)+ isps2
+
+                amx3(row,col) = amx3(row,col ) + ( &
+                    & - sum(stsld_ext(:,isps)*drxnext_dmsld(:,isps2,iz))*merge(dt,1d0,dt_norm) &
+                    & ) &
+                    & *msldx(isps2,iz) &
+                    & * mv(isps) * 1d-6 &
+                    & *merge(0.0d0,1d0,m_tmp<mth_tmp*sw_red)
+            enddo 
+            
+        enddo 
+    
+    
+    enddo
+#endif 
+    
 
     do iz = 1, nz
         
@@ -18513,6 +19021,32 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             endif
         enddo 
         
+#ifdef calcw_full
+        row =  nsp3*(iz-1) + nsp3
+        if (isnan(ymx3(row))) then 
+            print *,'nan at', iz,z(iz),'w'
+            stop
+        endif
+        
+        emx3(row) = w(iz)*exp(ymx3(row)) - w(iz) 
+        emx3(row) = abs(ymx3(row))  
+        
+        w(iz) = w(iz) + ymx3(row)
+        
+        ! if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+            ! w(iz) = w(iz)*corr
+        ! else if (ymx3(row) < -threshold) then 
+            ! w(iz) = w(iz)/corr
+        ! else   
+            ! w(iz) = w(iz)*exp(ymx3(row))
+        ! endif
+        
+        ! if (mgasx(ispg,iz)<mgasth(ispg)) then ! too small trancate value and not be accounted for error 
+            ! mgasx(ispg,iz)=mgasth(ispg)
+            ! ymx3(row) = 0d0
+        ! endif
+#endif 
+
     end do 
 
     if (fact_tol == 1d0) then 
@@ -18763,10 +19297,30 @@ if (.not.sld_enforce)then
             mprev_tmp = msld(isps,iz)
             w_tmp = w(iz)
             wp_tmp = w(min(nz,iz+1))
+            sporo_tmp = 1d0-poro(iz)
+            sporop_tmp = 1d0-poro(min(nz,iz+1)) 
+            sporoprev_tmp = 1d0-poroprev(iz)
+            mn_tmp = msldx(isps,max(1,iz-1))
+            wn_tmp = w(max(1,iz-1))
+            sporon_tmp = 1d0-poro(max(1,iz-1))
+            
+            if (iz==1) then 
+                mn_tmp = 0d0
+                wn_tmp = 0d0
+                sporon_tmp = 0d0
+            endif 
             
             if (iz==nz) then 
                 mp_tmp = mi_tmp
-                wp_tmp = w0
+                wp_tmp = w_btm
+                sporop_tmp = 1d0- poroi
+            endif 
+            
+            if (msldunit == 'blk') then 
+                sporo_tmp = 1d0
+                sporop_tmp = 1d0
+                sporon_tmp = 1d0
+                sporoprev_tmp = 1d0
             endif 
             
             ! diffusion terms are filled with transition matrices 
@@ -18792,16 +19346,18 @@ if (.not.sld_enforce)then
                 if (trans(iiz,iz,isps)==0d0) cycle
                     
                 flx_sld(isps,idif,iz) = flx_sld(isps,idif,iz) + ( &
-                    & - trans(iiz,iz,isps)*msldx(isps,iiz) &
+                    & - trans(iiz,iz,isps)*msldx(isps,iiz) * sporo(iiz) &
                     & )
             enddo
             
             flx_sld(isps,itflx,iz) = ( &
-                & (m_tmp-mprev_tmp)/dt &
-                ! & ((1d0-poro(iz))*m_tmp-(1d0-poroprev(iz))*mprev_tmp)/dt &
+                & (sporo_tmp*m_tmp - sporoprev_tmp*mprev_tmp)/dt &
                 & )
             flx_sld(isps,iadv,iz) = ( &
-                & - ( wp_tmp*mp_tmp - w_tmp*m_tmp )/dz(iz)  &
+                & - ( sporop_tmp*wp_tmp*mp_tmp - sporo_tmp*w_tmp* m_tmp)/dz(iz)  &
+                ! & - adf(iz)*up(iz)*( sporop_tmp*wp_tmp*mp_tmp - sporo_tmp*w_tmp* m_tmp)/dz(iz)  &
+                ! & - adf(iz)*dwn(iz)*( sporo_tmp*w_tmp* m_tmp - sporon_tmp*wn_tmp*mn_tmp )/dz(iz)  &
+                ! & - adf(iz)*cnr(iz)*( sporop_tmp*wp_tmp*mp_tmp - sporon_tmp*wn_tmp*mn_tmp )/dz(iz)  &
                 & )
             ! flx_sld(isps,irxn_sld(isps),iz) = ( &
                 ! & + k_tmp*poro(iz)*hr(iz)*mv_tmp*1d-6*m_tmp*(1d0-omega_tmp) &
@@ -19592,7 +20148,7 @@ endsubroutine sld_rxn
 
 subroutine psd_diss( &
     & nsp_sld,nps,nflx &! in
-    & ,z,flx_sld,mv,dt,pi,tol &! in 
+    & ,z,flx_sld,mv,dt,pi,tol,poro &! in 
     & ,incld_rough,rough_c0,rough_c1 &! in
     & ,profdir,ipsd &! in
     & ,ps,dps,ps_min,ps_max &! in 
@@ -19602,7 +20158,7 @@ implicit none
 
 integer,intent(in)::nsp_sld,nps,nflx,ipsd
 real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol,rough_c0,rough_c1 
-real(kind=8),dimension(nz),intent(in)::z
+real(kind=8),dimension(nz),intent(in)::z,poro
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
 real(kind=8),dimension(nsp_sld),intent(in)::mv
 real(kind=8),dimension(nps),intent(in)::ps,dps
@@ -19648,7 +20204,8 @@ do iz=1,nz
 
     DV(iz) = 0d0
     do isps = 1,nsp_sld 
-        DV(iz) = DV(iz) + flx_sld(isps, 4 + isps,iz)*mv(isps)*1d-6*dt 
+        ! DV(iz) = DV(iz) + flx_sld(isps, 4 + isps,iz)*mv(isps)*1d-6*dt/(1d0 - poro(iz))  
+        DV(iz) = DV(iz) + flx_sld(isps, 4 + isps,iz)*mv(isps)*1d-6*dt  
     enddo 
     ! the following should be removed
     do ips = 1, nps
@@ -20870,7 +21427,7 @@ endsubroutine psd_implicit_all
 
 subroutine psd_implicit_all_v2( &
     & nsp_sld,nps,nflx,idif,iadv &! in
-    & ,z,dz,flx_sld,mv,dt,pi,tol,w0,w,hr &! in 
+    & ,z,dz,flx_sld,mv,dt,pi,tol,w0,w,hr,poro,poroi,poroprev &! in 
     & ,incld_rough,rough_c0,rough_c1 &! in
     & ,trans &! in
     & ,msldx &! in 
@@ -20882,8 +21439,8 @@ subroutine psd_implicit_all_v2( &
 implicit none 
 
 integer,intent(in)::nsp_sld,nps,nflx,ipsd,idif,iadv
-real(kind=8),intent(in)::dt,pi,tol,w0,rough_c0,rough_c1
-real(kind=8),dimension(nz),intent(in)::z,dz,w,hr
+real(kind=8),intent(in)::dt,pi,tol,w0,rough_c0,rough_c1,poroi
+real(kind=8),dimension(nz),intent(in)::z,dz,w,hr,poro,poroprev
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
 real(kind=8),dimension(nz,nz,nsp_sld),intent(in)::trans
 real(kind=8),dimension(nsp_sld,nz),intent(in)::msldx
@@ -20896,9 +21453,10 @@ real(kind=8),dimension(nps,nz),intent(in)::psd,dpsd,psd_rain
 real(kind=8),dimension(nps,nz),intent(out)::psdx
 ! local 
 real(kind=8),dimension(nps,nz)::psd_old,dpsd_tmp
-real(kind=8),dimension(nz)::DV,kpsd
+real(kind=8),dimension(nz)::DV,kpsd,sporo
 integer iz,isps,ips,iiz,row,col,ie,ie2,iips
-real(kind=8) vol,surf,m_tmp,mp_tmp,mi_tmp,mprev_tmp,rxn_tmp,drxn_tmp,w_tmp,wp_tmp,trans_tmp,msupp_tmp
+real(kind=8) vol,surf,m_tmp,mp_tmp,mi_tmp,mprev_tmp,rxn_tmp,drxn_tmp,w_tmp,wp_tmp,trans_tmp,msupp_tmp  &
+    & ,sporo_tmp, sporop_tmp,sporoprev_tmp
 
 logical::dt_norm = .true.
 real(kind=8),parameter::infinity = huge(0d0)
@@ -20924,6 +21482,9 @@ integer info
 ! attempt to do psd ( defined with particle number / bulk m3 / log (r) )
 ! solve as for msld 
 ! one of particle size equations are used to give massbalance constraint  
+
+sporo = 1d0 - poro
+sporo = 1d0 
 
 psdx = psd
 
@@ -20979,31 +21540,40 @@ do while (error > tol)
             
             w_tmp = w(iz)
             wp_tmp = w(min(nz,iz+1))
+
+            sporo_tmp = 1d0-poro(iz)
+            sporop_tmp = 1d0-poro(min(nz,iz+1))
+            sporoprev_tmp = 1d0-poroprev(iz)
             
             if (iz==nz) then 
                 mp_tmp = mi_tmp
                 wp_tmp = w0
+                sporop_tmp = 1d0- poroi
             endif 
+            
+            sporo_tmp = 1d0
+            sporop_tmp = 1d0
+            sporoprev_tmp = 1d0
 
             amx3(row,row) = ( &
-                & vol * dps(iz) * 1d0  /  merge(1d0,dt,dt_norm)     &
-                & + vol * dps(iz) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
-                & + drxn_tmp * merge(dt,1d0,dt_norm) &
+                & sporo_tmp * vol * dps(iz) * 1d0  /  merge(1d0,dt,dt_norm)     &
+                & + sporo_tmp * vol * dps(iz) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
+                & + sporo_tmp * drxn_tmp * merge(dt,1d0,dt_norm) &
                 & ) &
                 & * psdx(ips,iz)
 
             ymx3(row) = ( &
-                & ( m_tmp - mprev_tmp ) / merge(1d0,dt,dt_norm) &
-                & -( wp_tmp * mp_tmp - w_tmp * m_tmp ) / dz(iz) * merge(dt,1d0,dt_norm)  &
-                & + rxn_tmp * merge(dt,1d0,dt_norm) &
-                & - msupp_tmp * merge(dt,1d0,dt_norm) &
+                & ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) / merge(1d0,dt,dt_norm) &
+                & -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) / dz(iz) * merge(dt,1d0,dt_norm)  &
+                & + sporo_tmp* rxn_tmp * merge(dt,1d0,dt_norm) &
+                & - sporo_tmp* msupp_tmp * merge(dt,1d0,dt_norm) &
                 & ) &
                 & * 1d0
                         
             if (iz/=nz) then 
                 col = iz + 1  
                 amx3(row,col) = &
-                    & (- vol * dps(iz) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+                    & (- sporop_tmp * vol * dps(iz) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
             endif 
             
             do iiz = 1, nz
@@ -21011,8 +21581,8 @@ do while (error > tol)
                 trans_tmp = sum(trans(iiz,iz,:))/nsp_sld
                 if (trans_tmp == 0d0) cycle
                     
-                amx3(row,col) = amx3(row,col) - trans_tmp * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm) 
-                ymx3(row) = ymx3(row) - trans_tmp * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm) 
+                amx3(row,col) = amx3(row,col) - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm) 
+                ymx3(row) = ymx3(row) - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm) 
             enddo
             
             
@@ -21151,6 +21721,379 @@ do while (error > tol)
 enddo 
    
 endsubroutine psd_implicit_all_v2
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calc_poro( &
+    & nz,nsp_sld,nflx,idif,irain &! in
+    & ,flx_sld,mv,poroprev,w,poroi,w_btm,dz,tol,dt &! in
+    & ,poro &! inout
+    & )
+implicit none 
+
+integer,intent(in)::nz,nsp_sld,nflx,idif,irain
+real(kind=8),intent(in)::poroi,w_btm,tol,dt
+real(kind=8),dimension(nz),intent(in)::dz,w,poroprev
+real(kind=8),dimension(nz),intent(inout)::poro
+real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
+real(kind=8),dimension(nsp_sld),intent(in)::mv
+! local 
+real(kind=8),dimension(nz)::DV,resi_poro
+integer iz,isps,row,ie,ie2
+real(kind=8) w_tmp,wp_tmp,sporo_tmp,sporop_tmp,sporoprev_tmp
+
+real(kind=8),parameter::infinity = huge(0d0)
+
+real(kind=8) amx3(nz,nz),ymx3(nz)
+integer ipiv3(nz) 
+integer info 
+! 
+! attempt to solve porosity under any kind of porosity - uplift rate relationship 
+! based on equation:
+! d(1-poro)/dt = d(1-poro)*w/dz - mv*1d-6*sum( flx_sld(mixing, dust, rxns) ) 
+
+    
+ymx3 = 0d0
+amx3 = 0d0
+DV = 0d0
+
+do iz=1,nz
+    do isps = 1,nsp_sld 
+        DV(iz) = DV(iz) + ( flx_sld(isps, 4 + isps,iz) + flx_sld(isps, idif ,iz) + flx_sld(isps, irain ,iz) ) &
+            & *mv(isps)*1d-6 
+    enddo 
+    
+    row = iz
+    
+    w_tmp = w(iz)
+    wp_tmp = w(min(nz,iz+1))
+    sporo_tmp = 1d0-poro(iz)
+    sporop_tmp = 1d0-poro(min(nz,iz+1)) 
+    sporoprev_tmp = 1d0-poroprev(iz)
+            
+    if (iz==nz) then 
+        wp_tmp = w_btm
+        sporop_tmp = 1d0 - poroi
+    endif 
+    
+    if (iz/=nz) then 
+    
+        ymx3(row) = ( &
+            & + (1d0 - sporoprev_tmp)/dt    &
+            & - ( 1d0*wp_tmp - 1d0*w_tmp)/dz(iz)  &
+            & + DV(iz) &
+            & )
+            
+        amx3(row,row) = ( &
+            & + (-1d0 )/dt    &
+            & - ( - (-1d0)*w_tmp)/dz(iz)  &
+            & )
+            
+        amx3(row,row+1) = ( &
+            & - ( -1d0*wp_tmp )/dz(iz)  &
+            & )
+        
+    else 
+    
+        ymx3(row) = ( &
+            & + (1d0 - sporoprev_tmp)/dt    &
+            & - ( sporop_tmp*wp_tmp - 1d0*w_tmp)/dz(iz)  &
+            & + DV(iz) &
+            & )
+            
+        amx3(row,row) = ( &
+            & + (-1d0 )/dt    &
+            & - (- (-1d0)*w_tmp)/dz(iz)  &
+            & )
+    
+    
+    endif 
+    
+enddo 
+    
+ymx3=-1.0d0*ymx3
+
+if (any(isnan(amx3)).or.any(isnan(ymx3)).or.any(amx3>infinity).or.any(ymx3>infinity)) then 
+! if (.true.) then 
+    print*,'porocalc: error in mtx'
+    print*,'porocalc: any(isnan(amx3)),any(isnan(ymx3))'
+    print*,any(isnan(amx3)),any(isnan(ymx3))
+
+    if (any(isnan(ymx3))) then 
+        do iz = 1, nz
+            if (isnan(ymx3(iz))) then 
+                print*,'porocalc: NAN is here...',iz
+            endif
+        enddo 
+    endif
+
+
+    if (any(isnan(amx3))) then 
+        do ie = 1,(nz)
+            do ie2 = 1,(nz)
+                if (isnan(amx3(ie,ie2))) then 
+                    print*,'porocalc: NAN is here...',ie,ie2
+                endif
+            enddo
+        enddo
+    endif
+    stop
+    
+endif
+
+call DGESV(Nz,int(1),amx3,Nz,IPIV3,ymx3,Nz,INFO) 
+
+poro = ymx3
+
+! resi_poro = 0d0
+
+! do iz=1,nz
+    
+    ! w_tmp = w(iz)
+    ! wp_tmp = w(min(nz,iz+1))
+    ! sporo_tmp = 1d0-poro(iz)
+    ! sporop_tmp = 1d0-poro(min(nz,iz+1)) 
+    ! sporoprev_tmp = 1d0-poroprev(iz)
+            
+    ! if (iz==nz) then 
+        ! wp_tmp = w_btm
+        ! sporop_tmp = 1d0 - poroi
+    ! endif 
+    
+    ! resi_poro(iz) = ( &
+            ! & + (sporo_tmp - sporoprev_tmp)/dt    &
+            ! & - ( sporop_tmp*wp_tmp - sporo_tmp*w_tmp)/dz(iz)  &
+            ! & + DV(iz)  &
+            ! & )
+! enddo 
+
+! if ( maxval(resi_poro) > tol) then 
+    ! print *, 'porosity calculation is wierd!?' 
+    ! print *, info
+    ! print *, poro
+    ! print *, resi_poro
+    ! stop
+! endif 
+   
+endsubroutine calc_poro
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calc_uplift( &
+    & nz,nsp_sld,nflx,idif,irain &! IN
+    & ,iwtype &! in
+    & ,flx_sld,mv,poroi,w_btm,dz,poro &! in
+    & ,w &! inout
+    & )
+implicit none 
+
+integer,intent(in)::nz,nsp_sld,nflx,idif,irain
+integer,intent(in)::iwtype
+real(kind=8),intent(in)::poroi,w_btm
+real(kind=8),dimension(nz),intent(in)::dz,poro
+real(kind=8),dimension(nz),intent(inout)::w
+real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
+real(kind=8),dimension(nsp_sld),intent(in)::mv
+! local 
+real(kind=8),dimension(nz)::DV,wsporo
+integer iz,isps
+integer,parameter :: iwtype_cnst = 0
+integer,parameter :: iwtype_pwcnst = 1
+integer,parameter :: iwtype_spwcnst = 2
+integer,parameter :: iwtype_pcnst = 3
+
+
+
+select case(iwtype)
+    case(iwtype_cnst) ! default case with constant uplift rate
+        
+        w = w_btm
+        
+    case(iwtype_pwcnst) ! poro * w = const
+        
+        wsporo = w_btm*poroi
+        w = wsporo/poro
+        
+    case(iwtype_spwcnst) ! (1 - poro) * w = const
+    
+        wsporo = w_btm*(1d0 - poroi)
+        w = wsporo/(1d0-poro)
+        
+    case(iwtype_pcnst) ! porosity is assumed constant 
+        ! in this case, porosity is not calculated but given so equation for porosity is used to solve w instead  
+        ! based on equation:
+        ! d(1-poro)/dt = d(1-poro)*w/dz - mv*1d-6*sum( flx_sld(mixing, dust, rxns) ) 
+        ! now porosity is cont.
+        ! 0 = (1-poro)*dw/dz - mv*1d-6*sum( flx_sld(mixing, dust, rxns) ) 
+        
+        DV = 0d0
+
+        do iz=1,nz
+            do isps = 1,nsp_sld 
+                DV(iz) = DV(iz) + ( flx_sld(isps, 4 + isps,iz) + flx_sld(isps, idif ,iz) + flx_sld(isps, irain ,iz) ) &
+                    & *mv(isps)*1d-6 
+            enddo 
+        enddo 
+        
+        do iz=nz,1,-1
+            ! 0d0 = (1d0 - poro(iz)) * (w(iz+1) - w(iz))/dz(iz) + DV(iz)
+            ! 0d0 = (1-poro(iz)) * (w(iz+1) - w(iz)) + DV(iz)*dz(iz)
+            ! 0d0 = w(iz+1) - w(iz) + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+            ! w(iz) = w(iz+1)  + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+            if (iz==nz) then 
+                w(iz) = w_btm  + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+            else
+                w(iz) = w(iz+1)  + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+            endif 
+        enddo 
+        
+    case default 
+        
+        w = w_btm
+        
+endselect 
+   
+endsubroutine calc_uplift
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calcupwindscheme(  &
+    up,dwn,cnr,adf & ! output 
+    ,w,nz   & ! input &
+    )
+implicit none
+integer,intent(in)::nz
+real(kind=8),intent(in)::w(nz)
+real(kind=8),dimension(nz),intent(out)::up,dwn,cnr,adf
+real(kind=8) corrf
+real(kind=8) :: cnr_save(nz)
+integer iz
+! copied and pasted from iMP code and modified for weathering 
+
+! ------------ determine variables to realize advection 
+!  upwind scheme 
+!  up  ---- burial advection at grid i = sporo(i)*w(i)*(some conc. at i) - sporo(i-1)*w(i-1)*(some conc. at i - 1) 
+!  dwn ---- burial advection at grid i = sporo(i+1)*w(i+1)*(some conc. at i+1) - sporo(i)*w(i)*(some conc. at i) 
+!  cnr ---- burial advection at grid i = sporo(i+1)*w(i+1)*(some conc. at i+1) - sporo(i-1)*w(i-1)*(some conc. at i - 1) 
+!  when burial rate is positive, scheme need to choose up, i.e., up = 1.  
+!  when burial rate is negative, scheme need to choose dwn, i.e., dwn = 1.  
+!  where burial change from positive to negative or vice versa, scheme chooses cnr, i.e., cnr = 1. for the mass balance sake 
+
+up = 0
+dwn=0
+cnr =0
+adf=1d0
+do iz=1,nz 
+    if (iz==1) then 
+        if (w(iz)>=0d0 .and. w(iz+1)>=0d0) then  ! positive burial 
+            up(iz) = 1
+        elseif (w(iz)<=0d0 .and. w(iz+1)<=0d0) then  ! negative burial 
+            dwn(iz) = 1
+        else   !  where burial sign changes  
+            if (.not.(w(iz)*w(iz+1) <=0d0)) then 
+                print*,'error'
+                stop
+            endif
+            cnr(iz) = 1
+        endif
+    elseif (iz==nz) then 
+        if (w(iz)>=0d0 .and. w(iz-1)>=0d0) then
+            up(iz) = 1
+        elseif (w(iz)<=0d0 .and. w(iz-1)<=0d0) then
+            dwn(iz) = 1
+        else 
+            if (.not.(w(iz)*w(iz-1) <=0d0)) then 
+                print*,'error'
+                stop
+            endif
+            cnr(iz) = 1
+        endif
+    else 
+        ! if iz-1 and iz+1 have the same sign, then it can be assigned either as up or dwn
+        ! else cnr whose neighbor has a different sign 
+        if (w(iz) >=0d0) then 
+            if (w(iz+1)>=0d0 .and. w(iz-1)>=0d0) then
+                up(iz) = 1
+            else
+                cnr(iz) = 1
+            endif
+        else  
+            if (w(iz+1)<=0d0 .and. w(iz-1)<=0d0) then
+                dwn(iz) = 1
+            else
+                cnr(iz) = 1
+            endif
+        endif
+    endif
+enddo        
+
+if (sum(up(:)+dwn(:)+cnr(:))/=nz) then
+    print*,'error',sum(up),sum(dwn),sum(cnr)
+    stop
+endif
+
+! try to make sure mass balance where advection direction changes 
+! 
+! case (i)
+!       :           w         direction    
+!     iz - 2        +             ^              w(iz-1) - w(iz-2)
+!     iz - 1        +             ^              w(iz  ) - w(iz-1)
+!     iz            +             ^            a[w(iz+1) - w(iz  )] + b[w(iz+1) - w(iz-1)]  
+!     iz + 1        -             v            c[w(iz+1) - w(iz  )] + d[w(iz+2) - w(iz  )]
+!     iz + 2        -             v              w(iz+2) - w(iz+1)
+!     iz + 3        -             v              w(iz+3) - w(iz+2) 
+! layers [iz] & [iz+1] must yield [w(iz+1) - w(iz  )]
+! and calculated as (a+b+c)w(iz+1) - (a+c+d)w(iz  ) - b w(iz-1) + d w(iz+1) 
+! thus b = d = 0 and   a + b + c = 1 and a + c + d = 1
+! a and c can be arbitrary as long as satisfying a + c = 1 
+! --------------------------------------------------------------------------------------------
+! case (ii)
+!       :           w         direction    
+!     iz - 2        -             v              w(iz-2) - w(iz-3)
+!     iz - 1        -             v              w(iz-1) - w(iz-2)
+!     iz            -             v            a[w(iz  ) - w(iz-1)] + b[w(iz+1) - w(iz-1)]  
+!     iz + 1        +             ^            c[w(iz+2) - w(iz+1)] + d[w(iz+2) - w(iz  )]
+!     iz + 2        +             ^              w(iz+3) - w(iz+2)
+!     iz + 3        +             ^              w(iz+4) - w(iz+3) 
+! layers [iz] & [iz+1] must yield [w(iz+2) - w(iz-1)]
+! and calculated as (c+d)w(iz+2) - (a+b)w(iz-1) + (a-d)w(iz  ) + (b-c)w(iz+1) 
+! thus c + d = 1, a + b = 1, a - d = 0, and b - c = 0
+! these can be satisfied by b = c = 1 - a and d = a and a can be arbitrary as long as 0 <= a <= 1
+cnr_save = cnr
+do iz=1,nz-1
+    if (cnr_save(iz)==1 .and. cnr_save(iz+1)==1) then 
+    ! if (cnr(iz)==1 .and. cnr(iz+1)==1) then 
+        if (w(iz) < 0d0 .and. w(iz+1) >= 0d0) then
+            corrf = 5d0  !  This assignment of central advection term helps conversion especially when assuming turbo2 mixing 
+            cnr(iz+1)=abs(w(iz)**corrf)/(abs(w(iz+1)**corrf)+abs(w(iz)**corrf))
+            cnr(iz)=abs(w(iz+1)**corrf)/(abs(w(iz+1)**corrf)+abs(w(iz)**corrf))
+            dwn(iz+1)=1d0-cnr(iz+1)
+            up(iz)=1d0-cnr(iz)
+        endif 
+    endif 
+    if (cnr_save(iz)==1 .and. cnr_save(iz+1)==1) then 
+    ! if (cnr(iz)==1 .and. cnr(iz+1)==1) then 
+        if (w(iz)>= 0d0 .and. w(iz+1) < 0d0) then
+            cnr(iz+1)=0
+            cnr(iz)=0
+            up(iz+1)=1
+            dwn(iz)=1
+            adf(iz)=abs(w(iz+1))/(abs(w(iz+1))+abs(w(iz)))
+            adf(iz+1)=abs(w(iz))/(abs(w(iz+1))+abs(w(iz)))
+        endif 
+    endif 
+enddo       
+
+endsubroutine calcupwindscheme
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
