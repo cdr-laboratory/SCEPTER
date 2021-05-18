@@ -135,11 +135,11 @@ real(kind=8),parameter :: mvdp = 66.09d0 ! cm3/mol; molar volume of Diopside (Mg
 real(kind=8),parameter :: mvhb = 248.09d0/3.55d0 ! cm3/mol; molar volume of Hedenbergite (FeCaSi2O6); from a webpage
 real(kind=8),parameter :: mvcpx = fr_hb_cpx*mvhb + (1d0-fr_hb_cpx)*mvdp  ! cm3/mol; molar volume of clinopyroxene (FexMg(1-x)CaSi2O6); assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mvkfs = 108.72d0 ! cm3/mol; molar volume of K-feldspar (KAlSi3O8); Robie et al. 1978
-real(kind=8),parameter :: mvom = 5.3d0 ! cm3/mol; molar volume of OM (CH2O); Lasaga and Ohmoto 2002
-real(kind=8),parameter :: mvomb = 5.3d0 ! cm3/mol; assumed to be same as mvom
-real(kind=8),parameter :: mvg1 = 5.3d0 ! cm3/mol; assumed to be same as mvom
-real(kind=8),parameter :: mvg2 = 5.3d0 ! cm3/mol; assumed to be same as mvom
-real(kind=8),parameter :: mvg3 = 5.3d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvom = 30d0/1.2d0 ! cm3/mol; molar volume of OM (CH2O); calculated assuming 30 g/mol of molar weight and 1.2 g/cm3 of density (Mayer et al., 2004; Ruhlmann et al.,2006)
+real(kind=8),parameter :: mvomb = 30d0/1.2d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvg1 = 30d0/1.2d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvg2 = 30d0/1.2d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvg3 = 30d0/1.2d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8),parameter :: mvamsi = 25.739d0 ! cm3/mol; molar volume of amorphous silica taken as cristobalite (SiO2); Robie et al. 1978
 real(kind=8),parameter :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et al. 1978
 real(kind=8),parameter :: mvdlm = 64.34d0 ! cm3/mol; molar volume of dolomite; Robie et al. 1978
@@ -1554,6 +1554,12 @@ do isps = 1, nsp_sld
     msld(isps,:) = msldi(isps)
 enddo 
 
+! initial solid conc. modified 
+! do iz = 1, nz
+    ! msld(:,iz) = msld(:,iz)*exp( real(iz - nz) )
+    ! poro(iz) = 1d0 - sum(msld(:,iz)*mv(:)*1d-6)
+! enddo 
+
 omega = 0d0
 
 pro = 1d-5
@@ -2695,6 +2701,12 @@ do while (it<nt)
         ! hr = ssa*(1-poro)/poro ! converting m2/sld-m3 to m2/pore-m3
         hr = ssa
         
+    endif 
+    
+    if (any(poro < 1d-10)) then 
+        print *, '*** too small porosity: going to end sim as likely ending up crogging '
+        print *, '*** ... and no more reasonable simulation ... ! '
+        stop
     endif 
 
     if (display  .and. (.not. display_lim)) then 
