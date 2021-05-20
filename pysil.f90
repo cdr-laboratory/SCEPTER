@@ -67,9 +67,9 @@ contains
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
  
 subroutine weathering_main( &
-    & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w0,qin,p80,ttot,plant_rain  &! input
+    & nz,ztot,rainpowder,zsupp,poroi,satup0,zsat,zml_ref,w0,q0,p80,ttot,plant_rain  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
-    & ,count_dtunchanged_Max,tc &! input 
+    & ,count_dtunchanged_Max,tcin &! input 
     & ,nsld_kinspc_in,chrsld_kinspc_in,kin_sld_spc_in &! input 
     & )
 
@@ -82,7 +82,7 @@ real(kind=8),intent(in) :: ttot  ! yr
 ! real(kind=8) dz
 integer,intent(in) :: nz != 30 
 real(kind=8) z(nz),dz(nz)
-real(kind=8),intent(in) :: tc != 15.0d0 ! deg celsius
+real(kind=8),intent(in) :: tcin != 15.0d0 ! deg celsius
 real(kind=8) dt  ! yr 
 integer, parameter :: nt = 50000000
 real(kind=8) time
@@ -138,7 +138,7 @@ real(kind=8),parameter :: mvkfs = 108.72d0 ! cm3/mol; molar volume of K-feldspar
 real(kind=8),parameter :: mvom = 30d0/1.2d0 ! cm3/mol; molar volume of OM (CH2O); calculated assuming 30 g/mol of molar weight and 1.2 g/cm3 of density (Mayer et al., 2004; Ruhlmann et al.,2006)
 real(kind=8),parameter :: mvomb = 30d0/1.2d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8),parameter :: mvg1 = 30d0/1.2d0 ! cm3/mol; assumed to be same as mvom
-real(kind=8),parameter :: mvg2 = 30d0/1.2d0 ! cm3/mol; assumed to be same as mvom
+real(kind=8),parameter :: mvg2 = 30d0/1.5d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8),parameter :: mvg3 = 30d0/1.2d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8),parameter :: mvamsi = 25.739d0 ! cm3/mol; molar volume of amorphous silica taken as cristobalite (SiO2); Robie et al. 1978
 real(kind=8),parameter :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et al. 1978
@@ -232,12 +232,12 @@ real(kind=8),intent(in)::rainpowder != 30d2 !  g/m2/yr
 
 real(kind=8),intent(in)::zsupp != 0.3d0 !  e-folding decrease
 
-real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz)
+real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz), tc, satup
 
 ! real(kind=8) :: poroi = 0.1d0 !*** default
 real(kind=8),intent(in) :: poroi != 0.5d0
 
-real(kind=8),intent(in) :: satup != 0.10d0
+real(kind=8),intent(in) :: satup0 != 0.10d0
 
 ! real(kind=8) :: zsat = 30d0  ! water table depth [m] ** default 
 real(kind=8),intent(in) :: zsat != 5d0  ! water table depth [m] 
@@ -248,9 +248,9 @@ real(kind=8),intent(in) :: w0 != 5.0d-5 ! m yr^-1, uplift rate ** default
 real(kind=8) w(nz),w_btm,wx(nz),ssa(nz),wexp(nz)
 
 ! real(kind=8) :: qin = 1d-1 ! m yr^-1, advection (m3 water / m2 profile / yr)  ** default
-real(kind=8),intent(in) :: qin != 10d-1 ! m yr^-1 
+real(kind=8),intent(in) :: q0 != 10d-1 ! m yr^-1
 ! real(kind=8) :: qin = 0.1d-1 ! m yr^-1 
-real(kind=8) v(nz)
+real(kind=8) v(nz),qin
 
 ! real(kind=8) :: hr = 1d5 ! m^2 m^-3, reciprocal of hydraulic radius  ** default 
 ! real(kind=8) :: hr = 1d4 ! m^2 m^-3, reciprocal of hydraulic radius
@@ -351,12 +351,22 @@ logical :: display_lim = .false. ! limiting display fluxes and concs.
 logical :: dust_step = .false.
 ! logical :: dust_step = .true.
 
+logical,dimension(3) :: climate != .false.
+! logical,dimension(3) :: climate != .true.
+
 real(kind=8) :: step_tau = 0.1d0 ! yr time duration during which dust is added
 real(kind=8) :: tol_step_tau = 1d-6 ! yr time duration during which dust is added
 
 real(kind=8) :: wave_tau = 2d0 ! yr periodic time for wave 
 real(kind=8) :: dust_norm = 0d0
 real(kind=8) :: dust_norm_prev = 0d0
+
+real(kind=8),dimension(:,:),allocatable :: clim_T,clim_q,clim_sat
+real(kind=8),dimension(3) :: dct,ctau
+integer iclim,ict
+integer,dimension(3)::nclim,ict_prev
+logical,dimension(3)::ict_change
+character(50),dimension(3) :: clim_file
 
 ! type of uplift vs porosity relationship
 #ifndef iwtypein 
@@ -560,6 +570,10 @@ integer t1,t2,t_rate,t_max,diff
 character(3):: msldunit = 'blk'
 real(kind=8) ucvsld1,ucvsld2
 !-------------------------
+
+tc = tcin
+qin = q0
+satup = satup0
 
 nsp_sld_cnst = nsp_sld_all - nsp_sld
 nsp_aq_cnst = nsp_aq_all - nsp_aq
@@ -1392,7 +1406,86 @@ open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
 write(idust,*) ' time ', ' dust(relative_to_average) '
 close(idust)
 
+climate(:) = .true.
+! climate(:) = .false.
 
+open(idust, file=trim(adjustl(flxdir))//'/'//'climate.txt', &
+    & status='replace')
+write(idust,*) ' time ', ' T(oC) ', ' q(m/yr) ', ' Wet(-) '
+close(idust)
+
+clim_file = (/'T_temp.in  ','q_temp.in  ','Wet_temp.in'/)
+
+do iclim = 1,3
+    if (climate(iclim)) then 
+        call get_clim_num( &
+            & clim_file(iclim) &! in 
+            & ,nclim(iclim) &! output
+            & ) 
+        select case (iclim) 
+            case(1)
+                if ( allocated(clim_T) ) deallocate(clim_T)
+                allocate(clim_T(2,nclim(iclim)))    
+                open(idust,file=trim(adjustl(workdir))//'/'//trim(adjustl(clim_file(iclim))),  &
+                    & status ='old',action='read')
+                read (idust,'()')
+                clim_T = 0d0
+                do ict = 1, nclim(iclim)
+                    read (idust,*) clim_T(1,ict),clim_T(2,ict)
+                enddo 
+                close(idust)
+                print *
+                do ict = 1, nclim(iclim)
+                    print *, clim_T(:,ict)
+                enddo 
+                dct(iclim) = clim_T(1,2) - clim_T(1,1)
+                ctau(iclim) = clim_T(1,nclim(iclim)) + dct(iclim)
+            case(2)
+                if ( allocated(clim_q) ) deallocate(clim_q)
+                allocate(clim_q(2,nclim(iclim)))
+                open(idust,file=trim(adjustl(workdir))//'/'//trim(adjustl(clim_file(iclim))),  &
+                    & status ='old',action='read')
+                read (idust,'()')
+                clim_q = 0d0
+                do ict = 1, nclim(iclim)
+                    read (idust,*) clim_q(1,ict),clim_q(2,ict)
+                enddo 
+                close(idust)
+                ! converting mm/month to m/yr 
+                clim_q(2,:) = clim_q(2,:)*12d0/1d3
+                print *
+                do ict = 1, nclim(iclim)
+                    print *, clim_q(:,ict)
+                enddo 
+                dct(iclim) = clim_q(1,2) - clim_q(1,1)
+                ctau(iclim) = clim_q(1,nclim(iclim)) + dct(iclim)
+            case(3)
+                if ( allocated(clim_sat) ) deallocate(clim_sat)
+                allocate(clim_sat(2,nclim(iclim)))
+                open(idust,file=trim(adjustl(workdir))//'/'//trim(adjustl(clim_file(iclim))),  &
+                    & status ='old',action='read')
+                read (idust,'()')
+                clim_sat = 0d0
+                do ict = 1, nclim(iclim)
+                    read (idust,*) clim_sat(1,ict),clim_sat(2,ict)
+                enddo 
+                close(idust)
+                ! converting mm/m to m/m 
+                clim_sat(2,:) = clim_sat(2,:)*1d0/1d3
+                print *
+                do ict = 1, nclim(iclim)
+                    print *, clim_sat(:,ict)
+                enddo 
+                dct(iclim) = clim_sat(1,2) - clim_sat(1,1)
+                ctau(iclim) = clim_sat(1,nclim(iclim)) + dct(iclim)
+            case default
+                print*, 'error in obtaining climate'
+                stop
+        endselect 
+    endif 
+enddo 
+
+! stop
 
 !!!  MAKING GRID !!!!!!!!!!!!!!!!! 
 beta = 1.00000000005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
@@ -1806,6 +1899,10 @@ print *, 'about to start time loop'
 it = 0
 irec = 0
 
+ict = 0
+ict_prev = ict
+ict_change = .false.
+
 count_dtunchanged = 0
 
 !! @@@@@@@@@@@@@@@   start of time integration  @@@@@@@@@@@@@@@@@@@@@@
@@ -1892,6 +1989,115 @@ do while (it<nt)
     ! if (dt/=dt_prev) pre_calc = .true.
 
     ! incase temperature&ph change
+    
+    ! if climate is changing in the model 
+    if (any(climate)) then 
+        ict_change = .false.
+        do iclim = 1,3
+            if (climate(iclim)) then
+                select case(iclim)
+                    case(1)
+                        if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
+                        do ict = 1, nclim(iclim)
+                            print *, clim_T(1,ict),mod(time,ctau(iclim)),clim_T(1,ict) + dct(iclim)
+                            if ( &
+                                & clim_T(1,ict) <= mod(time,ctau(iclim)) & 
+                                & .and. clim_T(1,ict) + dct(iclim) >= mod(time,ctau(iclim)) &
+                                & ) then 
+                                ! if (  &
+                                    ! & mod(time,ctau(iclim)) + dt - clim_T(1,ict) + dct(iclim) &
+                                    ! & > ctau(iclim) * tol_step_tau &
+                                    ! & ) then 
+                                    ! dt = clim_T(1,ict) + dct(iclim) - mod(time,ctau(iclim))
+                                ! endif 
+                                print *, ict
+                                if (ict /= ict_prev(iclim)) ict_change(iclim) = .true.
+                                ict_prev(iclim) = ict
+                                exit 
+                            endif 
+                        enddo 
+                        if (ict /= nclim(iclim)) then 
+                            tc = ( clim_T(2,ict+1) - clim_T(2,ict) ) /( clim_T(1,ict+1) - clim_T(1,ict) ) &
+                                & * ( mod(time,ctau(iclim)) - clim_T(1,ict) ) + clim_T(2,ict)
+                        elseif (ict == nclim(iclim)) then 
+                            tc = ( clim_T(2,1) - clim_T(2,ict) ) /( dct(iclim)  ) &
+                                & * ( mod(time,ctau(iclim)) - clim_T(1,ict) ) + clim_T(2,ict)
+                        endif 
+                        
+                    case(2)
+                        if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
+                        do ict = 1, nclim(iclim)
+                            print *, clim_q(1,ict),mod(time,ctau(iclim)),clim_q(1,ict) + dct(iclim)
+                            if ( &
+                                & clim_q(1,ict) <= mod(time,ctau(iclim)) & 
+                                & .and. clim_q(1,ict) + dct(iclim) >= mod(time,ctau(iclim)) &
+                                & ) then 
+                                ! if (  &
+                                    ! & mod(time,ctau(iclim)) + dt - clim_q(1,ict) + dct(iclim) &
+                                    ! & > ctau(iclim) * tol_step_tau &
+                                    ! & ) then 
+                                    ! dt = clim_q(1,ict) + dct(iclim) - mod(time,ctau(iclim))
+                                ! endif 
+                                print *, ict
+                                if (ict /= ict_prev(iclim)) ict_change(iclim) = .true.
+                                ict_prev(iclim) = ict
+                                exit 
+                            endif 
+                        enddo 
+                        if (ict /= nclim(iclim)) then 
+                            qin = ( clim_q(2,ict+1) - clim_q(2,ict) ) /( clim_q(1,ict+1) - clim_q(1,ict) ) &
+                                & * ( mod(time,ctau(iclim)) - clim_q(1,ict) ) + clim_q(2,ict)
+                        elseif (ict == nclim(iclim)) then 
+                            qin = ( clim_q(2,1) - clim_q(2,ict) ) /( dct(iclim)  ) &
+                                & * ( mod(time,ctau(iclim)) - clim_q(1,ict) ) + clim_q(2,ict)
+                        endif 
+                        
+                    case(3)
+                        if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
+                        do ict = 1, nclim(iclim)
+                            print *, clim_sat(1,ict),mod(time,ctau(iclim)),clim_sat(1,ict) + dct(iclim)
+                            if ( &
+                                & clim_sat(1,ict) <= mod(time,ctau(iclim)) & 
+                                & .and. clim_sat(1,ict) + dct(iclim) >= mod(time,ctau(iclim)) &
+                                & ) then 
+                                ! if (  &
+                                    ! & mod(time,ctau(iclim)) + dt - clim_sat(1,ict) + dct(iclim) &
+                                    ! & > ctau(iclim) * tol_step_tau &
+                                    ! & ) then 
+                                    ! dt = clim_sat(1,ict) + dct(iclim) - mod(time,ctau(iclim))
+                                ! endif 
+                                print *, ict
+                                if (ict /= ict_prev(iclim)) ict_change(iclim) = .true.
+                                ict_prev(iclim) = ict
+                                exit 
+                            endif 
+                        enddo 
+                        if (ict /= nclim(iclim)) then 
+                            satup = ( clim_sat(2,ict+1) - clim_sat(2,ict) ) /( clim_sat(1,ict+1) - clim_sat(1,ict) ) &
+                                & * ( mod(time,ctau(iclim)) - clim_sat(1,ict) ) + clim_sat(2,ict)
+                        elseif (ict == nclim(iclim)) then 
+                            satup = ( clim_sat(2,1) - clim_sat(2,ict) ) /( dct(iclim)  ) &
+                                & * ( mod(time,ctau(iclim)) - clim_sat(1,ict) ) + clim_sat(2,ict)
+                        endif 
+                endselect
+            endif 
+        enddo 
+        if (dt >= minval(dct)/10d0 .or. any (ict_change) ) then 
+            open(idust, file=trim(adjustl(flxdir))//'/'//'climate.txt', &
+                & status='old',action='write',position='append')
+            write(idust,*) time,tc,qin,satup
+            close(idust)
+        endif 
+        
+        sat = min(1.0d0, 1d0-(1d0-satup)*(1d0-z/zsat)**2d0)
+        do iz=1,nz
+            if (z(iz)>=zsat) sat(iz)=1d0
+        enddo 
+        v = qin/poroi/sat
+        torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
+        tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+        
+    endif 
         
     call coefs_v2( &
         & nz,rg,rg2,tc,sec2yr,tempk_0,pro,poro,hr &! input
@@ -3097,6 +3303,47 @@ do while (it<nt)
 #endif 
         
     end if
+    
+    ! saving flx when climate is changed within model 
+    if (any(climate) .and. any (ict_change)) then 
+        do isps=1,nsp_sld 
+            open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+                & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+            write(isldflx(isps),*) time,(sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
+            close(isldflx(isps))
+        enddo 
+        
+        do ispa=1,nsp_aq 
+            open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
+                & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
+            write(iaqflx(ispa),*) time,(sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
+            close(iaqflx(ispa))
+        enddo 
+        
+        do ispg=1,nsp_gas 
+            open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
+                & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
+            write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
+            close(igasflx(ispg))
+        enddo 
+        
+        do ico2=1,6 
+            open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
+                & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', action='write',status='old',position='append')
+            if (ico2 .le. 4) then 
+                write(ico2flx(ico2),*) time,(sum(flx_co2sp(ico2,iflx,:)*dz(:)),iflx=1,nflx)
+            elseif (ico2 .eq. 5) then 
+                write(ico2flx(ico2),*) time &
+                    & ,(sum(flx_co2sp(2,iflx,:)*dz(:))+sum(flx_co2sp(3,iflx,:)*dz(:))+sum(flx_co2sp(4,iflx,:)*dz(:)) &
+                    & ,iflx=1,nflx)
+            elseif (ico2 .eq. 6) then 
+                write(ico2flx(ico2),*) time &
+                    & ,(sum(flx_co2sp(3,iflx,:)*dz(:))+2d0*sum(flx_co2sp(4,iflx,:)*dz(:)) &
+                    & ,iflx=1,nflx)
+            endif 
+            close(ico2flx(ico2))
+        enddo 
+    endif 
 
     it = it + 1
     time = time + dt
@@ -3192,6 +3439,28 @@ call system ('cp extrxns.in '//trim(adjustl(profdir))//'/extrxns.save')
 call system ('cp kinspc.in '//trim(adjustl(profdir))//'/kinspc.save')
 
 endsubroutine weathering_main
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_clim_num( &
+    & file_in &! in 
+    & ,n_file &! output
+    & )
+implicit none
+
+character(50),intent(in)::file_in
+integer,intent(out):: n_file
+character(500) file_name
+
+file_name = './'//trim(adjustl(file_in)) 
+call Console4(file_name,n_file)
+
+n_file = n_file - 1
+
+endsubroutine get_clim_num
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
