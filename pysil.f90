@@ -218,6 +218,11 @@ real(kind=8) :: rho_grain_calc,rho_grain_calcx != 2.7d0 ! g/cm3 as soil grain de
 real(kind=8) :: rho_grain_z(nz),sldvolfrac(nz) != 2.7d0 ! g/cm3 as soil grain density 
 real(kind=8) :: rho_error,rho_tol, poroi_calc 
 
+real(kind=8),parameter :: mvblk = mvka ! for bulk soil assumed to be equal to kaolinite
+real(kind=8),parameter :: mwtblk = mwtka
+real(kind=8) :: mblk(nz),mblki,mblkix,mblkx(nz)
+logical(kind=8) :: incld_blk
+
 ! real(kind=8)::plant_rain = 1.4d-3 ! g C/g soil/yr; converted from 1.6d-4 mg C / g soil /hr from Georgiou et al. 2017 ! 
 real(kind=8),intent(in)::plant_rain != 1d2 ! 1 t/ha/yr; approximate values from Vanveen et al. 1991 ! 
 ! real(kind=8)::plant_rain = 0.1d2 ! 
@@ -377,7 +382,7 @@ parameter(iwtype = iwtypein)
 integer,parameter :: iwtype_cnst = 0
 integer,parameter :: iwtype_pwcnst = 1
 integer,parameter :: iwtype_spwcnst = 2
-integer,parameter :: iwtype_pcnst = 3
+integer,parameter :: iwtype_flex = 3
 
 data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
@@ -723,35 +728,63 @@ call get_parentrock( &
     & nsp_sld_all,chrsld_all,def_pr &! input
     & ,msldi_all &! output
     & )
+
+! bulk soil concentration     
+mblki = 0d0
+incld_blk = .false.
+
 ! adding the case where input wt% exceeds 100% 
 if ( sum(msldi_all) > 1d0) then 
     print *, 'parent rock comp. exceeds 100% so rescale'
     msldi_all = msldi_all/sum(msldi_all)  ! now the units are g/g
-endif 
+! endif 
 ! msldi_all = msldi_all/mwt_all*rho_grain*1d6 ! converting g/g to mol/sld m3
 ! msldi_all = (1d0 - poroi) * msldi_all       ! mol/sld m3 to mol/bulk m3 
 
+! when input is less than 100wt% add bulk soil 
+elseif ( sum(msldi_all) < 1d0 ) then 
+    print *, 'parent rock comp. is less than 100% so add "bulk soil"'
+    ! sum(msldi_all)  + mblki = 1d0
+    incld_blk = .true.
+    mblki = 1d0 - sum(msldi_all)
+    if ( mblki < 0d0 ) mblki = 0d0
+endif 
+
 rho_grain_calc = rho_grain
 msldi_allx = msldi_all/mwt_all*rho_grain_calc*1d6 !  converting g/g to mol/sld m3
-msldi_allx = msldi_allx/sum(msldi_allx*mv_all*1d-6)  !  try to make sure volume total must be 1 
-if (msldunit=='blk') msldi_allx = msldi_allx*(1d0 - poroi)  !  try to make sure volume total must be 1 - poroi
+mblkix = mblki/mwtblk*rho_grain_calc*1d6 !  converting g/g to mol/sld m3
+! msldi_allx = msldi_allx/sum(msldi_allx*mv_all*1d-6)  !  try to make sure volume total must be 1 
+msldi_allx = msldi_allx/( sum(msldi_allx*mv_all*1d-6) + mblkix*mvblk*1d-6 )  !  try to make sure volume total must be 1 (including bulk soil if any)
+mblkix = mblkix/( sum(msldi_allx*mv_all*1d-6) + mblkix*mvblk*1d-6 )  !  try to make sure volume total must be 1 (including bulk soil if any)
+if (msldunit=='blk') then 
+    msldi_allx = msldi_allx*(1d0 - poroi)  !  try to make sure volume total must be 1 - poroi
+    mblkix = mblkix*(1d0 - poroi)  !  try to make sure volume total must be 1 - poroi
+endif 
 ! then the follwoing must be satisfied
 ! (1d0 - poroi)*rho_grain_calc = msldi_all*mwt_all*1d-6
 ! (1d0 - poroi) = msldi_all*mv_all*1d-6
 rho_error = 1d4
 rho_tol = 1d-6
-poroi_calc = 1d0 - sum(msldi_allx*mv_all*1d-6)
+! poroi_calc = 1d0 - sum(msldi_allx*mv_all*1d-6)
+poroi_calc = 1d0 - ( sum( msldi_allx*mv_all*1d-6) + mblkix*mvblk*1d-6 ) ! corrected for bulk soil if any 
 do while (rho_error > rho_tol) 
     rho_grain_calcx = rho_grain_calc
     
-    rho_grain_calc = sum(msldi_allx(:)*mwt_all(:)*1d-6) ! /(1d0-poroi_calc)
+    ! rho_grain_calc = sum(msldi_allx(:)*mwt_all(:)*1d-6) ! /(1d0-poroi_calc)
+    rho_grain_calc = sum(msldi_allx(:)*mwt_all(:)*1d-6)  + mblkix*mwtblk*1d-6  ! /(1d0-poroi_calc) | corrected for bulk soil 
     if (msldunit=='blk') rho_grain_calc = rho_grain_calc / (1d0-poroi_calc)
      
     msldi_allx = msldi_all/mwt_all*rho_grain_calc*1d6 !  converting g/g to mol/sld m3
-    msldi_allx = msldi_allx/sum(msldi_allx*mv_all*1d-6)  !  try to make sure volume total must be 1 
-    if (msldunit=='blk')  msldi_allx = (1d0 - poroi) * msldi_allx  !  converting mol/sld m3 to mol/bulk m3
+    mblkix = mblki/mwtblk*rho_grain_calc*1d6 !  converting g/g to mol/sld m3
+    ! msldi_allx = msldi_allx/sum(msldi_allx*mv_all*1d-6)  !  try to make sure volume total must be 1 
+    msldi_allx = msldi_allx/( sum(msldi_allx*mv_all*1d-6) + mblkix*mvblk*1d-6 )  !  try to make sure volume total must be 1 | corrected for bulk soil 
+    if (msldunit=='blk')  then 
+        msldi_allx = (1d0 - poroi) * msldi_allx  !  converting mol/sld m3 to mol/bulk m3
+        mblkix = (1d0 - poroi) * mblkix  !  converting mol/sld m3 to mol/bulk m3
+    endif 
     
-    poroi_calc = 1d0 - sum(msldi_allx*mv_all*1d-6)
+    ! poroi_calc = 1d0 - sum(msldi_allx*mv_all*1d-6)
+    poroi_calc = 1d0 - ( sum(msldi_allx*mv_all*1d-6) + mblkix*mvblk*1d-6 ) ! corrected for bulk soil
     
     rho_error = abs ((rho_grain_calc - rho_grain_calcx)/rho_grain_calc) 
     
@@ -760,14 +793,20 @@ do while (rho_error > rho_tol)
 enddo
 
 if (msldunit=='sld') then 
-    print *,1d0,sum(msldi_allx*mv_all*1d-6)
-    print *,sum(msldi_allx*mwt_all*1d-6),rho_grain_calc
+    ! print *,1d0,sum(msldi_allx*mv_all*1d-6)
+    ! print *,sum(msldi_allx*mwt_all*1d-6),rho_grain_calc
+    print *,1d0,sum(msldi_allx*mv_all*1d-6) + mblkix*mvblk*1d-6
+    print *,sum(msldi_allx*mwt_all*1d-6) + mblkix*mwtblk*1d-6 ,rho_grain_calc
 elseif (msldunit=='blk') then 
-    print *,1d0,sum(msldi_allx*mv_all*1d-6) /(1d0 - poroi)
-    print *,sum(msldi_allx*mwt_all*1d-6)/(1d0 - poroi),rho_grain_calc
+    ! print *,1d0,sum(msldi_allx*mv_all*1d-6) /(1d0 - poroi)
+    ! print *,sum(msldi_allx*mwt_all*1d-6)/(1d0 - poroi),rho_grain_calc
+    print *,1d0,( sum(msldi_allx*mv_all*1d-6) + mblkix*mvblk*1d-6 )/(1d0 - poroi)
+    print *,( sum(msldi_allx*mwt_all*1d-6) + mblkix*mwtblk*1d-6 )/(1d0 - poroi),rho_grain_calc
 endif 
+! print *,mblkix
 ! stop
 msldi_all = msldi_allx
+mblki = mblkix
 rho_grain = rho_grain_calc
 
 call get_atm( &
@@ -1407,7 +1446,7 @@ write(idust,*) ' time ', ' dust(relative_to_average) '
 close(idust)
 
 climate(:) = .true.
-! climate(:) = .false.
+climate(:) = .false.
 
 open(idust, file=trim(adjustl(flxdir))//'/'//'climate.txt', &
     & status='replace')
@@ -1647,6 +1686,8 @@ do isps = 1, nsp_sld
     msld(isps,:) = msldi(isps)
 enddo 
 
+mblk = mblki
+
 ! initial solid conc. modified 
 ! do iz = 1, nz
     ! msld(:,iz) = msld(:,iz)*exp( real(iz - nz) )
@@ -1754,11 +1795,14 @@ if (read_data) then
     read (ipsd,'()')
     
     do iz = 1, Nz
+        ucvsld1 = 1d0
+        if (msldunit == 'blk') ucvsld1 = 1d0 - poro(iz)
         read (isldprof,*) z(iz),(msld_save(isps,iz),isps=1,nsp_sld_save),time
         read (iaqprof,*) z(iz),(maq_save(ispa,iz),ispa=1,nsp_aq_save),pro(iz),time
         read (igasprof,*) z(iz),(mgas_save(ispg,iz),ispg=1,nsp_gas_save),time
-        read (ibsd,*) z(iz),poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
+        read (ibsd,*) z(iz),poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),mblk(iz),time
         read (ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
+        mblk(iz) = mblk(iz)/ ( mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6) )
     enddo 
     close(isldprof)
     close(iaqprof)
@@ -2187,6 +2231,8 @@ do while (it<nt)
     toraprev = tora
     wprev = w 
     
+    mblkx = mblk
+    
     ! whether or not you are using psd
     psd_old = psd
     psd_error_flg = .false.
@@ -2472,7 +2518,7 @@ do while (it<nt)
     
 #ifdef poroiter
     poro_tol = 1d-9
-    ! if (iwtype == iwtype_pcnst) poro_tol = 1d-14
+    ! if (iwtype == iwtype_flex) poro_tol = 1d-14
     do while (poro_error > poro_tol) ! start of porosity iteration 
 #endif 
 
@@ -2507,7 +2553,16 @@ do while (it<nt)
         & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
         & ,trans,nonlocal,izml  &! output 
         & )
-    
+        
+    ! sum(msldx*mv*1d-6) + mblkx*mvblk*1d-6 = 1d0 - poro
+    if ( incld_blk ) then 
+        do iz=1,nz
+            mblkx(iz) = 1d0 - poro(iz) - sum(msldx(:,iz)*mv(:)*1d-6)
+            mblkx(iz) = mblkx(iz)/(mvblk*1d-6)
+        enddo 
+    else 
+        mblkx = 0d0
+    endif 
 
     if (flgback) then 
         flgback = .false. 
@@ -2542,8 +2597,12 @@ do while (it<nt)
             ! & +(mani-manx)*(mvan)*1d-6 &
             ! & +(mcci-mccx)*(mvcc)*1d-6 &
             ! & +(mkai-mkax)*(mvka)*1d-6 
-        if (iwtype == iwtype_pcnst) then 
+        if (iwtype == iwtype_flex) then 
             poro = poroi
+            ! not constant but calculated as defined (only applicable when unit of msld(x) is mol per bulk soil)
+            do iz = 1,nz
+                poro(iz) = 1d0 - sum(msldx(:,iz)*mv(:)*1d-6)
+            enddo 
         else 
             call calc_poro( &
                 & nz,nsp_sld,nflx,idif,irain &! in
@@ -2661,7 +2720,7 @@ do while (it<nt)
         call calc_uplift( &
             & nz,nsp_sld,nflx,idif,irain &! IN
             & ,iwtype &! in
-            & ,flx_sld,mv,poroi,w_btm,dz,poro &! in
+            & ,flx_sld,mv,poroi,w_btm,dz,poro,poroprev,dt &! in
             & ,w &! inout
             & )
         
@@ -2698,7 +2757,7 @@ do while (it<nt)
     endif  
     
 #ifdef poroiter
-    if (iwtype == iwtype_pcnst) then 
+    if (iwtype == iwtype_flex) then 
         ! poro_error = maxval ( abs (( w - wx )/wx ) )
         poro_error = maxval ( abs ( w - wx ) )
     else
@@ -2999,9 +3058,14 @@ do while (it<nt)
     
     pro = prox
     
+    mblk = mblkx
+    
     do iz = 1, nz
-        rho_grain_z(iz) = sum(msldx(:,iz)*mwt(:)*1d-6)
-        sldvolfrac(iz) = sum(msldx(:,iz)*mv(:)*1d-6)
+        ! rho_grain_z(iz) = sum(msldx(:,iz)*mwt(:)*1d-6)
+        ! sldvolfrac(iz) = sum(msldx(:,iz)*mv(:)*1d-6)
+        ! accounting for blk soil
+        rho_grain_z(iz) = sum(msldx(:,iz)*mwt(:)*1d-6) + mblkx(iz)*mwtblk*1d-6
+        sldvolfrac(iz) = sum(msldx(:,iz)*mv(:)*1d-6) + mblkx(iz)*mvblk*1d-6
         
         if (msldunit=='blk') then 
             rho_grain_z(iz) = rho_grain_z(iz) / ( 1d0 - poro(iz) )
@@ -3025,13 +3089,16 @@ do while (it<nt)
         write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
         write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
         write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' , ' w[m/yr] '  &
-            & , ' vol[m3/m3] ',' dens[g/cm3] ',' time '
+            & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ',' time '
 
         do iz = 1, Nz
+            ucvsld1 = 1d0
+            if (msldunit == 'blk') ucvsld1 = 1d0 - poro(iz)
             write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
-            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz) &
+                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6), time
         end do
 
         close(isldprof)
@@ -3109,10 +3176,10 @@ do while (it<nt)
         write(chrfmt,'(i0)') nsp_gas+2
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(igasprof,trim(adjustl(chrfmt))) 'z',(chrgas(isps),isps=1,nsp_gas),'time'
-        write(chrfmt,'(i0)') 9
+        write(chrfmt,'(i0)') 10
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a11))'
         write(ibsd,trim(adjustl(chrfmt))) 'z','poro', 'sat', 'v[m/yr]', 'm2/m3' , 'w[m/yr]' &
-            & , 'vol[m3/m3]','dens[g/cm3]','time'
+            & , 'vol[m3/m3]','dens[g/cm3]','blk[wt%]','time'
         write(chrfmt,'(i0)') 2 + nsp_sld + nrxn_ext
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(irate,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),(chrrxn_ext(irxn),irxn=1,nrxn_ext),'time'
@@ -3135,7 +3202,8 @@ do while (it<nt)
             write(isldsat,*) z(iz),(omega(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(ispg,iz),ispg = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(ispa,iz),ispa = 1, nsp_aq),-log10(prox(iz)),time
-            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  &
+                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
             write(irate,*) z(iz), (rxnsld(isps,iz),isps=1,nsp_sld),(rxnext(irxn,iz),irxn=1,nrxn_ext), time 
             write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
             write(ipsdv,*) z(iz), (4d0/3d0*pi*(10d0**ps(ips))**3d0*psd(ips,iz)*dps(ips) &
@@ -3281,14 +3349,17 @@ do while (it<nt)
         write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
         write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
         write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] '  &
-            & , ' vol[m3/m3] ',' dens[g/cm3] ', ' time '
+            & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ', ' time '
         write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
 
         do iz = 1, Nz
+            ucvsld1 = 1d0
+            if (msldunit == 'blk') ucvsld1 = 1d0 - poro(iz)
             write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
-            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
+            write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz) &
+                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
             write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
         end do
 
@@ -3418,13 +3489,16 @@ write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
 write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
 write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
 write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] ' &
-    & , ' vol[m3/m3] ',' dens[g/cm3] ',' time '
+    & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ',' time '
 
 do iz = 1, Nz
+    ucvsld1 = 1d0
+    if (msldunit == 'blk') ucvsld1 = 1d0 - poro(iz)
     write(isldprof,*) z(iz),(msldx(isps,iz),isps = 1, nsp_sld),time
     write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
     write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
-    write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),time
+    write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hr(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  &
+        & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
 end do
 
 close(isldprof)
@@ -17543,7 +17617,7 @@ do isp=1,nsp_sld
     enddo
     ! trying real homogeneous 
     transturbo2 = 0d0
-    probh = 0.0001d0
+    probh = 0.001d0
     do iz=1,izml 
         do iiz=1,izml
             if (iiz/=iz) then 
@@ -22169,15 +22243,15 @@ endsubroutine calc_poro
 subroutine calc_uplift( &
     & nz,nsp_sld,nflx,idif,irain &! IN
     & ,iwtype &! in
-    & ,flx_sld,mv,poroi,w_btm,dz,poro &! in
+    & ,flx_sld,mv,poroi,w_btm,dz,poro,poroprev,dt &! in
     & ,w &! inout
     & )
 implicit none 
 
 integer,intent(in)::nz,nsp_sld,nflx,idif,irain
 integer,intent(in)::iwtype
-real(kind=8),intent(in)::poroi,w_btm
-real(kind=8),dimension(nz),intent(in)::dz,poro
+real(kind=8),intent(in)::poroi,w_btm,dt
+real(kind=8),dimension(nz),intent(in)::dz,poro,poroprev
 real(kind=8),dimension(nz),intent(inout)::w
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
 real(kind=8),dimension(nsp_sld),intent(in)::mv
@@ -22187,7 +22261,7 @@ integer iz,isps
 integer,parameter :: iwtype_cnst = 0
 integer,parameter :: iwtype_pwcnst = 1
 integer,parameter :: iwtype_spwcnst = 2
-integer,parameter :: iwtype_pcnst = 3
+integer,parameter :: iwtype_flex = 3
 
 
 
@@ -22206,7 +22280,7 @@ select case(iwtype)
         wsporo = w_btm*(1d0 - poroi)
         w = wsporo/(1d0-poro)
         
-    case(iwtype_pcnst) ! porosity is assumed constant 
+    case(iwtype_flex) ! flexible w (including const porosity)
         ! in this case, porosity is not calculated but given so equation for porosity is used to solve w instead  
         ! based on equation:
         ! d(1-poro)/dt = d(1-poro)*w/dz - mv*1d-6*sum( flx_sld(mixing, dust, rxns) ) 
@@ -22227,10 +22301,22 @@ select case(iwtype)
             ! 0d0 = (1-poro(iz)) * (w(iz+1) - w(iz)) + DV(iz)*dz(iz)
             ! 0d0 = w(iz+1) - w(iz) + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
             ! w(iz) = w(iz+1)  + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+            ! ... more generally ... 
+            ! ( (1d0 - poro(iz)) - (1d0 - poroprev(iz)) )/dt = ( (1d0 - poro(iz+1)) * w(iz+1) - (1d0 - poro(iz)) * w(iz) )/dz(iz) + DV(iz)
+            ! 0d0 = ( (1d0 - poro(iz+1)) * w(iz+1) - (1d0 - poro(iz)) * w(iz) )/dz(iz) + DV(iz) - ( (1d0 - poro(iz)) - (1d0 - poroprev(iz)) )/dt
+            ! 0d0 = ( (1d0 - poro(iz+1)) * w(iz+1) - (1d0 - poro(iz)) * w(iz) ) + DV(iz)*dz(iz) - ( (1d0 - poro(iz)) - (1d0 - poroprev(iz)) )/dt*dz(iz)
+            ! (1d0 - poro(iz)) * w(iz) =  (1d0 - poro(iz+1)) * w(iz+1)  + DV(iz)*dz(iz) - ( (1d0 - poro(iz)) - (1d0 - poroprev(iz)) )/dt*dz(iz)
+            ! w(iz) =  (1d0 - poro(iz+1))/(1d0 - poro(iz))  * w(iz+1)  + DV(iz)*dz(iz)/(1d0 - poro(iz))  - ( 1d0 - (1d0 - poroprev(iz))/(1d0 - poro(iz)) )/dt*dz(iz)
             if (iz==nz) then 
                 w(iz) = w_btm  + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+                ! general version
+                w(iz) =  (1d0 - poroi)/(1d0 - poro(iz))  * w_btm  &
+                    & + DV(iz)*dz(iz)/(1d0 - poro(iz))  - ( 1d0 - (1d0 - poroprev(iz))/(1d0 - poro(iz)) )/dt*dz(iz)
             else
                 w(iz) = w(iz+1)  + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+                ! general version
+                w(iz) =  (1d0 - poro(iz+1))/(1d0 - poro(iz))  * w(iz+1)  &
+                    & + DV(iz)*dz(iz)/(1d0 - poro(iz))  - ( 1d0 - (1d0 - poroprev(iz))/(1d0 - poro(iz)) )/dt*dz(iz)
             endif 
         enddo 
         
