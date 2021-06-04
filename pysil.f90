@@ -557,7 +557,7 @@ real(kind=8) dbl_ref
 integer izml
 integer :: nz_disp = 10
 
-real(kind=8),dimension(nz)::so4f,no3f
+real(kind=8),dimension(nz)::so4f,no3f,so4fprev
 
 real(kind=8) dt_prev
 
@@ -1752,6 +1752,7 @@ call calc_pH_v7_3( &
 
 #endif 
 
+so4fprev = so4f
 proi = pro(1)
 print*,proi
 ! pause
@@ -1894,6 +1895,20 @@ if (read_data) then
             endif 
         enddo 
     endif 
+    
+    ! just to obtain so4f 
+    print_cb = .false. 
+    print_loc = './ph.txt'
+    
+    call calc_pH_v7_3( &
+        & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+        & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+        & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+        & ,print_cb,print_loc,z &! input 
+        & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
+        & ,prox,ph_error,so4f,ph_iter &! output
+        & ) 
+    so4fprev = so4f
         
     if (display) then
         write(chrfmt,'(i0)') nz_disp
@@ -2239,6 +2254,8 @@ do while (it<nt)
     
     prox = pro  
     
+    so4f = so4fprev
+    
     poroprev = poro
     hrprev = hr
     vprev = v
@@ -2556,7 +2573,7 @@ do while (it<nt)
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
         & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
         !  old inputs
-        & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
+        & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
         ! old inout
         & ,dt,flgback,w &    
@@ -3130,6 +3147,7 @@ do while (it<nt)
     msld = msldx
     
     pro = prox
+    so4fprev = so4f
     
     mblk = mblkx
     
@@ -17845,7 +17863,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
     & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
     !  old inputs
-    & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw & 
+    & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
     ! old inout
     & ,dt,flgback,w &    
@@ -17857,7 +17875,7 @@ implicit none
 
 integer,intent(in)::nz,nflx
 real(kind=8),intent(in)::w_btm,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi,poroi
-real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf
+real(kind=8),dimension(nz),intent(in)::hr,poro,z,sat,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf,so4fprev
 real(kind=8),dimension(nz),intent(out)::prox,so4f
 real(kind=8),dimension(nz),intent(inout)::w
 integer,intent(inout)::it
@@ -17897,7 +17915,7 @@ real(kind=8),dimension(nsp_aq,nz)::dprodmaq,dmaq,dso4fdmaq
 real(kind=8),dimension(nsp_aq,nflx,nz),intent(out)::flx_aq
 real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas,mgassupp
 real(kind=8),dimension(nsp_gas,nz),intent(inout)::mgasx 
-real(kind=8),dimension(nsp_gas,nz)::khgasx,khgas,dgas,agasx,agas,rxngas,dkhgas_dpro,dprodmgas,dmgas,dso4fdmgas
+real(kind=8),dimension(nsp_gas,nz)::khgasx,khgas,dgas,agasx,agas,rxngas,dkhgas_dpro,dprodmgas,dmgas,dso4fdmgas,dkhgas_dso4f
 real(kind=8),dimension(nsp_gas,nsp_aq,nz)::dkhgas_dmaq,ddgas_dmaq,dagas_dmaq,drxngas_dmaq 
 real(kind=8),dimension(nsp_gas,nsp_sld,nz)::drxngas_dmsld 
 real(kind=8),dimension(nsp_gas,nsp_gas,nz)::dkhgas_dmgas,ddgas_dmgas,dagas_dmgas,drxngas_dmgas 
@@ -17941,6 +17959,9 @@ real(kind=8),dimension(nsp_gas_all,nz)::domega_dmgas_all
 real(kind=8),dimension(nsp_aq_all,nz)::domega_dmaq_all
 
 real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
+real(kind=8),dimension(nsp_gas_all,nz)::khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dso4f_all
+real(kind=8),dimension(nsp_gas_all,nsp_aq_all,nz)::dkhgas_dmaq_all
+real(kind=8),dimension(nsp_gas_all,nsp_gas_all,nz)::dkhgas_dmgas_all
 
 character(5),dimension(nflx),intent(in)::chrflx
 
@@ -18010,6 +18031,8 @@ external DGESV
 logical::chkflx = .true.
 logical::dt_norm = .true.
 logical::kin_iter = .true.
+logical::new_gassol = .true.
+! logical::new_gassol = .false.
 
 ! logical::sld_enforce = .false.
 logical,intent(in)::sld_enforce != .true.
@@ -18085,6 +18108,8 @@ kn2o = keqgas_h(findloc(chrgas_all,'pn2o',dim=1),ieqgas_h0)
 
 sporo = 1d0 - poro
 if (msldunit=='blk') sporo = 1d0
+
+! so4fprev = so4f
 
 ! w = win
     
@@ -18578,6 +18603,39 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     khgasx = 0d0
     dkhgas_dmaq = 0d0
     dkhgas_dmgas = 0d0
+    ! added
+    dkhgas_dpro = 0d0
+    dkhgas_dso4f = 0d0
+    
+    if (new_gassol) then 
+        call calc_khgas_all( &
+            & nz,nsp_aq_all,nsp_gas_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst &
+            & ,chraq_all,chrgas_all,chraq_cnst,chrgas_cnst,chraq,chrgas &
+            & ,maq,mgas,maqx,mgasx,maqc,mgasc &
+            & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3  &
+            & ,pro,prox,so4fprev,so4f &
+            & ,khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dso4f_all,dkhgas_dmaq_all,dkhgas_dmgas_all &!output
+            & )
+            
+        do ispg=1,nsp_gas
+            khgas(ispg,:)=khgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+            khgasx(ispg,:)=khgasx_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+            dkhgas_dpro(ispg,:)=dkhgas_dpro_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+            dkhgas_dso4f(ispg,:)=dkhgas_dso4f_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+            do ispa=1,nsp_aq
+                dkhgas_dmaq(ispg,ispa,:)= &
+                    & dkhgas_dmaq_all(findloc(chrgas_all,chrgas(ispg),dim=1),findloc(chraq_all,chraq(ispa),dim=1),:) &
+                    & + dkhgas_dpro(ispg,:)*dprodmaq(ispa,:) &
+                    & + dkhgas_dso4f(ispg,:)*dso4fdmaq(ispa,:)
+            enddo 
+            do ispg2=1,nsp_gas
+                dkhgas_dmgas(ispg,ispg2,:)= &
+                    & dkhgas_dmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),findloc(chrgas_all,chrgas(ispg2),dim=1),:) &
+                    & + dkhgas_dpro(ispg,:)*dprodmgas(ispg2,:) &
+                    & + dkhgas_dso4f(ispg,:)*dso4fdmgas(ispg2,:)
+            enddo 
+        enddo 
+    endif
     
     dgas = 0d0
     ddgas_dmaq = 0d0
@@ -18590,28 +18648,30 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     
     do ispg = 1, nsp_gas
         
-        select case (trim(adjustl(chrgas(ispg))))
-            case('pco2')
-                khgas(ispg,:) = kco2*(1d0+k1/pro + k1*k2/pro/pro) ! previous value; should not change through iterations 
-                khgasx(ispg,:) = kco2*(1d0+k1/prox + k1*k2/prox/prox)
-        
-                dkhgas_dpro(ispg,:) = kco2*(k1*(-1d0)/prox**2d0 + k1*k2*(-2d0)/prox**3d0)
-            case('po2')
-                khgas(ispg,:) = kho ! previous value; should not change through iterations 
-                khgasx(ispg,:) = kho
-        
-                dkhgas_dpro(ispg,:) = 0d0
-            case('pnh3')
-                khgas(ispg,:) = knh3*(1d0+pro/k1nh3) ! previous value; should not change through iterations 
-                khgasx(ispg,:) = knh3*(1d0+prox/k1nh3)
-        
-                dkhgas_dpro(ispg,:) = knh3*(1d0/k1nh3)
-            case('pn2o')
-                khgas(ispg,:) = kn2o ! previous value; should not change through iterations 
-                khgasx(ispg,:) = kn2o
-        
-                dkhgas_dpro(ispg,:) = 0d0
-        endselect 
+        if (.not. new_gassol) then ! old way to calc solubility (to be removed?)
+            select case (trim(adjustl(chrgas(ispg))))
+                case('pco2')
+                    khgas(ispg,:) = kco2*(1d0+k1/pro + k1*k2/pro/pro) ! previous value; should not change through iterations 
+                    khgasx(ispg,:) = kco2*(1d0+k1/prox + k1*k2/prox/prox)
+            
+                    dkhgas_dpro(ispg,:) = kco2*(k1*(-1d0)/prox**2d0 + k1*k2*(-2d0)/prox**3d0)
+                case('po2')
+                    khgas(ispg,:) = kho ! previous value; should not change through iterations 
+                    khgasx(ispg,:) = kho
+            
+                    dkhgas_dpro(ispg,:) = 0d0
+                case('pnh3')
+                    khgas(ispg,:) = knh3*(1d0+pro/k1nh3) ! previous value; should not change through iterations 
+                    khgasx(ispg,:) = knh3*(1d0+prox/k1nh3)
+            
+                    dkhgas_dpro(ispg,:) = knh3*(1d0/k1nh3)
+                case('pn2o')
+                    khgas(ispg,:) = kn2o ! previous value; should not change through iterations 
+                    khgasx(ispg,:) = kn2o
+            
+                    dkhgas_dpro(ispg,:) = 0d0
+            endselect 
+        endif 
         
         dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*tora*dgasa(ispg)
         dgasi(ispg) = ucv*1d3*dgasg(ispg) 
@@ -18620,13 +18680,13 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         agasx(ispg,:)= ucv*poro*(1.0d0-sat)*1d3+poro*sat*khgasx(ispg,:)*1d3
         
         do ispa = 1,nsp_aq 
-            dkhgas_dmaq(ispg,ispa,:) = dkhgas_dpro(ispg,:)*dprodmaq(ispa,:)
+            if (.not. new_gassol) dkhgas_dmaq(ispg,ispa,:) = dkhgas_dpro(ispg,:)*dprodmaq(ispa,:) ! old way to calc solubility (to be removed?)
             ddgas_dmaq(ispg,ispa,:) = poro*sat*dkhgas_dmaq(ispg,ispa,:)*1d3*tora*dgasa(ispg)
             dagas_dmaq(ispg,ispa,:) =  poro*sat*dkhgas_dmaq(ispg,ispa,:)*1d3
         enddo 
         
         do ispg2 = 1,nsp_gas 
-            dkhgas_dmgas(ispg,ispg2,:) = dkhgas_dpro(ispg,:)*dprodmgas(ispg2,:)
+            if (.not. new_gassol) dkhgas_dmgas(ispg,ispg2,:) = dkhgas_dpro(ispg,:)*dprodmgas(ispg2,:) ! old way to calc solubility (to be removed?)
             ddgas_dmgas(ispg,ispg2,:) = poro*sat*dkhgas_dmgas(ispg,ispg2,:)*1d3*tora*dgasa(ispg)
             dagas_dmgas(ispg,ispg2,:) =  poro*sat*dkhgas_dmgas(ispg,ispg2,:)*1d3
         enddo 
@@ -19901,6 +19961,22 @@ end do  ! ==============================
 
 khgas = 0d0
 khgasx = 0d0
+! added
+if (new_gassol) then 
+    call calc_khgas_all( &
+        & nz,nsp_aq_all,nsp_gas_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst &
+        & ,chraq_all,chrgas_all,chraq_cnst,chrgas_cnst,chraq,chrgas &
+        & ,maq,mgas,maqx,mgasx,maqc,mgasc &
+        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3  &
+        & ,pro,prox,so4fprev,so4f &
+        & ,khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dso4f_all,dkhgas_dmaq_all,dkhgas_dmgas_all &!output
+        & )
+        
+    do ispg=1,nsp_gas
+        khgas(ispg,:)=khgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+        khgasx(ispg,:)=khgasx_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+    enddo 
+endif 
 
 dgas = 0d0
 
@@ -19911,20 +19987,22 @@ rxngas = 0d0
 
 do ispg = 1, nsp_gas
     
-    select case (trim(adjustl(chrgas(ispg))))
-        case('pco2')
-            khgas(ispg,:) = kco2*(1d0+k1/pro + k1*k2/pro/pro) ! previous value; should not change through iterations 
-            khgasx(ispg,:) = kco2*(1d0+k1/prox + k1*k2/prox/prox)
-        case('po2')
-            khgas(ispg,:) = kho ! previous value; should not change through iterations 
-            khgasx(ispg,:) = kho
-        case('pnh3')
-            khgas(ispg,:) = knh3*(1d0+pro/k1nh3) ! previous value; should not change through iterations 
-            khgasx(ispg,:) = knh3*(1d0+prox/k1nh3)
-        case('pn2o')
-            khgas(ispg,:) = kn2o ! previous value; should not change through iterations 
-            khgasx(ispg,:) = kn2o
-    endselect 
+    if (.not.new_gassol) then ! to be removed?
+        select case (trim(adjustl(chrgas(ispg))))
+            case('pco2')
+                khgas(ispg,:) = kco2*(1d0+k1/pro + k1*k2/pro/pro) ! previous value; should not change through iterations 
+                khgasx(ispg,:) = kco2*(1d0+k1/prox + k1*k2/prox/prox)
+            case('po2')
+                khgas(ispg,:) = kho ! previous value; should not change through iterations 
+                khgasx(ispg,:) = kho
+            case('pnh3')
+                khgas(ispg,:) = knh3*(1d0+pro/k1nh3) ! previous value; should not change through iterations 
+                khgasx(ispg,:) = knh3*(1d0+prox/k1nh3)
+            case('pn2o')
+                khgas(ispg,:) = kn2o ! previous value; should not change through iterations 
+                khgasx(ispg,:) = kn2o
+        endselect 
+    endif 
     
     dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*tora*dgasa(ispg)
     dgasi(ispg) = ucv*1d3*dgasg(ispg) 
@@ -22741,6 +22819,199 @@ do iz=1,nz-1
 enddo       
 
 endsubroutine calcupwindscheme
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calc_khgas_all( &
+    & nz,nsp_aq_all,nsp_gas_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst &
+    & ,chraq_all,chrgas_all,chraq_cnst,chrgas_cnst,chraq,chrgas &
+    & ,maq,mgas,maqx,mgasx,maqc,mgasc &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3  &
+    & ,pro,prox,so4fprev,so4f &
+    & ,khgas,khgasx,dkhgas_dpro,dkhgas_dso4f,dkhgas_dmaq,dkhgas_dmgas &!output
+    & )
+implicit none
+
+! input 
+integer,intent(in)::nz,nsp_aq_all,nsp_gas_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
+character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
+character(5),dimension(nsp_aq),intent(in)::chraq
+character(5),dimension(nsp_gas),intent(in)::chrgas
+real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx,maq
+real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
+real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx,mgas
+real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
+real(kind=8),dimension(nz),intent(in)::pro,prox,so4fprev,so4f
+real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
+real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3
+! output 
+real(kind=8),dimension(nsp_gas_all,nz),intent(out)::khgas,khgasx,dkhgas_dpro,dkhgas_dso4f
+real(kind=8),dimension(nsp_gas_all,nsp_gas_all,nz),intent(out)::dkhgas_dmgas
+real(kind=8),dimension(nsp_gas_all,nsp_aq_all,nz),intent(out)::dkhgas_dmaq
+
+! local 
+real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,maq_loc
+real(kind=8),dimension(nsp_aq_all,nz)::maqf_loc,maqf_loc_prev
+real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc,mgas_loc
+real(kind=8),dimension(nsp_aq_all,nz)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
+
+integer ieqgas_h0,ieqgas_h1,ieqgas_h2
+data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
+
+integer ispg,ispa,ispa_c,ipco2,ipnh3,io2,in2o
+
+real(kind=8) kco2,k1,k2,knh3,k1nh3,kho,kn2o
+
+
+
+
+ipco2 = findloc(chrgas_all,'pco2',dim=1)
+ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
+io2 = findloc(chrgas_all,'po2',dim=1)
+in2o = findloc(chrgas_all,'pn2o',dim=1)
+
+kco2 = keqgas_h(ipco2,ieqgas_h0)
+k1 = keqgas_h(ipco2,ieqgas_h1)
+k2 = keqgas_h(ipco2,ieqgas_h2)
+
+knh3 = keqgas_h(ipnh3,ieqgas_h0)
+k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
+
+kho = keqgas_h(io2,ieqgas_h0)
+
+kn2o = keqgas_h(in2o,ieqgas_h0)
+
+khgas = 0d0
+khgasx = 0d0
+
+dkhgas_dpro = 0d0
+dkhgas_dso4f = 0d0
+dkhgas_dmgas = 0d0
+dkhgas_dmaq = 0d0
+
+do ispg = 1, nsp_gas_all
+    select case (trim(adjustl(chrgas_all(ispg))))
+        case('pco2')
+            khgas(ispg,:) = kco2*(1d0+k1/pro + k1*k2/pro/pro) ! previous value; should not change through iterations 
+            khgasx(ispg,:) = kco2*(1d0+k1/prox + k1*k2/prox/prox)
+            
+            dkhgas_dpro(ispg,:) = kco2*(k1*(-1d0)/prox**2d0 + k1*k2*(-2d0)/prox**3d0)
+            
+            ! obtain previous data 
+            call get_maqgasx_all( &
+                & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
+                & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
+                & ,maq,mgas,maqc,mgasc &
+                & ,maq_loc,mgas_loc  &! output
+                & )
+            call get_maqf_all( &
+                & nz,nsp_aq_all,nsp_gas_all &
+                & ,chraq_all,chrgas_all &
+                & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
+                & ,mgas_loc,maq_loc,pro,so4fprev &
+                & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
+                & ,maqf_loc_prev  &! output
+                & )
+                
+                
+            call get_maqgasx_all( &
+                & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
+                & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
+                & ,maqx,mgasx,maqc,mgasc &
+                & ,maqx_loc,mgasx_loc  &! output
+                & )
+            ! getting free maq
+            call get_maqf_all( &
+                & nz,nsp_aq_all,nsp_gas_all &
+                & ,chraq_all,chrgas_all &
+                & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
+                & ,mgasx_loc,maqx_loc,prox,so4f &
+                & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
+                & ,maqf_loc  &! output
+                & )
+                
+            ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
+            do ispa = 1, nsp_aq_all
+                do ispa_c = 1,2
+                    if ( keqaq_c(ispa,ispa_c) > 0d0) then 
+                        if (ispa_c == 1) then ! with CO3--
+                            khgas(ispg,:) = khgas(ispg,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*maqf_loc_prev(ispa,:)*k1*k2*kco2*pro**(-2d0) &
+                                & )
+                            khgasx(ispg,:) = khgasx(ispg,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-2d0) &
+                                & )
+                            dkhgas_dpro(ispg,:) = dkhgas_dpro(ispg,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*(-2d0)*prox**(-3d0) &
+                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
+                                & *dmaqf_dpro(ispa,:) &
+                                & )
+                            dkhgas_dso4f(ispg,:) = dkhgas_dso4f(ispg,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
+                                & *dmaqf_dso4f(ispa,:) &
+                                & )
+                            dkhgas_dmgas(ispg,ipco2,:) = dkhgas_dmgas(ispg,ipco2,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
+                                & *dmaqf_dpco2(ispa,:) &
+                                & )
+                            dkhgas_dmaq(ispg,ispa,:) = dkhgas_dmaq(ispg,ispa,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
+                                & *dmaqf_dmaq(ispa,:) &
+                                & )
+                        elseif (ispa_c == 2) then ! with HCO3-
+                            khgas(ispg,:) = khgas(ispg,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*maqf_loc_prev(ispa,:)*k1*k2*kco2*pro**(-1d0) & 
+                                & )
+                            khgasx(ispg,:) = khgasx(ispg,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-1d0) & 
+                                & )
+                            dkhgas_dpro(ispg,:) = dkhgas_dpro(ispg,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*(-1d0)*prox**(-2d0) & 
+                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
+                                & *dmaqf_dpro(ispa,:) &
+                                & )
+                            dkhgas_dso4f(ispg,:) = dkhgas_dso4f(ispg,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
+                                & *dmaqf_dso4f(ispa,:) &
+                                & )
+                            dkhgas_dmgas(ispg,ipco2,:) = dkhgas_dmgas(ispg,ipco2,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
+                                & *dmaqf_dpco2(ispa,:) &
+                                & )
+                            dkhgas_dmaq(ispg,ispa,:) = dkhgas_dmaq(ispg,ispa,:) + ( &
+                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
+                                & *dmaqf_dmaq(ispa,:) &
+                                & )
+                        endif 
+                    endif 
+                enddo 
+            enddo 
+            
+        case('po2')
+            khgas(ispg,:) = kho ! previous value; should not change through iterations 
+            khgasx(ispg,:) = kho
+
+        case('pnh3')
+            khgas(ispg,:) = knh3*(1d0+pro/k1nh3) ! previous value; should not change through iterations 
+            khgasx(ispg,:) = knh3*(1d0+prox/k1nh3)
+
+            dkhgas_dpro(ispg,:) = knh3*(1d0/k1nh3)
+        case('pn2o')
+            khgas(ispg,:) = kn2o ! previous value; should not change through iterations 
+            khgasx(ispg,:) = kn2o
+    endselect 
+
+enddo 
+
+
+endsubroutine calc_khgas_all
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
