@@ -1,5 +1,6 @@
 #!/bin/bash
 workdir="../pyweath_output/"
+# workdir="/storage/scratch1/0/ykanzaki3/pyweath_output/"
 workname=$1 
 mkdir -p "$workdir$workname"
 
@@ -10,44 +11,46 @@ cp weathering "$workdir$workname"
 FILE="slds.in"
 echo "** choose and list from [fo, ab, an, cc, ka, gb, py, ct, fa, gt, cabd, dp, hb, kfs, om, omb, amsi, arg, dlm, hm, ill, anl, nph, qtz, gps, by, olg, and, tm, la, cpx, en, fer, opx, g1, g2, g3, zrc] " > $FILE
 # echo "fo" >> $FILE
-# echo "ab" >> $FILE
+echo "ab" >> $FILE
 # echo "an" >> $FILE
-echo "cc" >> $FILE
-# echo "ka" >> $FILE
+# echo "cc" >> $FILE
+# echo "agt" >> $FILE
+echo "ka" >> $FILE
 # echo "fa" >> $FILE
-echo "gt" >> $FILE
 # echo "cabd" >> $FILE
 # echo "dp" >> $FILE
 # echo "hb" >> $FILE
 # echo "kfs" >> $FILE
 # echo "gps" >> $FILE
-echo "py" >> $FILE
+# echo "py" >> $FILE
+# echo "gt" >> $FILE
 # echo "g1" >> $FILE
 # echo "g2" >> $FILE
 # echo "g3" >> $FILE
 # echo "zrc" >> $FILE
+# echo "amsi" >> $FILE
 
 cp "$FILE" "$workdir$workname"
 
 FILE="solutes.in"
 echo "** choose and list from [mg, si, na, ca, al, fe2, fe3, k, so4, no3]" > $FILE
 # echo "mg" >> $FILE
-# echo "si" >> $FILE
-# echo "na" >> $FILE
-echo "ca" >> $FILE
-# echo "al" >> $FILE
-echo "fe2" >> $FILE
-echo "fe3" >> $FILE
+echo "si" >> $FILE
+echo "na" >> $FILE
+# echo "ca" >> $FILE
+echo "al" >> $FILE
+# echo "fe2" >> $FILE
+# echo "fe3" >> $FILE
 # echo "k" >> $FILE
-echo "so4" >> $FILE
+# echo "so4" >> $FILE
 # echo "no3" >> $FILE
 
 cp "$FILE" "$workdir$workname"
 
 FILE="gases.in"
 echo "** choose and list from [pco2, po2, pnh3, pn2o]" > $FILE
-echo "po2" >> $FILE
-echo "pco2" >> $FILE
+# echo "po2" >> $FILE
+# echo "pco2" >> $FILE
 # echo "pnh3" >> $FILE
 # echo "pn2o" >> $FILE
 
@@ -56,30 +59,47 @@ cp "$FILE" "$workdir$workname"
 
 FILE="extrxns.in"
 echo "** choose and list from [resp, fe2o2, omomb, ombto, pyfe3, amo2o, g2n0, g2n21, g2n22]" > $FILE
-echo "fe2o2" >> $FILE
+# echo "fe2o2" >> $FILE
 # echo "pyfe3" >> $FILE
 # echo "amo2o" >> $FILE
 # echo "g2n0" >> $FILE
 # echo "g2n21" >> $FILE
 # echo "g2n22" >> $FILE
 
+cp "$FILE" "$workdir$workname"
+
+
+FILE="kinspc.in"
+echo "** specify rate const in [mol/m2/yr] except for OMs which should be presented as turnover year [yr] (e.g., g2   1.0)" > $FILE
+# echo "g2     1" >> $FILE
 
 cp "$FILE" "$workdir$workname"
+
 
 FILE="parentrock.in"
 echo "** parent rock wt fraction (e.g., 'ab      0.2' in one line and 'ka     0.001' in the next) (if not specified assumed 1e-20)" > $FILE
 echo "ka        1e-5" >> $FILE
-echo "ab        0.3" >> $FILE
-echo "fa        0.1" >> $FILE
+# echo "ab        1.0" >> $FILE
+echo "ab        0.1" >> $FILE
+# echo "ab        0.03" >> $FILE
+# echo "ab        0.01" >> $FILE
+# echo "ab        0.003" >> $FILE
+# echo "fa        0.1" >> $FILE
+# echo "amsi        0.5" >> $FILE
+# echo "agt        0.2" >> $FILE
+# echo "agt        0.02" >> $FILE
 # echo "gps        1e-3" >> $FILE
 # echo "gps        0.1140" >> $FILE
 # echo "gps        0.1141" >> $FILE
-echo "gps        0.1135" >> $FILE
-echo "cc        0.03" >> $FILE
+# echo "gps        0.1135" >> $FILE
+# echo "gps        0.005" >> $FILE
+# echo "cc        0.03" >> $FILE
+# echo "cc        0.004" >> $FILE
 # echo "py        0.0056" >> $FILE
 # echo "py        0.0280" >> $FILE
-echo "py        0.0112" >> $FILE
-echo "gt        1e-4" >> $FILE
+# echo "py        0.0560" >> $FILE
+# echo "py        0.0112" >> $FILE
+# echo "gt        1e-5" >> $FILE
 # echo "cabd      1e-4" >> $FILE
 
 
@@ -94,18 +114,40 @@ FILE="atm.in"
 echo "** atmospheric composition in atm (if not specified assumed 1 PAL)" > $FILE
 echo "pco2      3.16e-4" >> $FILE
 echo "po2       0.21" >> $FILE
-echo "pnh3      1.0e-9" >> $FILE
-echo "pn2o      270e-9" >> $FILE
+# echo "pnh3      1.0e-9" >> $FILE
+# echo "pn2o      270e-9" >> $FILE
+echo "pnh3      1e-100" >> $FILE
+echo "pn2o      1e-100" >> $FILE
 
 cp "$FILE" "$workdir$workname"
 
+
+FILE="OM_rain.in"
+echo "** OM rain fraction wrt the value in frame.in (if not specified assumed 0)" > $FILE
+echo "g1      0.0" >> $FILE
+echo "g2      1." >> $FILE
+echo "g3      0.0" >> $FILE
+
+cp "$FILE" "$workdir$workname"
+
+
+FILE="dust.in"
+FILE2="dust_basalt.in"
+cp "$FILE2" "$FILE"
+cp "$FILE" "$workdir$workname"
+
+
+FILE="T_temp.in"
+cp "$FILE" "$workdir$workname"
+FILE="q_temp.in"
+cp "$FILE" "$workdir$workname"
+FILE="Wet_temp.in"
+cp "$FILE" "$workdir$workname"
+
+
 FILE="switches.in"
 echo "** switches on and off [true if on, false if off]" > $FILE
-echo "true           no bioturbation" >> $FILE
-echo "false           Fickian mixng" >> $FILE
-echo "false           homogeneous mixng" >> $FILE
-echo "false           LABS mixing" >> $FILE
-echo "false           tilling" >> $FILE
+echo "0           bio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken" >> $FILE
 echo "true            display results at runtime" >> $FILE
 echo "false           restart from a previous run" >> $FILE
 echo "false            include roughness in mineral surface area" >> $FILE
@@ -117,6 +159,7 @@ echo "false            enforcing solid profile (only aq and gas are explicitly s
 echo "true            enabling porosity evolution " >> $FILE
 echo "true            enabling SA evolution 1 (SA decreases as porosity increases)" >> $FILE
 echo "false            enabling SA evolution 2 (SA increases with porosity)" >> $FILE
+echo "false            enabling PSD tracking" >> $FILE
 
 cp "$FILE" "$workdir$workname"
 
@@ -125,10 +168,10 @@ FILE="frame.in"
 echo "** values to determine the boundary conditions" > $FILE
 echo "2			total depth of weathering profile [m]" >> $FILE
 echo "30			number of grids into which calculation domain is divided" >> $FILE
-echo "1e6			total duration of simulation [yr]" >> $FILE
+echo "1e5			total duration of simulation [yr]" >> $FILE
 echo "15			temperature [oC]" >> $FILE
 echo "0e2			amounts of dusts [g/m2/yr]" >> $FILE
-echo "5e2      OM [g C/m2/yr]" >> $FILE
+echo "0e2      OM [g C/m2/yr]" >> $FILE
 echo "0.6			scale depth of e-folding decrease for supplied dust distribution [m]" >> $FILE
 echo "0.1			initial porosity" >> $FILE
 echo "0.1			water saturation at the surface of profile" >> $FILE

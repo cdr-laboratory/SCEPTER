@@ -384,6 +384,13 @@ integer,parameter :: iwtype_pwcnst = 1
 integer,parameter :: iwtype_spwcnst = 2
 integer,parameter :: iwtype_flex = 3
 
+integer imixtype 
+integer,parameter :: imixtype_nobio = 0
+integer,parameter :: imixtype_fick = 1
+integer,parameter :: imixtype_turbo2 = 2
+integer,parameter :: imixtype_till = 3
+integer,parameter :: imixtype_labs = 4
+
 data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
 ! data rectime /-1d6,0d6,1d6,2d6,3d6,4d6,5d6,6d6,7d6,8d6
@@ -1231,12 +1238,37 @@ enddo
 
 
 call get_switches( &
-    & no_biot,biot_fick,biot_turbo2,biot_labs,biot_till,display,read_data,incld_rough &
+    & imixtype,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd &!
     & )
 
+no_biot = .false.
+biot_turbo2 = .false.
+biot_fick = .false.
+biot_labs = .false.
+biot_till = .false.
 
+select case(imixtype)
+    case(imixtype_nobio)
+        no_biot = .true.
+    case(imixtype_fick)
+        biot_fick = .true.
+    case(imixtype_turbo2)
+        biot_turbo2 = .true.
+    case(imixtype_till)
+        biot_till = .true.
+    case(imixtype_labs)
+        biot_labs = .true.
+    case default 
+        print *, '***| chosen number is not available for mixing styles (choose between 0 to 4)'
+        print *, '***| thus choose default |---- > no mixing'
+        no_biot = .true.
+endselect 
+
+print *, 'no_biot,biot_fick,biot_turbo2,biot_till,biot_labs'
+print *, no_biot,biot_fick,biot_turbo2,biot_till,biot_labs
+! stop 
 #ifdef disp_lim
 display_lim = .true.
 #endif 
@@ -4151,16 +4183,17 @@ endsubroutine get_atm
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_switches( &
-    & no_biot,biot_fick,biot_turbo2,biot_labs,biot_till,display,read_data,incld_rough &
+    & imixtype,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd &! inout
     & )
 implicit none
 
 character(100) chr_tmp
-logical,intent(inout):: no_biot,biot_turbo2,biot_labs,display,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc,biot_fick,biot_till,regular_grid,sld_enforce &
+logical,intent(inout):: display,read_data,incld_rough &
+    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &
     & ,poroevol,surfevol1,surfevol2,do_psd
+integer,intent(out) :: imixtype
 
 character(500) file_name
 integer i,n_tmp
@@ -4170,11 +4203,7 @@ file_name = './switches.in'
 open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
 read(50,'()')
 
-read(50,*) no_biot,chr_tmp
-read(50,*) biot_fick,chr_tmp
-read(50,*) biot_turbo2,chr_tmp
-read(50,*) biot_labs,chr_tmp
-read(50,*) biot_till,chr_tmp
+read(50,*) imixtype,chr_tmp
 read(50,*) display,chr_tmp
 read(50,*) read_data,chr_tmp
 read(50,*) incld_rough,chr_tmp
