@@ -353,8 +353,6 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
-logical  display_lim_in !  defining whether limiting display or not  (input from input file)
-
 logical :: dust_step = .false.
 ! logical :: dust_step = .true.
 
@@ -392,6 +390,9 @@ integer,parameter :: imixtype_fick = 1
 integer,parameter :: imixtype_turbo2 = 2
 integer,parameter :: imixtype_till = 3
 integer,parameter :: imixtype_labs = 4
+
+logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
+logical poroiter_in !  true if porosity (or w) is iteratively checked  (input from input file swtiches.in)
 
 data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
@@ -1240,7 +1241,7 @@ enddo
 
 
 call get_switches( &
-    & iwtype,imixtype,display,display_lim_in,read_data,incld_rough &
+    & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd &!
     & )
@@ -1285,6 +1286,12 @@ select case(iwtype)
         print *, '***| thus choose default |---- > cnst w'
         iwtype = iwtype_cnst
 endselect 
+
+if (poroiter_in) then 
+    print *, 'porosity iteration is ON'
+else 
+    print *, 'porosity iteration is OFF'
+endif 
 
 if (display_lim_in) display_lim = .true.
 
@@ -2596,11 +2603,11 @@ do while (it<nt)
     poro_tol = 1d-6
     poro_iter_max = 50
     
-#ifdef poroiter
+! #ifdef poroiter
     poro_tol = 1d-9
     ! if (iwtype == iwtype_flex) poro_tol = 1d-14
     do while (poro_error > poro_tol) ! start of porosity iteration 
-#endif 
+! #endif 
 
     porox = poro
     wx = w
@@ -2837,41 +2844,46 @@ do while (it<nt)
         endif 
     endif  
     
-#ifdef poroiter
-    if (iwtype == iwtype_flex) then 
-        ! poro_error = maxval ( abs (( w - wx )/wx ) )
-        poro_error = maxval ( abs ( w - wx ) )
-    else
-        ! poro_error = maxval ( abs (( poro - porox )/porox ) )
-        poro_error = maxval ( abs ( poro - porox ) )
+! #ifdef poroiter
+    if (poroiter_in) then 
+        if (iwtype == iwtype_flex) then 
+            ! poro_error = maxval ( abs (( w - wx )/wx ) )
+            poro_error = maxval ( abs ( w - wx ) )
+        else
+            ! poro_error = maxval ( abs (( poro - porox )/porox ) )
+            poro_error = maxval ( abs ( poro - porox ) )
+        endif 
+        
+        print *, 'porosity iteration: ',poro_iter,poro_error
+        poro_iter = poro_iter + 1
+                    
+        if (poro_iter > poro_iter_max) then 
+            print *, 'too much porosity iteration but does not converge within assumed threshold'
+            print *, 'reducing dt and move back'
+            flgback = .false. 
+            flgreducedt = .true.
+            psd = psd_old
+            poro = poroprev
+            torg = torgprev
+            tora = toraprev
+            v = vprev
+            hr = hrprev
+            w = wprev
+            call calcupwindscheme(  &
+                up,dwn,cnr,adf & ! output 
+                ,w,nz   & ! input &
+                )
+            ! pre_calc = .true.
+            dt = dt/1d1
+            go to 100
+        endif    
+    else 
+        poro_error = 0d0
+        EXIT 
     endif 
     
-    print *, 'porosity iteration: ',poro_iter,poro_error
-    poro_iter = poro_iter + 1
-                
-    if (poro_iter > poro_iter_max) then 
-        print *, 'too much porosity iteration but does not converge within assumed threshold'
-        print *, 'reducing dt and move back'
-        flgback = .false. 
-        flgreducedt = .true.
-        psd = psd_old
-        poro = poroprev
-        torg = torgprev
-        tora = toraprev
-        v = vprev
-        hr = hrprev
-        w = wprev
-        call calcupwindscheme(  &
-            up,dwn,cnr,adf & ! output 
-            ,w,nz   & ! input &
-            )
-        ! pre_calc = .true.
-        dt = dt/1d1
-        go to 100
-    endif    
-    
     enddo ! porosity iteration end
-#endif 
+! #endif 
     ! attempt to do psd
     if (do_psd) then 
         
@@ -3091,8 +3103,8 @@ do while (it<nt)
     endif 
     
     if (any(poro < 1d-10)) then 
-        print *, '*** too small porosity: going to end sim as likely ending up crogging '
-        print *, '*** ... and no more reasonable simulation ... ! '
+        print *, '***| too small porosity: going to end sim as likely ending up crogging '
+        print *, '***| ... and no more reasonable simulation ... ! '
         stop
     endif 
 
@@ -4194,14 +4206,14 @@ endsubroutine get_atm
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_switches( &
-    & iwtype,imixtype,display,display_lim_in,read_data,incld_rough &
+    & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd &! inout
     & )
 implicit none
 
 character(100) chr_tmp
-logical,intent(inout):: display,display_lim_in,read_data,incld_rough &
+logical,intent(inout):: poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &
     & ,poroevol,surfevol1,surfevol2,do_psd
 integer,intent(out) :: imixtype,iwtype
@@ -4216,6 +4228,7 @@ read(50,'()')
 
 read(50,*) iwtype,chr_tmp
 read(50,*) imixtype,chr_tmp
+read(50,*) poroiter_in,chr_tmp
 read(50,*) display,chr_tmp
 read(50,*) display_lim_in,chr_tmp
 read(50,*) read_data,chr_tmp
