@@ -374,11 +374,11 @@ logical,dimension(3)::ict_change
 character(50),dimension(3) :: clim_file
 
 ! type of uplift vs porosity relationship
-#ifndef iwtypein 
-#define iwtypein  0
-#endif 
+! #ifndef iwtypein 
+! #define iwtypein  0
+! #endif 
 integer iwtype 
-parameter(iwtype = iwtypein)
+! parameter(iwtype = iwtypein)
 integer,parameter :: iwtype_cnst = 0
 integer,parameter :: iwtype_pwcnst = 1
 integer,parameter :: iwtype_spwcnst = 2
@@ -1238,7 +1238,7 @@ enddo
 
 
 call get_switches( &
-    & imixtype,display,read_data,incld_rough &
+    & iwtype,imixtype,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd &!
     & )
@@ -1268,7 +1268,22 @@ endselect
 
 print *, 'no_biot,biot_fick,biot_turbo2,biot_till,biot_labs'
 print *, no_biot,biot_fick,biot_turbo2,biot_till,biot_labs
-! stop 
+
+select case(iwtype)
+    case(iwtype_cnst)
+        print *, 'const w',iwtype
+    case(iwtype_flex)
+        print *, 'w flex (cnst porosity profile)',iwtype
+    case(iwtype_pwcnst)
+        print *, 'w x porosity = cnst',iwtype
+    case(iwtype_spwcnst)
+        print *, 'w x (1 - porosity) = cnst',iwtype
+    case default 
+        print *, '***| chosen number is not available for advection styles (choose between 0 to 3)'
+        print *, '***| thus choose default |---- > cnst w'
+        iwtype = iwtype_cnst
+endselect 
+
 #ifdef disp_lim
 display_lim = .true.
 #endif 
@@ -4183,7 +4198,7 @@ endsubroutine get_atm
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_switches( &
-    & imixtype,display,read_data,incld_rough &
+    & iwtype,imixtype,display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd &! inout
     & )
@@ -4193,7 +4208,7 @@ character(100) chr_tmp
 logical,intent(inout):: display,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &
     & ,poroevol,surfevol1,surfevol2,do_psd
-integer,intent(out) :: imixtype
+integer,intent(out) :: imixtype,iwtype
 
 character(500) file_name
 integer i,n_tmp
@@ -4203,6 +4218,7 @@ file_name = './switches.in'
 open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
 read(50,'()')
 
+read(50,*) iwtype,chr_tmp
 read(50,*) imixtype,chr_tmp
 read(50,*) display,chr_tmp
 read(50,*) read_data,chr_tmp

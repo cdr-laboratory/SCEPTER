@@ -147,6 +147,7 @@ cp "$FILE" "$workdir$workname"
 
 FILE="switches.in"
 echo "** switches on and off [true if on, false if off]" > $FILE
+echo "1           erosion scheme: 0-- cnst w, 1-- cnst poro*w, 2-- cnst (1-poro)*w, 3--- w-flexible, if not defined 0 is taken" >> $FILE
 echo "0           bio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken" >> $FILE
 echo "true            display results at runtime" >> $FILE
 echo "false           restart from a previous run" >> $FILE
