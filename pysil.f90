@@ -353,6 +353,8 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
+logical  display_lim_in !  defining whether limiting display or not  (input from input file)
+
 logical :: dust_step = .false.
 ! logical :: dust_step = .true.
 
@@ -1238,7 +1240,7 @@ enddo
 
 
 call get_switches( &
-    & iwtype,imixtype,display,read_data,incld_rough &
+    & iwtype,imixtype,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd &!
     & )
@@ -1284,9 +1286,7 @@ select case(iwtype)
         iwtype = iwtype_cnst
 endselect 
 
-#ifdef disp_lim
-display_lim = .true.
-#endif 
+if (display_lim_in) display_lim = .true.
 
 if (sld_enforce) nsp3 = nsp_aq + nsp_gas ! excluding solid phases
 
@@ -3178,9 +3178,9 @@ do while (it<nt)
             enddo 
         endif
         
-#ifdef disp_lim
-        display_lim = .true.
-#endif 
+! #ifdef disp_lim
+        if (display_lim_in) display_lim = .true.
+! #endif 
         
     endif 
 
@@ -3255,10 +3255,6 @@ do while (it<nt)
         endif 
         
         savetime = savetime + dsavetime
-
-! #ifdef disp_lim
-        ! display_lim = .false.
-! #endif 
         
     endif 
 
@@ -3538,9 +3534,9 @@ do while (it<nt)
         close(ibsd)
         close(ipsd)
         
-#ifdef disp_lim
-        display_lim = .false.
-#endif 
+! #ifdef disp_lim
+        if (display_lim_in) display_lim = .false.
+! #endif 
         
     end if
     
@@ -4198,14 +4194,14 @@ endsubroutine get_atm
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_switches( &
-    & iwtype,imixtype,display,read_data,incld_rough &
+    & iwtype,imixtype,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd &! inout
     & )
 implicit none
 
 character(100) chr_tmp
-logical,intent(inout):: display,read_data,incld_rough &
+logical,intent(inout):: display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &
     & ,poroevol,surfevol1,surfevol2,do_psd
 integer,intent(out) :: imixtype,iwtype
@@ -4221,6 +4217,7 @@ read(50,'()')
 read(50,*) iwtype,chr_tmp
 read(50,*) imixtype,chr_tmp
 read(50,*) display,chr_tmp
+read(50,*) display_lim_in,chr_tmp
 read(50,*) read_data,chr_tmp
 read(50,*) incld_rough,chr_tmp
 read(50,*) al_inhibit,chr_tmp
