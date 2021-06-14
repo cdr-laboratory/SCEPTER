@@ -393,6 +393,7 @@ integer,parameter :: imixtype_labs = 4
 
 logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
 logical poroiter_in !  true if porosity (or w) is iteratively checked  (input from input file swtiches.in)
+logical lim_minsld_in !  true if minimum sld conc. is enforced  (input from input file swtiches.in)
 
 data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
@@ -1243,7 +1244,7 @@ enddo
 call get_switches( &
     & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
-    & ,poroevol,surfevol1,surfevol2,do_psd &!
+    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in &!
     & )
 
 no_biot = .false.
@@ -1291,6 +1292,12 @@ if (poroiter_in) then
     print *, 'porosity iteration is ON'
 else 
     print *, 'porosity iteration is OFF'
+endif 
+
+if (lim_minsld_in) then 
+    print *, 'limiting lowest mineral conc. is ON'
+else 
+    print *, 'limiting lowest mineral conc. is OFF'
 endif 
 
 if (display_lim_in) display_lim = .true.
@@ -3197,9 +3204,11 @@ do while (it<nt)
     endif 
 
     ! stop
-#ifdef lim_minsld
-    where (msldx < 1d-20)  msldx = 1d-20
-#endif 
+! #ifdef lim_minsld
+    if (lim_minsld_in) then 
+        where (msldx < 1d-20)  msldx = 1d-20
+    endif 
+! #endif 
     
     mgas = mgasx
     maq = maqx
@@ -4208,14 +4217,14 @@ endsubroutine get_atm
 subroutine get_switches( &
     & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
-    & ,poroevol,surfevol1,surfevol2,do_psd &! inout
+    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in &! inout
     & )
 implicit none
 
 character(100) chr_tmp
 logical,intent(inout):: poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &
-    & ,poroevol,surfevol1,surfevol2,do_psd
+    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in
 integer,intent(out) :: imixtype,iwtype
 
 character(500) file_name
@@ -4229,6 +4238,7 @@ read(50,'()')
 read(50,*) iwtype,chr_tmp
 read(50,*) imixtype,chr_tmp
 read(50,*) poroiter_in,chr_tmp
+read(50,*) lim_minsld_in,chr_tmp
 read(50,*) display,chr_tmp
 read(50,*) display_lim_in,chr_tmp
 read(50,*) read_data,chr_tmp
