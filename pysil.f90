@@ -17810,6 +17810,7 @@ do isp=1,nsp_sld
     ! trying real homogeneous 
     transturbo2 = 0d0
     probh = 0.001d0
+    probh = 0.0005d0 ! just testing smaller mixing 
     do iz=1,izml 
         do iiz=1,izml
             if (iiz/=iz) then 
