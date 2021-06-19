@@ -1,0 +1,4 @@
+** parent rock particle radii in meter (e.g., 'ab      1e-5' in one line and 'ka     1e-6' in the next) (if not specified value in frame.in is used for all sld sp.)
+ka        1e-6
+cc        1e-6
+cabd        1e-6
