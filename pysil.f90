@@ -358,6 +358,9 @@ logical :: dust_step = .false.
 logical,dimension(3) :: climate != .false.
 ! logical,dimension(3) :: climate != .true.
 
+logical :: season = .false.
+! logical :: season = .true.
+
 real(kind=8) :: step_tau = 0.1d0 ! yr time duration during which dust is added
 real(kind=8) :: tol_step_tau = 1d-6 ! yr time duration during which dust is added
 
@@ -1269,7 +1272,7 @@ enddo
 call get_switches( &
     & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
-    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full &!
+    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &!
     & )
 
 no_biot = .false.
@@ -1567,8 +1570,8 @@ open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
 write(idust,*) ' time ', ' dust(relative_to_average) '
 close(idust)
 
-climate(:) = .true.
 climate(:) = .false.
+if (season) climate(:) = .true.
 
 open(idust, file=trim(adjustl(flxdir))//'/'//'climate.txt', &
     & status='replace')
@@ -4865,14 +4868,14 @@ endsubroutine get_atm
 subroutine get_switches( &
     & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
-    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full &! inout
+    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &! inout
     & )
 implicit none
 
 character(100) chr_tmp
 logical,intent(inout):: poroiter_in,display,display_lim_in,read_data,incld_rough &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &
-    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full
+    & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season
 integer,intent(out) :: imixtype,iwtype
 
 character(500) file_name
@@ -4901,6 +4904,7 @@ read(50,*) surfevol1,chr_tmp
 read(50,*) surfevol2,chr_tmp
 read(50,*) do_psd,chr_tmp
 read(50,*) do_psd_full,chr_tmp
+read(50,*) season,chr_tmp
 
 close(50)
 
