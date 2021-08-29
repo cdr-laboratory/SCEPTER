@@ -2217,6 +2217,7 @@ labs = .false.
 turbo2 = .false.
 nobio = .false.
 till = .false.
+fick = .false.
     
 if (no_biot) nobio = .true.
 if (biot_turbo2) turbo2 = .true.
@@ -2587,16 +2588,59 @@ do while (it<nt)
                 ! go to 100
             endif 
         endif 
-        
+
+        ! an attempt to use fickian mixing when applying rock powder
+        ! when not applying the powder use the chosen mixing (can be fickian)
+        labs = .false.
+        turbo2 = .false.
+        nobio = .false.
+        till = .false.
+        fick = .false.   
         if (time - floor(time) >= step_tau) then 
             ! print *, 'no dust time', time 
             msldsupp = 0d0
             dust_norm = 0d0
+            ! only implement chosen mixing 
+            if (no_biot) nobio = .true.
+            if (biot_turbo2) turbo2 = .true.
+            if (biot_fick) fick = .true.
+            if (biot_labs) labs = .true.
+            if (biot_till) till = .true.
+            ! OM is mixed in fickian
+            if (any(chrsld == 'g1')) then 
+                fick(findloc(chrsld,'g1',dim=1)) = .true.
+                nobio(findloc(chrsld,'g1',dim=1)) = .false.
+                labs(findloc(chrsld,'g1',dim=1)) = .false.
+                turbo2(findloc(chrsld,'g1',dim=1)) = .false.
+                till(findloc(chrsld,'g1',dim=1)) = .false.
+            endif 
+            if (any(chrsld == 'g2')) then 
+                fick(findloc(chrsld,'g2',dim=1)) = .true.
+                nobio(findloc(chrsld,'g2',dim=1)) = .false.
+                labs(findloc(chrsld,'g2',dim=1)) = .false.
+                turbo2(findloc(chrsld,'g2',dim=1)) = .false.
+                till(findloc(chrsld,'g2',dim=1)) = .false.
+            endif 
+            if (any(chrsld == 'g3')) then 
+                fick(findloc(chrsld,'g3',dim=1)) = .true.
+                nobio(findloc(chrsld,'g3',dim=1)) = .false.
+                labs(findloc(chrsld,'g3',dim=1)) = .false.
+                turbo2(findloc(chrsld,'g3',dim=1)) = .false.
+                till(findloc(chrsld,'g3',dim=1)) = .false.
+            endif 
         else 
             ! print *, 'dust time !!', time 
             msldsupp = msldsupp/step_tau
             dust_norm = 1d0/step_tau
+            ! only implement fickian mixing 
+            fick = .true. 
         endif 
+        ! mixing reload
+        save_trans = .false.
+        call make_transmx(  &
+            & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
+            & ,trans,nonlocal,izml  &! output 
+            & )
         
         if ( dust_norm /= dust_norm_prev ) then
             open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
@@ -18535,8 +18579,11 @@ do isp=1,nsp_sld
     enddo
     ! trying real homogeneous 
     transturbo2 = 0d0
-    probh = 0.001d0
-    probh = 0.0005d0 ! just testing smaller mixing 
+    probh = 0.001d0 ! def used in IMP
+    ! probh = 0.01d0 ! strong mixing
+    probh = 0.1d0 ! strong mixing
+    ! probh = 0.0005d0 ! just testing smaller mixing 
+    ! probh = 0.0001d0 ! just testing smaller mixing for PSDs
     do iz=1,izml 
         do iiz=1,izml
             if (iiz/=iz) then 
