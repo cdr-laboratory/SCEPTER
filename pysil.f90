@@ -276,14 +276,17 @@ integer iz,it,ispa,ispg,isps,irxn,ispa2,ispg2,isps2,ico2,ph_iter,isps_kinspc,isp
 real(kind=8) error 
 real(kind=8) :: tol = 1d-6
 
-! integer, parameter :: nrec = 22
-integer, parameter :: nrec = 20
-real(kind=8) rectime(nrec)
+! integer, parameter :: nrec_prof = 22
+integer, parameter :: nrec_prof = 20
+integer, parameter :: nrec_flx = 60
+real(kind=8) rectime_prof(nrec_prof)
+real(kind=8) rectime_flx(nrec_flx)
 character(3) chr
 character(256) runname,workdir, chrz(3), chrq(3),base,fname, chrrain, cwd,flxdir, profdir
 character(500),intent(in):: runname_save
 character(500) loc_runname_save
-integer irec, iter
+integer irec_prof, irec_flx, iter
+logical flx_recorded
 
 
 integer  iflx
@@ -398,11 +401,11 @@ logical poroiter_in !  true if porosity (or w) is iteratively checked  (input fr
 logical lim_minsld_in !  true if minimum sld conc. is enforced  (input from input file swtiches.in)
 real(kind=8),dimension(nsp_sld)::minsld
 
-data rectime /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
+data rectime_prof /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
-! data rectime /-1d6,0d6,1d6,2d6,3d6,4d6,5d6,6d6,7d6,8d6
+! data rectime_prof /-1d6,0d6,1d6,2d6,3d6,4d6,5d6,6d6,7d6,8d6
 ! &,9d6,10d6,11d6,12d6,13d6,14d6,15d6,16d6,17d6,18d6,19d6,20d6/
-! data rectime /21d6,22d6,23d6,24d6,25d6,26d6,27d6,28d6,29d6,30d6
+! data rectime_prof /21d6,22d6,23d6,24d6,25d6,26d6,27d6,28d6,29d6,30d6
 ! & ,31d6,32d6,33d6,34d6,35d6,36d6,37d6,38d6,39d6,40d6,41d6,42d6/
 real(kind=8) :: savetime = 1d3
 real(kind=8) :: dsavetime = 1d3
@@ -1355,12 +1358,33 @@ do isps = 1, nsp_sld
     endselect
 enddo 
 
-do while (rectime(nrec)>ttot) 
-    rectime = rectime/10d0
+do while (rectime_prof(nrec_prof)>ttot) 
+    rectime_prof = rectime_prof/10d0
 enddo 
-do while (rectime(nrec)<ttot) 
-    rectime = rectime*10d0
+do while (rectime_prof(nrec_prof)<ttot) 
+    rectime_prof = rectime_prof*10d0
 enddo 
+
+rectime_flx = 0d0
+do irec_flx = 1,20
+    rectime_flx(irec_flx) = irec_flx/20d0
+enddo
+do irec_flx = 21,38
+    rectime_flx(irec_flx) = rectime_flx(20) + (irec_flx-20)/20d0*10d0
+enddo
+do irec_flx = 39,60
+    rectime_flx(irec_flx) = rectime_flx(38) + (irec_flx-38)/20d0*100d0
+enddo
+
+do while (rectime_flx(nrec_flx)>ttot) 
+    rectime_flx = rectime_flx/10d0
+enddo 
+do while (rectime_flx(nrec_flx)<ttot) 
+    rectime_flx = rectime_flx*10d0
+enddo 
+
+! print*, rectime_flx
+! stop
 
 ! write(chrq(1),'(i0)') int(qin/(10d0**(floor(log10(qin)))))
 ! write(chrq(2),'(i0)') floor(log10(qin))
@@ -2235,7 +2259,8 @@ call make_transmx(  &
 ! --------- loop -----
 print *, 'about to start time loop'
 it = 0
-irec = 0
+irec_prof = 0
+irec_flx = 0
 
 ict = 0
 ict_prev = ict
@@ -2258,7 +2283,7 @@ do while (it<nt)
     endif
     dt_prev = dt
     
-    if (time>rectime(nrec)) exit
+    if (time>rectime_prof(nrec_prof)) exit
     
     if (it == 0) then 
         maxdt = 0.2d0
@@ -3879,9 +3904,11 @@ do while (it<nt)
         savetime = savetime + dsavetime
         
     endif 
-
-    if (time>=rectime(irec+1)) then
-        write(chr,'(i3.3)') irec+1
+    
+    flx_recorded = .false.
+    
+    if (time>=rectime_prof(irec_prof+1)) then
+        write(chr,'(i3.3)') irec_prof+1
         
         
         print_cb = .true. 
@@ -4091,7 +4118,7 @@ do while (it<nt)
         
         endif 
         
-        irec=irec+1
+        irec_prof=irec_prof+1
         
 #ifdef full_flux_report
         do isps=1,nsp_sld 
@@ -4187,6 +4214,7 @@ do while (it<nt)
             close(ico2flx(ico2))
         enddo 
 #endif 
+        flx_recorded = .true.
         
         open(isldprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld-save.txt', status='replace')
@@ -4232,47 +4260,58 @@ do while (it<nt)
         if (display_lim_in) display_lim = .false.
 ! #endif 
         
-    end if
+    end if    
     
     ! saving flx when climate is changed within model 
-    if (any(climate) .and. any (ict_change)) then 
-        do isps=1,nsp_sld 
-            open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
-                & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
-            write(isldflx(isps),*) time,(sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
-            close(isldflx(isps))
-        enddo 
+    if ( (any(climate) .and. any (ict_change))  & 
+        ! or when time to record flx 
+        & .or.(time>=rectime_flx(irec_flx+1)) ) then 
         
-        do ispa=1,nsp_aq 
-            open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
-                & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
-            write(iaqflx(ispa),*) time,(sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
-            close(iaqflx(ispa))
-        enddo 
+        if (time>=rectime_flx(irec_flx+1)) then 
+            irec_flx = irec_flx + 1
+        endif 
         
-        do ispg=1,nsp_gas 
-            open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
-                & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
-            write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
-            close(igasflx(ispg))
-        enddo 
+        if (.not. flx_recorded) then 
+            
+            do isps=1,nsp_sld 
+                open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+                    & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+                write(isldflx(isps),*) time,(sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
+                close(isldflx(isps))
+            enddo 
+            
+            do ispa=1,nsp_aq 
+                open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
+                    & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
+                write(iaqflx(ispa),*) time,(sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
+                close(iaqflx(ispa))
+            enddo 
+            
+            do ispg=1,nsp_gas 
+                open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
+                    & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
+                write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
+                close(igasflx(ispg))
+            enddo 
+            
+            do ico2=1,6 
+                open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
+                    & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', action='write',status='old',position='append')
+                if (ico2 .le. 4) then 
+                    write(ico2flx(ico2),*) time,(sum(flx_co2sp(ico2,iflx,:)*dz(:)),iflx=1,nflx)
+                elseif (ico2 .eq. 5) then 
+                    write(ico2flx(ico2),*) time &
+                        & ,(sum(flx_co2sp(2,iflx,:)*dz(:))+sum(flx_co2sp(3,iflx,:)*dz(:))+sum(flx_co2sp(4,iflx,:)*dz(:)) &
+                        & ,iflx=1,nflx)
+                elseif (ico2 .eq. 6) then 
+                    write(ico2flx(ico2),*) time &
+                        & ,(sum(flx_co2sp(3,iflx,:)*dz(:))+2d0*sum(flx_co2sp(4,iflx,:)*dz(:)) &
+                        & ,iflx=1,nflx)
+                endif 
+                close(ico2flx(ico2))
+            enddo 
+        endif 
         
-        do ico2=1,6 
-            open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
-                & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', action='write',status='old',position='append')
-            if (ico2 .le. 4) then 
-                write(ico2flx(ico2),*) time,(sum(flx_co2sp(ico2,iflx,:)*dz(:)),iflx=1,nflx)
-            elseif (ico2 .eq. 5) then 
-                write(ico2flx(ico2),*) time &
-                    & ,(sum(flx_co2sp(2,iflx,:)*dz(:))+sum(flx_co2sp(3,iflx,:)*dz(:))+sum(flx_co2sp(4,iflx,:)*dz(:)) &
-                    & ,iflx=1,nflx)
-            elseif (ico2 .eq. 6) then 
-                write(ico2flx(ico2),*) time &
-                    & ,(sum(flx_co2sp(3,iflx,:)*dz(:))+2d0*sum(flx_co2sp(4,iflx,:)*dz(:)) &
-                    & ,iflx=1,nflx)
-            endif 
-            close(ico2flx(ico2))
-        enddo 
     endif 
 
     it = it + 1
@@ -18582,7 +18621,8 @@ do isp=1,nsp_sld
     probh = 0.001d0 ! def used in IMP
     ! probh = 0.01d0 ! strong mixing
     probh = 0.1d0 ! strong mixing
-    ! probh = 0.0005d0 ! just testing smaller mixing 
+    ! probh = 0.5d0 ! strong mixing
+    ! probh = 0.0005d0 ! just testing smaller mixing (used for tuning)
     ! probh = 0.0001d0 ! just testing smaller mixing for PSDs
     do iz=1,izml 
         do iiz=1,izml
