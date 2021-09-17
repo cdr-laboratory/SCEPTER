@@ -1,23 +1,26 @@
 function test
 
-    maq = ones(1,1)*1d-20;
-    msld = ones(1,1)*1d2;
-    mgas = ones(0,1)*1d-20;
-    pro = ones(1,1)*1d-5;
-    so4f = ones(1,1)*1d-20;
-    tcin = 12;
-    chraq = string({'ca'});
-    chrsld = string({'cc'});
-    chrgas = strings(0,1);
-    chrrxn_ext = strings(0,1);
-    ztot = 0.01;
-    poroi = 0.1;
-    p80 = 1d-5;
-    ttot = 1d-6;
+    maq = ones(2,1)*1d-20;  % conc.list of aq  [mol/L]
+    msld = ones(1,1)*1d3;   % conc.list of solid  [mol/m3] *** consistency with porosity and density must be assured outside of the model 
+    % mgas = ones(0,1)*1d-20;  % conc.list of gas  [atm] 
+    mgas = ones(1,1)*1d-2;
+    pro = ones(1,1)*1d-5;     % H+ conc. [mol/L]
+    so4f = ones(1,1)*1d-20;   % free SO4= [mol/L]
+    tcin = 12;                % temperature [oC]
+    chraq = string({'mg';'si'});   % string list of aq phase
+    chrsld = string({'fo'});  % string list of sld phase
+    % chrgas = strings(0,1);
+    chrgas = string({'pco2'});  % string list of gas phase
+    chrrxn_ext = strings(0,1); % string list of etra rxn
+    ztot = 0.01;               % grid size [m] (does not matter given that transport is all shut down(?))
+    poroi = 0.1;                % porosity of cell [m3/m3]
+    p80 = 1d-6;                 % particle size [m3/m2]
+    ttot = 1d-3;                % time step [yr]
     
     for i=1:1000
+        % maq = ones(2,1)*1d-20;  % conc.list of aq  [mol/L]
     
-        [maq,mgas,msld,pro,so4f,poro,omega] = cell_out( ...
+        [maq,mgas,msld,pro,so4f,poroi,omega] = cell_out( ...
             ztot,poroi,p80,ttot  ...% input
             ,chraq,chrgas,chrsld,chrrxn_ext ...% input
             ,tcin ...% input 
@@ -1984,16 +1987,20 @@ function [maq,mgas,msld,pro,so4f,poro,omega] = cell_out( ...
         end
         
         daq = zeros(nsp_aq,1,'double');
-        for ispa = 1: nsp_aq 
-            daq(ispa) = daq_all(find(chraq_all==chraq(ispa)));
-        end 
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% diffusion must be 0 for explicit calculation 
+        % for ispa = 1: nsp_aq 
+            % daq(ispa) = daq_all(find(chraq_all==chraq(ispa)));
+        % end 
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         dgasa = zeros(nsp_gas,1,'double');
         dgasg = zeros(nsp_gas,1,'double');
-        for ispg = 1: nsp_gas 
-            dgasa(ispg) = dgasa_all(find(chrgas_all==chrgas(ispg)));
-            dgasg(ispg) = dgasg_all(find(chrgas_all==chrgas(ispg)));
-        end 
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% diffusion must be 0 for explicit calculation 
+        % for ispg = 1: nsp_gas 
+            % dgasa(ispg) = dgasa_all(find(chrgas_all==chrgas(ispg)));
+            % dgasg(ispg) = dgasg_all(find(chrgas_all==chrgas(ispg)));
+        % end 
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         kho = keqgas_h(find(chrgas_all=='po2'),ieqgas_h0);
         kco2 = keqgas_h(find(chrgas_all=='pco2'),ieqgas_h0);
         knh3 = keqgas_h(find(chrgas_all=='pnh3'),ieqgas_h0);
@@ -2038,7 +2045,7 @@ function [maq,mgas,msld,pro,so4f,poro,omega] = cell_out( ...
             labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  ...% input
             );
 
-        error = 1d4;
+        error_dum = 1d4;
         
         flg_100 = true; % flag raised so that at least one loop is gone through 
 % 100 continue
@@ -2210,10 +2217,6 @@ function [maq,mgas,msld,pro,so4f,poro,omega] = cell_out( ...
                 ,msldx,omega,maqx,mgasx ... % inout 
                 );
             
-            %%%%%%%%%%%%%%%%% for explicit calculation 
-            break
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            
             save_trans = false;
             [trans,nonlocal,izml] = make_transmx(  ...
                 labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  ...% input
@@ -2254,11 +2257,20 @@ function [maq,mgas,msld,pro,so4f,poro,omega] = cell_out( ...
                         poro(iz) = 1d0 - sum(msldx(:,iz).*mv(:)*1d-6);
                     end 
                 else 
-                    [poro] = calc_poro( ...
-                        nz,nsp_sld,nflx,idif,irain ...% in
-                        ,flx_sld,mv,poroprev,w,poroi,w_btm,dz,tol,dt ...% in
-                        ,poro ...% inout
-                        );
+                    
+                    % [poro] = calc_poro( ...
+                        % nz,nsp_sld,nflx,idif,irain ...% in
+                        % ,flx_sld,mv,poroprev,w,poroi,w_btm,dz,tol,dt ...% in
+                        % ,poro ...% inout
+                        % );
+                        
+                    % for explicit calculation 
+                    for iz=1:nz
+                        % 1 - poro(iz) = 1- poro(iz) - sum( (msld(:,iz) - msldx(:,iz)).*mv(:)*1d-6);
+                        poro(iz) = poro(iz) + sum( (msld(:,iz) - msldx(:,iz)).*mv(:)*1d-6);
+                    end 
+                    
+                    poroi = poro(1)
                 end 
                 
                 if (any(poro<0d0))  
@@ -2369,6 +2381,10 @@ function [maq,mgas,msld,pro,so4f,poro,omega] = cell_out( ...
                 poro_error = 0d0;
                 break
             end 
+            
+            %%%%%%%%%%%%%%%%% for explicit calculation 
+            break
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         end % porosity iteration end
         
@@ -6175,7 +6191,7 @@ function [ ...
 
     df1=zeros(nz,1,'double');f1=zeros(nz,1,'double');f2=zeros(nz,1,'double');
     df2=zeros(nz,1,'double');df21=zeros(nz,1,'double');df12=zeros(nz,1,'double');
-    error=0;tol=0;dconc=0;ph_add_order =0;
+    error_dum=0;tol=0;dconc=0;ph_add_order =0;
     iter=0;iz=0;ispa=0;ispg=0;
 
     base_charge=zeros(nsp_aq_all,1,'double');
@@ -6198,7 +6214,7 @@ function [ ...
 
     % start doing something
 
-    error = 1d4;
+    error_dum = 1d4;
     tol = 1d-6;
     dconc = 1d-9;
     ph_add_order = 2d0;
@@ -6243,7 +6259,7 @@ function [ ...
       
         so4f(:) = so4x(:);
         prox(:) = 1d0; 
-        while (error > tol)
+        while (error_dum > tol)
             % free SO42- (for simplicity only consider XSO4 complex where X is a cation)
             
             [ ...
@@ -6311,16 +6327,16 @@ function [ ...
                 prox(:) = prox(:).*exp( ymx(1:nz) );
                 so4f(:) = so4f(:).*exp( ymx(nz+1:nmx) );
                 
-                error = max(abs(exp( ymx )-1d0));
-                if (isnan(error))  
-                    error = 1d4;
+                error_dum = max(abs(exp( ymx )-1d0));
+                if (isnan(error_dum))  
+                    error_dum = 1d4;
                     ph_error = true;
                     return; 
                 end 
             else 
                 prox(:) = prox(:).*exp( -f1(:)./df1(:) );
-                error = max(abs(exp( -f1(:)./df1(:) )-1d0));
-                if (isnan(error)); error = 1d4; end
+                error_dum = max(abs(exp( -f1(:)./df1(:) )-1d0));
+                if (isnan(error_dum)); error_dum = 1d4; end
             end 
             
             iter = iter + 1;
@@ -8462,7 +8478,7 @@ function [ ...
 
     % initiliza local variables
     iter=0;
-    error=0;
+    error_dum=0;
     dgasi=zeros(nsp_gas,1,'double');
     domega_dpro=zeros(nsp_sld,nz,'double');dmsld=zeros(nsp_sld,nz,'double');dksld_dpro=zeros(nsp_sld,nz,'double');
     drxnsld_dmsld=zeros(nsp_sld,nz,'double');dksld_dso4f=zeros(nsp_sld,nz,'double');domega_dso4f=zeros(nsp_sld,nz,'double');
@@ -8621,10 +8637,10 @@ function [ ...
     dummy(:) = 0d0;
     dummy2(:) = 0d0;
 
-    error = 1d4;
+    error_dum = 1d4;
     iter = 0;
 
-    while ((~isnan(error))&&(error > tol*fact_tol))
+    while ((~isnan(error_dum))&&(error_dum > tol*fact_tol))
 
         amx3(:,:)=0.0d0;
         ymx3(:)=0.0d0;
@@ -9765,25 +9781,25 @@ function [ ...
         end 
 
         if (fact_tol == 1d0)  
-            error = max(exp(abs(ymx3))) - 1.0d0;
+            error_dum = max(exp(abs(ymx3))) - 1.0d0;
         else 
-            error = max((abs(emx3)));
+            error_dum = max((abs(emx3)));
         end 
         
-        if (isnan(error)); error = 1d4; end
+        if (isnan(error_dum)); error_dum = 1d4; end
 
-        if (isnan(error)|| any(isnan(msldx),'all') || any(isnan(maqx),'all')|| any(isnan(mgasx),'all'))  
-            error = 1d3;
+        if (isnan(error_dum)|| any(isnan(msldx),'all') || any(isnan(maqx),'all')|| any(isnan(mgasx),'all'))  
+            error_dum = 1d3;
             warning('error is NaN; values are returned to those before iteration with reducing dt\n')
             warning('Nan in error?\t%s\nNan in msldx?\t%s\nNan in maqx?\t%s\nNan in mgasx?\t%s\n' ...
-                ,string(isnan(error)),string(any(isnan(msldx),'all')) ...
+                ,string(isnan(error_dum)),string(any(isnan(msldx),'all')) ...
                 ,string(any(isnan(maqx),'all')),string(any(isnan(mgasx),'all')) );
             flgback = true;
             return
         end
 
         if (display)  
-            fprintf("error in %d's iteration = %7.6E\t with time step = %7.6E\t[yr]\n",iter,error,dt);
+            fprintf("error in %d's iteration = %7.6E\t with time step = %7.6E\t[yr]\n",iter,error_dum,dt);
         end      
         iter = iter + 1; 
 
