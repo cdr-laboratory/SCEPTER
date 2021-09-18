@@ -2772,33 +2772,33 @@ function weathering_main( ...
             irate = fopen(strcat(profdir,'/rate-',chr,'.txt'), 'w');
             isa = fopen(strcat(profdir,'/sa-',chr,'.txt'), 'w');
                 
-            fprintf(isldprof,[repmat('%s\t',1,nsp_sld+2) '\n'], 'z',chrsld(1:nsp_sld),'time');
-            fprintf(isldprof2,[repmat('%s\t',1,nsp_sld+2) '\n'], 'z',chrsld(1:nsp_sld),'time');
-            fprintf(isldprof3,[repmat('%s\t',1,nsp_sld+2) '\n'], 'z',chrsld(1:nsp_sld),'time');
-            fprintf(isldsat,[repmat('%s\t',1,nsp_sld+2) '\n'],'z',chrsld(1:nsp_sld),'time');
-            fprintf(iaqprof,[repmat('%s\t',1,nsp_aq+3) '\n'],'z',chraq(1:nsp_aq),'ph','time');
-            fprintf(igasprof,[repmat('%s\t',1,nsp_gas+2) '\n'], 'z',chrgas(1:nsp_gas),'time');
+            fprintf(isldprof,[repmat('%s\t',1,max(1,nsp_sld)+2) '\n'], 'z',chrsld(1:nsp_sld),'time');
+            fprintf(isldprof2,[repmat('%s\t',1,max(1,nsp_sld)+2) '\n'], 'z',chrsld(1:nsp_sld),'time');
+            fprintf(isldprof3,[repmat('%s\t',1,max(1,nsp_sld)+2) '\n'], 'z',chrsld(1:nsp_sld),'time');
+            fprintf(isldsat,[repmat('%s\t',1,max(1,nsp_sld)+2) '\n'],'z',chrsld(1:nsp_sld),'time');
+            fprintf(iaqprof,[repmat('%s\t',1,max(1,nsp_aq)+3) '\n'],'z',chraq(1:nsp_aq),'ph','time');
+            fprintf(igasprof,[repmat('%s\t',1,max(1,nsp_gas)+2) '\n'], 'z',chrgas(1:nsp_gas),'time');
             fprintf(ibsd,[repmat('%s\t',1,10) '\n'], 'z','poro', 'sat', 'v[m/yr]', 'm2/m3' , 'w[m/yr]' ...
                 , 'vol[m3/m3]','dens[g/cm3]','blk[wt%]','time');
-            fprintf(irate,[repmat('%s\t',1, 2 + nsp_sld + nrxn_ext) '\n'], 'z', chrsld(1:nsp_sld),chrrxn_ext(1:nrxn_ext),'time');
-            fprintf(isa,[repmat('%s\t',1, nsp_sld +2) '\n'], 'z',chrsld(1:nsp_sld),'time');
+            fprintf(irate,[repmat('%s\t',1, 2 + max(1,nsp_sld) + max(1,nrxn_ext)) '\n'], 'z', chrsld(1:nsp_sld),chrrxn_ext(1:nrxn_ext),'time');
+            fprintf(isa,[repmat('%s\t',1, max(1,nsp_sld) +2) '\n'], 'z',chrsld(1:nsp_sld),'time');
 
             for iz = 1: nz
                 ucvsld1 = 1d0;
                 if (msldunit == 'blk'); ucvsld1 = 1d0 - poro(iz); end
                 
-                fprintf(isldprof,[repmat('%e\t',1,nsp_sld+2) '\n'], z(iz),msldx(1:nsp_sld,iz),time);
-                fprintf(isldprof2,[repmat('%e\t',1,nsp_sld+2) '\n'], z(iz) ...
-                    ,msldx(1:nsp_sld,iz).*mwt(1:nsp_sld)*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time);
-                fprintf(isldprof3,[repmat('%e\t',1,nsp_sld+2) '\n'], z(iz) ...
-                    ,msldx(1:nsp_sld,iz).*mv(1:nsp_sld)/ucvsld1*1d-6*1d2,time);
-                fprintf(isldsat,[repmat('%e\t',1,nsp_sld+2) '\n'], z(iz),omega(1:nsp_sld,iz),time);
-                fprintf(igasprof,[repmat('%e\t',1,nsp_gas+2) '\n'], z(iz),mgasx(1:nsp_gas,iz),time);
-                fprintf(iaqprof,[repmat('%e\t',1,nsp_aq+3) '\n'], z(iz),maqx(1:nsp_aq,iz),-log10(prox(iz)),time);
+                fprintf(isldprof,[repmat('%e\t',1,max(1,nsp_sld)+2) '\n'], z(iz),msldx(1:nsp_sld,iz),time);
+                fprintf(isldprof2,[repmat('%e\t',1,max(1,nsp_sld)+2) '\n'], z(iz) ...
+                    ,msldx(1:nsp_sld,iz).*mwt(1:nsp_sld)'*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time);
+                fprintf(isldprof3,[repmat('%e\t',1,max(1,nsp_sld)+2) '\n'], z(iz) ...
+                    ,msldx(1:nsp_sld,iz).*mv(1:nsp_sld)'/ucvsld1*1d-6*1d2,time);
+                fprintf(isldsat,[repmat('%e\t',1,max(1,nsp_sld)+2) '\n'], z(iz),omega(1:nsp_sld,iz),time);
+                fprintf(igasprof,[repmat('%e\t',1,max(1,nsp_gas)+2) '\n'], z(iz),mgasx(1:nsp_gas,iz),time);
+                fprintf(iaqprof,[repmat('%e\t',1,max(1,nsp_aq)+3) '\n'], z(iz),maqx(1:nsp_aq,iz),-log10(prox(iz)),time);
                 fprintf(ibsd,[repmat('%e\t',1, 10) '\n'], z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  ...
                     ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time);
-                fprintf(irate,[repmat('%e\t',1,nsp_sld+nrxn_ext+2) '\n'], z(iz),rxnsld(1:nsp_sld,iz),rxnext(1:nrxn_ext,iz),time );
-                fprintf(isa,[repmat('%e\t',1,nsp_sld+2) '\n'], z(iz),hr(1:nsp_sld,iz),time);
+                fprintf(irate,[repmat('%e\t',1,max(1,nsp_sld)+max(1,nrxn_ext)+2) '\n'], z(iz),rxnsld(1:nsp_sld,iz),rxnext(1:nrxn_ext,iz),time );
+                fprintf(isa,[repmat('%e\t',1,max(1,nsp_sld)+2) '\n'], z(iz),hr(1:nsp_sld,iz),time);
             end
 
             fclose(isldprof);
@@ -2970,24 +2970,24 @@ function weathering_main( ...
             ipsd = fopen(strcat(profdir,'/psd-save.txt'), 'w');
             isa = fopen(strcat(profdir,'/sa-save.txt'), 'w');
                 
-            fprintf(isldprof,[repmat('%s\t',1, nsp_sld+2) '\n'], 'z',(chrsld(1:nsp_sld)),'time');
-            fprintf(iaqprof,[repmat('%s\t',1, nsp_aq+3) '\n'], 'z',(chraq(1:nsp_aq)),'ph','time');
-            fprintf(igasprof,[repmat('%s\t',1, nsp_gas+2) '\n'], 'z',(chrgas(1:nsp_gas)),'time');
+            fprintf(isldprof,[repmat('%s\t',1, max(1,nsp_sld)+2) '\n'], 'z',(chrsld(1:nsp_sld)),'time');
+            fprintf(iaqprof,[repmat('%s\t',1, max(1,nsp_aq)+3) '\n'], 'z',(chraq(1:nsp_aq)),'ph','time');
+            fprintf(igasprof,[repmat('%s\t',1, max(1,nsp_gas)+2) '\n'], 'z',(chrgas(1:nsp_gas)),'time');
             fprintf(ibsd,[repmat('%s\t',1, 10) '\n'], 'z','poro', 'sat', 'v[m/yr]', 'm2/m3' ,'w[m/yr]'  ...
                 , 'vol[m3/m3]','dens[g/cm3]', 'blk[wt%]', 'time');
             fprintf(ipsd,['%s\t' repmat('%f\t',1, nps) '%s\n'], 'z[m]\log10(r[m])',(ps(1:nps)),'time');
-            fprintf(isa,[repmat('%s\t',1, nsp_sld+2) '\n'], 'z',(chrsld(1:nsp_sld)),'time');
+            fprintf(isa,[repmat('%s\t',1, max(1,nsp_sld)+2) '\n'], 'z',(chrsld(1:nsp_sld)),'time');
 
             for iz = 1: nz
                 ucvsld1 = 1d0;
                 if (msldunit == 'blk'); ucvsld1 = 1d0 - poro(iz); end 
-                fprintf(isldprof,[repmat('%e\t',1, nsp_sld+2) '\n'], z(iz),(msldx(1:nsp_sld,iz)),time);
-                fprintf(igasprof,[repmat('%e\t',1, nsp_gas+2) '\n'], z(iz),(mgasx(1:nsp_gas,iz)),time);
-                fprintf(iaqprof,[repmat('%e\t',1, nsp_aq+3) '\n'], z(iz),(maqx(1:nsp_aq,iz)),-log10(prox(iz)),time);
+                fprintf(isldprof,[repmat('%e\t',1, max(1,nsp_sld)+2) '\n'], z(iz),(msldx(1:nsp_sld,iz)),time);
+                fprintf(igasprof,[repmat('%e\t',1, max(1,nsp_gas)+2) '\n'], z(iz),(mgasx(1:nsp_gas,iz)),time);
+                fprintf(iaqprof,[repmat('%e\t',1, max(1,nsp_aq)+3) '\n'], z(iz),(maqx(1:nsp_aq,iz)),-log10(prox(iz)),time);
                 fprintf(ibsd,[repmat('%e\t',1, 10) '\n'], z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz) ...
                     ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time );
                 fprintf(ipsd,[repmat('%e\t',1, nps+2) '\n'], z(iz), (psd(1:nps,iz)), time );
-                fprintf(isa,[repmat('%e\t',1, nsp_sld+2) '\n'], z(iz),(hr(1:nsp_sld,iz)),time );
+                fprintf(isa,[repmat('%e\t',1, max(1,nsp_sld)+2) '\n'], z(iz),(hr(1:nsp_sld,iz)),time );
             end
 
             fclose(isldprof);
