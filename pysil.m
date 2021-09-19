@@ -1345,8 +1345,8 @@ function weathering_main( ...
                 end 
             else 
                 for iz=1:nz
-                    ssa(:,iz) = sum( 4d0*pi*(10d0.^ps(:)).^2d0 *rough_c0*(10d0.^ps(:)).^rough_c1.*psd(:,iz).*dps(:) );
-                    ssav(:,iz) = sum( 3d0/(10d0.^ps(:)) *rough_c0*(10d0.^ps(:)).^rough_c1.*psd(:,iz).*dps(:) );
+                    ssa(:,iz) = sum( 4d0*pi*(10d0.^ps(:)).^2d0 *rough_c0.*(10d0.^ps(:)).^rough_c1.*psd(:,iz).*dps(:) );
+                    ssav(:,iz) = sum( 3d0./(10d0.^ps(:)) *rough_c0.*(10d0.^ps(:)).^rough_c1.*psd(:,iz).*dps(:) );
                 end 
             end 
             for iz=1:nz
@@ -2479,9 +2479,412 @@ function weathering_main( ...
         
         end % porosity iteration end
         
+        if flg_100; continue; end %  added to enable 'go to 100'
+        
+        
         % attempt to do psd
         if (do_psd) 
-            % to be done ..... 
+            
+            if (display) 
+                fprintf('\n');
+                fprintf('-- doing PSD\n');
+            end 
+            
+            dmpsd = zeros(nsp_sld,nps,nz,'double');
+            DV = zeros(nz,1,'double');
+            dpsd = zeros(nps,nz,'double'); 
+            flx_mpsd = zeros(nsp_sld,nps,nflx_psd,nz,'double');
+            
+            if (do_psd_full) 
+                
+                for isps = 1: nsp_sld
+                
+                    if ( precstyle(isps) == 'decay'); continue; end % solid species not related to SA
+                
+                    DV(:) = flx_sld(isps, 4 + isps,:)'*mv(isps)*1d-6*dt;  
+                
+                    dpsd(:,:) = 0d0;
+                    psd(:,:) = mpsd(isps,:,:);
+                
+                    [dpsd,psd_error_flg] = psd_diss( ...
+                        nz,nps ...% in
+                        ,z,DV,dt,pi,tol_dvd,poro ...% in 
+                        ,incld_rough,rough_c0,rough_c1 ...% in
+                        ,psd,ps,dps,ps_min,ps_max ...% in 
+                        ,chrsld(isps) ...% in 
+                        ,dpsd,psd_error_flg ...% inout
+                        );
+                        
+                    if (psd_error_flg) 
+                        flgback = false;
+                        flgreducedt = true;
+                        psd = psd_old;
+                        mpsd = mpsd_old;
+                        poro = poroprev;
+                        torg = torgprev;
+                        tora = toraprev;
+                        v = vprev;
+                        hr = hrprev;
+                        w = wprev;
+                        [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                        dt = dt/1d1;
+                        % go to 100
+                        flg_100 = true;
+                        continue
+                    end 
+                    
+                    dmpsd(isps,:,:) = dpsd(:,:);
+                
+                end 
+        
+            else 
+
+                DV(:) = 0d0;
+                for isps = 1:nsp_sld 
+                    for iz=1:nz
+                        % DV(iz) = DV(iz) + flx_sld(isps, 4 + isps,iz)*mv(isps)*1d-6*dt/(1d0 - poro(iz))  
+                        DV(iz) = DV(iz) + flx_sld(isps, 4 + isps,iz)*mv(isps)*1d-6*dt;  
+                    end 
+                end 
+
+                dpsd(:,:) = 0d0;
+                
+                [dpsd,psd_error_flg] = psd_diss( ...
+                    nz,nps ...% in
+                    ,z,DV,dt,pi,tol,poro ...% in 
+                    ,incld_rough,rough_c0,rough_c1 ...% in
+                    ,psd,ps,dps,ps_min,ps_max ...% in 
+                    ,'blk' ...% in 
+                    ,dpsd,psd_error_flg ...% inout
+                    );
+                    
+                if (psd_error_flg) 
+                    flgback = false;
+                    flgreducedt = true;
+                    psd = psd_old;
+                    mpsd = mpsd_old;
+                    poro = poroprev;
+                    torg = torgprev;
+                    tora = toraprev;
+                    v = vprev;
+                    hr = hrprev;
+                    w = wprev;
+                    [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                    dt = dt/1d1;
+                    % go to 100
+                    flg_100 = true;
+                    continue
+                end 
+            
+            end 
+            
+            if (do_psd_norm) 
+            
+                if (do_psd_full) 
+                    
+                    flx_max_max = 0d0;
+                    
+                    for isps=1:nsp_sld
+                        
+                        if ( precstyle(isps) == 'decay' ) % solid species not related to SA                    
+                            flx_mpsd(isps,:,:,:) = 0d0;
+                            for iz=1:nz
+                                mpsdx(isps,:,iz) = mpsd_pr(isps,:);
+                            end 
+                            continue 
+                        end 
+                    
+                        for ips=1:nps
+                            psd_norm_fact(ips) = max(mpsd(isps,ips,:));
+                            
+                            psd_norm(ips,:) = mpsd(isps,ips,:) / psd_norm_fact(ips);
+                            psd_pr_norm(ips) = mpsd_pr(isps,ips) / psd_norm_fact(ips);
+                            dpsd_norm(ips,:) = dmpsd(isps,ips,:) / psd_norm_fact(ips);
+                            psd_rain_norm(ips,:) = mpsd_rain(isps,ips,:) / psd_norm_fact(ips);
+                        end 
+                        
+                        [ ...
+                            flgback,flx_max_max ...% inout
+                            ,psdx_norm,flx_psd_norm ...% out
+                            ] = psd_implicit_all_v2( ...
+                            nz,nsp_sld,nps,nflx_psd ...% in
+                            ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev ...% in 
+                            ,incld_rough,rough_c0,rough_c1 ...% in
+                            ,trans ...% in
+                            ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm ...% in  
+                            ,chrsld(isps) ...% in 
+                            ,flgback,flx_max_max ...% inout
+                            );
+                        
+                        if (flgback) 
+                            flgback = false;
+                            flgreducedt = true;
+                            psd = psd_old;
+                            mpsd = mpsd_old;
+                            poro = poroprev;
+                            torg = torgprev;
+                            tora = toraprev;
+                            v = vprev;
+                            hr = hrprev;
+                            w = wprev;
+                            [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                            dt = dt/1d1;
+                            % go to 100
+                            flg_100 = true;
+                            continue
+                        end 
+                            
+                        for ips=1:nps
+                            mpsdx(isps,ips,:) = psdx_norm(ips,:)*psd_norm_fact(ips);
+                            flx_mpsd(isps,ips,:,:) = flx_psd_norm(ips,:,:)*psd_norm_fact(ips);
+                        end 
+                    
+                    end 
+                
+                else 
+                    
+                    for ips=1:nps
+                        psd_norm_fact(ips) = max(psd(ips,:));
+                        
+                        psd_norm(ips,:) = psd(ips,:) / psd_norm_fact(ips);
+                        psd_pr_norm(ips) = psd_pr(ips) / psd_norm_fact(ips);
+                        dpsd_norm(ips,:) = dpsd(ips,:) / psd_norm_fact(ips);
+                        psd_rain_norm(ips,:) = psd_rain(ips,:) / psd_norm_fact(ips);
+                    end 
+                    
+                    flx_max_max = 0d0;
+                    
+                    [...
+                        flgback,flx_max_max ...% inout
+                        ,psdx_norm,flx_psd_norm ...% out
+                        ] = psd_implicit_all_v2( ...
+                        nz,nsp_sld,nps,nflx_psd ...% in
+                        ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev ...% in 
+                        ,incld_rough,rough_c0,rough_c1 ...% in
+                        ,trans ...% in
+                        ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm ...% in    
+                        ,'blk' ...% in 
+                        ,flgback,flx_max_max ...% inout
+                        );
+                    
+                    if (flgback) 
+                        flgback = false;
+                        flgreducedt = true;
+                        psd = psd_old;
+                        mpsd = mpsd_old;
+                        poro = poroprev;
+                        torg = torgprev;
+                        tora = toraprev;
+                        v = vprev;
+                        hr = hrprev;
+                        w = wprev;
+                        [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                        dt = dt/1d1;
+                        % go to 100
+                        flg_100 = true;
+                        continue
+                    end 
+                        
+                    for ips=1:nps
+                        psdx(ips,:) = psdx_norm(ips,:)*psd_norm_fact(ips);
+                        flx_psd(ips,:,:) = flx_psd_norm(ips,:,:)*psd_norm_fact(ips);
+                    end 
+                
+                end 
+            else
+                
+                if (do_psd_full) 
+                
+                    flx_max_max = 0d0;
+                
+                    for isps = 1: nsp_sld
+                        
+                        if ( precstyle(isps) == 'decay' ) % solid species not related to SA                    
+                            flx_mpsd(isps,:,:,:) = 0d0;
+                            for iz=1:nz
+                                mpsdx(isps,:,iz) = mpsd_pr(isps,:);
+                            end 
+                            continue 
+                        end 
+            
+                        if (display) 
+                            fprintf('\n');
+                            fprintf('<%s>\n',chrsld(isps));
+                        end 
+                        
+                        psd(:,:) = mpsd(isps,:,:);
+                        psd_pr(:) = mpsd_pr(isps,:);
+                        dpsd(:,:) = dmpsd(isps,:,:);
+                        psd_rain(:,:) = mpsd_rain(isps,:,:);
+                
+                        [...
+                            flgback,flx_max_max ...% inout
+                            ,psdx,flx_psd ...% out
+                            ] = psd_implicit_all_v2( ...
+                            nz,nsp_sld,nps,nflx_psd ...% in
+                            ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev ...% in 
+                            ,incld_rough,rough_c0,rough_c1 ...% in
+                            ,trans ...% in
+                            ,psd,psd_pr,ps,dps,dpsd,psd_rain ...% in    
+                            ,chrsld(isps) ...% in 
+                            ,flgback,flx_max_max ...% inout
+                            );
+                
+                        if (flgback) 
+                            flgback = false;
+                            flgreducedt = true;
+                            psd = psd_old;
+                            mpsd = mpsd_old;
+                            poro = poroprev;
+                            torg = torgprev;
+                            tora = toraprev;
+                            v = vprev;
+                            hr = hrprev;
+                            w = wprev;
+                            [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                            dt = dt/1d1;
+                            % go to 100
+                            flg_100 = true;
+                            continue
+                        end 
+                        
+                        mpsdx(isps,:,:) = psdx(:,:);
+                        flx_mpsd(isps,:,:,:) = flx_psd(:,:,:);
+                    end
+                
+                else 
+                
+                    flx_max_max = 0d0;
+                    
+                    [...
+                        flgback,flx_max_max ...% inout
+                        ,psdx,flx_psd ...% out
+                        ] = psd_implicit_all_v2( ...
+                        nz,nsp_sld,nps,nflx_psd ...% in
+                        ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev ...% in 
+                        ,incld_rough,rough_c0,rough_c1 ...% in
+                        ,trans ...% in
+                        ,psd,psd_pr,ps,dps,dpsd,psd_rain ...% in    
+                        ,'blk' ...% in 
+                        ,flgback,flx_max_max ...% inout
+                        );
+                
+                    if (flgback) 
+                        flgback = false;
+                        flgreducedt = true;
+                        psd = psd_old;
+                        mpsd = mpsd_old;
+                        poro = poroprev;
+                        torg = torgprev;
+                        tora = toraprev;
+                        v = vprev;
+                        hr = hrprev;
+                        w = wprev;
+                        [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                        dt = dt/1d1;
+                        % go to 100
+                        flg_100 = true;
+                        continue
+                    end    
+                
+                end 
+                
+            end 
+            
+            if (do_psd_full) 
+            
+                mpsd = mpsdx; 
+
+                if (any(isnan(mpsd),'all')) 
+                    fprintf( 'nan in mpsd\n');
+                    error('stop');
+                end 
+                if (any(mpsd<0d0,'all')) 
+                    error_psd = 0d0;
+                    for isps = 1: nsp_sld
+                        for iz = 1: nz
+                            for ips=1:nps
+                                if (mpsd(isps,ips,iz)<0d0) 
+                                    error_psd = min(error_psd,mpsd(isps,ips,iz));
+                                    mpsd(isps,ips,iz) = 0d0;
+                                end 
+                            end 
+                        end 
+                    end 
+                    if (abs(error_psd/max(mpsd,[],'all')) > tol) 
+                        fprintf( 'negative mpsd\n');
+                        flgback = false;
+                        flgreducedt = true;
+                        psd = psd_old;
+                        mpsd = mpsd_old;
+                        poro = poroprev;
+                        torg = torgprev;
+                        tora = toraprev;
+                        v = vprev;
+                        hr = hrprev;
+                        w = wprev;
+                        [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                        dt = dt/1d1;
+                        % go to 100
+                        flg_100 = true;
+                        continue
+                    end 
+                end 
+                
+                % trancating small psd 
+                if (psd_lim_min) 
+                    mpsd (mpsd < psd_th)  = psd_th;
+                end
+            
+            else 
+            
+                psd = psdx;
+
+                if (any(isnan(psd),'all')) 
+                    fprintf( 'nan in psd\n');
+                    error('stop');
+                end 
+                if (any(psd<0d0,'all')) 
+                    error_psd = 0d0;
+                    for iz = 1: nz
+                        for ips=1:nps
+                            if (psd(ips,iz)<0d0) 
+                                error_psd = min(error_psd,psd(ips,iz));
+                                psd(ips,iz) = 0d0;
+                            end 
+                        end 
+                    end 
+                    if (abs(error_psd/max(psd,[],'all')) > tol) 
+                        fprintf('negative psd\n');
+                        flgback = false;
+                        flgreducedt = true;
+                        psd = psd_old;
+                        mpsd = mpsd_old;
+                        poro = poroprev;
+                        torg = torgprev;
+                        tora = toraprev;
+                        v = vprev;
+                        hr = hrprev;
+                        w = wprev;
+                        [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                        dt = dt/1d1;
+                        % go to 100
+                        flg_100 = true;
+                        continue
+                    end 
+                end 
+                
+                % trancating small psd 
+                if (psd_lim_min) 
+                    psd (psd < psd_th)  = psd_th;
+                end 
+            end 
+            
+            if (display) 
+                fprintf( '-- ending PSD\n');
+                fprintf('\n');
+            end 
+        
         else 
             psd(:,:) = 0d0;
             mpsd(:,:,:) = 0d0;
@@ -2518,8 +2921,8 @@ function weathering_main( ...
                     end 
                 else 
                     for iz=1:nz
-                        ssa(:,iz) = sum( 4d0*pi*(10d0.^ps(:)).^2d0*rough_c0.*(10d0.^ps(:)).^rough_c1.*psd(:,iz)'.*dps(:));
-                        ssav(:,iz) = sum( 3d0/(10d0.^ps(:))*rough_c0.*(10d0.^ps(:)).^rough_c1.*psd(:,iz).*dps(:));
+                        ssa(:,iz) = sum( 4d0*pi*(10d0.^ps(:)).^2d0*rough_c0.*(10d0.^ps(:)).^rough_c1.*psd(:,iz).*dps(:));
+                        ssav(:,iz) = sum( 3d0./(10d0.^ps(:))*rough_c0.*(10d0.^ps(:)).^rough_c1.*psd(:,iz).*dps(:));
                     end 
                 end
                 for iz=1:nz
@@ -2631,7 +3034,7 @@ function weathering_main( ...
                         fprintf ('\n');
                     end 
                 else 
-                    fprint ('\n');
+                    fprintf ('\n');
                     fprintf (' [fluxes -- PSD]\n');
                     fmt =['%-6s' repmat('%11s',1,nflx_psd) '\n'];
                     fprintf (fmt,'rad','tflx','adv','dif','rain','rxn','res');
@@ -2692,22 +3095,22 @@ function weathering_main( ...
             ibsd = fopen (strcat(profdir,'/bsd-save.txt'), 'w');
             isa = fopen (strcat(profdir,'/sa-save.txt'), 'w');
             
-            fprintf(isldprof,[repmat('%s\t',1,nsp_sld+2) '\n'],'z',chrsld(1:nsp_sld),'time');
-            fprintf(iaqprof,[repmat('%s\t',1,nsp_aq+3) '\n'],'z',chraq(1:nsp_aq),'ph','time');
-            fprintf(igasprof,[repmat('%s\t',1,nsp_gas+2) '\n'], 'z',chrgas(1:nsp_gas),'time');
+            fprintf(isldprof,[repmat('%s\t',1,max(1,nsp_sld)+2) '\n'],'z',chrsld(1:nsp_sld),'time');
+            fprintf(iaqprof,[repmat('%s\t',1,max(1,nsp_aq)+3) '\n'],'z',chraq(1:nsp_aq),'ph','time');
+            fprintf(igasprof,[repmat('%s\t',1,max(1,nsp_gas)+2) '\n'], 'z',chrgas(1:nsp_gas),'time');
             fprintf(ibsd,[repmat('%s\t',1, 10) '\n'], 'z','poro', 'sat', 'v[m/yr]', 'm2/m3' , 'w[m/yr]'  ...
                 , 'vol[m3/m3]','dens[g/cm3]', 'blk[wt%]','time');
-            fprintf(isa,[repmat('%s\t',1,nsp_sld+2) '\n'],'z',chrsld(1:nsp_sld),'time');
+            fprintf(isa,[repmat('%s\t',1,max(1,nsp_sld)+2) '\n'],'z',chrsld(1:nsp_sld),'time');
 
             for iz = 1: nz
                 ucvsld1 = 1d0;
                 if (msldunit == 'blk'); ucvsld1 = 1d0 - poro(iz); end
-                fprintf(isldprof,[repmat('%e\t',1,nsp_sld+2) '\n'], z(iz),msldx(1:nsp_sld,iz),time);
-                fprintf(igasprof,[repmat('%e\t',1,nsp_gas+2) '\n'], z(iz),mgasx(1:nsp_gas,iz),time);
-                fprintf(iaqprof,[repmat('%e\t',1,nsp_aq+3) '\n'],z(iz),maqx(1:nsp_aq,iz),-log10(prox(iz)),time);
+                fprintf(isldprof,[repmat('%e\t',1,max(1,nsp_sld)+2) '\n'], z(iz),msldx(1:nsp_sld,iz),time);
+                fprintf(igasprof,[repmat('%e\t',1,max(1,nsp_gas)+2) '\n'], z(iz),mgasx(1:nsp_gas,iz),time);
+                fprintf(iaqprof,[repmat('%e\t',1,max(1,nsp_aq)+3) '\n'],z(iz),maqx(1:nsp_aq,iz),-log10(prox(iz)),time);
                 fprintf(ibsd,[repmat('%e\t',1, 10) '\n'],z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz) ...
                     ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6), time);
-                fprintf(isa,[repmat('%e\t',1,nsp_sld+2) '\n'], z(iz),hr(1:nsp_sld,iz),time);
+                fprintf(isa,[repmat('%e\t',1,max(1,nsp_sld)+2) '\n'], z(iz),hr(1:nsp_sld,iz),time);
             end 
 
             fclose(isldprof);
@@ -2875,17 +3278,17 @@ function weathering_main( ...
                         ucvsld2 = 1d0 - poro(iz);
                         if (msldunit == 'blk'); ucvsld2 = 1d0; end 
                         
-                        fprintf(ipsd,[repmat('%e\t',1, nps+2) '%s\n'], z(iz), (psd(1:nps,iz)), time );
-                        fprintf(ipsdv,[repmat('%e\t',1, nps+2) '%s\n'], z(iz), (4d0/3d0*pi*(10d0.^ps(1:nps)).^3d0.*psd(1:nps,iz).*dps(1:nps) ...
+                        fprintf(ipsd,[repmat('%e\t',1, nps+2) '\n'], z(iz), (psd(1:nps,iz)), time );
+                        fprintf(ipsdv,[repmat('%e\t',1, nps+2) '\n'], z(iz), (4d0/3d0*pi*(10d0.^ps(1:nps)).^3d0.*psd(1:nps,iz).*dps(1:nps) ...
                             / ( sum( msld(:,iz).*mv(:)*1d-6) + mblk(iz)*mvblk*1d-6 ) * 1d2 ...
                             /ucvsld2  ...
                             ), time );
                         if (~incld_rough)  
-                            fprintf(ipsds,[repmat('%e\t',1, nps+2) '%s\n'], z(iz), (4d0*pi*(10d0.^ps(1:nps)).^2d0.*psd(1:nps,iz).*dps(1:nps) ...
+                            fprintf(ipsds,[repmat('%e\t',1, nps+2) '\n'], z(iz), (4d0*pi*(10d0.^ps(1:nps)).^2d0.*psd(1:nps,iz).*dps(1:nps) ...
                                 / ssab(iz)  * 1d2 ...
                                 ), time );
                         else
-                            fprintf(ipsds,[repmat('%e\t',1, nps+2) '%s\n'], z(iz), (4d0*pi*(10d0.^ps(1:nps)).^2d0*rough_c0.*(10d0.^ps(1:nps)).^rough_c1.*psd(1:nps,iz).*dps(1:nps) ...
+                            fprintf(ipsds,[repmat('%e\t',1, nps+2) '\n'], z(iz), (4d0*pi*(10d0.^ps(1:nps)).^2d0*rough_c0.*(10d0.^ps(1:nps)).^rough_c1.*psd(1:nps,iz).*dps(1:nps) ...
                                 / ssab(iz)  * 1d2 ...
                                 ), time );
                         end 
@@ -10530,3 +10933,666 @@ function [poro] = calc_poro( ...
    
 end
 
+
+function [dpsd,psd_error_flg] = psd_diss( ...
+    nz,nps ...% in
+    ,z,DV,dt,pi,tol,poro ...% in 
+    ,incld_rough,rough_c0,rough_c1 ...% in
+    ,psd,ps,dps,ps_min,ps_max ...% in 
+    ,chrsp ...% in 
+    ,dpsd,psd_error_flg ...% inout
+    )
+    
+    % local 
+    dVd=zeros(nps,nz,'double');psd_old=zeros(nps,nz,'double');psd_new=zeros(nps,nz,'double');dpsd_tmp=zeros(nps,nz,'double');
+    psd_tmp=zeros(nps,1,'double');dvd_tmp=zeros(nps,1,'double');
+    ps_new=0;ps_newp=0;dvd_res=0;
+    ips=0;iips=0;ips_new=0;iz=0;isps=0;
+    safe_mode = false;
+    % safe_mode = true;
+
+    % attempt to do psd ( defined with particle number / bulk m3 / log (r) )
+    % assumptions: 
+    % 1. particle numbers are only affected by transport (including raining/dusting) 
+    % 2. dissolution does not change particle numbers: it only affect particle distribution 
+    % unless particle is the minimum radius. in this case particle can be lost via dissolution 
+    % 3. when a mineral precipitates, it is assumed to increase particle radius?
+    % e.g., when a 1 um of particle is dissolved by X m3, its radius is changed and this particle is put into a different bin of (smaller) radius 
+
+    % sum of volume change of minerals at iz is DV = sum(flx_sld(5:5+nsp_sld,iz)*mv(:)*1d-6)*dt (m3 / m3) 
+    % this must be distributed to different particle size bins (dV(r)) in proportion to psd * (4*pi*r^2)
+    % dV(r) = DV/(psd*4*pi*r^2) where dV is m3 / bulk m3 / log(r) 
+    % has to modify so that sum( dV * dps ) = DV 
+    % new psd is obtained by dV(r) = psd(r)*( 4/3 * pi * r^3 - 4/3 * pi * r'^3 ) where r' is the new radius as a result of dissolution
+    % if r' is exactly one of ps value (ps(ips) == r'), then  psd(r') = psd(r)
+    % else: 
+    % first find the closest r* value which is one of ps values.
+    % then DV(r) = psd(r)* 4/3 * pi * r^3 - psd(r*)* 4/3 * pi * r*^3 
+    % i.e., psd(r*) = [ psd(r)* 4/3 * pi * r^3 - DV(r)]  /( 4/3 * pi * r*^3)
+    %               = [ psd(r)* 4/3 * pi * r^3 - psd(r)*( 4/3 * pi * r^3 - 4/3 * pi * r'^3 ) ] /( 4/3 * pi * r*^3)
+    %               = psd(r) * 4/3 * pi * r'^3 /( 4/3 * pi * r*^3)
+    %               = psd(r) * (r'/r*)^3
+    % in this way volume is conservative? 
+    % check: sum( psd(r) * 4/3 * pi * r^3 * dps) - sum( psd(r') * 4/3 * pi * r'^3 * dps) = DV 
+
+    dpsd_tmp(:,:) = 0d0;
+    psd_old = psd;
+    psd_new = psd;
+    for iz=1:nz
+        
+        % correct one?
+        dVd(:,:) = 0d0;
+        if (~incld_rough)  
+            dVd(:,iz) = ( psd (:,iz) .* (10d0.^ps(:)).^2d0 );
+        else
+            dVd(:,iz) = ( psd (:,iz) .* (10d0.^ps(:)).^2d0 *rough_c0.*(10d0.^ps(:)).^rough_c1);
+        end 
+        
+        if (all(dVd == 0d0))  
+            fprintf('%s\t%s\n', chrsp,'all dissolved loc1?');
+            psd_error_flg = true;
+            return
+        end 
+        
+        % scale with DV
+        dVd(:,iz) = dVd(:,iz)*DV(iz)/sum(dVd(:,iz) .* dps(:));
+        
+        if ( abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) > tol ) 
+            error('%s\t%s\t%7.6e\n', chrsp,' vol. balance failed somehow ',abs( (sum(dVd(:,iz) * dps(:)) - DV(iz))/DV(iz)));
+            error('%d\t%7.6e\t%7.6e\n', iz, sum(dVd(:,iz) .* dps(:)), DV(iz));
+        end 
+        
+        if (any(isnan(dVd(:,iz))) )  
+            error('%s\t%s\n',chrsp, 'nan in dVd loc 1');
+        end 
+        
+        for ips = 1: nps
+            
+            if ( psd(ips,iz) == 0d0); continue; end 
+            
+            if ( ips == 1 && dVd(ips,iz) > 0d0 )  
+                % this is the minimum size dealt within the model 
+                % so if dissolved (dVd > 0), particle number must reduce 
+                % (revised particle volumes) = (initial particle volumes) - (volume change) 
+                % psd'(ips,iz) * 4d0/3d0*pi*(10d0^ps(ips))^3d0 =  psd(ips,iz) * 4d0/3d0*pi*(10d0^ps(ips))^3d0 - dVd(ips,iz) 
+                % [ psd'(ips,iz) - psd(ips,iz) ] * 4d0/3d0*pi*(10d0^ps(ips))^3d0 = - dVd(ips,iz) 
+                if ( ~ safe_mode )   % for not care about producing negative particle number
+                    dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0); 
+                elseif ( safe_mode )    % never producing negative particle number
+                    if ( dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0) < psd(ips,iz) )  % when dissolution does not consume existing particles 
+                        dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0); 
+                    else % when dissolution exceeds potential consumption of existing particles 
+                        % dvd_res is defined as residual volume to be dissolved 
+                        dvd_res = dVd(ips,iz) - psd(ips,iz)*(4d0/3d0*pi*(10d0^ps(ips))^3d0);  % residual 
+                        
+                        % distributing the volume to whole radius 
+                        
+                        % correct one?
+                        dVd_tmp(:) = 0d0;
+                        if (~incld_rough)  
+                            dVd_tmp(ips+1:end) = ( psd (ips+1:end,iz) .* (10d0.^ps(ips+1:end)).^2d0 );
+                        else
+                            dVd_tmp(ips+1:end) = ( psd (ips+1:end,iz) .* (10d0.^ps(ips+1:end)).^2d0 *rough_c0.*(10d0.^ps(ips+1:end)).^rough_c1 );
+                        end 
+                        
+                        if (all(dVd_tmp == 0d0))  
+                            fprintf('%s\t%s\t%d\n',chrsp,'all dissolved loc2?',ips);
+                            psd_error_flg = true;
+                            return
+                        end 
+                        
+                        % scale with dvd_res*dps
+                        dVd_tmp(ips+1:end) = dVd_tmp(ips+1:end)*dvd_res*dps(ips)./sum(dVd_tmp(ips+1:end) .* dps(ips+1:end));
+                        
+                        % dVd(ips+1:,iz) = dVd(ips+1:,iz) + dvd_res/(nps - ips)
+                        dVd(ips+1:end,iz) = dVd(ips+1:end,iz) + dVd_tmp(ips+1:end);
+                        dVd(ips,iz) = dVd(ips,iz) - dvd_res;
+                        
+                        if ( abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) > tol ) 
+                            error('%s\t%s\t%7.6e\n',chrsp, ' vol. balance failed somehow loc2 ',abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) );
+                            error('%d\t%7.6e\t%7.6e\n', iz, sum(dVd(:,iz) * dps(:)), DV(iz) );
+                        end 
+                        
+                        if (any(isnan(dVd(:,iz))) )  
+                            error('%s\t%s\n', chrsp,'nan in dVd loc 2');
+                        end 
+                        
+                        % if (dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0) > psd(ips,iz))  
+                            % print *, 'error: stop',psd(ips,iz),dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0)
+                            % stop
+                        % end 
+                        
+                        % dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0) 
+                        dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - psd(ips,iz); 
+                    end 
+                end 
+            
+            elseif ( ips == nps && dVd(ips,iz) < 0d0 )  
+                % this is the max size dealt within the model 
+                % so if precipirated (dVd < 0), particle number must increase  
+                % (revised particle volumes) = (initial particle volumes) - (volume change) 
+                % psd'(ips,iz) * 4d0/3d0*pi*(10d0^ps(ips))^3d0 =  psd(ips,iz) * 4d0/3d0*pi*(10d0^ps(ips))^3d0 - dVd(ips,iz) 
+                % [ psd'(ips,iz) - psd(ips,iz) ] * 4d0/3d0*pi*(10d0^ps(ips))^3d0 = - dVd(ips,iz) 
+                dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0);
+            
+            else 
+                % new r*^3 after dissolution/precipitation 
+                ps_new =  ( 4d0/3d0*pi*(10d0^ps(ips))^3d0 - dVd(ips,iz) /psd(ips,iz) )/(4d0/3d0*pi);
+                
+                if (ps_new <= 0d0)   % too much dissolution so removing all particles cannot explain dVd at a given bin ips
+                    ps_new = ps_min;
+                    ps_newp = 10d0^ps(1);
+                    dpsd_tmp(1,iz) =  dpsd_tmp(1,iz) + psd(ips,iz);
+                    dpsd_tmp(ips,iz) =  dpsd_tmp(ips,iz) - psd(ips,iz);
+                    
+                    dvd_res = dVd(ips,iz) - psd(ips,iz)*(4d0/3d0*pi*(10d0^ps(ips))^3d0);  % residual
+                    
+                    % distributing the volume to whole radius 
+                    
+                    % correct one?
+                    dVd_tmp(:) = 0d0;
+                    if (~incld_rough)  
+                        % dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0^ps(ips+1:))^2d0 )
+                        for iips=1:nps
+                            if (iips == ips); continue; end
+                            dVd_tmp(iips) = ( psd (iips,iz) * (10d0^ps(iips))^2d0 );
+                        end 
+                    else
+                        % dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0^ps(ips+1:))^2d0 * rough_c0*(10d0^ps(ips+1:))^rough_c1 )
+                        for iips = 1:nps
+                            if (iips == ips); continue; end
+                            dVd_tmp(iips) = ( psd (iips,iz) * (10d0^ps(iips))^2d0 * rough_c0*(10d0^ps(iips))^rough_c1 );
+                        end 
+                    end 
+                    
+                    if (all(dVd_tmp == 0d0))  
+                        fprintf('%s\t%s\t%d\n',chrsp,'all dissolved loc3?',ips);
+                        psd_error_flg = true;
+                        return
+                    end 
+                    
+                    % dVd_tmp(ips+1:) = dVd_tmp(ips+1:)*dvd_res*dps(ips)/sum(dVd_tmp(ips+1:) * dps(ips+1:))
+                    dVd_tmp(:) = dVd_tmp(:)*dvd_res*dps(ips)/sum(dVd_tmp(:) .* dps(:));
+                    dVd_tmp(ips) = - dvd_res;
+                    
+                    % dVd(ips+1:,iz) = dVd(ips+1:,iz) + dVd_tmp(ips+1:)
+                    % dVd(ips,iz) = dVd(ips,iz) - dvd_res
+                    dVd(:,iz) = dVd(:,iz) + dVd_tmp(:);
+                    
+                    if ( abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) > tol ) 
+                        error('%s\t%s\t%7.6e\n',chrsp, ' vol. balance failed somehow loc4 ',abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) );
+                        error('going to stop\n');
+                        error('%d\t%7.6e\t%7.6e\n', iz, sum(dVd(:,iz) * dps(:)), DV(iz));
+                    end 
+                    
+                    if (any(isnan(dVd(:,iz))) )  
+                        error('%s\t%s\n',chrsp, 'nan in dVd loc 4');
+                    end 
+                    
+                else 
+                    % new r*
+                    ps_new =  ps_new^(1d0/3d0); 
+                    if (ps_new <= ps_min)  
+                        ips_new = 1;
+                    elseif (ps_new >= ps_max)  
+                        ips_new = nps;
+                    else 
+                        for iips = 1: nps -1
+                            if ( ( ps_new - 10d0^ps(iips) ) *  ( ps_new - 10d0^ps(iips+1) ) <= 0d0 )  
+                                if ( log10(ps_new) <= 0.5d0*( ps(iips) + ps(iips+1) ) )  
+                                    ips_new = iips;
+                                else 
+                                    ips_new = iips + 1; 
+                                end 
+                                break 
+                            end 
+                        end 
+                    end 
+                    ps_newp = 10d0^ps(ips_new);  % closest binned particle radius to r*
+                    dpsd_tmp(ips_new,iz) = dpsd_tmp(ips_new,iz) + psd(ips,iz)*(ps_new/ps_newp)^3d0;
+                    dpsd_tmp(ips,iz) =  dpsd_tmp(ips,iz) - psd(ips,iz);
+                end 
+            
+            end 
+        end 
+    end 
+
+    if (any(isnan(psd),'all'))  
+        error('%s\t%s\n',chrsp, 'nan in psd');
+    end 
+    if (any(psd<0d0,'all'))  
+        error('%s\t%s\n' ,chrsp, 'negative psd');
+    end 
+    if (any(isnan(dVd),'all'))  
+        fprintf('%s\t%s\n', chrsp, 'nan in dVd'); 
+        for iz = 1: nz
+            for ips=1:nps
+                if (isnan(dVd(ips,iz)))  
+                    fprintf('%s\t%s\t%d\t%d\t%7.6e\t%7.6e\n',chrsp, 'ips,iz,dVd,psd',ips,iz,dVd(ips,iz),psd(ips,iz));
+                end 
+            end 
+        end 
+        error('stop');
+    end 
+
+    psd_new(:,:) = psd_new(:,:) + dpsd_tmp(:,:);
+    for iz = 1: nz
+        % if ( abs(DV(iz)) > tol  ...
+            % && abs ( ( sum( psd_old(:,iz) * 4d0/3d0 * pi * (10d0^ps(:))^3d0 * dps(:)) ...
+            % - sum( psd_new(:,iz) * 4d0/3d0 * pi * (10d0^ps(:))^3d0 * dps(:)) - DV(iz) ) / DV(iz) ) > tol )   
+        if ( abs(DV(iz)) > tol  ...
+            && abs ( ( - sum( dpsd_tmp(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:)) ...
+             - DV(iz) ) / DV(iz) ) > tol )   
+            fprintf( '%s\t%s\t%7.6e\n', chrsp,'checking the vol. balance and failed ... ' ...
+                , abs ( ( - sum( dpsd_tmp(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:)) ...
+                 - DV(iz) ) / DV(iz) ) );
+            fprintf( '%s\t%7.6e\t%7.6e\t%7.6e\t%7.6e\n', iz, sum( psd_new(:,iz) * 4d0/3d0 * pi * (10d0^ps(:))^3d0 * dps(:)) ...
+                ,sum( psd_old(:,iz) * 4d0/3d0 * pi * (10d0^ps(:))^3d0 * dps(:)) ... 
+                ,sum( psd_new(:,iz) * 4d0/3d0 * pi * (10d0^ps(:))^3d0 * dps(:)) ...
+                  -sum( psd_old(:,iz) * 4d0/3d0 * pi * (10d0^ps(:))^3d0 * dps(:))  ...
+                ,DV(iz) );
+            psd_error_flg = true;
+        end 
+    end 
+
+    if (any(isnan(dpsd_tmp),'all'))  
+        fprintf('%s\t%s\n',chrsp, 'nan in dpsd _rxn' );
+        for iz = 1: nz
+            for ips=1:nps
+                if (isnan(dpsd_tmp(ips,iz)))  
+                    fprintf('%s\t%d\t%d\t%7.6e\t%7.6e\n', 'ips,iz,dpsd_tmp,psd',ips,iz,dpsd_tmp(ips,iz),psd(ips,iz) );
+                end 
+            end 
+        end 
+        error('stop');
+    end 
+
+    dpsd(:,:) = dpsd(:,:) + dpsd_tmp(:,:)
+   
+end 
+
+
+function [ ...
+    flgback,flx_max_max ...% inout
+    ,psdx,flx_psd ...% out
+    ] = psd_implicit_all_v2( ...
+    nz,nsp_sld,nps,nflx_psd ...% in
+    ,z,dz,dt,pi,tol,w0,w,poro,poroi,poroprev ...% in 
+    ,incld_rough,rough_c0,rough_c1 ...% in
+    ,trans ...% in
+    ,psd,psd_pr,ps,dps,dpsd,psd_rain ...% in   
+    ,chrsp ...% in 
+    ,flgback,flx_max_max ...% inout
+    )
+
+    % output 
+    psdx=zeros(nps,nz,'double');
+    flx_psd=zeros(nps,nflx_psd,nz,'double'); % itflx,iadv,idif,irain,irxn,ires
+    % local 
+    psd_old=zeros(nps,nz,'double');dpsd_tmp=zeros(nps,nz,'double');
+    DV=zeros(nz,1,'double');kpsd=zeros(nz,1,'double');sporo=zeros(nz,1,'double');
+    fact_tol=zeros(nps,1,'double'); 
+    iz=0;isps=0;ips=0;iiz=0;row=0;col=0;ie=0;ie2=0;iips=0;
+    iter=0;iflx=0;
+    error=0;fact=0;flx_max=0; % ,flx_max_max
+    vol=0;surf=0;m_tmp=0;mp_tmp=0;mi_tmp=0;mprev_tmp=0;rxn_tmp=0;drxn_tmp=0;w_tmp=0;wp_tmp=0;trans_tmp=0;
+    msupp_tmp=0;sporo_tmp=0; sporop_tmp=0;sporoprev_tmp=0;dtinv=0;dzinv=0;
+
+    chrflx_psd=strings(nflx_psd,1);
+
+    dt_norm = true;
+    infinity = Inf;
+    threshold = 20d0;
+    % threshold = 3d0;
+    % corr = 1.5d0;
+    corr = exp(threshold);
+    iter_max = 50;
+    % nflx_psd = 6;
+    flx_tol = 1d-3;
+    % flx_tol = 1d-4;
+    flx_max_tol = 1d-6;
+    % flx_max_tol = 1d-5;
+    dt_th = 1d-6;
+    [itflx_psd,iadv_psd,idif_psd,irain_psd,irxn_psd,ires_psd]=deal(1,2,3,4,5,6);
+    % chkflx = false;
+    chkflx = true;
+
+    amx3=zeros(nz,nz,'double');ymx3=zeros(nz,1,'double');emx3=zeros(nps,1,'double');emx3_loc=zeros(nz,1,'double');
+    xmx3=zeros(nz,1,'double');rmx3=0;
+            
+    % for iz=1:nz
+        % hr(iz) = sum( 4d0*pi*(10d0^ps(:))^2d0*psd(:,iz)*dps(:) )
+    % end 
+    % for iz=1:nz
+        % hr(iz) = sum( 4d0*pi*(10d0^ps(:))^2d0*rough_c0*(10d0^ps(:))^rough_c1*psd(:,iz)*dps(:) )
+    % end 
+    % 
+    % attempt to for psd ( defined with particle number / bulk m3 / log (r) )
+    % solve as for msld 
+    % one of particle size equations are used to give massbalance constraint  
+
+
+    chrflx_psd = string({'tflx';'adv';'dif';'rain';'rxn';'res'});
+
+    dtinv = 1d0/dt;
+
+    sporo(:) = 1d0 - poro(:);
+    sporo(:) = 1d0; 
+
+    psdx = psd;
+
+    kpsd(:) = 0d0;
+    % for iz = 1: nz
+        % for isps = 1:nsp_sld 
+            % DV(iz) = DV(iz) + flx_sld(isps, 4 + isps,iz)*mv(isps)*1d-6
+        % end 
+        % kpsd(iz) = DV(iz) / hr(iz) %/ sum( msldx(:,iz) * mv(:) * 1d-6 )
+    % end 
+
+
+    error = 1d4; 
+    iter = 1;
+    emx3(:) = error;
+
+    for ips =1:nps
+        fact_tol(ips) = max(psd(ips,:)) * 1d-12;
+        % fact_tol(ips) = max(psd(ips,:)) * 1d-15;
+    end 
+    % fact_tol(:) = 1d0;
+
+    % while (error > tol*fact_tol) 
+    while (error > 1d0) 
+    % while ( any (emx3 > fact_tol )  ) 
+        
+        
+        for ips = 1: nps
+        
+            if (emx3(ips) <= fact_tol(ips)); continue; end
+
+            amx3(:,:) = 0d0;
+            ymx3(:) = 0d0;
+            xmx3(:) = 0d0;
+            rmx3 = 0d0;
+            
+            for iz = 1: nz
+            
+                row =  iz;
+                
+                vol  = 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                surf = 4d0*pi*(10d0^ps(ips))^2d0;
+                        
+                m_tmp = vol * psdx(ips,iz) * dps(ips);
+                mprev_tmp = vol * psd(ips,iz) * dps(ips);        
+                % rxn_tmp = vol * psdx(ips,iz)*dps(ips) ...
+                    % * surf * psdx(ips,iz)*dps(ips) * kpsd(iz); 
+                % rxn_tmp = surf * psdx(ips,iz)*dps(ips) * kpsd(iz); 
+                % rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) / dt ;
+                rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) * dtinv;
+                
+                % msupp_tmp = vol * psd_rain(ips,iz) * dps(ips)  / dt;
+                msupp_tmp = vol * psd_rain(ips,iz) * dps(ips) * dtinv;
+                
+                mi_tmp = vol * psd_pr(ips) * dps(ips);
+                mp_tmp = vol * psdx(ips,min(iz+1,nz)) * dps(ips);
+                
+                dzinv = 1d0/dz(iz);
+                
+                % drxn_tmp = ... 
+                    % vol * 1d0 * dps(ips) ...
+                    % * surf * psdx(ips,iz) * dps(ips) * kpsd(iz) ...
+                    % + vol * psdx(ips,iz) * dps(ips) ...
+                    % * su;
+                % drxn_tmp = surf * 1d0 * dps(ips) * kpsd(iz) ;
+                drxn_tmp = 0d0; 
+                
+                w_tmp = w(iz);
+                wp_tmp = w(min(nz,iz+1));
+
+                sporo_tmp = 1d0-poro(iz);
+                sporop_tmp = 1d0-poro(min(nz,iz+1));
+                sporoprev_tmp = 1d0-poroprev(iz);
+                
+                if (iz==nz)  
+                    mp_tmp = mi_tmp;
+                    wp_tmp = w0;
+                    sporop_tmp = 1d0- poroi;
+                end 
+                
+                sporo_tmp = 1d0;
+                sporop_tmp = 1d0;
+                sporoprev_tmp = 1d0;
+
+                amx3(row,row) = ( ...
+                    sporo_tmp * vol * dps(iz) * 1d0  *  merge(1d0,dtinv,dt_norm)     ...
+                    + sporo_tmp * vol * dps(iz) * w_tmp * dzinv  *merge(dt,1d0,dt_norm)    ...
+                    + sporo_tmp * drxn_tmp * merge(dt,1d0,dt_norm) ...
+                    ) ...
+                    * psdx(ips,iz);
+
+                ymx3(row) = ( ...
+                    ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) * merge(1d0,dtinv,dt_norm) ...
+                    -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) * dzinv * merge(dt,1d0,dt_norm)  ...
+                    + sporo_tmp* rxn_tmp * merge(dt,1d0,dt_norm) ...
+                    - sporo_tmp* msupp_tmp * merge(dt,1d0,dt_norm) ...
+                    ) ...
+                    * 1d0;
+                            
+                if (iz~=nz)  
+                    col = iz + 1;
+                    amx3(row,col) = ...
+                        (- sporop_tmp * vol * dps(iz) * wp_tmp * dzinv) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz));
+                end 
+                
+                for iiz = 1: nz
+                    col = iiz;
+                    trans_tmp = sum(trans(iiz,iz,:))/nsp_sld;
+                    if (trans_tmp == 0d0); continue; end
+                        
+                    amx3(row,col) = amx3(row,col) - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm);
+                    ymx3(row) = ymx3(row) - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm);
+                end
+                
+            end
+        
+            ymx3=-1.0d0*ymx3;
+
+            if (any(isnan(amx3),'all')||any(isnan(ymx3))||any(amx3>infinity,'all')||any(ymx3>infinity))  
+            % if (true)  
+                fprintf('PSD--%s: error in mtx\n',chrsp);
+                fprintf('PSD--%s: any(isnan(amx3)),any(isnan(ymx3))\n',chrsp);
+                fprintf(string(any(isnan(amx3),'all')),string(any(isnan(ymx3))) );
+
+                if (any(isnan(ymx3)))  
+                    for iz = 1: nz
+                        if (isnan(ymx3(iz)))  
+                            fprintf('%s\t%d\t%d\n', 'NAN is here...',ips,iz);
+                        end
+                    end 
+                end
+
+
+                if (any(isnan(amx3),'all'))  
+                    for ie = 1:(nz)
+                        for ie2 = 1:(nz)
+                            if (isnan(amx3(ie,ie2)))  
+                                fprintf('%s\t%d\t%d\t%d\n', 'PSD: NAN is here...',ips,ie,ie2);
+                            end
+                        end
+                    end
+                end
+                error('stop');
+            end
+        
+            % call DGESV(Nz,int(1),amx3,Nz,IPIV3,ymx3,Nz,INFO) 
+            [xmx3,rmx3] = linsolve(amx3,ymx3);
+            ymx3 = xmx3;
+        
+            if (any(isnan(ymx3))) 
+                fprintf( 'PSD--%s: error in soultion\n',chrsp);
+                flgback = true;
+                return
+            end
+        
+            for iz = 1: nz
+                
+                row =  iz;
+
+                if (isnan(ymx3(row)))  
+                    fprintf('PSD--%s: nan at\t',chrsp); 
+                    fprintf('%d\t%d\n',iz,ips);
+                    error('stop');
+                end
+                
+                emx3_loc(row) = dps(ips)*psdx(ips,iz)*exp(ymx3(row)) - dps(ips)*psdx(ips,iz);
+                
+                if ((~isnan(ymx3(row)))&&ymx3(row) >threshold)  
+                    psdx(ips,iz) = psdx(ips,iz)*corr;
+                elseif (ymx3(row) < -threshold)  
+                    psdx(ips,iz) = psdx(ips,iz)/corr;
+                else   
+                    psdx(ips,iz) = psdx(ips,iz)*exp(ymx3(row));
+                end
+            end 
+
+            if (all(fact_tol == 1d0))  
+                emx3(ips) = max(exp(abs(ymx3))) - 1.0d0;
+            else 
+                emx3(ips) = max(abs(emx3_loc));
+            end 
+        
+        end 
+        
+        error = max(emx3(:)./fact_tol(:));
+
+        if ( isnan(error) || any(isnan(psdx),'all') )  
+            error = 1d3;
+            fprintf('PSD--%s: !! error is NaN; values are returned to those before iteration with reducing dt\n',chrsp);
+            fprintf('PSD--%s: isnan(error), info~=0,any(isnan(pdsx))\n',chrsp);
+            fprintf('%s\t%s\n', string(isnan(error)), string(any(isnan(psdx),'all')) );
+            
+            flgback = true;
+            error('stop')
+        end
+
+        fprintf( 'PSD--%s: iteration error = %7.6e, iteration = %d, time step [yr] = %7.6e\n',chrsp,error, iter,dt);
+        iter = iter + 1; 
+        
+        if (iter > iter_max ) 
+            if (dt==0d0)  
+                fprintf(chrsp,'dt==0d0\n');
+                error('stop');
+            end 
+            flgback = true;
+            
+            return
+        end 
+        
+        if (flgback); return; end
+
+    end 
+
+    % calculating flux 
+    flx_psd(:,:,:) = 0d0;
+    for ips = 1: nps
+        
+        for iz = 1: nz
+        
+            row =  iz;
+            
+            vol  = 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+            surf = 4d0*pi*(10d0^ps(ips))^2d0;
+                    
+            m_tmp = vol * psdx(ips,iz) * dps(ips);
+            mprev_tmp = vol * psd(ips,iz) * dps(ips);        
+            % rxn_tmp = vol * psdx(ips,iz)*dps(ips) ...
+                % * surf * psdx(ips,iz)*dps(ips) * kpsd(iz); 
+            % rxn_tmp = surf * psdx(ips,iz)*dps(ips) * kpsd(iz); 
+            rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) / dt ;
+            
+            msupp_tmp = vol * psd_rain(ips,iz) * dps(ips)  / dt;
+            
+            mi_tmp = vol * psd_pr(ips) * dps(ips);
+            mp_tmp = vol * psdx(ips,min(iz+1,nz)) * dps(ips);
+            
+            dzinv = 1d0/dz(iz);
+            
+            % drxn_tmp = ... 
+                % vol * 1d0 * dps(ips) ...
+                % * surf * psdx(ips,iz) * dps(ips) * kpsd(iz) ...
+                % + vol * psdx(ips,iz) * dps(ips) ...
+                % * su;
+            % drxn_tmp = surf * 1d0 * dps(ips) * kpsd(iz) ;
+            drxn_tmp = 0d0;
+            
+            w_tmp = w(iz);
+            wp_tmp = w(min(nz,iz+1));
+
+            sporo_tmp = 1d0-poro(iz);
+            sporop_tmp = 1d0-poro(min(nz,iz+1));
+            sporoprev_tmp = 1d0-poroprev(iz);
+            
+            if (iz==nz)  
+                mp_tmp = mi_tmp;
+                wp_tmp = w0;
+                sporop_tmp = 1d0- poroi;
+            end 
+            
+            sporo_tmp = 1d0;
+            sporop_tmp = 1d0;
+            sporoprev_tmp = 1d0;
+            
+            flx_psd(ips,itflx_psd,iz) = ( ...
+                ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) * dtinv  ...
+                );
+            flx_psd(ips,iadv_psd,iz) = ( ...
+                -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) * dzinv ...
+                );
+            flx_psd(ips,irxn_psd,iz) = ( ...
+                + sporo_tmp* rxn_tmp  ...
+                );
+            flx_psd(ips,irain_psd,iz) = ( ...
+                - sporo_tmp* msupp_tmp  ...
+                );
+            
+            for iiz = 1: nz  
+                trans_tmp = sum(trans(iiz,iz,:))/nsp_sld;
+                if (trans_tmp == 0d0); continue; end
+                
+                flx_psd(ips,idif_psd,iz) = flx_psd(ips,idif_psd,iz) + ( ...
+                    - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips) ...
+                    );
+            end
+            
+            
+            flx_psd(ips,ires_psd,iz) = sum(flx_psd(ips,:,iz));
+            
+        end
+    end
+       
+
+            
+    if ( chkflx && dt > dt_th)
+        for ips = 1: nps
+            flx_max = 0d0;
+            for iflx=1:nflx_psd 
+                flx_max= max( flx_max, abs( sum(squeeze(flx_psd(ips,iflx,:)).*dz(:)) ) );
+            end 
+            flx_max_max = max( flx_max_max, flx_max);
+        end 
+        for ips = 1: nps
+        
+            if ( flx_max > flx_max_max*flx_max_tol && abs( sum(squeeze(flx_psd(ips,ires_psd,:)).*dz(:)) ) > flx_max * flx_tol )  
+                
+                fprintf('%s too large error in PSD flx?\n',chrsp);
+                fprintf('flx_max, flx_max_max,tol = %7.6e, %7.6e, %7.6e\n', flx_max,flx_max_max,flx_max_tol);
+                fprintf('res, max = %7.6e, %7.6e\n', abs( sum(squeeze(flx_psd(ips,ires_psd,:)).*dz(:)) ), flx_max);
+                fprintf('res/max, target = %7.6e, %7.6e\n', abs( sum(squeeze(flx_psd(ips,ires_psd,:)).*dz(:)) )/flx_max, flx_tol);
+                
+                flgback = true;
+            
+            end 
+            
+        end 
+    end  
+   
+end
