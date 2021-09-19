@@ -355,8 +355,8 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
-logical :: dust_step = .false.
-! logical :: dust_step = .true.
+! logical :: dust_step = .false.
+logical :: dust_step = .true.
 
 logical,dimension(3) :: climate != .false.
 ! logical,dimension(3) :: climate != .true.
@@ -2625,6 +2625,12 @@ do while (it<nt)
             ! print *, 'no dust time', time 
             msldsupp = 0d0
             dust_norm = 0d0
+            ! only implement fickian mixing 
+            fick = .true. 
+        else 
+            ! print *, 'dust time !!', time 
+            msldsupp = msldsupp/step_tau
+            dust_norm = 1d0/step_tau
             ! only implement chosen mixing 
             if (no_biot) nobio = .true.
             if (biot_turbo2) turbo2 = .true.
@@ -2653,12 +2659,6 @@ do while (it<nt)
                 turbo2(findloc(chrsld,'g3',dim=1)) = .false.
                 till(findloc(chrsld,'g3',dim=1)) = .false.
             endif 
-        else 
-            ! print *, 'dust time !!', time 
-            msldsupp = msldsupp/step_tau
-            dust_norm = 1d0/step_tau
-            ! only implement fickian mixing 
-            fick = .true. 
         endif 
         ! mixing reload
         save_trans = .false.
@@ -12265,8 +12265,8 @@ subroutine calc_charge_so4_balance( &
 implicit none
 
 integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all)::chraq_all
-character(5),dimension(nsp_gas_all)::chrgas_all
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),intent(in)::kw,ph_add_order
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
@@ -12618,8 +12618,8 @@ subroutine calc_charge( &
 implicit none
 
 integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all)::chraq_all
-character(5),dimension(nsp_gas_all)::chrgas_all
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),intent(in)::kw,ph_add_order
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
@@ -12965,8 +12965,8 @@ subroutine calc_so4_balance( &
 implicit none
 
 integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all)::chraq_all
-character(5),dimension(nsp_gas_all)::chrgas_all
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),intent(in)::ph_add_order
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
@@ -18620,6 +18620,7 @@ do isp=1,nsp_sld
     transturbo2 = 0d0
     probh = 0.001d0 ! def used in IMP
     ! probh = 0.01d0 ! strong mixing
+    ! probh = 0.05d0 ! strong mixing
     probh = 0.1d0 ! strong mixing
     ! probh = 0.5d0 ! strong mixing
     ! probh = 0.0005d0 ! just testing smaller mixing (used for tuning)
@@ -18808,7 +18809,7 @@ real(kind=8),dimension(nrxn_ext,nsp_sld),intent(in)::stsld_ext,stsld_dext
 real(kind=8),dimension(nrxn_ext,nsp_gas,nz)::drxnext_dmgas
 real(kind=8),dimension(nrxn_ext,nsp_aq,nz)::drxnext_dmaq
 real(kind=8),dimension(nrxn_ext,nsp_sld,nz)::drxnext_dmsld
-real(kind=8),dimension(nsld_kinspc)::kin_sld_spc
+real(kind=8),dimension(nsld_kinspc),intent(in)::kin_sld_spc
 logical,dimension(nsp_sld),intent(in)::labs,turbo2
 
 integer,intent(in)::nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst,nsp_sld_cnst
