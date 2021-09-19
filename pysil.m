@@ -2501,7 +2501,7 @@ function weathering_main( ...
                 
                     if ( precstyle(isps) == 'decay'); continue; end % solid species not related to SA
                 
-                    DV(:) = flx_sld(isps, 4 + isps,:)'*mv(isps)*1d-6*dt;  
+                    DV(:) = flx_sld(isps, 4 + isps,:)*mv(isps)*1d-6*dt;  
                 
                     dpsd(:,:) = 0d0;
                     psd(:,:) = mpsd(isps,:,:);
@@ -2905,7 +2905,7 @@ function weathering_main( ...
                         for iz=1:nz
                             ssa(isps,iz) = sum( 4d0*pi*(10d0.^ps(:)).^2d0  ...
                                 *rough_c0.*(10d0.^ps(:)).^rough_c1.*mpsd(isps,:,iz)'.*dps(:));
-                            ssav(isps,iz) = sum( 3d0/(10d0.^ps(:))  ...
+                            ssav(isps,iz) = sum( 3d0./(10d0.^ps(:))  ...
                                 *rough_c0.*(10d0.^ps(:)).^rough_c1.*mpsd(isps,:,iz)'.*dps(:));
                         end 
                     end
@@ -3019,7 +3019,7 @@ function weathering_main( ...
             
             if (do_psd)  
                 if (do_psd_full) 
-                    fprint ('\n');
+                    fprintf ('\n');
                     fprintf (' [fluxes -- PSD]\n');
                     fmt =['%-6s%-6s' repmat('%11s',1,nflx_psd) '\n'];
                     fprintf (fmt,'sld','rad','tflx','adv','dif','rain','rxn','res');
@@ -3244,7 +3244,7 @@ function weathering_main( ...
                                     , time );
                             else
                                 fprintf(ipsds,[repmat('%e\t',1, nps + 2) '\n'], z(iz), 4d0*pi*(10d0.^ps(1:nps)).^2d0 ...
-                                    *rough_c0.*(10d0^ps(1:nps)).^rough_c1.*mpsd(isps,1:nps,iz)'.*dps(1:nps) ...
+                                    *rough_c0.*(10d0.^ps(1:nps)).^rough_c1.*mpsd(isps,1:nps,iz)'.*dps(1:nps) ...
                                     / ssa(isps,iz)  * 1d2 ...
                                     ,time );
                             end 
@@ -11207,7 +11207,7 @@ function [dpsd,psd_error_flg] = psd_diss( ...
         error('stop');
     end 
 
-    dpsd(:,:) = dpsd(:,:) + dpsd_tmp(:,:)
+    dpsd(:,:) = dpsd(:,:) + dpsd_tmp(:,:);
    
 end 
 
