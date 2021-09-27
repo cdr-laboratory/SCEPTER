@@ -161,6 +161,7 @@ real(kind=8),parameter :: mvagt = (fr_fer_agt*mvfer +(1d0-fr_fer_agt)*mven)*2d0*
                                 !  cm3/mol; molar volume of augite 
                                 ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6)
                                 ! ; assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mvamnt = 46.40173913043478d0 ! cm3/mol; molar volume of ammonium nitrate (NH4NO3); density 1.725 g/cm3 (at 20C) from wikipedea 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -212,6 +213,7 @@ real(kind=8),parameter :: mwtagt = (fr_fer_agt*mwtfer +(1d0-fr_fer_agt)*mwten)*2
                                 !  g/mol; formula weight of augite 
                                 ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6)
                                 ! ; assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mwtamnt = 80.043d0 ! g/mol; formula weight of ammonium nitrate 
                                 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 real(kind=8) :: rho_grain_calc,rho_grain_calcx != 2.7d0 ! g/cm3 as soil grain density 
@@ -355,8 +357,8 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
-! logical :: dust_step = .false.
-logical :: dust_step = .true.
+logical :: dust_step = .false.
+! logical :: dust_step = .true.
 
 logical,dimension(3) :: climate != .false.
 ! logical,dimension(3) :: climate != .true.
@@ -430,7 +432,7 @@ integer,parameter::nsp_sld_2 = 0
 #else
 integer,parameter::nsp_sld_2 = 17
 #endif 
-integer,parameter::nsp_sld_all = 44
+integer,parameter::nsp_sld_all = 45
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -685,7 +687,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ' &
-    & ,'g1   ','g2   ','g3   '/)
+    & ,'g1   ','g2   ','g3   ','amnt '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22'/)
@@ -758,11 +760,11 @@ endif
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt &
-    & ,mvg1,mvg2,mvg3/)
+    & ,mvg1,mvg2,mvg3,mvamnt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt &
-    & ,mwtg1,mwtg2,mwtg3/)
+    & ,mwtg1,mwtg2,mwtg3,mwtamnt/)
 
 do isps = 1, nsp_sld 
     mv(isps) = mv_all(findloc(chrsld_all,chrsld(isps),dim=1))
@@ -1092,6 +1094,18 @@ stgas_all(findloc(chrsld_all,'g3',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d
 stgas_all(findloc(chrsld_all,'g3',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g3
 ! the above need to be modified to enable anoxic degradation 
 
+! Fertilizers 
+! Ammonium nitrate (NH4NO3); assuming simplified reaction implementable without enabling full N cycles 
+! NH4NO3 = NH4+ + NO3- coupling with (NH4+ + 2O2 -> NO3- + H2O + 2 H+) 
+! NH4NO3 + 2O2 = 2NO3- + H2O + 2H+
+staq_all(findloc(chrsld_all,'amnt',dim=1), findloc(chraq_all,'no3',dim=1)) = 2d0
+stgas_all(findloc(chrsld_all,'amnt',dim=1), findloc(chrgas_all,'po2',dim=1)) = -2d0
+
+! when fully doing N cycle
+! staq_all(findloc(chrsld_all,'amnt',dim=1), findloc(chraq_all,'no3',dim=1)) = 1d0 
+! stgas_all(findloc(chrsld_all,'amnt',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = 1d0
+
+
 staq = 0d0
 stgas = 0d0
 
@@ -1348,7 +1362,7 @@ precstyle = 'def'
 
 do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
-        case('g1','g2','g3')
+        case('g1','g2','g3','amnt')
             precstyle(isps) = 'decay'
         case default 
             precstyle(isps) = 'def'
@@ -2708,6 +2722,8 @@ do while (it<nt)
     ! do PSD for raining dust & OM 
     if (do_psd) then 
         psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+        ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
+        ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
         ! pssigma_rain_list = (/ 0.5d0,  0.5d0, 0.5d0 /)
         pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
 
@@ -6339,6 +6355,12 @@ select case(trim(adjustl(mineral)))
             & )
         dkin_dmsp = 0d0
         
+    case('amnt')
+        kin = ( &
+            & 0.01d0/1d0 &! just a value assumed; turnover time of 0.1 year for NH4NO3 
+            & )
+        dkin_dmsp = 0d0
+        
     case default 
         kin =0d0
         dkin_dmsp = 0d0
@@ -6436,6 +6458,7 @@ select case(trim(adjustl(mineral)))
     case('cc')
         ! CaCO3 = Ca2+ + CO32-
         therm_ref = 10d0**(-8.43d0)
+        ! therm_ref = therm_ref*10d0 ! testing higher solubility
         ha = -8.028943471d0
         tc_ref = 15d0
         ! from Kanzaki and Murakami 2015
@@ -6737,6 +6760,8 @@ select case(trim(adjustl(mineral)))
         ! therm = 0.121d-6 ! mo2 Michaelis, Davidson et al. (2012) x 1e-6
     case('g3')
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
+    case('amnt')
+        therm = 0.121d0 ! mo2 Michaelis for fertilizer
     case default 
         therm = 0d0
 endselect 
@@ -17335,7 +17360,7 @@ select case(trim(adjustl(mineral)))
     case('om','omb')
         omega = 1d0 ! these are not used  
         
-    case('g1','g2','g3')
+    case('g1','g2','g3','amnt')
     ! omega is defined so that kg1*poro*hr*mvg1*1d-6*mg1x*(1d0-omega_g1) = kg1*poro*hr*mvg1*1d-6*mg1x*po2x/(po2x+mo2)
     ! i.e., 1.0 - omega_g1 = po2x/(po2x+mo2) 
         if (trim(adjustl(mineral)) == 'g1') mo2_tmp = mo2g1
