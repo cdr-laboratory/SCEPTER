@@ -940,8 +940,10 @@ function weathering_main( ...
         case(imixtype_labs)
             biot_labs = true;
         otherwise 
-            warning( '***| chosen number is not available for mixing styles (choose between 0 to 4)')
-            warning( '***| thus choose default |---- > no mixing')
+            % warning( '***| chosen number is not available for mixing styles (choose between 0 to 4)')
+            cprintf('-comment', '***| chosen number is not available for mixing styles (choose between 0 to 4)')
+            % warning( '***| thus choose default |---- > no mixing')
+            cprintf('-comment', '***| thus choose default |---- > no mixing')
             no_biot = true;
     end
 
@@ -959,8 +961,10 @@ function weathering_main( ...
         case(iwtype_spwcnst)
             fprintf('w x (1 - porosity) = cnst : %d\n',iwtype)
         otherwise 
-            warning( '***| chosen number is not available for advection styles (choose between 0 to 3)')
-            warning( '***| thus choose default |---- > cnst w')
+            % warning( '***| chosen number is not available for advection styles (choose between 0 to 3)')
+            cprintf('-comment', '***| chosen number is not available for advection styles (choose between 0 to 3)')
+            % warning( '***| thus choose default |---- > cnst w')
+            cprintf('-comment', '***| thus choose default |---- > cnst w')
             iwtype = iwtype_cnst
     end
 
@@ -1189,7 +1193,8 @@ function weathering_main( ...
                     dct(iclim) = clim_T(1,2) - clim_T(1,1);
                     ctau(iclim) = clim_T(1,nclim(iclim)) + dct(iclim);
                 otherwise
-                    warning( 'error in obtaining climate')
+                    % warning( 'error in obtaining climate')
+                    cprintf('-comment', 'error in obtaining climate')
             end 
         end 
     end 
@@ -6782,7 +6787,8 @@ function [ ...
             
             if (any(isnan(f1))||any(isnan(f2))||any(isnan(df1))||any(isnan(df2)) ...
                 ||any(isnan(df12))||any(isnan(df21)))  
-                warning(strcat('found nan during the course of ph calc:\n' ...
+                % warning(strcat('found nan during the course of ph calc:\n' ...
+                cprintf('-comment',strcat('found nan during the course of ph calc:\n' ...
                     ,'NAN in f1 = %s\t' ,'NAN in f2 = %s\t','NAN in df1 = %s\n' ...
                     ,'NAN in df2 = %s\t','NAN in df12 = %s\t','NAN in df21 = %s\n') ...
                     ,string(any(isnan(f1))),string(any(isnan(f2))),string(any(isnan(df1))) ...
@@ -6833,7 +6839,8 @@ function [ ...
             % fprintf('%d\t%7.6e\n',iter,error);
             
             if (iter > 3000)  
-                warning ('iteration exceeds 3000');
+                % warning ('iteration exceeds 3000');
+                cprintf('-comment','iteration exceeds 3000\n');
                 ph_error = true;
                 return
             end 
@@ -6845,7 +6852,8 @@ function [ ...
     % pause;
 
     if (any(isnan(prox)) || any(prox<=0d0))      
-        warning(strcat('ph is nan or <= zero: showing pH here: ',[repmat('%7.6e\t',1,5)],'\n') ... 
+        % warning(strcat('ph is nan or <= zero: showing pH here: ',[repmat('%7.6e\t',1,5)],'\n') ... 
+        cprintf('-comment',strcat('ph is nan or <= zero: showing pH here: ',[repmat('%7.6e\t',1,5)],'\n') ... 
             ,-log10(prox(1:nz/5:nz)));
         ph_error = true;
     end 
@@ -7639,7 +7647,8 @@ function [ ...
 
     omega_error = false;
     if (any(isnan(omega)))  
-        warning ('nan in calc_omega_v4 for %s ----> continue \n',mineral);
+        % warning ('nan in calc_omega_v4 for %s ----> continue \n',mineral);
+        cprintf('-comment','nan in calc_omega_v4 for %s ----> continue \n',mineral);
         omega_error = true;
     end 
 
@@ -8354,7 +8363,8 @@ function [ ...
 
     rxnext_error = false;
     if (any(isnan(rxn_ext)) || any(isnan(drxnext_dmsp)))  
-        warning('nan in calc_rxn_ext_dev_2');
+        % warning('nan in calc_rxn_ext_dev_2');
+        cprintf('-comment','nan in calc_rxn_ext_dev_2');
         rxnext_error = true;
     end 
 
@@ -9826,7 +9836,8 @@ function [ ...
                         );
                     flx_sld(isps,ires,iz) = sum(flx_sld(isps,:,iz));
                     if (isnan(flx_sld(isps,ires,iz)))  
-                        warning( ['nan in flx_sld %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrsld(isps),iz,flx_sld(isps,1:nflx,iz) );
+                        % warning( ['nan in flx_sld %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrsld(isps),iz,flx_sld(isps,1:nflx,iz) );
+                        cprintf('-comment', ['nan in flx_sld %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrsld(isps),iz,flx_sld(isps,1:nflx,iz) );
                     end 
                 end 
             end  %================================
@@ -9958,7 +9969,8 @@ function [ ...
                     );
                 flx_aq(ispa,ires,iz) = sum(flx_aq(ispa,:,iz));
                 if (isnan(flx_aq(ispa,ires,iz)))  
-                    warning( ['nan in flx_aq %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chraq(ispa),iz,flx_aq(ispa,1:nflx,iz) );
+                    % warning( ['nan in flx_aq %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chraq(ispa),iz,flx_aq(ispa,1:nflx,iz) );
+                    cprintf('-comment', ['nan in flx_aq %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chraq(ispa),iz,flx_aq(ispa,1:nflx,iz) );
                 end 
                 
                 amx3(row,:) = amx3(row,:)*fact;
@@ -10119,7 +10131,8 @@ function [ ...
                 flx_gas(ispg,ires,iz) = sum(flx_gas(ispg,:,iz));
                 
                 if (any(isnan(flx_gas(ispg,:,iz)))) 
-                    warning( ['nan in flx_gas %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrgas(ispg),iz,flx_gas(ispg,1:nflx,iz) );
+                    % warning( ['nan in flx_gas %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrgas(ispg),iz,flx_gas(ispg,1:nflx,iz) );
+                    cprintf('-comment', ['nan in flx_gas %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrgas(ispg),iz,flx_gas(ispg,1:nflx,iz) );
                 end 
             end 
 
@@ -10133,13 +10146,15 @@ function [ ...
         ymx3=-1.0d0*ymx3;
 
         if (any(isnan(amx3),'all')||any(isnan(ymx3))||any(amx3>infinity,'all')||any(ymx3>infinity))  
-            warning('error in mtx:\ninsnan(amx) = %s\ninsnan(ymx) =  %s\n' ...
+            % warning('error in mtx:\ninsnan(amx) = %s\ninsnan(ymx) =  %s\n' ...
+            cprintf('-comment','error in mtx:\ninsnan(amx) = %s\ninsnan(ymx) =  %s\n' ...
                 ,string(any(isnan(amx3),'all')),string(any(isnan(ymx3))) );
 
             if (any(isnan(ymx3)))  
                 for ie = 1:nsp3*(nz)
                     if (isnan(ymx3(ie)))  
-                        warning('NAN in ymx is here...%d\n',ie);
+                        % warning('NAN in ymx is here...%d\n',ie);
+                        cprintf('-comment','NAN in ymx is here...%d\n',ie);
                     end
                 end
             end
@@ -10149,7 +10164,8 @@ function [ ...
                 for ie = 1:nsp3*(nz)
                     for ie2 = 1:nsp3*(nz)
                         if (isnan(amx3(ie,ie2)))  
-                            warning('NAN in amx is here...%d\t%d\n',ie,ie2);
+                            % warning('NAN in amx is here...%d\t%d\n',ie,ie2);
+                            cprintf('-comment','NAN in amx is here...%d\t%d\n',ie,ie2);
                         end
                     end
                 end
@@ -10169,7 +10185,8 @@ function [ ...
         ymx3 = xmx3;
 
         if (any(isnan(ymx3))) 
-            warning('error in soultion');
+            % warning('error in soultion');
+            cprintf('-comment','error in soultion');
             flgback = true;
             return
         end
@@ -10258,8 +10275,10 @@ function [ ...
 
         if (isnan(error)|| any(isnan(msldx),'all') || any(isnan(maqx),'all')|| any(isnan(mgasx),'all'))  
             error = 1d3;
-            warning('error is NaN; values are returned to those before iteration with reducing dt\n')
-            warning('Nan in error?\t%s\nNan in msldx?\t%s\nNan in maqx?\t%s\nNan in mgasx?\t%s\n' ...
+            % warning('error is NaN; values are returned to those before iteration with reducing dt\n')
+            cprintf('-comment','error is NaN; values are returned to those before iteration with reducing dt\n')
+            % warning('Nan in error?\t%s\nNan in msldx?\t%s\nNan in maqx?\t%s\nNan in mgasx?\t%s\n' ...
+            cprintf('-comment','Nan in error?\t%s\nNan in msldx?\t%s\nNan in maqx?\t%s\nNan in mgasx?\t%s\n' ...
                 ,string(isnan(error)),string(any(isnan(msldx),'all')) ...
                 ,string(any(isnan(maqx),'all')),string(any(isnan(mgasx),'all')) );
             flgback = true;
@@ -10473,7 +10492,8 @@ function [ ...
                         );
                 flx_sld(isps,ires,iz) = sum(flx_sld(isps,:,iz));
                 if (isnan(flx_sld(isps,ires,iz)))  
-                    warning( ['nan in flx_sld %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrsld(isps),iz,flx_sld(isps,1:nflx,iz) );
+                    % warning( ['nan in flx_sld %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrsld(isps),iz,flx_sld(isps,1:nflx,iz) );
+                    cprintf('-comment', ['nan in flx_sld %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrsld(isps),iz,flx_sld(isps,1:nflx,iz) );
                 end   
                 
             end 
@@ -10522,7 +10542,8 @@ function [ ...
                 ); 
             flx_aq(ispa,ires,iz) = sum(flx_aq(ispa,:,iz));
             if (isnan(flx_aq(ispa,ires,iz)))  
-                warning( ['nan in flx_aq %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chraq(ispa),iz,flx_aq(ispa,1:nflx,iz) );
+                % warning( ['nan in flx_aq %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chraq(ispa),iz,flx_aq(ispa,1:nflx,iz) );
+                cprintf('-comment', ['nan in flx_aq %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chraq(ispa),iz,flx_aq(ispa,1:nflx,iz) );
             end 
         
         end 
@@ -10622,7 +10643,8 @@ function [ ...
             flx_gas(ispg,ires,iz) = sum(flx_gas(ispg,:,iz));
             
             if (any(isnan(flx_gas(ispg,:,iz)))) 
-                warning( ['nan in flx_gas %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrgas(ispg),iz,flx_gas(ispg,1:nflx,iz) );
+                % warning( ['nan in flx_gas %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrgas(ispg),iz,flx_gas(ispg,1:nflx,iz) );
+                cprintf('-comment', ['nan in flx_gas %s\t %d\t' repmat('%7.6E \t',1,nflx) '\n'], chrgas(ispg),iz,flx_gas(ispg,1:nflx,iz) );
             end 
         end 
         
@@ -10771,8 +10793,10 @@ function [ ...
                 end 
                 
                 if (flx_max/flx_max_max > flx_max_tol &&  abs(sum(squeeze(flx_sld(isps,ires,:)).*dz(:)))/flx_max > flx_tol )  
-                    warning('too large error in mass balance of sld phases\n');
-                    warning('sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
+                    % warning('too large error in mass balance of sld phases\n');
+                    cprintf('-comment','too large error in mass balance of sld phases\n');
+                    % warning('sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
+                    cprintf('-comment','sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
                         ,chrsld(isps),abs(sum(squeeze(flx_sld(isps,ires,:)).*dz(:))),flx_max,flx_tol );
                     flgback = true;
                     return
@@ -10788,8 +10812,10 @@ function [ ...
             end 
             
             if (flx_max/flx_max_max > flx_max_tol  && abs(sum(squeeze(flx_aq(ispa,ires,:)).*dz(:)))/flx_max > flx_tol )  
-                warning('too large error in mass balance of aq phases\n');
-                warning('sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
+                % warning('too large error in mass balance of aq phases\n');
+                cprintf('-comment','too large error in mass balance of aq phases\n');
+                % warning('sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
+                cprintf('-comment','sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
                     ,chraq(ispa),abs(sum(squeeze(flx_aq(ispa,ires,:)).*dz(:))),flx_max,flx_tol );
                 flgback = true;
                 return
@@ -10804,8 +10830,10 @@ function [ ...
             end 
             
             if (flx_max/flx_max_max > flx_max_tol  && abs(sum(squeeze(flx_gas(ispg,ires,:)).*dz(:)))/flx_max > flx_tol )  
-                warning('too large error in mass balance of gas phases\n');
-                warning('sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
+                % warning('too large error in mass balance of gas phases\n');
+                cprintf('-comment','too large error in mass balance of gas phases\n');
+                % warning('sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
+                cprintf('-comment','sp = %s\t| flx that raised the flag = %7.6E\t| flx_max = %7.6E\t| flx_tol =%7.6E\n' ...
                     ,chrgas(ispg),abs(sum(squeeze(flx_gas(ispg,ires,:)).*dz(:))),flx_max,flx_tol );
                 flgback = true;
                 return
@@ -10901,12 +10929,14 @@ function [poro] = calc_poro( ...
     ymx3=-1.0d0*ymx3;
 
     if (any(isnan(amx3),'all') || any(isnan(ymx3)) || any(amx3>infinity,'all') || any(ymx3>infinity))  
-        warning('porocalc: error in mtx');
+        % warning('porocalc: error in mtx');
+        cprintf('-comment','porocalc: error in mtx');
 
         if (any(isnan(ymx3)))  
             for iz = 1: nz
                 if (isnan(ymx3(iz)))  
-                    warning('porocalc: NAN is here...%d\n',iz);
+                    % warning('porocalc: NAN is here...%d\n',iz);
+                    cprintf('-comment','porocalc: NAN is here...%d\n',iz);
                 end
             end 
         end
@@ -10916,7 +10946,8 @@ function [poro] = calc_poro( ...
             for ie = 1:(nz)
                 for ie2 = 1:(nz)
                     if (isnan(amx3(ie,ie2)))  
-                        warning('porocalc: NAN is here...%d\t%d\n',ie,ie2);
+                        % warning('porocalc: NAN is here...%d\t%d\n',ie,ie2);
+                        cprintf('-comment','porocalc: NAN is here...%d\t%d\n',ie,ie2);
                     end
                 end
             end
