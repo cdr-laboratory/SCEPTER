@@ -2414,6 +2414,49 @@ function weathering_main( ...
                 v(:) = qin./poro(:)./sat(:);
                 torg(:) = poro(:).^(3.4d0-2.0d0).*(1.0d0-sat(:)).^(3.4d0-1.0d0);
                 tora(:) = poro(:).^(3.4d0-2.0d0).*(sat(:)).^(3.4d0-1.0d0);
+                        
+                % stuff within #ifndef calcw_full
+                w(:) = w0; 
+                dwsporo = zeros(nz,1,'double');        
+                wsporo = zeros(nz,1,'double');        
+                DV = zeros(nz,1,'double');        
+                wsporo(:) = w_btm*(1d0 - poroi);
+                if (noncnstw)  
+                    for iz=1:nz
+                        DV(iz) = 0d0;
+                        for isps = 1:nsp_sld 
+                            DV(iz) = DV(iz) + ( flx_sld(isps, 4 + isps,iz) + flx_sld(isps, idif ,iz) + flx_sld(isps, irain ,iz) ) ...
+                                 *mv(isps)*1d-6*dt ;
+                        end 
+                        dwsporo(iz) = -( ( poro(iz) - poroprev(iz))/dt - DV(iz)/dt );
+                    end 
+                    
+                    for iz = nz:-1:1
+                        if (iz==nz)  
+                            wsporo(iz) =  w_btm*(1d0 - poroi) - dwsporo(iz)*dz(iz);
+                        else
+                            wsporo(iz) =  wsporo(iz+1) - dwsporo(iz)*dz(iz);
+                        end 
+                    end 
+                    w(:) = wsporo(:)./(1d0-poro(:));
+                end 
+                
+                wsporo(:) = w_btm*(1d0 - poroi);
+                w(:) = wsporo(:)./(1d0-poro(:));
+                
+                w(:) = w_btm;
+                
+                [w] = calc_uplift( ...
+                     nz,nsp_sld,nflx,idif,irain ...% IN
+                     ,iwtype ...% in
+                     ,flx_sld,mv,poroi,w_btm,dz,poro,poroprev,dt ...% in
+                     ,w ...% inout
+                     );
+                
+                % ------------ determine calculation scheme for advection (from IMP code)
+                [up,dwn,cnr,adf] = calcupwindscheme(w,nz);
+                % end stuff within #ifndef calcw_full
+            
                 
                 for isps=1:nsp_sld
                     hr(isps,:) = hri(isps,:).*rough(isps,:);
@@ -10664,14 +10707,14 @@ function [ ...
             if (iz==1); edifn_tmp = dgasi(ispg); end
             
             flx_co2sp(1,itflx,iz) = ( ...
-                (ucv*poro(iz)*(1.0d0-sat(Iz))*1d3*mgasx(ispg,iz)-ucv*poroprev(iz)*(1.0d0-sat(Iz))*1d3*mgas(ispg,iz))/dt ...
+                (ucv*poro(iz)*(1.0d0-sat(iz))*1d3*mgasx(ispg,iz)-ucv*poroprev(iz)*(1.0d0-sat(iz))*1d3*mgas(ispg,iz))/dt ...
                 );  
             flx_co2sp(1,idif,iz) = ( ...
-                -( 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(Iz)*dgasg(ispg) ...
+                -( 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgasg(ispg) ...
                       +ucv*poro(min(nz,iz+1))*(1.0d0-sat(min(nz,iz+1)))*1d3*torg(min(nz,iz+1))*dgasg(ispg)) ...
                       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) ...
                       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) ...
-                - 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(Iz)*dgasg(ispg) + edifn_tmp) ...
+                - 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(iz)*dgasg(ispg) + edifn_tmp) ...
                       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  ...
                 ); 
             flx_co2sp(1,irxn_ext(:),iz) = -stgas_ext(:,ispg).*rxnext(:,iz);
@@ -10962,6 +11005,87 @@ function [poro] = calc_poro( ...
 
     poro = ymx3;
    
+end
+
+
+function [w] = calc_uplift( ...
+     nz,nsp_sld,nflx,idif,irain ...% IN
+     ,iwtype ...% in
+     ,flx_sld,mv,poroi,w_btm,dz,poro,poroprev,dt ...% in
+     ,w ...% inout
+     )
+    % local 
+    DV=zeros(nz,1,'double');wsporo=zeros(nz,1,'double');
+    iz=0;isps=0;
+    
+    iwtype_cnst = 0;
+    iwtype_pwcnst = 1;
+    iwtype_spwcnst = 2;
+    iwtype_flex = 3;
+
+
+
+    switch (iwtype)
+        case(iwtype_cnst) % default case with constant uplift rate
+            
+            w(:) = w_btm;
+            
+        case(iwtype_pwcnst) % poro * w = const
+            
+            wsporo(:) = w_btm*poroi;
+            w(:) = wsporo(:)./poro(:);
+            
+        case(iwtype_spwcnst) % (1 - poro) * w = const
+        
+            wsporo(:) = w_btm*(1d0 - poroi);
+            w(:) = wsporo(:)./(1d0-poro(:));
+            
+        case(iwtype_flex) % flexible w (including const porosity)
+            % in this case, porosity is not calculated but given so equation for porosity is used to solve w instead  
+            % based on equation:
+            % d(1-poro)/dt = d(1-poro)*w/dz - mv*1d-6*sum( flx_sld(mixing, dust, rxns) ) 
+            % now porosity is cont.
+            % 0 = (1-poro)*dw/dz - mv*1d-6*sum( flx_sld(mixing, dust, rxns) ) 
+            
+            DV(:) = 0d0;
+
+            for iz=1:nz
+                for isps = 1:nsp_sld 
+                    DV(iz) = DV(iz) + ( flx_sld(isps, 4 + isps,iz) + flx_sld(isps, idif ,iz) + flx_sld(isps, irain ,iz) ) ...
+                         *mv(isps)*1d-6; 
+                end 
+            end 
+            
+            for iz=nz:-1:1
+                % 0d0 = (1d0 - poro(iz)) * (w(iz+1) - w(iz))/dz(iz) + DV(iz)
+                % 0d0 = (1-poro(iz)) * (w(iz+1) - w(iz)) + DV(iz)*dz(iz)
+                % 0d0 = w(iz+1) - w(iz) + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+                % w(iz) = w(iz+1)  + DV(iz)*dz(iz)/(1d0 - poro(iz)) 
+                % ... more generally ... 
+                % ( (1d0 - poro(iz)) - (1d0 - poroprev(iz)) )/dt = ( (1d0 - poro(iz+1)) * w(iz+1) - (1d0 - poro(iz)) * w(iz) )/dz(iz) + DV(iz)
+                % 0d0 = ( (1d0 - poro(iz+1)) * w(iz+1) - (1d0 - poro(iz)) * w(iz) )/dz(iz) + DV(iz) - ( (1d0 - poro(iz)) - (1d0 - poroprev(iz)) )/dt
+                % 0d0 = ( (1d0 - poro(iz+1)) * w(iz+1) - (1d0 - poro(iz)) * w(iz) ) + DV(iz)*dz(iz) - ( (1d0 - poro(iz)) - (1d0 - poroprev(iz)) )/dt*dz(iz)
+                % (1d0 - poro(iz)) * w(iz) =  (1d0 - poro(iz+1)) * w(iz+1)  + DV(iz)*dz(iz) - ( (1d0 - poro(iz)) - (1d0 - poroprev(iz)) )/dt*dz(iz)
+                % w(iz) =  (1d0 - poro(iz+1))/(1d0 - poro(iz))  * w(iz+1)  + DV(iz)*dz(iz)/(1d0 - poro(iz))  - ( 1d0 - (1d0 - poroprev(iz))/(1d0 - poro(iz)) )/dt*dz(iz)
+                if (iz==nz)  
+                    w(iz) = w_btm  + DV(iz)*dz(iz)/(1d0 - poro(iz)) ;
+                    % general version
+                    w(iz) =  (1d0 - poroi)/(1d0 - poro(iz))  * w_btm  ...
+                         + DV(iz)*dz(iz)/(1d0 - poro(iz))  - ( 1d0 - (1d0 - poroprev(iz))/(1d0 - poro(iz)) )/dt*dz(iz);
+                else
+                    w(iz) = w(iz+1)  + DV(iz)*dz(iz)/(1d0 - poro(iz)) ;
+                    % general version
+                    w(iz) =  (1d0 - poro(iz+1))/(1d0 - poro(iz))  * w(iz+1)  ...
+                         + DV(iz)*dz(iz)/(1d0 - poro(iz))  - ( 1d0 - (1d0 - poroprev(iz))/(1d0 - poro(iz)) )/dt*dz(iz);
+                end 
+            end 
+            
+        otherwise 
+            
+            w(:) = w_btm;
+            
+    end 
+       
 end
 
 
