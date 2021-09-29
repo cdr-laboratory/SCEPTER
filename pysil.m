@@ -2332,7 +2332,7 @@ function weathering_main( ...
                     mblkx(iz) = mblkx(iz)/(mvblk*1d-6);
                 end 
             else 
-                mblkx = 0d0;
+                mblkx(:) = 0d0;
             end 
 
             if (flgback)  
@@ -3410,7 +3410,7 @@ function weathering_main( ...
             ||(time>=rectime_flx(irec_flx+1)) )  
             
             if (time>=rectime_flx(irec_flx+1))  
-                irec_flx = irec_flx + 1
+                irec_flx = irec_flx + 1;
             end 
             
             if (~ flx_recorded)  
@@ -5907,8 +5907,8 @@ function [ ...
             end 
             % currently NO3 complexation with cations are ignored
             dmaqf_dpro(ispa,:) = maqx_loc(ispa,:)*(-1d0)./maqf_loc(ispa,:).^2d0.*dmaqf_dpro(ispa,:);
-            dmaqf_dso4f(ispa,:) = maqx_loc(ispa,:)*(-1d0)/maqf_loc(ispa,:).^2d0.*dmaqf_dso4f(ispa,:);
-            dmaqf_dpco2(ispa,:) = maqx_loc(ispa,:)*(-1d0)/maqf_loc(ispa,:).^2d0.*dmaqf_dpco2(ispa,:);
+            dmaqf_dso4f(ispa,:) = maqx_loc(ispa,:)*(-1d0)./maqf_loc(ispa,:).^2d0.*dmaqf_dso4f(ispa,:);
+            dmaqf_dpco2(ispa,:) = maqx_loc(ispa,:)*(-1d0)./maqf_loc(ispa,:).^2d0.*dmaqf_dpco2(ispa,:);
             dmaqf_dmaq(ispa,:) = 1d0./maqf_loc(ispa,:);
             maqf_loc(ispa,:) = maqx_loc(ispa,:)./maqf_loc(ispa,:);
         end 
