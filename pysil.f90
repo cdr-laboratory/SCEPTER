@@ -108,8 +108,9 @@ real(kind=8),parameter :: fr_an_an = 1.0d0 ! Anorthite fraction for anorthite (B
 
 real(kind=8),parameter :: fr_hb_cpx = 0.5d0 ! Hedenbergite fraction for clinopyroxene; 0.0 - 1.0
 real(kind=8),parameter :: fr_fer_opx = 0.5d0 ! Ferrosilite fraction for orthopyroxene; 0.0 - 1.0
-real(kind=8),parameter :: fr_fer_agt = 0.1818d0 ! Ferrosilite (and Hedenbergite; or Fe/(Fe+Mg)) fraction for Augite; 0.0 - 1.0; Beerling et al 2020 
-real(kind=8),parameter :: fr_opx_agt = 0.9d0 ! OPX (or Ca/(Fe+Mg)) fraction for Augite; 0.0 - 1.0; from Beerling et al 2020
+real(kind=8),parameter :: fr_fer_agt = 0.0d0 ! Ferrosilite (and Hedenbergite; or Fe/(Fe+Mg)) fraction for Augite; 0.0 - 1.0; Beerling et al 2020 
+real(kind=8),parameter :: fr_opx_agt = 0.0d0 ! OPX (or 1 - Ca:(Fe+Mg)) fraction for Augite; 0.0 - 1.0; from Beerling et al 2020
+real(kind=8),parameter :: fr_napx_agt = 0.1d0 ! Na fraction for Augite (or Na/(Ca+Fe+Mg)); 0.0 - 1.0; from Beerling et al 2020
 
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
@@ -157,10 +158,17 @@ real(kind=8),parameter :: mvmscv = 140.71d0 ! cm3/mol; molar volume of muscovite
 real(kind=8),parameter :: mvplgp = 149.91d0 ! cm3/mol; molar volume of phlogopite (KMg3(AlSi3O10)(OH)2); Robie et al. 1978
 real(kind=8),parameter :: mvantp = 274.00d0 ! cm3/mol; molar volume of anthophyllite (Mg7Si8O22(OH)2); Robie and Bethke 1962
 real(kind=8),parameter :: mvjd = 60.4d0 ! cm3/mol; molar volume of jadeite (NaAlSi2O6); Robie et al. 1978
-real(kind=8),parameter :: mvagt = (fr_fer_agt*mvfer +(1d0-fr_fer_agt)*mven)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y)
-                                & + (fr_fer_agt*mvhb + (1d0-fr_fer_agt)*mvdp)*(1d0-fr_opx_agt) ! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y))
+real(kind=8),parameter :: mvagt = ( & 
+                                & (fr_fer_agt*mvfer +(1d0-fr_fer_agt)*mven)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y)
+                                & + (fr_fer_agt*mvhb + (1d0-fr_fer_agt)*mvdp)*(1d0-fr_opx_agt) &! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y))
+                                & ) * (1d0-fr_napx_agt) &! non-Na pyroxene 
+                                & + ( &
+                                & mvjd &! NaAlSi2O6  
+                                & ) *  fr_napx_agt ! fraction of Na pyroxene
                                 !  cm3/mol; molar volume of augite 
-                                ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6)
+                                ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6) ! non-Na pyroxene
+                                ! Fe(xy+x)(1-z)Mg(y-xy+1-x)(1-z)Ca(1-y)(1-z)Si2(1-z)O6(1-z) + NazAlzSi2zO6z
+                                ! = Fe(xy+x)(1-z)Mg(y-xy+1-x)(1-z)Ca(1-y)(1-z)NazAlzSi2O6
                                 ! ; assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mvamnt = 46.40173913043478d0 ! cm3/mol; molar volume of ammonium nitrate (NH4NO3); density 1.725 g/cm3 (at 20C) from wikipedea 
                                 
@@ -210,10 +218,17 @@ real(kind=8),parameter :: mwtmscv = 398.311d0 ! g/mol; formula weight of muscovi
 real(kind=8),parameter :: mwtplgp = 417.262d0 ! g/mol; formula weight of phlogopite
 real(kind=8),parameter :: mwtantp = 780.976d0 ! g/mol; formula weight of anthophyllite
 real(kind=8),parameter :: mwtjd = 202.140 ! g/mol; formula weight of jadeite; Robie et al. 1978
-real(kind=8),parameter :: mwtagt = (fr_fer_agt*mwtfer +(1d0-fr_fer_agt)*mwten)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y)
-                                & + (fr_fer_agt*mwthb + (1d0-fr_fer_agt)*mwtdp)*(1d0-fr_opx_agt) ! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y))
+real(kind=8),parameter :: mwtagt = ( &
+                                & (fr_fer_agt*mwtfer +(1d0-fr_fer_agt)*mwten)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y) or y(Fe2xMg2(1-x)Si2O6)
+                                & + (fr_fer_agt*mwthb + (1d0-fr_fer_agt)*mwtdp)*(1d0-fr_opx_agt) &! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y)) or (1-y)(FexMg(1-x)CaSi2O6)
+                                & ) * (1d0 - fr_napx_agt) &! (1 - z) (Fex(1-y+2y)Mg(1-x)(1-y+2y)Ca(1-y)Si2O6)
+                                & + ( &
+                                & mwtjd &!  NaAlSi2O6
+                                & ) * fr_napx_agt  ! z
                                 !  g/mol; formula weight of augite 
-                                ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6)
+                                ! (Fe(2xy+x(1-y))Mg(2y-2xy+1+xy-x-y)Ca(1-y)Si2O6 = Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6) ! non-Na pyroxene
+                                ! Fe(xy+x)(1-z)Mg(y-xy+1-x)(1-z)Ca(1-y)(1-z)Si2(1-z)O6(1-z) + NazAlzSi2zO6z
+                                ! = Fe(xy+x)(1-z)Mg(y-xy+1-x)(1-z)Ca(1-y)(1-z)NazAlzSi2O6
                                 ! ; assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mwtamnt = 80.043d0 ! g/mol; formula weight of ammonium nitrate 
                                 
@@ -1061,10 +1076,32 @@ staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0 
 staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 ! Augite (Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6); x=fr_fer_agt ; y=fr_opx_agt 
-staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fer_agt* (1d0 + fr_opx_agt)
-staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'mg',dim=1)) = (1d0 - fr_fer_agt )*(fr_opx_agt + 1d0)
-staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0 - fr_opx_agt
+! Augite (Fe(xy+x)(1-z)Mg(y-xy+1-x)(1-z)Ca(1-y)(1-z)NazAlzSi2O6); x=fr_fer_agt ; y=fr_opx_agt ; z=fr_napx_agt
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'fe2',dim=1)) &
+    & = ( fr_fer_agt* (1d0 + fr_opx_agt) ) * (1d0 - fr_napx_agt) 
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'mg',dim=1)) &
+    & = ( (1d0 - fr_fer_agt )*(fr_opx_agt + 1d0) ) * (1d0 - fr_napx_agt)
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'ca',dim=1)) & 
+    & = ( 1d0 - fr_opx_agt ) * (1d0 - fr_napx_agt)
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'na',dim=1)) = fr_napx_agt
+staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'al',dim=1)) = fr_napx_agt
 staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+if ( &
+    & abs( 2d0*staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'fe2',dim=1))  &
+    & + 2d0*staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'mg',dim=1)) &
+    & + 2d0*staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'ca',dim=1)) & 
+    & + staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'na',dim=1)) &
+    & + 3d0*staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'al',dim=1)) &
+    & - 4d0) &
+    & /4d0 > tol &
+    & ) then 
+    print *, '*** ERROR in stoichiometry of augite'
+    stop
+endif 
+! print *,( fr_fer_agt* (1d0 + fr_opx_agt) ) * (1d0 - fr_napx_agt)
+! print *,( (1d0 - fr_fer_agt )*(fr_opx_agt + 1d0) ) * (1d0 - fr_napx_agt)
+! print *,( 1d0 - fr_opx_agt ) * (1d0 - fr_napx_agt)
+! stop
 ! Tremolite (Ca2Mg5(Si8O22)(OH)2)
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'ca',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'tm',dim=1), findloc(chraq_all,'mg',dim=1)) = 5d0
@@ -5200,7 +5237,7 @@ integer,intent(in)::nz
 real(kind=8),intent(in)::rg,rg2,tc,sec2yr,tempk_0
 real(kind=8),dimension(nz),intent(in)::pro
 real(kind=8),dimension(nz)::oh,po2,kin,dkin_dmsp
-real(kind=8) kho,po2th,mv_tmp,therm,ss_x,ss_y
+real(kind=8) kho,po2th,mv_tmp,therm,ss_x,ss_y,ss_z
 real(kind=8),intent(out)::ucv,kw
 
 ! real(kind=8) k_arrhenius
@@ -5497,23 +5534,28 @@ do isps = 1, nsp_sld_all
     select case (trim(adjustl(mineral))) 
         case('la','ab','an','by','olg','and')
             ss_x = staq_all(isps, findloc(chraq_all,'ca',dim=1))
-            ss_y = 0d0 ! non-zero if it is a solid solution 
+            ss_y = 0d0 
+            ss_z = 0d0 
         case('cpx','hb','dp') 
             ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))
-            ss_y = 0d0 ! non-zero if it is a solid solution 
+            ss_y = 0d0 
+            ss_z = 0d0 
         case('opx','en','fer') 
             ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))
-            ss_y = 0d0 ! non-zero if it is a solid solution 
+            ss_y = 0d0 
+            ss_z = 0d0 
         case('agt') 
-            ss_y = 1d0 - staq_all(isps, findloc(chraq_all,'ca',dim=1))
-            ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))/(1d0+ ss_y ) ! non-zero if it is a solid solution 
+            ss_z = staq_all(isps, findloc(chraq_all,'na',dim=1))
+            ss_y = 1d0 - staq_all(isps, findloc(chraq_all,'ca',dim=1))/(1d0 - ss_z)
+            ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))/(1d0+ ss_y )/(1d0 -ss_z)
         case default 
-            ss_x = 0d0 ! non-zero if it is a solid solution 
-            ss_y = 0d0 ! non-zero if it is a solid solution 
+            ss_x = 0d0 
+            ss_y = 0d0 
+            ss_z = 0d0 
     endselect 
     
     call sld_therm( &
-        & rg,tc,tempk_0,ss_x,ss_y &! input
+        & rg,tc,tempk_0,ss_x,ss_y,ss_z &! input
         & ,mineral &! input
         & ,therm &! output
         & ) 
@@ -6477,13 +6519,13 @@ endsubroutine sld_kin
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine sld_therm( &
-    & rg,tc,tempk_0,ss_x,ss_y &! input
+    & rg,tc,tempk_0,ss_x,ss_y,ss_z &! input
     & ,mineral &! input
     & ,therm &! output
     & ) 
 implicit none
 
-real(kind=8),intent(in)::rg,tc,tempk_0,ss_x,ss_y
+real(kind=8),intent(in)::rg,tc,tempk_0,ss_x,ss_y,ss_z
 real(kind=8) :: cal2j = 4.184d0 
 real(kind=8),intent(out):: therm
 character(5),intent(in):: mineral
@@ -6494,6 +6536,8 @@ real(kind=8) tc_ref_3,ha_3,therm_ref_3,therm_3,delG_3
 real(kind=8) tc_ref_4,ha_4,therm_ref_4,therm_4,delG_4
 real(kind=8) tc_ref_5,ha_5,therm_ref_5,therm_5,delG_5
 real(kind=8) tc_ref_6,ha_6,therm_ref_6,therm_6,delG_6
+real(kind=8) tc_ref_7,ha_7,therm_ref_7,therm_7,delG_7
+real(kind=8) tc_ref_8,ha_8,therm_ref_8,therm_8,delG_8
 
 ! real(kind=8) k_arrhenius
 
@@ -6854,12 +6898,31 @@ select case(trim(adjustl(mineral)))
         
         ! finally mixing opx and cpx 
         if (ss_y == 1d0) then 
-            delG = delG_3 ! ideal opx
+            delG_7 = delG_3 ! ideal opx
         elseif (ss_y == 0d0) then 
-            delG = delG_6 ! ideal cpx
+            delG_7 = delG_6 ! ideal cpx
         elseif (ss_y > 0d0 .and. ss_y < 1d0) then  ! solid solution 
             ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
-            delG = ss_y*delG_3 + (1d0-ss_y)*delG_6 + rg*(tc+tempk_0)*(ss_y*log(ss_y)+(1d0-ss_y)*log(1d0-ss_y))
+            delG_7 = ss_y*delG_3 + (1d0-ss_y)*delG_6 + rg*(tc+tempk_0)*(ss_y*log(ss_y)+(1d0-ss_y)*log(1d0-ss_y))
+        endif 
+        therm_7 = exp(-delG_7/(rg*(tc+tempk_0)))
+        
+        ! obtaining Jadeite  
+        therm_ref_8 = 10d0**(8.3888d0)
+        ha_8 = -84.4415d0
+        tc_ref_8 = 25d0
+        ! from llnl.dat in Phreeqc
+        therm_8 = k_arrhenius(therm_ref_8,tc_ref_8+tempk_0,tc+tempk_0,ha_7,rg)
+        delG_8 = - rg*(tc+tempk_0)*log(therm_5) ! del-G = -RT ln K  now in kJ mol-1
+        
+        ! finally mixing non-Na pyroxene (delG_7) and Na-bearing pyroxene (delG_8) 
+        if (ss_z == 1d0) then 
+            delG = delG_8 ! ideal Na-bearlng pyroxene
+        elseif (ss_z == 0d0) then 
+            delG = delG_7 ! ideal no-Na-bearlng pyroxene
+        elseif (ss_z > 0d0 .and. ss_z < 1d0) then  ! solid solution 
+            ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
+            delG = ss_z*delG_8 + (1d0-ss_z)*delG_7 + rg*(tc+tempk_0)*(ss_z*log(ss_z)+(1d0-ss_z)*log(1d0-ss_z))
         endif 
         therm = exp(-delG/(rg*(tc+tempk_0)))
         
