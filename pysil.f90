@@ -430,7 +430,8 @@ integer,intent(in)::nsp_sld != 5
 #ifdef diss_only
 integer,parameter::nsp_sld_2 = 0
 #else
-integer,parameter::nsp_sld_2 = 17
+! integer,parameter::nsp_sld_2 = 17
+integer,parameter::nsp_sld_2 = 16 ! removing dolomite from secondary minerals
 #endif 
 integer,parameter::nsp_sld_all = 45
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
@@ -562,6 +563,7 @@ integer nsld_sa
 character(5),dimension(:),allocatable::chrsld_sa
 
 character(10),dimension(nsp_sld)::precstyle
+real(kind=8),dimension(nsp_sld,nz)::solmod
 
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
@@ -707,8 +709,12 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n2
 #ifdef diss_only
 chrsld_2(:) = '     '
 #else
+! chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
+    ! ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  '/) 
+    
+! version that removes dolomite from 2ndary minerals
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  '/) 
+    ,'arg  ','qtz  ','mgbd ','nabd ','kbd  '/) 
 #endif 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
@@ -1359,11 +1365,18 @@ precstyle = 'def'
 ! precstyle = 'seed '
 ! precstyle = '2/3'
 ! precstyle = 'psd_full'
+! precstyle = 'emmanuel' ! enables solubility change by a const factor or as a function of radius, T and interfacial energy (as in Emmanuel and Ague, 2011, Chem Geol)
+
+solmod = 1d0
 
 do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
         case('g1','g2','g3','amnt')
             precstyle(isps) = 'decay'
+        case('cc') ! added to change solubility 
+            precstyle(isps) = 'def'
+            ! precstyle(isps) = 'emmanuel'
+            ! solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
         case default 
             precstyle(isps) = 'def'
             ! precstyle(isps) = '2/3'
@@ -2956,7 +2969,7 @@ do while (it<nt)
         & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
         & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
-        & ,precstyle &! in 
+        & ,precstyle,solmod &! in 
         !  old inputs
         & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
@@ -18767,7 +18780,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
     & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
-    & ,precstyle &! input
+    & ,precstyle,solmod &! input
     !  old inputs
     & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
@@ -18946,6 +18959,7 @@ logical::new_gassol = .true.
 logical,intent(in)::sld_enforce != .true.
 
 character(10),dimension(nsp_sld),intent(in):: precstyle 
+real(kind=8),dimension(nsp_sld,nz),intent(in):: solmod ! factor to modify solubility used only to implement rxn rate law as defined by Emmanuel and Ague, 2011
 real(kind=8) msld_seed ,fact2
 real(kind=8):: fact_tol = 1d-3
 ! real(kind=8):: fact_tol = 1d-4
@@ -19592,7 +19606,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     
     call sld_rxn( &
         & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
-        & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle &! input
+        & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle,solmod &! input
         & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
         & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
         & ) 
@@ -20667,7 +20681,7 @@ rxnsld = 0d0
     
 call sld_rxn( &
     & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
-    & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle &! input
+    & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle,solmod &! input
     & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
     & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
     & ) 
@@ -21230,7 +21244,7 @@ endsubroutine alsilicate_aq_gas_1D_v3_1
 
 subroutine sld_rxn( &
     & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
-    & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle &! input
+    & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle,solmod &! input
     & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
     & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
     & ) 
@@ -21247,7 +21261,7 @@ real(kind=8),dimension(nsp_aq),intent(in)::maqth
 real(kind=8),dimension(nsp_aq,nz),intent(in)::maq
 real(kind=8),dimension(nsp_gas),intent(in)::mgasth
 real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas,agas
-real(kind=8),dimension(nsp_sld,nz),intent(in)::ksld,omega,nonprec,msldx,msld
+real(kind=8),dimension(nsp_sld,nz),intent(in)::ksld,omega,nonprec,msldx,msld,solmod
 real(kind=8),dimension(nsp_sld,nsp_aq,nz),intent(in)::dksld_dmaq,domega_dmaq
 real(kind=8),dimension(nsp_sld,nsp_gas,nz),intent(in)::dksld_dmgas,domega_dmgas
 character(10),dimension(nsp_sld),intent(in)::precstyle
@@ -21534,6 +21548,36 @@ do isps = 1,nsp_sld
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
                     & + dksld_dmgas(isps,ispg,:)*hr(isps,:)*(1d0-omega(isps,:)) &
                     & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
+                    & )
+            enddo 
+        
+        
+        case('emmanuel')
+            rxnsld(isps,:) = ( &
+                & + ksld(isps,:)*poro*hr(isps,:)*mv(isps)*1d-6*msldx(isps,:)*(1d0-omega(isps,:)*solmod(isps,:)) &
+                & *merge(0d0,1d0,1d0-omega(isps,:)*solmod(isps,:)*nonprec(isps,:) < 0d0) &
+                & )
+        
+            drxnsld_dmsld(isps,:) = ( &
+                & + ksld(isps,:)*poro*hr(isps,:)*mv(isps)*1d-6*1d0*(1d0-omega(isps,:)*solmod(isps,:)) &
+                & *merge(0d0,1d0,1d0-omega(isps,:)*solmod(isps,:)*nonprec(isps,:) < 0d0) &
+                & )
+            
+            do ispa = 1, nsp_aq
+                drxnsld_dmaq(isps,ispa,:) = ( &
+                    & + ksld(isps,:)*poro*hr(isps,:)*mv(isps)*1d-6*msldx(isps,:)*(-domega_dmaq(isps,ispa,:)*solmod(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*solmod(isps,:)*nonprec(isps,:) < 0d0) &
+                    & + dksld_dmaq(isps,ispa,:)*poro*hr(isps,:)*mv(isps)*1d-6*msldx(isps,:)*(1d0-omega(isps,:)*solmod(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*solmod(isps,:)*nonprec(isps,:) < 0d0) &
+                    & )
+            enddo 
+            
+            do ispg = 1, nsp_gas
+                drxnsld_dmgas(isps,ispg,:) = ( &
+                    & + ksld(isps,:)*poro*hr(isps,:)*mv(isps)*1d-6*msldx(isps,:)*(-domega_dmgas(isps,ispg,:)*solmod(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*solmod(isps,:)*nonprec(isps,:) < 0d0) &
+                    & + dksld_dmgas(isps,ispg,:)*poro*hr(isps,:)*mv(isps)*1d-6*msldx(isps,:)*(1d0-omega(isps,:)*solmod(isps,:)) &
+                    & *merge(0d0,1d0,1d0-omega(isps,:)*solmod(isps,:)*nonprec(isps,:) < 0d0) &
                     & )
             enddo 
         
