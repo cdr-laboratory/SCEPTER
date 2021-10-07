@@ -108,8 +108,8 @@ real(kind=8),parameter :: fr_an_an = 1.0d0 ! Anorthite fraction for anorthite (B
 
 real(kind=8),parameter :: fr_hb_cpx = 0.5d0 ! Hedenbergite fraction for clinopyroxene; 0.0 - 1.0
 real(kind=8),parameter :: fr_fer_opx = 0.5d0 ! Ferrosilite fraction for orthopyroxene; 0.0 - 1.0
-real(kind=8),parameter :: fr_fer_agt = 0.5d0 ! Ferrosilite (and Hedenbergite; or Fe/(Fe+Mg)) fraction for Augite; 0.0 - 1.0
-real(kind=8),parameter :: fr_opx_agt = 0.5d0 ! OPX (or Ca/(Fe+Mg)) fraction for Augite; 0.0 - 1.0
+real(kind=8),parameter :: fr_fer_agt = 0.1818d0 ! Ferrosilite (and Hedenbergite; or Fe/(Fe+Mg)) fraction for Augite; 0.0 - 1.0; Beerling et al 2020 
+real(kind=8),parameter :: fr_opx_agt = 0.9d0 ! OPX (or Ca/(Fe+Mg)) fraction for Augite; 0.0 - 1.0; from Beerling et al 2020
 
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
@@ -156,6 +156,7 @@ real(kind=8),parameter :: mvopx = fr_fer_opx*mvfer +(1d0-fr_fer_opx)*mven !  cm3
 real(kind=8),parameter :: mvmscv = 140.71d0 ! cm3/mol; molar volume of muscovite (KAl2(AlSi3O10)(OH)2); Robie et al. 1978
 real(kind=8),parameter :: mvplgp = 149.91d0 ! cm3/mol; molar volume of phlogopite (KMg3(AlSi3O10)(OH)2); Robie et al. 1978
 real(kind=8),parameter :: mvantp = 274.00d0 ! cm3/mol; molar volume of anthophyllite (Mg7Si8O22(OH)2); Robie and Bethke 1962
+real(kind=8),parameter :: mvjd = 60.4d0 ! cm3/mol; molar volume of jadeite (NaAlSi2O6); Robie et al. 1978
 real(kind=8),parameter :: mvagt = (fr_fer_agt*mvfer +(1d0-fr_fer_agt)*mven)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y)
                                 & + (fr_fer_agt*mvhb + (1d0-fr_fer_agt)*mvdp)*(1d0-fr_opx_agt) ! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y))
                                 !  cm3/mol; molar volume of augite 
@@ -208,6 +209,7 @@ real(kind=8),parameter :: mwtopx = fr_fer_opx*mwtfer + (1d0 -fr_fer_opx)*mwten !
 real(kind=8),parameter :: mwtmscv = 398.311d0 ! g/mol; formula weight of muscovite
 real(kind=8),parameter :: mwtplgp = 417.262d0 ! g/mol; formula weight of phlogopite
 real(kind=8),parameter :: mwtantp = 780.976d0 ! g/mol; formula weight of anthophyllite
+real(kind=8),parameter :: mwtjd = 202.140 ! g/mol; formula weight of jadeite; Robie et al. 1978
 real(kind=8),parameter :: mwtagt = (fr_fer_agt*mwtfer +(1d0-fr_fer_agt)*mwten)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y)
                                 & + (fr_fer_agt*mwthb + (1d0-fr_fer_agt)*mwtdp)*(1d0-fr_opx_agt) ! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y))
                                 !  g/mol; formula weight of augite 
@@ -433,7 +435,7 @@ integer,parameter::nsp_sld_2 = 0
 ! integer,parameter::nsp_sld_2 = 17
 integer,parameter::nsp_sld_2 = 16 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 45
+integer,parameter::nsp_sld_all = 46
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -631,6 +633,9 @@ integer t1,t2,t_rate,t_max,diff
 ! character(3):: msldunit = 'sld '
 character(3):: msldunit = 'blk'
 real(kind=8) ucvsld1,ucvsld2
+
+integer iph,nph
+parameter(nph=101)
 !-------------------------
 
 tc = tcin
@@ -688,7 +693,7 @@ chrflx(nflx) = 'res  '
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
-    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ' &
+    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ' &
     & ,'g1   ','g2   ','g3   ','amnt '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -765,11 +770,11 @@ endif
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
-    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt &
+    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd &
     & ,mvg1,mvg2,mvg3,mvamnt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
-    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt &
+    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt/)
 
 do isps = 1, nsp_sld 
@@ -1051,6 +1056,10 @@ staq_all(findloc(chrsld_all,'fer',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fer_opx
 staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0 - fr_fer_opx
 staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+! Jadeite (NaAlSi2O6)
+staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0 
+staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 ! Augite (Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6); x=fr_fer_agt ; y=fr_opx_agt 
 staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fer_agt* (1d0 + fr_opx_agt)
 staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'mg',dim=1)) = (1d0 - fr_fer_agt )*(fr_opx_agt + 1d0)
@@ -1914,6 +1923,31 @@ mblk = mblki
     ! msld(:,iz) = msld(:,iz)*exp( real(iz - nz) )
     ! poro(iz) = 1d0 - sum(msld(:,iz)*mv(:)*1d-6)
 ! enddo 
+    
+#ifdef ksld_chk
+open (idust, file='./ksld_chk.txt', status ='unknown',action='write')
+write(chrfmt,'(i0)') nsp_sld_all
+chrfmt = '(a12,'//trim(adjustl(chrfmt))//'(1x,a5))'
+write(idust,chrfmt) 'pH\sldsp',chrsld_all
+write(chrfmt,'(i0)') nsp_sld_all
+chrfmt = '(1x,f5.2,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+do iph = 1,nph
+    pro = 10d0**(0d0 + (iph-1d0)/(nph-1d0)*(-14d0))
+    
+    call coefs_v2( &
+        & nz,rg,rg2,25d0,sec2yr,tempk_0,pro &! input
+        & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
+        & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
+        & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,staq_all &!input
+        & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
+        & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
+        & ) 
+    ! write(idust,chrfmt) -log10(pro(1)),log10(ksld_all(:,1))
+    write(idust,chrfmt) -log10(pro(1)),ksld_all(:,1)/sec2yr
+enddo 
+close(idust)
+stop
+#endif 
 
 omega = 0d0
 
@@ -5606,6 +5640,26 @@ select case(trim(adjustl(mineral)))
         ean = 69.8d0
         eah = 65d0
         eaoh = 71d0
+        ! above is from table 13 ( this could be a confused mixture of linear and non-linear regression parameters in Table 1)
+        ! following is linear regression result of Table 1
+        ! mh = 0.457d0
+        ! moh = -0.572d0
+        ! kinn_ref = 10d0**(-12.04d0)*sec2yr
+        ! kinh_ref = 10d0**(-9.87d0)*sec2yr
+        ! kinoh_ref = 10d0**(-16.98d0)*sec2yr
+        ! ean = 69.8d0
+        ! eah = 65d0
+        ! eaoh = 71d0
+        ! then non-linear regression
+        ! mh = 0.317d0
+        ! moh = -0.471d0
+        ! kinn_ref = 10d0**(-12.56d0)*sec2yr
+        ! kinh_ref = 10d0**(-10.16d0)*sec2yr
+        ! kinoh_ref = 10d0**(-15.6d0)*sec2yr
+        ! ean = 65d0
+        ! eah = 65d0
+        ! eaoh = 66.5d0
+        !!! 
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004)
         kin = ( & 
@@ -5628,12 +5682,17 @@ select case(trim(adjustl(mineral)))
         moh = -0.823d0
         kinn_ref = 10d0**(-12.41d0)*sec2yr
         kinh_ref = 10d0**(-10.06d0)*sec2yr
-        kinoh_ref = 10d0**(-9.68d0)*sec2yr*kw**(-moh)
-        ean = 9.08*cal2j
-        eah = 12.4d0*cal2j
-        eaoh = 22.5d0*cal2j
+        ! kinoh_ref = 10d0**(-9.68d0)*sec2yr*kw**(-moh)
+        kinoh_ref = 10d0**(-21.2d0)*sec2yr*kw**(-moh)
+        ! ean = 9.08*cal2j
+        ! eah = 12.4d0*cal2j
+        ! eaoh = 22.5d0*cal2j
+        ean = 38d0
+        eah = 51.7d0
+        eaoh = 94.1d0
         tc_ref = 25d0
-        ! from Brantley et al 2008
+        ! from Brantley et al 2008 
+        ! modified so to be from Palandri and Kharaka, 2004
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
@@ -5730,12 +5789,15 @@ select case(trim(adjustl(mineral)))
     case('la')
         mh = 0.626d0
         moh = 0d0
+        moh = -0.57d0
         kinn_ref = 10d0**(-10.91d0)*sec2yr
         kinh_ref = 10d0**(-7.87d0)*sec2yr
-        kinoh_ref = 0d0
+        kinoh_ref = 0d0 ! original data 
+        kinoh_ref = 10d0**(-15.57d0)*sec2yr ! added by Beerling et al. 2020 from albite data of Palandri and Kharaka 2004
         ean = 45.2d0
         eah = 42.1d0
-        eaoh = 0d0
+        eaoh = 0d0 ! original data
+        eaoh = 71d0 ! Beerling
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
         kin = ( & 
@@ -6246,6 +6308,32 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
     
+    case('jd')
+        mh = 0.70d0
+        moh = 0d0
+        kinn_ref = 10d0**(-9.50d0)*sec2yr
+        kinh_ref = 10d0**(-6.00d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 94.4d0
+        eah = 132.2d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! for jadeite from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+    
     case('tm')
         mh = 0.70d0
         moh = 0d0
@@ -6595,6 +6683,18 @@ select case(trim(adjustl(mineral)))
         ! tc_ref = 15d0
         ! from Kanzaki & Murakami 2018
         ! therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('jd')
+        ! Jadeite  NaAl(SiO3)2 +4.0000 H+  =  + 1.0000 Al+++ + 1.0000 Na+ + 2.0000 H2O + 2.0000 SiO2
+        therm_ref = 10d0**(8.3888d0)
+        ha = -84.4415d0
+        tc_ref = 25d0
+        ! from llnl.dat in Phreeqc
+        ! $Id: llnl.dat 12776 2017-08-02 20:02:16Z dlpark $
+        ! Data are from 'thermo.com.V8.R6.230' prepared by Jim Johnson at
+        ! Lawrence Livermore National Laboratory, in Geochemist's Workbench
+        ! format. Converted to Phreeqc format by Greg Anderson with help from
+        ! David Parkhurst. A few organic species have been omitted.  
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('tm')
         ! Tremolite  + 14 H+  = 8 H2O  + 8 SiO2(aq)  + 2 Ca++  + 5 Mg++
         therm_ref = 10d0**(61.6715d0)
@@ -17225,7 +17325,7 @@ select case(trim(adjustl(mineral)))
     case ( &
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
-        & ,'agt' &
+        & ,'agt','jd' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
