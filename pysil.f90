@@ -158,6 +158,7 @@ real(kind=8),parameter :: mvmscv = 140.71d0 ! cm3/mol; molar volume of muscovite
 real(kind=8),parameter :: mvplgp = 149.91d0 ! cm3/mol; molar volume of phlogopite (KMg3(AlSi3O10)(OH)2); Robie et al. 1978
 real(kind=8),parameter :: mvantp = 274.00d0 ! cm3/mol; molar volume of anthophyllite (Mg7Si8O22(OH)2); Robie and Bethke 1962
 real(kind=8),parameter :: mvjd = 60.4d0 ! cm3/mol; molar volume of jadeite (NaAlSi2O6); Robie et al. 1978
+real(kind=8),parameter :: mvwls = 39.93d0 ! cm3/mol; molar volume of wollastonite (CaSiO3); Robie et al. 1978
 real(kind=8),parameter :: mvagt = ( & 
                                 & (fr_fer_agt*mvfer +(1d0-fr_fer_agt)*mven)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y)
                                 & + (fr_fer_agt*mvhb + (1d0-fr_fer_agt)*mvdp)*(1d0-fr_opx_agt) &! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y))
@@ -217,7 +218,8 @@ real(kind=8),parameter :: mwtopx = fr_fer_opx*mwtfer + (1d0 -fr_fer_opx)*mwten !
 real(kind=8),parameter :: mwtmscv = 398.311d0 ! g/mol; formula weight of muscovite
 real(kind=8),parameter :: mwtplgp = 417.262d0 ! g/mol; formula weight of phlogopite
 real(kind=8),parameter :: mwtantp = 780.976d0 ! g/mol; formula weight of anthophyllite
-real(kind=8),parameter :: mwtjd = 202.140 ! g/mol; formula weight of jadeite; Robie et al. 1978
+real(kind=8),parameter :: mwtjd = 202.140d0 ! g/mol; formula weight of jadeite; Robie et al. 1978
+real(kind=8),parameter :: mwtwls = 116.164d0 ! g/mol; formula weight of wollastonite; Robie et al. 1978
 real(kind=8),parameter :: mwtagt = ( &
                                 & (fr_fer_agt*mwtfer +(1d0-fr_fer_agt)*mwten)*2d0*fr_opx_agt &! (Fe2xyMg2(1-x)ySi2yO6y) or y(Fe2xMg2(1-x)Si2O6)
                                 & + (fr_fer_agt*mwthb + (1d0-fr_fer_agt)*mwtdp)*(1d0-fr_opx_agt) &! (Fex(1-y)Mg(1-x)(1-y)Ca(1-y)Si2(1-y)O6(1-y)) or (1-y)(FexMg(1-x)CaSi2O6)
@@ -374,8 +376,8 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
-logical :: dust_step = .false.
-! logical :: dust_step = .true.
+! logical :: dust_step = .false.
+logical :: dust_step = .true.
 
 logical,dimension(3) :: climate != .false.
 ! logical,dimension(3) :: climate != .true.
@@ -450,7 +452,7 @@ integer,parameter::nsp_sld_2 = 0
 ! integer,parameter::nsp_sld_2 = 17
 integer,parameter::nsp_sld_2 = 16 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 46
+integer,parameter::nsp_sld_all = 47
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -708,7 +710,7 @@ chrflx(nflx) = 'res  '
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
-    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ' &
+    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ' &
     & ,'g1   ','g2   ','g3   ','amnt '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -785,11 +787,11 @@ endif
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
-    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd &
+    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls &
     & ,mvg1,mvg2,mvg3,mvamnt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
-    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd &
+    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt/)
 
 do isps = 1, nsp_sld 
@@ -1075,6 +1077,9 @@ staq_all(findloc(chrsld_all,'opx',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0 
 staq_all(findloc(chrsld_all,'jd',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
+! Wollastonite (CaSiO3)
+staq_all(findloc(chrsld_all,'wls',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0 
+staq_all(findloc(chrsld_all,'wls',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Augite (Fe(xy+x)Mg(y-xy+1-x)Ca(1-y)Si2O6); x=fr_fer_agt ; y=fr_opx_agt 
 ! Augite (Fe(xy+x)(1-z)Mg(y-xy+1-x)(1-z)Ca(1-y)(1-z)NazAlzSi2O6); x=fr_fer_agt ; y=fr_opx_agt ; z=fr_napx_agt
 staq_all(findloc(chrsld_all,'agt',dim=1), findloc(chraq_all,'fe2',dim=1)) &
@@ -6376,6 +6381,32 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
     
+    case('wls')
+        mh = 0.40d0
+        moh = 0d0
+        kinn_ref = 10d0**(-8.88d0)*sec2yr
+        kinh_ref = 10d0**(-5.37d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 54.7d0
+        eah = 54.7d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! for wollastonite from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+    
     case('tm')
         mh = 0.70d0
         moh = 0d0
@@ -6738,6 +6769,13 @@ select case(trim(adjustl(mineral)))
         ! Lawrence Livermore National Laboratory, in Geochemist's Workbench
         ! format. Converted to Phreeqc format by Greg Anderson with help from
         ! David Parkhurst. A few organic species have been omitted.  
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('wls')
+        ! Wollastonite  CaSiO3 +2.0000 H+  =  + 1.0000 Ca++ + 1.0000 H2O + 1.0000 SiO2
+        therm_ref = 10d0**(13.7605d0)
+        ha = -76.5756d0
+        tc_ref = 25d0
+        ! from llnl.dat in Phreeqc
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('tm')
         ! Tremolite  + 14 H+  = 8 H2O  + 8 SiO2(aq)  + 2 Ca++  + 5 Mg++
@@ -17388,7 +17426,7 @@ select case(trim(adjustl(mineral)))
     case ( &
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
-        & ,'agt','jd' &
+        & ,'agt','jd','wls' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
