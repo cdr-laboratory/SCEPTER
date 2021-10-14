@@ -376,8 +376,8 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
-! logical :: dust_step = .false.
-logical :: dust_step = .true.
+logical :: dust_step = .false.
+! logical :: dust_step = .true.
 
 logical,dimension(3) :: climate != .false.
 ! logical,dimension(3) :: climate != .true.
@@ -5689,14 +5689,14 @@ select case(trim(adjustl(mineral)))
         eaoh = 71d0
         ! above is from table 13 ( this could be a confused mixture of linear and non-linear regression parameters in Table 1)
         ! following is linear regression result of Table 1
-        ! mh = 0.457d0
-        ! moh = -0.572d0
-        ! kinn_ref = 10d0**(-12.04d0)*sec2yr
-        ! kinh_ref = 10d0**(-9.87d0)*sec2yr
-        ! kinoh_ref = 10d0**(-16.98d0)*sec2yr
-        ! ean = 69.8d0
-        ! eah = 65d0
-        ! eaoh = 71d0
+        mh = 0.457d0
+        moh = -0.572d0
+        kinn_ref = 10d0**(-12.04d0)*sec2yr
+        kinh_ref = 10d0**(-9.87d0)*sec2yr
+        kinoh_ref = 10d0**(-16.98d0)*sec2yr
+        ean = 69.8d0
+        eah = 65d0
+        eaoh = 71d0
         ! then non-linear regression
         ! mh = 0.317d0
         ! moh = -0.471d0
@@ -5730,7 +5730,7 @@ select case(trim(adjustl(mineral)))
         kinn_ref = 10d0**(-12.41d0)*sec2yr
         kinh_ref = 10d0**(-10.06d0)*sec2yr
         ! kinoh_ref = 10d0**(-9.68d0)*sec2yr*kw**(-moh)
-        kinoh_ref = 10d0**(-21.2d0)*sec2yr*kw**(-moh)
+        kinoh_ref = 10d0**(-21.2d0)*sec2yr
         ! ean = 9.08*cal2j
         ! eah = 12.4d0*cal2j
         ! eaoh = 22.5d0*cal2j
@@ -5738,8 +5738,7 @@ select case(trim(adjustl(mineral)))
         eah = 51.7d0
         eaoh = 94.1d0
         tc_ref = 25d0
-        ! from Brantley et al 2008 
-        ! modified so to be from Palandri and Kharaka, 2004
+        ! Brantley et al 2008 used data from Palandri and Kharaka, 2004
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
@@ -5840,11 +5839,11 @@ select case(trim(adjustl(mineral)))
         kinn_ref = 10d0**(-10.91d0)*sec2yr
         kinh_ref = 10d0**(-7.87d0)*sec2yr
         kinoh_ref = 0d0 ! original data 
-        kinoh_ref = 10d0**(-15.57d0)*sec2yr ! added by Beerling et al. 2020 from albite data of Palandri and Kharaka 2004
+        ! kinoh_ref = 10d0**(-15.57d0)*sec2yr ! added by Beerling et al. 2020 from albite data of Palandri and Kharaka 2004
         ean = 45.2d0
         eah = 42.1d0
         eaoh = 0d0 ! original data
-        eaoh = 71d0 ! Beerling
+        ! eaoh = 71d0 ! Beerling
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
         kin = ( & 
@@ -6104,6 +6103,16 @@ select case(trim(adjustl(mineral)))
         eaoh = 0d0
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
+        mh = 0.309d0 ! brantley 2008
+        moh = -0.411d0 ! brantley 2008
+        kinn_ref = 10d0**(-13.40d0)*sec2yr
+        kinh_ref = 4.34d-12 *sec2yr ! brantley 2008
+        kinoh_ref = 6.06d-10 * kw**(-moh) *sec2yr ! brantley 2008
+        ean = 90.9d0
+        eah = 90.9d0 ! assumed to be the same as ean
+        eaoh = 90.9d0 ! assumed to be the same as ean
+        tc_ref = 25d0
+        ! pH neutral range from Palandri and Kharaka, 2004 pH dependence from Brantley et al 2008
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
