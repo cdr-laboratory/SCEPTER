@@ -6,7 +6,8 @@ integer nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nz,nsld_kinspc
 character(5),dimension(:),allocatable::chraq,chrsld,chrgas,chrrxn_ext,chrsld_kinspc 
 real(kind=8),dimension(:),allocatable::kin_sld_spc
 character(500) sim_name,runname_save,cwd,path,path2,cmd
-real(kind=8) ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref,tc
+real(kind=8) ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref,tc,rainpowder_2nd &
+    & ,step_tau
 integer count_dtunchanged_Max
 
 
@@ -49,13 +50,13 @@ sim_name = 'chkchk'
 
 call get_bsdvalues( &
     & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,sim_name,plant_rain,runname_save &! output
-    & ,count_dtunchanged_Max,tc &
+    & ,count_dtunchanged_Max,tc,rainpowder_2nd,step_tau &
     & )
     
 call weathering_main( &
-    & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,ttot,plant_rain  &! input
+    & nz,ztot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,ttot,plant_rain,rainpowder_2nd  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
-    & ,count_dtunchanged_Max,tc &! input 
+    & ,count_dtunchanged_Max,tc,step_tau &! input 
     & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
     & )
 
@@ -67,9 +68,9 @@ contains
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
  
 subroutine weathering_main( &
-    & nz,ztot,rainpowder,zsupp,poroi,satup0,zsat,zml_ref,w0,q0,p80,ttot,plant_rain  &! input
+    & nz,ztot,rainpowder,zsupp,poroi,satup0,zsat,zml_ref,w0,q0,p80,ttot,plant_rain,rainpowder_2nd  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
-    & ,count_dtunchanged_Max,tcin &! input 
+    & ,count_dtunchanged_Max,tcin,step_tau &! input 
     & ,nsld_kinspc_in,chrsld_kinspc_in,kin_sld_spc_in &! input 
     & )
 
@@ -253,6 +254,7 @@ real(kind=8)::zsupp_plant = 0.3d0 !  e-folding decrease
 ! real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
 ! real(kind=8)::rainpowder = 0.5d2 !  g/m2/yr corresponding to 0.5 t/ha/yr (0.5x1e3x1e3/1e4)
 real(kind=8),intent(in)::rainpowder != 30d2 !  g/m2/yr 
+real(kind=8),intent(in)::rainpowder_2nd != 30d2 !  g/m2/yr 
 ! real(kind=8)::rainpowder = 10d2 !  g/m2/yr corresponding to 10 t/ha/yr (0.5x1e3x1e3/1e4)
 
 
@@ -376,8 +378,8 @@ logical :: noncnstw = .true.  ! varied with porosity
 logical :: display_lim = .false. ! limiting display fluxes and concs. 
 ! logical :: display_lim = .true.
 
-logical :: dust_step = .false.
-! logical :: dust_step = .true.
+! logical :: dust_step = .false.
+logical :: dust_step = .true.
 
 logical,dimension(3) :: climate != .false.
 ! logical,dimension(3) :: climate != .true.
@@ -385,7 +387,7 @@ logical,dimension(3) :: climate != .false.
 logical :: season = .false.
 ! logical :: season = .true.
 
-real(kind=8) :: step_tau = 0.1d0 ! yr time duration during which dust is added
+real(kind=8),intent(in) :: step_tau ! = 0.1d0 ! yr time duration during which dust is added
 real(kind=8) :: tol_step_tau = 1d-6 ! yr time duration during which dust is added
 
 real(kind=8) :: wave_tau = 2d0 ! yr periodic time for wave 
@@ -484,7 +486,7 @@ character(5),dimension(nrxn_ext),intent(in)::chrrxn_ext
 character(5),dimension(nrxn_ext_all)::chrrxn_ext_all
 character(5),dimension(nsld_kinspc_in),intent(in)::chrsld_kinspc_in
 character(5),dimension(:),allocatable ::chrsld_kinspc
-real(kind=8),dimension(nsp_sld)::msldi,msldth,mv,rfrc_sld,mwt,rfrc_sld_plant
+real(kind=8),dimension(nsp_sld)::msldi,msldth,mv,rfrc_sld,mwt,rfrc_sld_plant,rfrc_sld_2nd
 real(kind=8),dimension(nsp_sld,nsp_aq)::staq
 real(kind=8),dimension(nsp_sld,nsp_gas)::stgas
 real(kind=8),dimension(nsp_sld,nz)::msldx,msld,ksld,omega,msldsupp,nonprec,rxnsld
@@ -514,6 +516,7 @@ real(kind=8),dimension(nsp_sld_all,nz)::ksld_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_gas_all)::stgas_all
 real(kind=8),dimension(nsp_sld_all)::keqsld_all,mv_all,msldi_all,msldth_all,rfrc_sld_all,mwt_all,rfrc_sld_plant_all,msldi_allx
+real(kind=8),dimension(nsp_sld_all)::rfrc_sld_all_2nd
 real(kind=8),dimension(nrxn_ext_all,nz)::krxn1_ext_all
 real(kind=8),dimension(nrxn_ext_all,nz)::krxn2_ext_all
 real(kind=8),dimension(nrxn_ext_all,nsp_aq_all)::staq_ext_all,staq_dext_all
@@ -1313,7 +1316,14 @@ call get_dust( &
     & ,rfrc_sld_all &! output
     & )
 
+! added 2nd type of dust (fertilizer/manure etc.)
+call get_dust_2nd( &
+    & nsp_sld_all,chrsld_all,def_dust &! input
+    & ,rfrc_sld_all_2nd &! output
+    & )
+
 rfrc_sld_all = rfrc_sld_all/mwt_all
+rfrc_sld_all_2nd = rfrc_sld_all_2nd/mwt_all ! added 
 ! rfrc_sld_all = rfrc_sld_all/sum(rfrc_sld_all)
 
 
@@ -1335,10 +1345,13 @@ call get_OM_rain( &
 ! rfrc_sld_plant_all = rfrc_sld_plant_all/mwt_all
 ! rfrc_sld_plant_all = rfrc_sld_plant_all/sum(rfrc_sld_plant_all)
 
+dust_step = .false.
+if (step_tau >0d0 .and. step_tau <1d0)dust_step = .true.
 
 
 do isps = 1, nsp_sld 
     rfrc_sld(isps) = rfrc_sld_all(findloc(chrsld_all,chrsld(isps),dim=1))
+    rfrc_sld_2nd(isps) = rfrc_sld_all_2nd(findloc(chrsld_all,chrsld(isps),dim=1))
     rfrc_sld_plant(isps) = rfrc_sld_plant_all(findloc(chrsld_all,chrsld(isps),dim=1))
 enddo
 
@@ -1348,6 +1361,12 @@ call get_switches( &
     & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &!
     & )
+
+! if (zml_ref == 0d0) then 
+    ! print*,'***| because zml = 0 specified in frame.in'
+    ! print*,'***| no bioturbation is assumed regardless of the mixing type put in switch.in'
+    ! imixtype=imixtype_nobio
+! endif 
 
 no_biot = .false.
 biot_turbo2 = .false.
@@ -2667,9 +2686,11 @@ do while (it<nt)
     mgassupp = 0d0
     do isps = 1, nsp_sld
         if (no_biot) then 
-            msldsupp(isps,:) = rainpowder*rfrc_sld(isps)*exp(-z/zsupp)/zsupp
+            msldsupp(isps,:) = rainpowder*rfrc_sld(isps)*exp(-z/zsupp)/zsupp &
+                & + rainpowder_2nd*rfrc_sld_2nd(isps)*exp(-z/zsupp)/zsupp
         else 
-            msldsupp(isps,1) = rainpowder*rfrc_sld(isps)/dz(1)
+            msldsupp(isps,1) = rainpowder*rfrc_sld(isps)/dz(1)  &
+                & + rainpowder_2nd*rfrc_sld_2nd(isps)/dz(1)
         endif 
     enddo 
     
@@ -4789,12 +4810,13 @@ endsubroutine get_saved_variables
 
 subroutine get_bsdvalues( &
     & nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,zml_ref,w,qin,p80,sim_name,plant_rain,runname_save &! output
-    & ,count_dtunchanged_Max,tc &
+    & ,count_dtunchanged_Max,tc,rainpowder_2nd,step_tau &
     & )
 implicit none
 
 integer,intent(out):: nz
-real(kind=8),intent(out)::ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref,tc
+real(kind=8),intent(out)::ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,plant_rain,zml_ref,tc,rainpowder_2nd &
+    & ,step_tau
 character(500),intent(out)::sim_name,runname_save
 integer,intent(out)::count_dtunchanged_Max
 
@@ -4808,6 +4830,8 @@ read(50,*) nz
 read(50,*) ttot
 read(50,*) tc
 read(50,*) rainpowder
+read(50,*) rainpowder_2nd
+read(50,*) step_tau
 read(50,*) plant_rain
 read(50,*) zsupp
 read(50,*) poroi
@@ -4823,8 +4847,10 @@ read(50,'()')
 read(50,*) sim_name
 close(50)
 
-print*,'nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save,count_dtunchanged_Max'
-print*,nz,ztot,ttot,rainpowder,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain,runname_save,count_dtunchanged_Max
+print*,'nz,ztot,ttot,rainpowder,rainpowder_2nd,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain'// &
+    & ',runname_save,count_dtunchanged_Max,step_tau'
+print*,nz,ztot,ttot,rainpowder,rainpowder_2nd,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain &
+    & ,runname_save,count_dtunchanged_Max,step_tau
 
 endsubroutine get_bsdvalues
 
@@ -4915,6 +4941,50 @@ close(50)
 
 
 endsubroutine get_dust
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_dust_2nd( &
+    & nsp_sld_all,chrsld_all,def_dust &! input
+    & ,dust_frct_all &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld_all
+character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
+real(kind=8),dimension(nsp_sld_all),intent(out)::dust_frct_all
+real(kind=8),intent(in)::def_dust 
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i,n_tmp
+
+file_name = './dust_2nd.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+
+! in default 
+dust_frct_all = def_dust
+
+if (n_tmp <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,n_tmp
+    read(50,*) chr_tmp,val_tmp
+    if (any(chrsld_all == chr_tmp)) then 
+        dust_frct_all(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp
+    endif 
+enddo 
+close(50)
+
+
+endsubroutine get_dust_2nd
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
