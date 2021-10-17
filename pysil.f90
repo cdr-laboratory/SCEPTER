@@ -159,6 +159,7 @@ real(kind=8),parameter :: mvopx = fr_fer_opx*mvfer +(1d0-fr_fer_opx)*mven !  cm3
 real(kind=8),parameter :: mvmscv = 140.71d0 ! cm3/mol; molar volume of muscovite (KAl2(AlSi3O10)(OH)2); Robie et al. 1978
 real(kind=8),parameter :: mvplgp = 149.91d0 ! cm3/mol; molar volume of phlogopite (KMg3(AlSi3O10)(OH)2); Robie et al. 1978
 real(kind=8),parameter :: mvantp = 274.00d0 ! cm3/mol; molar volume of anthophyllite (Mg7Si8O22(OH)2); Robie and Bethke 1962
+real(kind=8),parameter :: mvsplt = 285.600d0 ! cm3/mol; molar volume of sepiolite (Mg4Si6O15(OH)2:6H2O); Wolery and Jove-Colon 2004
 real(kind=8),parameter :: mvjd = 60.4d0 ! cm3/mol; molar volume of jadeite (NaAlSi2O6); Robie et al. 1978
 real(kind=8),parameter :: mvwls = 39.93d0 ! cm3/mol; molar volume of wollastonite (CaSiO3); Robie et al. 1978
 real(kind=8),parameter :: mvagt = ( & 
@@ -221,6 +222,7 @@ real(kind=8),parameter :: mwtopx = fr_fer_opx*mwtfer + (1d0 -fr_fer_opx)*mwten !
 real(kind=8),parameter :: mwtmscv = 398.311d0 ! g/mol; formula weight of muscovite
 real(kind=8),parameter :: mwtplgp = 417.262d0 ! g/mol; formula weight of phlogopite
 real(kind=8),parameter :: mwtantp = 780.976d0 ! g/mol; formula weight of anthophyllite
+real(kind=8),parameter :: mwtsplt = 647.8304d0 ! g/mol; formula weight of sepiolite
 real(kind=8),parameter :: mwtjd = 202.140d0 ! g/mol; formula weight of jadeite; Robie et al. 1978
 real(kind=8),parameter :: mwtwls = 116.164d0 ! g/mol; formula weight of wollastonite; Robie et al. 1978
 real(kind=8),parameter :: mwtagt = ( &
@@ -456,7 +458,7 @@ integer,parameter::nsp_sld_2 = 0
 ! integer,parameter::nsp_sld_2 = 18
 integer,parameter::nsp_sld_2 = 17 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 48
+integer,parameter::nsp_sld_all = 49
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -715,7 +717,7 @@ chrflx(nflx) = 'res  '
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
-    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ' &
+    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ' &
     & ,'g1   ','g2   ','g3   ','amnt '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -792,11 +794,11 @@ endif
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
-    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi &
+    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt &
     & ,mvg1,mvg2,mvg3,mvamnt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
-    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi &
+    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt/)
 
 do isps = 1, nsp_sld 
@@ -1128,6 +1130,9 @@ staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'k',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'mg',dim=1)) = 3d0
 staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
+! Sepiolite (Mg4Si6O15(OH)2:6H2O)
+staq_all(findloc(chrsld_all,'splt',dim=1), findloc(chraq_all,'mg',dim=1)) = 4d0
+staq_all(findloc(chrsld_all,'splt',dim=1), findloc(chraq_all,'si',dim=1)) = 6d0
 ! Amorphous silica; SiO2
 staq_all(findloc(chrsld_all,'amsi',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Phytolith silica; SiO2
@@ -6534,7 +6539,7 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
     
-    case('antp')
+    case('antp','splt')
         mh = 0.440d0
         moh = 0d0
         kinn_ref = 10d0**(-14.24d0)*sec2yr
@@ -6544,7 +6549,8 @@ select case(trim(adjustl(mineral)))
         eah = 51.0d0
         eaoh = 0d0
         tc_ref = 25d0
-        ! from Palandri and Kharaka, 2004
+        ! for anthophyllite from Palandri and Kharaka, 2004
+        ! sepiolite dissolution is assumed to be close to anthophyllite dissolution (Mulders and Oelkers 2020 GCA)
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
@@ -6899,6 +6905,13 @@ select case(trim(adjustl(mineral)))
         ha = -508.6621624d0
         tc_ref = 15d0
         ! from Kanzaki & Murakami 2018
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('splt')
+        ! Sepiolite: Mg4Si6O15(OH)2:6H2O +8.0000 H+  =  + 4.0000 Mg++ + 6.0000 SiO2 + 11.0000 H2O
+        therm_ref = 10d0**(30.4439d0)
+        ha = -157.339d0
+        tc_ref = 25d0
+        ! from llnl.dat in Phreeqc
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('gps')
         ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O
@@ -17535,7 +17548,7 @@ select case(trim(adjustl(mineral)))
     case ( &
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
-        & ,'agt','jd','wls','phsi' &
+        & ,'agt','jd','wls','phsi','splt' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
