@@ -143,6 +143,7 @@ real(kind=8),parameter :: mvg1 = 30d0/1.5d0 ! cm3/mol; assumed to be same as mvo
 real(kind=8),parameter :: mvg2 = 30d0/1.5d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8),parameter :: mvg3 = 30d0/1.5d0 ! cm3/mol; assumed to be same as mvom
 real(kind=8),parameter :: mvamsi = 25.739d0 ! cm3/mol; molar volume of amorphous silica taken as cristobalite (SiO2); Robie et al. 1978
+real(kind=8),parameter :: mvphsi = 25.739d0 ! cm3/mol; molar volume of phytolith silica taken as cristobalite (SiO2); Robie et al. 1978
 real(kind=8),parameter :: mvarg = 34.15d0 ! cm3/mol; molar volume of aragonite; Robie et al. 1978
 real(kind=8),parameter :: mvdlm = 64.34d0 ! cm3/mol; molar volume of dolomite; Robie et al. 1978
 real(kind=8),parameter :: mvhm = 30.274d0 ! cm3/mol; molar volume of hematite; Robie et al. 1978
@@ -204,6 +205,7 @@ real(kind=8),parameter :: mwtg1 = 30d0 ! g/mol; formula weight of CH2O
 real(kind=8),parameter :: mwtg2 = 30d0 ! g/mol; formula weight of CH2O
 real(kind=8),parameter :: mwtg3 = 30d0 ! g/mol; formula weight of CH2O
 real(kind=8),parameter :: mwtamsi = 60.085d0 ! g/mol; formula weight of amorphous silica
+real(kind=8),parameter :: mwtphsi = 60.085d0 ! g/mol; formula weight of phytolith silica
 real(kind=8),parameter :: mwtarg = 100.089d0 ! g/mol; formula weight of aragonite
 real(kind=8),parameter :: mwtdlm = 184.403d0 ! g/mol; formula weight of dolomite
 real(kind=8),parameter :: mwthm = 159.692d0 ! g/mol; formula weight of hematite
@@ -451,10 +453,10 @@ integer,intent(in)::nsp_sld != 5
 #ifdef diss_only
 integer,parameter::nsp_sld_2 = 0
 #else
-! integer,parameter::nsp_sld_2 = 17
-integer,parameter::nsp_sld_2 = 16 ! removing dolomite from secondary minerals
+! integer,parameter::nsp_sld_2 = 18
+integer,parameter::nsp_sld_2 = 17 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 47
+integer,parameter::nsp_sld_all = 48
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -713,7 +715,7 @@ chrflx(nflx) = 'res  '
 chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','fa   ','gt   ','cabd ' &
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
-    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ' &
+    & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ' &
     & ,'g1   ','g2   ','g3   ','amnt '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -735,11 +737,11 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n2
 chrsld_2(:) = '     '
 #else
 ! chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    ! ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  '/) 
+    ! ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  ','phsi '/) 
     
 ! version that removes dolomite from 2ndary minerals
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    ,'arg  ','qtz  ','mgbd ','nabd ','kbd  '/) 
+    ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi '/) 
 #endif 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
@@ -790,11 +792,11 @@ endif
 
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
-    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls &
+    & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi &
     & ,mvg1,mvg2,mvg3,mvamnt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
-    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls &
+    & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt/)
 
 do isps = 1, nsp_sld 
@@ -1128,6 +1130,8 @@ staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'plgp',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
 ! Amorphous silica; SiO2
 staq_all(findloc(chrsld_all,'amsi',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
+! Phytolith silica; SiO2
+staq_all(findloc(chrsld_all,'phsi',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Quartz; SiO2
 staq_all(findloc(chrsld_all,'qtz',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Aragonite (CaCO3)
@@ -6162,6 +6166,24 @@ select case(trim(adjustl(mineral)))
             & ) 
         dkin_dmsp = 0d0
 
+    case('phsi')
+        mh = 1d0
+        moh = -0.33d0
+        kinn_ref = 5d-18*1d4*sec2yr ! given as mol/cm2/sec; converted to mol/m2/yr
+        kinh_ref = 6d-16*1d4*sec2yr ! given as mol/cm2/sec; converted to mol/m2/yr
+        kinoh_ref = 3.5d-13*1d4*sec2yr *kw**(-moh) ! given as mol/cm2/sec; converted to mol/m2/yr
+        ean = 74.5d0 
+        eah = 74.5d0 
+        eaoh = 74.5d0 
+        tc_ref = 25d0
+        ! from Fraysse et al. 2009 except for Ea which is taken from value for Palandri and Kharaka 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        dkin_dmsp = 0d0
+
     case('qtz')
         mh = 0d0
         moh = 0d0
@@ -6745,6 +6767,14 @@ select case(trim(adjustl(mineral)))
         ha = 3.340d0*cal2j
         tc_ref = 25d0
         ! from PHREEQC.DAT 
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('phsi')
+        ! SiO2 + 2 H2O = H4SiO4
+        therm_ref = 10d0**(-2.74d0)
+        ha = 10.85d0
+        tc_ref = 25d0
+        ! from Fraysse et al. 2006 for banboo phytolith 
+        ! (see Fraysse et al. 2009 for different values for different plant phytoliths) 
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('qtz')
         ! SiO2 + 2H2O = H4SiO4
@@ -17505,7 +17535,7 @@ select case(trim(adjustl(mineral)))
     case ( &
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
-        & ,'agt','jd','wls' &
+        & ,'agt','jd','wls','phsi' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
