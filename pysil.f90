@@ -1480,10 +1480,14 @@ do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
         case('g1','g2','g3','amnt')
             precstyle(isps) = 'decay'
-        case('cc') ! added to change solubility 
+        case('cc','arg') ! added to change solubility 
             precstyle(isps) = 'def'
-            ! precstyle(isps) = 'emmanuel'
-            ! solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
+            precstyle(isps) = 'emmanuel'
+            solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
+        case('casp','ksp','nasp','mgsp')
+            precstyle(isps) = 'def'
+            precstyle(isps) = 'emmanuel'
+            solmod(isps,:) = 0.05d0 ! assumed factor to be multiplied with omega
         case default 
             precstyle(isps) = 'def'
             ! precstyle(isps) = '2/3'
@@ -5750,7 +5754,7 @@ character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgas_loc
 
 real(kind=8),dimension(nz) :: pco2
-real(kind=8) mco2,kinco2_ref,eaco2
+real(kind=8) mco2,kinco2_ref,eaco2,q10,kref
 
 ! real(kind=8) k_arrhenius
 
@@ -6650,24 +6654,44 @@ select case(trim(adjustl(mineral)))
         kin = ( &
             & 1d0/1d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
             & )
+        ! adding temperature dependence in the form of Q10
+        kref = 1d0/1d0
+        tc_ref = 15d0
+        q10 = 3d0
+        kin = k_q10(kref,tc,tc_ref,q10)
         dkin_dmsp = 0d0
         
     case('g2')
         kin = ( &
             & 1d0/8d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 8 year as in Chen et al. (2010, AFM) 
             & )
+        ! adding temperature dependence in the form of Q10
+        kref = 1d0/8d0
+        tc_ref = 15d0
+        q10 = 3d0
+        kin = k_q10(kref,tc,tc_ref,q10)
         dkin_dmsp = 0d0
         
     case('g3')
         kin = ( &
             & 1d0/1d3 &! mol m^-2 yr^-1, just a value assumed; picked up to represent turnover time of 1k year  
             & )
+        ! adding temperature dependence in the form of Q10
+        kref = 1d0/1d3
+        tc_ref = 15d0
+        q10 = 3d0
+        kin = k_q10(kref,tc,tc_ref,q10)
         dkin_dmsp = 0d0
         
     case('amnt')
         kin = ( &
-            & 0.01d0/1d0 &! just a value assumed; turnover time of 0.1 year for NH4NO3 
+            & 1d0/0.01d0 &! just a value assumed; turnover time of 0.1 year for NH4NO3 
             & )
+        ! adding temperature dependence in the form of Q10
+        kref = 0.01d0/1d0
+        tc_ref = 15d0
+        q10 = 3d0
+        kin = k_q10(kref,tc,tc_ref,q10)
         dkin_dmsp = 0d0
         
     case default 
@@ -24456,6 +24480,14 @@ implicit none
 real(kind=8) k_arrhenius,kref,tempkref,tempk,eapp,rg
 k_arrhenius = kref*exp(-eapp/rg*(1d0/tempk-1d0/tempkref))
 endfunction k_arrhenius
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+function k_q10(kref,tc,tc_ref,q10)
+implicit none
+real(kind=8) k_q10,kref,tc_ref,tc,q10
+k_q10 = kref*q10**( (tc - tc_ref)/10d0  )
+endfunction k_q10
 !ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 #ifdef no_intr_findloc
