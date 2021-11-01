@@ -552,12 +552,12 @@ real(kind=8),parameter :: ps_min = 10d-9 ! min particle size (10 nm)
 ! real(kind=8),parameter :: ps_min = 100d-9 ! min particle size (100 nm)
 real(kind=8),parameter :: ps_max = 10d-3 ! max particle size (10 mm)
 real(kind=8),parameter :: pi = 4d0*atan(1d0) ! 
-! real(kind=8),parameter :: psd_th = 1d-12 ! 
-! real(kind=8),parameter :: psd_th = 1d-3 ! 
-real(kind=8),parameter :: psd_th = 1d0 ! 
+! real(kind=8),parameter :: psd_th_0 = 1d-12 ! 
+! real(kind=8),parameter :: psd_th_0 = 1d-3 ! 
+real(kind=8),parameter :: psd_th_0 = 1d0 ! 
 real(kind=8),parameter :: tol_dvd = 1d-4 ! 
-real(kind=8),dimension(nps)::ps
-real(kind=8),dimension(nps,nz)::psd,dVd,psd_old,dpsd,psdx
+real(kind=8),dimension(nps)::ps,psd_th
+real(kind=8),dimension(nps,nz)::psd,dVd,psd_old,dpsd,psdx,psd_save,ddpsd,dpsd_save
 real(kind=8),dimension(nps,nz)::psd_rain
 real(kind=8),dimension(nps,nz)::psd_norm,psdx_norm,dpsd_norm,psd_rain_norm
 real(kind=8),dimension(nps)::psd_tmp,dvd_tmp
@@ -586,8 +586,10 @@ logical :: psd_lim_min = .true.
 ! logical :: psd_lim_min = .false.
 ! logical :: psd_vol_consv = .true.
 logical :: psd_vol_consv = .false.
+logical :: psd_impfull = .false.
+! logical :: psd_impfull = .true.
 real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old
-real(kind=8),dimension(nsp_sld,nps)::mpsd_pr
+real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th
 real(kind=8),dimension(nsp_sld,nps,nflx_psd,nz) :: flx_mpsd ! itflx,iadv,idif,irain,irxn,ires
 
 ! attempting to do surface area calculation for individual sld sp. 
@@ -595,6 +597,7 @@ real(kind=8),dimension(nsp_sld,nz):: hr,ssa,hrprev,rough,hri,ssv,ssav
 real(kind=8),dimension(nsp_sld):: hrii
 integer nsld_sa
 character(5),dimension(:),allocatable::chrsld_sa
+real(kind=8) time_pbe,dt_pbe
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod
@@ -1482,12 +1485,12 @@ do isps = 1, nsp_sld
             precstyle(isps) = 'decay'
         case('cc','arg') ! added to change solubility 
             precstyle(isps) = 'def'
-            precstyle(isps) = 'emmanuel'
-            solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
+            ! precstyle(isps) = 'emmanuel'
+            ! solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
         case('casp','ksp','nasp','mgsp')
             precstyle(isps) = 'def'
-            precstyle(isps) = 'emmanuel'
-            solmod(isps,:) = 0.05d0 ! assumed factor to be multiplied with omega
+            ! precstyle(isps) = 'emmanuel'
+            ! solmod(isps,:) = 0.05d0 ! assumed factor to be multiplied with omega
         case default 
             precstyle(isps) = 'def'
             ! precstyle(isps) = '2/3'
@@ -1985,9 +1988,28 @@ minsld = 1d-20
 if (do_psd .and. do_psd_full .and. psd_lim_min .and. psd_vol_consv) then 
     lim_minsld_in = .true.
     do isps=1,nsp_sld
-        minsld(isps) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*psd_th*dps(:)) &! m3/m3
+        minsld(isps) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*psd_th_0*dps(:)) &! m3/m3
             & /( mv(isps)*1d-6 ) !  m3/m3 / (m3 /mol ) =  mol/m3
     enddo 
+endif 
+
+! calculating threshold for psd (decided not to use)
+if (do_psd) then 
+    if (do_psd_full) then
+        do ips=1,nps
+            do isps=1,nsp_sld
+                mpsd_th(isps,ips) = 1d-9 &! mol m-3 
+                    & / ( 4d0/3d0*pi*(10d0**ps(ips))**3d0  &! m3/m3
+                    & /( mv(isps)*1d-6 ) ) !  m3/m3 / (m3 /mol ) =  mol/m3
+                mpsd_th(isps,ips) = mpsd_th(isps,ips)/dps(ips) ! number/m3/log(m)
+            enddo
+        enddo
+        ! print *,'mpsd_th'
+        ! print *,mpsd_th
+        ! stop
+    else
+        psd_th = psd_th_0
+    endif 
 endif 
 
 ! #ifdef surfssa
@@ -3401,33 +3423,79 @@ do while (it<nt)
             
                 dpsd = 0d0
                 psd = mpsd(isps,:,:)
-            
-                call psd_diss( &
-                    & nz,nps &! in
-                    & ,z,DV,dt,pi,tol_dvd,poro &! in 
-                    & ,incld_rough,rough_c0,rough_c1 &! in
-                    & ,psd,ps,dps,ps_min,ps_max &! in 
-                    & ,chrsld(isps) &! in 
-                    & ,dpsd,psd_error_flg &! inout
-                    & )
+                
+                if (.not. psd_impfull) then 
+                    ! call psd_diss( &
+                    ! call psd_diss_pbe_expall( &
+                    ! call psd_diss_pbe_exp( &
+                    call psd_diss_pbe( &
+                        & nz,nps &! in
+                        & ,z,DV,dt,pi,tol_dvd,poro &! in 
+                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,psd,ps,dps,ps_min,ps_max &! in 
+                        & ,chrsld(isps) &! in 
+                        & ,dpsd,psd_error_flg &! inout
+                        & )
                     
-                if (psd_error_flg) then 
-                    flgback = .false. 
-                    flgreducedt = .true.
-                    psd = psd_old
-                    mpsd = mpsd_old
-                    poro = poroprev
-                    torg = torgprev
-                    tora = toraprev
-                    v = vprev
-                    hr = hrprev
-                    w = wprev
-                    call calcupwindscheme(  &
-                        up,dwn,cnr,adf & ! output 
-                        ,w,nz   & ! input &
-                        )
-                    dt = dt/1d1
-                    go to 100
+                    ! dt_pbe = dt
+                    ! time_pbe = 0
+                    ! ddpsd = 0d0
+                    ! do while(time_pbe < dt)
+                        ! if (time_pbe + dt_pbe > dt) dt_pbe = dt - time_pbe
+                        ! DV(:) = flx_sld(isps, 4 + isps,:)*mv(isps)*1d-6*dt_pbe 
+                        ! psd_save = psd
+                        ! dpsd_save = dpsd
+                        
+                        ! call psd_diss_pbe_expall( &
+                        ! call psd_diss_pbe_exp( &
+                        ! call psd_diss_pbe( &
+                            ! & nz,nps &! in
+                            ! & ,z,DV,dt_pbe,pi,tol_dvd,poro &! in 
+                            ! & ,incld_rough,rough_c0,rough_c1 &! in
+                            ! & ,psd,ps,dps,ps_min,ps_max &! in 
+                            ! & ,chrsld(isps) &! in 
+                            ! & ,ddpsd,psd_error_flg &! inout
+                            ! & )
+                            
+                        ! if (psd_error_flg) then 
+                            ! psd_error_flg = .false.
+                            ! dt_pbe = dt_pbe/10d0
+                            ! psd = psd_save
+                            ! dpsd = dpsd_save
+                            ! cycle
+                        ! endif 
+                        
+                        ! psd = psd + ddpsd
+                        ! dpsd = dpsd + ddpsd
+                        
+                        ! time_pbe = time_pbe + dt_pbe
+                        
+                    ! enddo 
+                    
+                    
+                    if (psd_error_flg) then 
+                        psd_error_flg = .false. 
+                        flgback = .false. 
+                        flgreducedt = .true.
+                        psd = psd_old
+                        mpsd = mpsd_old
+                        poro = poroprev
+                        torg = torgprev
+                        tora = toraprev
+                        v = vprev
+                        hr = hrprev
+                        w = wprev
+                        call calcupwindscheme(  &
+                            up,dwn,cnr,adf & ! output 
+                            ,w,nz   & ! input &
+                            )
+                        dt = dt/1d1
+                        go to 100
+                    endif 
+                else
+                    do iz=1,nz
+                        dpsd(:,iz) = DV(iz)/nps/dps(:)
+                    enddo
                 endif 
                 
                 dmpsd(isps,:,:) = dpsd
@@ -3448,35 +3516,54 @@ do while (it<nt)
 
             dpsd = 0d0
             
-            call psd_diss( &
-                & nz,nps &! in
-                & ,z,DV,dt,pi,tol,poro &! in 
-                & ,incld_rough,rough_c0,rough_c1 &! in
-                & ,psd,ps,dps,ps_min,ps_max &! in 
-                & ,' blk ' &! in 
-                & ,dpsd,psd_error_flg &! inout
-                & )
-                
-            if (psd_error_flg) then 
-                flgback = .false. 
-                flgreducedt = .true.
-                psd = psd_old
-                mpsd = mpsd_old
-                poro = poroprev
-                torg = torgprev
-                tora = toraprev
-                v = vprev
-                hr = hrprev
-                w = wprev
-                call calcupwindscheme(  &
-                    up,dwn,cnr,adf & ! output 
-                    ,w,nz   & ! input &
-                    )
-                dt = dt/1d1
-                go to 100
+            if (.not. psd_impfull) then 
+                ! call psd_diss( &
+                    ! & nz,nps &! in
+                    ! & ,z,DV,dt,pi,tol,poro &! in 
+                    ! & ,incld_rough,rough_c0,rough_c1 &! in
+                    ! & ,psd,ps,dps,ps_min,ps_max &! in 
+                    ! & ,' blk ' &! in 
+                    ! & ,dpsd,psd_error_flg &! inout
+                    ! & )
+                ! call psd_diss_pbe_expall( &
+                ! call psd_diss_pbe_exp( &
+                call psd_diss_pbe( &
+                    & nz,nps &! in
+                    & ,z,DV,dt,pi,tol,poro &! in 
+                    & ,incld_rough,rough_c0,rough_c1 &! in
+                    & ,psd,ps,dps,ps_min,ps_max &! in 
+                    & ,' blk ' &! in 
+                    & ,dpsd,psd_error_flg &! inout
+                    & )
+                    
+                if (psd_error_flg) then 
+                    psd_error_flg = .false. 
+                    flgback = .false. 
+                    flgreducedt = .true.
+                    psd = psd_old
+                    mpsd = mpsd_old
+                    poro = poroprev
+                    torg = torgprev
+                    tora = toraprev
+                    v = vprev
+                    hr = hrprev
+                    w = wprev
+                    call calcupwindscheme(  &
+                        up,dwn,cnr,adf & ! output 
+                        ,w,nz   & ! input &
+                        )
+                    dt = dt/1d1
+                    go to 100
+                endif 
+            else 
+                do iz=1,nz
+                    dpsd(:,iz) = DV(iz)/nps/dps(:)
+                enddo
             endif 
         
         endif 
+        
+        ! if (psd_impfull) do_psd_norm = .false.
         
         if (do_psd_norm) then 
         
@@ -3503,16 +3590,30 @@ do while (it<nt)
                         psd_rain_norm(ips,:) = mpsd_rain(isps,ips,:) / psd_norm_fact(ips)
                     enddo 
                     
-                    call psd_implicit_all_v2( &
-                        & nz,nsp_sld,nps,nflx_psd &! in
-                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0,rough_c1 &! in
-                        & ,trans &! in
-                        & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm &! in  
-                        & ,chrsld(isps) &! in 
-                        & ,flgback,flx_max_max &! inout
-                        & ,psdx_norm,flx_psd_norm &! out
-                        & )
+                    if (.not.psd_impfull) then 
+                        call psd_implicit_all_v2( &
+                            & nz,nsp_sld,nps,nflx_psd &! in
+                            & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
+                            & ,incld_rough,rough_c0,rough_c1 &! in
+                            & ,trans &! in
+                            & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm &! in  
+                            & ,chrsld(isps) &! in 
+                            & ,flgback,flx_max_max &! inout
+                            & ,psdx_norm,flx_psd_norm &! out
+                            & )
+                    else
+                        DV(:) = flx_sld(isps, 4 + isps,:)*mv(isps)*1d-6*dt 
+                        call psd_implicit_all_v4( &
+                            & nz,nsp_sld,nps,nflx_psd &! in
+                            & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
+                            & ,incld_rough,rough_c0,rough_c1 &! in
+                            & ,trans &! in
+                            & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm,DV,psd_norm_fact &! in  
+                            & ,chrsld(isps) &! in 
+                            & ,flgback,flx_max_max &! inout
+                            & ,psdx_norm,flx_psd_norm &! out
+                            & )
+                    endif 
                     
                     if (flgback) then 
                         flgback = .false. 
@@ -3554,16 +3655,29 @@ do while (it<nt)
                 
                 flx_max_max = 0d0
                 
-                call psd_implicit_all_v2( &
-                    & nz,nsp_sld,nps,nflx_psd &! in
-                    & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                    & ,incld_rough,rough_c0,rough_c1 &! in
-                    & ,trans &! in
-                    & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm &! in    
-                    & ,' blk ' &! in 
-                    & ,flgback,flx_max_max &! inout
-                    & ,psdx_norm,flx_psd_norm &! out
-                    & )
+                if (.not.psd_impfull) then 
+                    call psd_implicit_all_v2( &
+                        & nz,nsp_sld,nps,nflx_psd &! in
+                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
+                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,trans &! in
+                        & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm &! in    
+                        & ,' blk ' &! in 
+                        & ,flgback,flx_max_max &! inout
+                        & ,psdx_norm,flx_psd_norm &! out
+                        & )
+                else
+                    call psd_implicit_all_v4( &
+                        & nz,nsp_sld,nps,nflx_psd &! in
+                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
+                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,trans &! in
+                        & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm,DV,psd_norm_fact &! in    
+                        & ,' blk ' &! in 
+                        & ,flgback,flx_max_max &! inout
+                        & ,psdx_norm,flx_psd_norm &! out
+                        & )
+                endif 
                 
                 if (flgback) then 
                     flgback = .false. 
@@ -3616,17 +3730,33 @@ do while (it<nt)
                     psd_pr = mpsd_pr(isps,:)
                     dpsd = dmpsd(isps,:,:)
                     psd_rain = mpsd_rain(isps,:,:)
-            
-                    call psd_implicit_all_v2( &
-                        & nz,nsp_sld,nps,nflx_psd &! in
-                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0,rough_c1 &! in
-                        & ,trans &! in
-                        & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in    
-                        & ,chrsld(isps) &! in 
-                        & ,flgback,flx_max_max &! inout
-                        & ,psdx,flx_psd &! out
-                        & )
+                    
+                    
+                    if (.not.psd_impfull) then 
+                        call psd_implicit_all_v2( &
+                            & nz,nsp_sld,nps,nflx_psd &! in
+                            & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
+                            & ,incld_rough,rough_c0,rough_c1 &! in
+                            & ,trans &! in
+                            & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in    
+                            & ,chrsld(isps) &! in 
+                            & ,flgback,flx_max_max &! inout
+                            & ,psdx,flx_psd &! out
+                            & )
+                    else
+                        DV(:) = flx_sld(isps, 4 + isps,:)*mv(isps)*1d-6*dt  
+                        psd_norm_fact = 1d0
+                        call psd_implicit_all_v4( &
+                            & nz,nsp_sld,nps,nflx_psd &! in
+                            & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
+                            & ,incld_rough,rough_c0,rough_c1 &! in
+                            & ,trans &! in
+                            & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in    
+                            & ,chrsld(isps) &! in
+                            & ,flgback,flx_max_max &! inout
+                            & ,psdx,flx_psd &! out
+                            & )
+                    endif 
                     
                     print *,'flx_max_max',flx_max_max
             
@@ -3659,16 +3789,30 @@ do while (it<nt)
             
                 flx_max_max = 0d0
                 
-                call psd_implicit_all_v2( &
-                    & nz,nsp_sld,nps,nflx_psd &! in
-                    & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                    & ,incld_rough,rough_c0,rough_c1 &! in
-                    & ,trans &! in
-                    & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in    
-                    & ,' blk ' &! in 
-                    & ,flgback,flx_max_max &! inout
-                    & ,psdx,flx_psd &! out
-                    & )
+                if (.not.psd_impfull) then 
+                    call psd_implicit_all_v2( &
+                        & nz,nsp_sld,nps,nflx_psd &! in
+                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
+                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,trans &! in
+                        & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in    
+                        & ,' blk ' &! in 
+                        & ,flgback,flx_max_max &! inout
+                        & ,psdx,flx_psd &! out
+                        & )
+                else
+                    psd_norm_fact = 1d0
+                    call psd_implicit_all_v4( &
+                        & nz,nsp_sld,nps,nflx_psd &! in
+                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
+                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,trans &! in
+                        & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in    
+                        & ,' blk ' &! in 
+                        & ,flgback,flx_max_max &! inout
+                        & ,psdx,flx_psd &! out
+                        & )
+                endif 
             
                 if (flgback) then 
                     flgback = .false. 
@@ -3739,7 +3883,8 @@ do while (it<nt)
             
             ! trancating small psd 
             if (psd_lim_min) then 
-                where (mpsd < psd_th)  mpsd = psd_th
+            ! if (psd_lim_min .and. .not. psd_impfull) then 
+                where (mpsd < psd_th_0)  mpsd = psd_th_0
                 ! do isps = 1,nsp_sld
                     ! where ( mpsd(isps,:,:) < maxval(mpsd(isps,:,:)) * 1d-9 ) & 
                         ! & mpsd(isps,:,:) = maxval(mpsd(isps,:,:)) * 1d-9
@@ -3790,7 +3935,8 @@ do while (it<nt)
             
             ! trancating small psd 
             if (psd_lim_min) then 
-                where (psd < psd_th)  psd = psd_th
+            ! if (psd_lim_min.and. .not. psd_impfull) then 
+                where (psd < psd_th_0)  psd = psd_th_0
             endif 
         endif 
         
@@ -19364,11 +19510,11 @@ logical,intent(in)::sld_enforce != .true.
 character(10),dimension(nsp_sld),intent(in):: precstyle 
 real(kind=8),dimension(nsp_sld,nz),intent(in):: solmod ! factor to modify solubility used only to implement rxn rate law as defined by Emmanuel and Ague, 2011
 real(kind=8) msld_seed ,fact2
-real(kind=8):: fact_tol = 1d-3
-! real(kind=8):: fact_tol = 1d-4
+! real(kind=8):: fact_tol = 1d-3
+real(kind=8):: fact_tol = 1d-4
 real(kind=8):: dt_th = 1d-6
-real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
-! real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
+! real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
+real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
 ! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
 real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
@@ -22183,7 +22329,7 @@ logical :: safe_mode = .false.
 ! in this way volume is conservative? 
 ! check: sum( psd(r) * 4/3 * pi * r^3 * dps) - sum( psd(r') * 4/3 * pi * r'^3 * dps) = DV 
 
-dpsd_tmp = 0d0
+dpsd_tmp = 0d0 
 psd_old = psd
 psd_new = psd
 do iz=1,nz
@@ -22462,6 +22608,1211 @@ endif
 dpsd = dpsd + dpsd_tmp
    
 endsubroutine psd_diss
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine psd_diss_pbe( &
+    & nz,nps &! in
+    & ,z,DV,dt,pi,tol,poro &! in 
+    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,psd,ps,dps,ps_min,ps_max &! in 
+    & ,chrsp &! in 
+    & ,dpsd,psd_error_flg &! inout
+    & )
+! an attempt to solve population balance equation reflecting imposed dissolution rate
+implicit none 
+
+integer,intent(in)::nz,nps
+real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol,rough_c0,rough_c1 
+real(kind=8),dimension(nz),intent(in)::z,poro
+real(kind=8),dimension(nps),intent(in)::ps,dps
+real(kind=8),dimension(nz),intent(in)::DV
+real(kind=8),dimension(nps,nz),intent(in)::psd
+character(5),intent(in)::chrsp
+logical,intent(in)::incld_rough
+real(kind=8),dimension(nps,nz),intent(inout)::dpsd
+logical,intent(inout)::psd_error_flg
+! local 
+real(kind=8),dimension(nps,nz)::dVd,psd_old,psd_new,dpsd_tmp,psdx,psdxx
+real(kind=8),dimension(nps)::psd_tmp,dvd_tmp,dpsx,lambda
+real(kind=8),dimension(nz)::kpsd,kpsdx,DV_chk,DV_exist
+real(kind=8) ps_new,ps_newp,dvd_res,error,vol,fact,surf
+real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8),parameter::threshold = 20d0
+real(kind=8),parameter::corr = exp(threshold)
+real(kind=8),parameter::threshold_k = 2d0
+real(kind=8),parameter::corr_k = exp(threshold_k)
+integer,parameter :: iter_max = 50
+integer ips,iips,ips_new,iz,isps,row,col,ie,ie2,iter
+
+logical :: logcalc = .true.
+! logical :: logcalc = .false.
+
+! logical :: safe_mode = .true.
+logical :: safe_mode = .false.
+
+logical,dimension(nz) :: ms_not_ok! = .false.
+
+real(kind=8) amx3(nps+1,nps+1),ymx3(nps+1),emx3(nps+1),ymx3_pre(nps+1)
+integer ipiv3(nps+1) 
+integer info 
+        
+
+! attempt to calculate psd change by dissolution ( defined with particle number / bulk m3 / log (r) )
+! assumptions/formulations: 
+! 1. Solve population balance equation with shrinking particle: 
+!       [ ( f(r,t+dt) - f(r,t))/dt ] * dr 
+!               = mv * k * ( lambda(r+dr,t) * f(r+dr,t) - lambda(r,t) * f(r,t) ) 
+!               = k' * ( lambda(r+dr,t) * f(r+dr,t) - lambda(r,t) * f(r,t) ) 
+!               where k' = mv * k
+! 2. Constraint from main reaction-transport scheme: dV
+!       sigma [ 4 * pi /3 * r^3 * [f(r,t+dt) - f(r,t)]/dt *dr * dt ]  =  dV
+!       sigma [ 4 * pi * r^2 * f(r,t) *dr * dt ]  =  dV
+! 3. Solve for f(r,t+dt) (r=1, .., nps) and k from above (nps + 1) equations
+!
+! *** Caution must be paid to dr where in the rest of calculation it is defined as d log(r)
+
+! check whether there is enough material to dissolve DV 
+ms_not_ok = .false.
+DV_exist = 0d0
+do iz = 1,nz
+    DV_exist(iz) =  sum( 4d0/3d0*pi*(10d0**ps(:))**3d0 * psd(:,iz) * dps(:) )
+    if (DV(iz)>0d0 .and.  DV(iz) > DV_exist(iz) ) then 
+        ms_not_ok(iz) = .true.
+        print *, 'not enough stuff to dissolve material',chrsp,iz
+        exit
+    endif 
+enddo 
+
+if (safe_mode .and. any(ms_not_ok)) then
+    psd_error_flg = .true.
+    return
+endif 
+
+! roughness factor as functin of radius
+lambda = 1d0
+if (incld_rough)  lambda = rough_c0*(10d0**ps(:))**rough_c1 
+
+! R = log10 r 
+! dR/dr =  1/(r * log10)
+! dr = dR * r * log10
+! note that dps is dR; we need dr denoted here as dpsx (?)
+dpsx = dps * 10d0**(ps) * log(10d0)
+
+! psd is given as number of particles/m3/log(m)
+! converting to number of particles/m3/m
+! note that psd*dps = psdx*dpsx
+do iz=1,nz
+    psdx(:,iz) = psd(:,iz) *dps(:) / dpsx(:)
+enddo 
+
+kpsd = 0d0
+do iz = 1, nz
+    if (dV(iz)>=0d0) then
+        do ips=1,nps
+            if (ips==nps) then
+                kpsd(iz)  = kpsd(iz) - ( - lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips+1)*psdx(ips+1,iz) - lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    else 
+        do ips=1,nps
+            if (ips==1) then
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            elseif (ips==nps) then
+                kpsd(iz)  = kpsd(iz) - ( - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    endif
+    ! if (kpsd(iz) * dV(iz) < 0d0) then 
+        ! print *,' *** inconsistent between kpsd and DV ' , chrsp
+        ! psd_error_flg = .true.
+        ! return
+        ! kpsd(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 * lambda(:) * psdx(:,iz) * dpsx(:) )
+    ! endif 
+    ! kpsd(iz) = dV(iz)/dt/ kpsd(iz) 
+    ! kpsd(iz) = dV(iz)/dt/ abs( kpsd(iz) )
+    
+    ! kpsd(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 * lambda(:) * psdx(:,iz) * dpsx(:) )
+
+    kpsd(iz) = dV(iz)/dt/ kpsd(iz) 
+enddo 
+
+kpsdx = kpsd
+psdxx = psdx
+
+do iz = 1, nz
+    
+    if (.not.safe_mode .and. ms_not_ok(iz)) then 
+        print *,'DV is larger than the amount existing at ',iz, ' for ' ,chrsp
+        dpsd(:,iz) = - psd(:,iz)
+        cycle
+    endif 
+
+    error = 1d4 
+    iter = 1
+    print*, DV(iz)
+            
+    do while (error > tol) 
+    
+        amx3 = 0d0
+        ymx3 = 0d0
+    
+        do ips = 1, nps
+        
+            row =  ips 
+            
+            vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            surf  = 4d0*pi*(10d0**ps(ips))**2d0
+            
+            ! if ( dV(iz) >= 0d0) then 
+            if ( kpsdx(iz) >= 0d0) then 
+            
+                if (ips==nps) then
+                    ymx3(row) = ( & 
+                        & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( - lambda(ips)*1d0 )  &
+                        & ) &
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                    
+                    col = nps + 1
+                    amx3(row,col) = ( & 
+                        & - 1d0 * ( - lambda(ips)*psdxx(ips,iz) )  &
+                        & ) &
+                        & * 1d0
+                        
+                    ymx3(col) = ymx3(col) + ( &
+                        & - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) )*vol  &
+                        & )
+                        
+                    amx3(col,col) = amx3(col,col) + ( &
+                        & - 1d0 * ( - lambda(ips)*psdxx(ips,iz) )*vol  &
+                        & )&
+                        & * 1d0
+                        
+                    amx3(col,row) = amx3(col,row) + ( &
+                        & - kpsdx(iz) * ( - lambda(ips)*1d0 )*vol  &
+                        & )&
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                else
+                    ymx3(row) = ( & 
+                        & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( - lambda(ips)*1d0 )  &
+                        & ) &
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                        
+                    col = ips + 1
+                    amx3(row,col) = ( & 
+                        & - kpsdx(iz) * ( lambda(ips+1)*1d0 )  &
+                        & ) &
+                        & * merge( psdxx(ips+1,iz),1d0,logcalc)
+                    
+                    col = nps + 1
+                    amx3(row,col) = ( & 
+                        & - 1d0 * (lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz))  &
+                        & ) &
+                        & * 1d0
+                        
+                    ! volume conserv.
+                    ymx3(col) = ymx3(col) + ( &
+                        & - kpsdx(iz) * (lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) )*vol  &
+                        & )
+                        
+                    amx3(col,col) = amx3(col,col) + ( &
+                        & - 1d0 * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) )*vol  &
+                        & )&
+                        & * 1d0
+                        
+                    amx3(col,row) = amx3(col,row) + ( &
+                        & - kpsdx(iz) * ( - lambda(ips)*1d0 )*vol  &
+                        & )&
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                        
+                    amx3(col,row+1) = amx3(col,row+1) + ( &
+                        & - kpsdx(iz) * ( lambda(ips+1)*1d0 )*vol  &
+                        & )&
+                        & * merge( psdxx(ips+1,iz),1d0,logcalc)
+                endif
+            
+            else
+            
+                if (ips==1) then
+                    ymx3(row) = ( & 
+                        & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( lambda(ips)*1d0 )  &
+                        & ) &
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                    
+                    col = nps + 1
+                    amx3(row,col) = ( & 
+                        & - 1d0 * ( lambda(ips)*psdxx(ips,iz) )  &
+                        & ) &
+                        & * 1d0
+                        
+                    ! volume conserv.
+                    ymx3(col) = ymx3(col) + ( &
+                        & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) )*vol  &
+                        & )
+                        
+                    amx3(col,col) = amx3(col,col) + ( &
+                        & - 1d0 * ( lambda(ips)*psdxx(ips,iz) )*vol  &
+                        & )&
+                        & * 1d0
+                        
+                    amx3(col,row) = amx3(col,row) + ( &
+                        & - kpsdx(iz) * ( lambda(ips)*1d0 )*vol  &
+                        & )&
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                        
+                elseif (ips==nps) then
+                    ymx3(row) = ( & 
+                        & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( - lambda(ips-1)*psdxx(ips-1,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & ) &
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                        
+                    col = ips - 1
+                    amx3(row,col) = ( & 
+                        & - kpsdx(iz) * ( - lambda(ips-1)*1d0 )  &
+                        & ) &
+                        & * merge( psdxx(ips-1,iz),1d0,logcalc)
+                    
+                    col = nps + 1
+                    amx3(row,col) = ( & 
+                        & - 1d0 * ( - lambda(ips-1)*psdxx(ips-1,iz) )  &
+                        & ) &
+                        & * 1d0
+                        
+                    ! volume conserv.
+                    ymx3(col) = ymx3(col) + ( &
+                        & - kpsdx(iz) * ( - lambda(ips-1)*psdxx(ips-1,iz) )*vol  &
+                        & )
+                        
+                    amx3(col,col) = amx3(col,col) + ( &
+                        & - 1d0 * (  - lambda(ips-1)*psdxx(ips-1,iz) )*vol  &
+                        & )&
+                        & * 1d0
+                        
+                    amx3(col,row-1) = amx3(col,row-1) + ( &
+                        & - kpsdx(iz) * ( - lambda(ips-1)*1d0 )*vol  &
+                        & )&
+                        & * merge( psdxx(ips-1,iz),1d0,logcalc)
+                else
+                    ymx3(row) = ( & 
+                        & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( lambda(ips)*1d0 )  &
+                        & ) &
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                        
+                    col = ips - 1
+                    amx3(row,col) = ( & 
+                        & - kpsdx(iz) * ( - lambda(ips-1)*1d0 )  &
+                        & ) &
+                        & * merge( psdxx(ips-1,iz),1d0,logcalc)
+                    
+                    col = nps + 1
+                    amx3(row,col) = ( & 
+                        & - 1d0 * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )  &
+                        & ) &
+                        & * 1d0
+                    
+                    ! volume conserv.
+                    ymx3(col) = ymx3(col) + ( &
+                        & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )*vol  &
+                        & )
+                        
+                    amx3(col,col) = amx3(col,col) + ( &
+                        & - 1d0 * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )*vol  &
+                        & )&
+                        & * 1d0
+                        
+                    amx3(col,row) = amx3(col,row) + ( &
+                        & - kpsdx(iz) * ( lambda(ips)*1d0 )*vol  &
+                        & )&
+                        & * merge( psdxx(ips,iz),1d0,logcalc)
+                        
+                    amx3(col,row-1) = amx3(col,row-1) + ( &
+                        & - kpsdx(iz) * ( - lambda(ips-1)*1d0 )*vol  &
+                        & )&
+                        & * merge( psdxx(ips-1,iz),1d0,logcalc)
+                endif
+                
+            endif 
+            
+            ! fact = max( abs( ymx3(row) ), maxval( abs( amx3(row,:) ) ) )
+            
+            ! ymx3(row) = ymx3(row) / fact
+            ! amx3(row,:) = amx3(row,:) / fact
+            
+        enddo ! end of do-loop for ips
+        
+        row = nps+1
+        ymx3(row) = ymx3(row) + ( &
+            & - dV(iz)/dt  &
+            & )
+        
+        ! do ips=1,nps
+            ! vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            ! surf  = 4d0*pi*(10d0**ps(ips))**2d0
+                        
+            ! ymx3(row) = ymx3(row) + ( &
+                ! & - kpsdx(iz)* surf * lambda(ips)*psdxx(ips,iz) *dpsx(ips)   &
+                ! & )
+                
+            ! amx3(row,row) = amx3(row,row) + ( &
+                ! & - 1d0 * surf * lambda(ips)*psdxx(ips,iz) *dpsx(ips)   &
+                ! & )&
+                ! & * 1d0
+            
+            ! col = ips
+            ! amx3(row,col) = amx3(row,col) + ( &
+                ! & - kpsdx(iz) * surf * lambda(ips)*1d0 *dpsx(ips)   &
+                ! & )&
+                ! & * psdxx(ips,iz)
+                
+                        
+            ! ymx3(row) = ymx3(row) + ( &
+                ! & - vol * ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                ! & )
+            
+            ! col = ips
+            ! amx3(row,col) = amx3(row,col) + ( &
+                ! & - vol * ( 1d0 -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                ! & )&
+                ! & * psdxx(ips,iz)
+                
+                
+        ! enddo 
+            
+        fact = 1d1
+        
+        ymx3(row) = ymx3(row) * fact
+        amx3(row,:) = amx3(row,:) * fact
+    
+        ymx3=-1.0d0*ymx3
+        ymx3_pre = ymx3
+
+        if (any(isnan(amx3)).or.any(isnan(ymx3)).or.any(amx3>infinity).or.any(ymx3>infinity)) then 
+        ! if (.true.) then 
+            print*,'PBE--'//chrsp//': error in mtx'
+            print*,'PBE--'//chrsp//': any(isnan(amx3)),any(isnan(ymx3))'
+            print*,any(isnan(amx3)),any(isnan(ymx3))
+
+            if (any(isnan(ymx3))) then 
+                do ie = 1, nps+1
+                    if (isnan(ymx3(ie))) then 
+                        print*,'NAN is here...',iz,ie
+                    endif
+                enddo 
+            endif
+
+
+            if (any(isnan(amx3))) then 
+                do ie = 1,nps+1
+                    do ie2 = 1,nps+1
+                        if (isnan(amx3(ie,ie2))) then 
+                            print*,'PBE: NAN is here...',iz,ie,ie2
+                        endif
+                    enddo
+                enddo
+            endif
+            stop
+            
+        endif
+
+        call DGESV(nps+1,int(1),amx3,nps+1,IPIV3,ymx3,nps+1,INFO) 
+
+        if (any(isnan(ymx3)) .or. info/=0 ) then
+            print*,'*** PBE--'//chrsp//': error in soultion',any(isnan(ymx3)),info, kpsdx(iz),ms_not_ok(iz)
+            psd_error_flg = .true.
+            ! pause
+            exit
+            
+
+            ! open(unit=11,file='amx.txt',status = 'replace')
+            ! open(unit=12,file='ymx.txt',status = 'replace')
+            ! open(unit=10,file='ymx_pre.txt',status = 'replace')
+            ! do ie = 1,nps+1
+                ! write(11,*) (amx3(ie,ie2),ie2 = 1,nps+1)
+                ! write(12,*) ymx3(ie)
+                ! write(10,*) ymx3_pre(ie)
+            ! enddo 
+            ! close(11)
+            ! close(12)         
+            ! close(10)         
+            ! stop
+            
+        endif
+        
+        do ips = 1,nps
+            row =  ips 
+
+            if (isnan(ymx3(row))) then 
+                print *,'PBE--'//chrsp//': nan at', iz,ips
+                stop
+            endif
+            
+            
+            if (logcalc) then
+                ! emx3(row) = dpsx(ips)*psdxx(ips,iz)*exp(ymx3(row)) - dpsx(ips)*psdxx(ips,iz)
+                emx3(row) = exp(abs(ymx3(row))) - 1d0
+                
+                if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+                    psdxx(ips,iz) = psdxx(ips,iz)*corr
+                else if (ymx3(row) < -threshold) then 
+                    psdxx(ips,iz) = psdxx(ips,iz)/corr
+                else   
+                    psdxx(ips,iz) = psdxx(ips,iz)*exp(ymx3(row))
+                endif
+            else
+                emx3(row) = abs(ymx3(row)/psdxx(ips,iz))
+                psdxx(ips,iz) = psdxx(ips,iz) + ymx3(row)
+            endif 
+        enddo 
+        
+        row = nps+1
+        
+        if (isnan(ymx3(row))) then 
+            print *,'PBE--'//chrsp//': nan at', iz
+            stop
+        endif
+        
+        ! linear case
+        
+        if ( ( kpsdx(iz) + ymx3(row) ) *kpsdx(iz) >= 0d0) then ! signs are the same 
+            emx3(row) = log(1d0 + ymx3(row)/kpsdx(iz))
+            
+            if ((.not.isnan(emx3(row))).and.emx3(row) >threshold_k) then 
+                kpsdx(iz) = kpsdx(iz) * corr_k
+            else if (emx3(row) < -threshold_k) then 
+                kpsdx(iz) = kpsdx(iz) / corr_k
+            else   
+                kpsdx(iz) = kpsdx(iz)*exp(emx3(row))
+            endif
+        else ! signs are different 
+            emx3(row) = abs(ymx3(row)/kpsdx(iz))
+            kpsdx(iz) = kpsdx(iz) + ymx3(row)
+        endif 
+        
+        error = maxval(emx3)
+
+        if ( isnan(error) .or. any(isnan(psdxx)) ) then 
+            error = 1d3
+            print*, 'PBE--'//chrsp//': !! error is NaN; values are returned to those before iteration with reducing dt'
+            print*, 'PBE--'//chrsp//': isnan(error), info/=0,any(isnan(pdsx))'
+            print*, isnan(error), any(isnan(psdx)) 
+            
+            psd_error_flg = .true.
+            stop
+            exit
+        endif
+
+        print '(a,E11.3,a,i0,a,E11.3,a,E11.3,a,E11.3,a,E11.3)' &
+            & , 'PBE--'//chrsp//': iteration error = ',error, ', iteration = ',iter &
+            & ,', time step [yr] = ',dt &
+            & , ', max psd = ',maxval(psdxx(:,iz)) &
+            & , ', min psd = ',minval(psdxx(:,iz))   &
+            & , ', diss-rate [m/yr] = ',kpsdx(iz) 
+        ! print *, error > tol
+        iter = iter + 1 
+        
+        if (iter > iter_Max ) then
+            if (dt==0d0) then 
+                print *, chrsp,'dt==0d0; stop'
+                stop
+            endif 
+            psd_error_flg = .true.
+            exit 
+        end if
+        
+        if (psd_error_flg) exit
+        
+    enddo 
+    
+    dpsd(:,iz) = psdxx(:,iz)*dpsx(:)/dps(:) - psd(:,iz)
+    ! dpsd(:,iz) = -dpsd(:,iz)
+
+    DV_chk(iz) = 0d0
+    if (dV(iz)>=0d0) then
+        do ips=1,nps
+            if (ips==nps) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    else 
+        do ips=1,nps
+            if (ips==1) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            elseif (ips==nps) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * (  - lambda(ips-1)*psdxx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    endif
+    ! DV_chk(iz) = - sum( 4d0/3d0*pi*(10d0**ps(:))**3d0 * (psdxx(:,iz) - psdx(:,iz))/dt * dpsx(:))
+    
+    ! DV_chk(iz) = sum(kpsdx(iz) * 4d0*pi*(10d0**ps(:))**2d0 *lambda(:) * psdxx(:,iz) * dpsx(:))
+    
+    
+    DV_chk(iz) = DV_chk(iz) *dt
+    
+    if (abs(DV(iz))>tol .and. abs( (DV(iz) - DV_chk(iz))/DV(iz) ) > tol) then 
+    ! if (abs(DV(iz))>0d0 .and. abs( (DV(iz) - DV_chk(iz))/DV(iz) ) > tol) then 
+        print *, 'PBE--volume conservation not satisfied',iz,DV(iz),DV_chk(iz)
+        psd_error_flg = .true.
+    endif 
+        
+    if (psd_error_flg) exit
+
+enddo 
+
+endsubroutine psd_diss_pbe
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine psd_diss_pbe_exp( &
+    & nz,nps &! in
+    & ,z,DV,dt,pi,tol,poro &! in 
+    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,psd,ps,dps,ps_min,ps_max &! in 
+    & ,chrsp &! in 
+    & ,dpsd,psd_error_flg &! inout
+    & )
+! an attempt to solve population balance equation reflecting imposed dissolution rate
+implicit none 
+
+integer,intent(in)::nz,nps
+real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol,rough_c0,rough_c1 
+real(kind=8),dimension(nz),intent(in)::z,poro
+real(kind=8),dimension(nps),intent(in)::ps,dps
+real(kind=8),dimension(nz),intent(in)::DV
+real(kind=8),dimension(nps,nz),intent(in)::psd
+character(5),intent(in)::chrsp
+logical,intent(in)::incld_rough
+real(kind=8),dimension(nps,nz),intent(inout)::dpsd
+logical,intent(inout)::psd_error_flg
+! local 
+real(kind=8),dimension(nps,nz)::dVd,psd_old,psd_new,dpsd_tmp,psdx,psdxx
+real(kind=8),dimension(nps)::psd_tmp,dvd_tmp,dpsx,lambda
+real(kind=8),dimension(nz)::kpsd,kpsdx,DV_chk,kpsdxx
+real(kind=8) ps_new,ps_newp,dvd_res,error,vol,fact,surf
+real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8),parameter::threshold = 20d0
+real(kind=8),parameter::corr = exp(threshold)
+integer,parameter :: iter_max = 50
+integer ips,iips,ips_new,iz,isps,row,col,ie,ie2,iter
+logical :: safe_mode = .false.
+
+real(kind=8) amx3(nps,nps),ymx3(nps),emx3(nps)
+integer ipiv3(nps) 
+integer info 
+        
+
+! attempt to calculate psd change by dissolution ( defined with particle number / bulk m3 / log (r) )
+! assumptions/formulations: 
+! 1. Solve population balance equation with shrinking particle: 
+!       [ ( f(r,t+dt) - f(r,t))/dt ] * dr 
+!               = mv * k * ( lambda(r+dr,t) * f(r+dr,t) - lambda(r,t) * f(r,t) ) 
+!               = k' * ( lambda(r+dr,t) * f(r+dr,t) - lambda(r,t) * f(r,t) ) 
+!               where k' = mv * k
+! 2. Constraint from main reaction-transport scheme: dV
+!       sigma [ 4 * pi /3 * r^3 * [f(r,t+dt) - f(r,t)]/dt *dr * dt ]  =  dV
+!       sigma [ 4 * pi * r^2 * f(r,t) *dr * dt ]  =  dV
+! 3. Solve for f(r,t+dt) (r=1, .., nps) and k from above (nps + 1) equations
+!
+! *** Caution must be paid to dr where in the rest of calculation it is defined as d log(r)
+
+
+! roughness factor as functin of radius
+lambda = 1d0
+if (incld_rough)  lambda = rough_c0*(10d0**ps(:))**rough_c1 
+
+! R = log10 r 
+! dR/dr =  1/(r * log10)
+! dr = dR * r * log10
+! note that dps is dR; we need dr denoted here as dpsx (?)
+dpsx = dps * 10d0**(ps) * log(10d0)
+
+! psd is given as number of particles/m3/log(m)
+! converting to number of particles/m3/m
+! note that psd*dps = psdx*dpsx
+do iz=1,nz
+    psdx(:,iz) = psd(:,iz) *dps(:) / dpsx(:)
+enddo 
+
+kpsd = 0d0
+do iz = 1, nz
+    if (dV(iz)>=0d0) then
+        do ips=1,nps
+            if (ips==nps) then
+                kpsd(iz)  = kpsd(iz) - ( - lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips+1)*psdx(ips+1,iz) - lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    else 
+        do ips=1,nps
+            if (ips==1) then
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            elseif (ips==nps) then
+                kpsd(iz)  = kpsd(iz) - ( - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    endif
+    ! if (kpsd(iz) * dV(iz) < 0d0) then 
+        ! print *,' *** inconsistent between kpsd and DV ' , chrsld
+        ! psd_error_flg = .true.
+        ! return
+        ! kpsd(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 * lambda(:) * psdx(:,iz) * dpsx(:) )
+    ! endif 
+    ! kpsd(iz) = dV(iz)/dt/ kpsd(iz) 
+    ! kpsd(iz) = dV(iz)/dt/ abs( kpsd(iz) )
+    
+    ! kpsd(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 * lambda(:) * psdx(:,iz) * dpsx(:) )
+
+    kpsd(iz) = dV(iz)/dt/ kpsd(iz) 
+enddo 
+
+kpsdx = kpsd
+kpsdxx = kpsd
+psdxx = psdx
+
+do iz = 1, nz
+
+    error = 1d4 
+    iter = 1
+    
+    do while (error > tol) 
+    
+        amx3 = 0d0
+        ymx3 = 0d0
+    
+        do ips = 1, nps
+        
+            row =  ips 
+            
+            vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            surf  = 4d0*pi*(10d0**ps(ips))**2d0
+            
+            ! if ( dV(iz) >= 0d0) then 
+            if ( kpsdx(iz) >= 0d0) then 
+            
+                if (ips==nps) then
+                    ymx3(row) = ( & 
+                        & + (  -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        ! & - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( - lambda(ips)*1d0 )  &
+                        & ) 
+                else
+                    ymx3(row) = ( & 
+                        & + (  -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        ! & - kpsdx(iz) * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( - lambda(ips)*1d0 )  &
+                        & ) 
+                        
+                    col = ips + 1
+                    amx3(row,col) = ( & 
+                        & - kpsdx(iz) * ( lambda(ips+1)*1d0 )  &
+                        & ) 
+                endif
+            
+            else
+            
+                if (ips==1) then
+                    ymx3(row) = ( & 
+                        & + (  -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        ! & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( lambda(ips)*1d0 )  &
+                        & ) 
+                    
+                elseif (ips==nps) then
+                    ymx3(row) = ( & 
+                        & + (  -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        ! & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        ! & - kpsdx(iz) * ( lambda(ips)*1d0 )  &
+                        & ) 
+                        
+                    col = ips - 1
+                    amx3(row,col) = ( & 
+                        & - kpsdx(iz) * ( - lambda(ips-1)*1d0 )  &
+                        & ) 
+                    
+                else
+                    ymx3(row) = ( & 
+                        & + (  -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                        ! & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )  &
+                        & )
+                    amx3(row,row) = ( & 
+                        & + ( 1d0 ) /dt * dpsx(ips) &
+                        & - kpsdx(iz) * ( lambda(ips)*1d0 )  &
+                        & ) 
+                        
+                    col = ips - 1
+                    amx3(row,col) = ( & 
+                        & - kpsdx(iz) * ( - lambda(ips-1)*1d0 )  &
+                        & ) 
+                endif
+                
+            endif 
+            
+            ! fact = max( abs( ymx3(row) ), maxval( abs( amx3(row,:) ) ) )
+            
+            ! ymx3(row) = ymx3(row) / fact
+            ! amx3(row,:) = amx3(row,:) / fact
+            
+        enddo ! end of do-loop for ips
+    
+        ymx3=-1.0d0*ymx3
+
+        if (any(isnan(amx3)).or.any(isnan(ymx3)).or.any(amx3>infinity).or.any(ymx3>infinity)) then 
+        ! if (.true.) then 
+            print*,'PBE--'//chrsp//': error in mtx'
+            print*,'PBE--'//chrsp//': any(isnan(amx3)),any(isnan(ymx3))'
+            print*,any(isnan(amx3)),any(isnan(ymx3))
+
+            if (any(isnan(ymx3))) then 
+                do ie = 1, nps+1
+                    if (isnan(ymx3(ie))) then 
+                        print*,'NAN is here...',iz,ie
+                    endif
+                enddo 
+            endif
+
+
+            if (any(isnan(amx3))) then 
+                do ie = 1,nps+1
+                    do ie2 = 1,nps+1
+                        if (isnan(amx3(ie,ie2))) then 
+                            print*,'PBE: NAN is here...',iz,ie,ie2
+                        endif
+                    enddo
+                enddo
+            endif
+            stop
+            
+        endif
+
+        call DGESV(nps,int(1),amx3,nps,IPIV3,ymx3,nps,INFO) 
+
+        if (any(isnan(ymx3)) .or. info/=0 ) then
+            print*,'PBE--'//chrsp//': error in soultion',any(isnan(ymx3)),info
+            psd_error_flg = .true.
+            ! pause
+            exit
+        endif
+        
+        psdxx(:,iz) = ymx3
+        
+        kpsdxx(iz) = 0d0
+        ! if (dV(iz)>=0d0) then
+        if (kpsdx(iz)>=0d0) then
+            do ips=1,nps
+                if (ips==nps) then
+                    kpsdxx(iz)  = kpsdxx(iz) - ( - lambda(ips)*psdxx(ips,iz) ) &
+                        & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                else
+                    kpsdxx(iz)  = kpsdxx(iz) - ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) ) &
+                        & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                endif
+            enddo 
+        else 
+            do ips=1,nps
+                if (ips==1) then
+                    kpsdxx(iz)  = kpsdxx(iz) - ( lambda(ips)*psdxx(ips,iz) ) &
+                        & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                elseif (ips==nps) then
+                    kpsdxx(iz)  = kpsdxx(iz) - ( - lambda(ips-1)*psdxx(ips-1,iz) ) &
+                        & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                else
+                    kpsdxx(iz)  = kpsdxx(iz) - ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) ) &
+                        & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                endif
+            enddo 
+        endif
+
+        kpsdxx(iz) = dV(iz)/dt/ kpsdxx(iz) 
+        
+        error = 0
+        if (abs( kpsdx(iz) ) > 1d-12) error = abs( (kpsdxx(iz)-kpsdx(iz))/kpsdx(iz) )
+        
+        kpsdx(iz) = kpsdxx(iz)
+
+        if ( isnan(error) .or. any(isnan(psdxx)) ) then 
+            error = 1d3
+            print*, 'PBE--'//chrsp//': !! error is NaN; values are returned to those before iteration with reducing dt'
+            print*, 'PBE--'//chrsp//': isnan(error), info/=0,any(isnan(pdsx))'
+            print*, isnan(error), any(isnan(psdx)) 
+            
+            psd_error_flg = .true.
+            ! stop
+            exit
+        endif
+
+        print '(a,E11.3,a,i0,a,E11.3)', 'PBE--'//chrsp//': iteration error = ',error, ', iteration = ',iter,', time step [yr] = ',dt
+        ! print *, error > tol
+        iter = iter + 1 
+        
+        if (iter > iter_Max ) then
+            if (dt==0d0) then 
+                print *, chrsp,'dt==0d0; stop'
+                stop
+            endif 
+            psd_error_flg = .true.
+            exit 
+        end if
+        
+        if (psd_error_flg) exit
+        
+    enddo 
+    
+    dpsd(:,iz) = psdxx(:,iz)*dpsx(:)/dps(:) - psd(:,iz)
+    ! dpsd(:,iz) = -dpsd(:,iz)
+
+    DV_chk(iz) = 0d0
+    if (dV(iz)>=0d0) then
+        do ips=1,nps
+            if (ips==nps) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    else 
+        do ips=1,nps
+            if (ips==1) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            elseif (ips==nps) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( - lambda(ips-1)*psdxx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    endif
+    ! DV_chk(iz) = - sum( 4d0/3d0*pi*(10d0**ps(:))**3d0 * (psdxx(:,iz) - psdx(:,iz))/dt * dpsx(:))
+    
+    ! DV_chk(iz) = sum(kpsdx(iz) * 4d0*pi*(10d0**ps(:))**2d0 *lambda(:) * psdxx(:,iz) * dpsx(:))
+    
+    
+    DV_chk(iz) = DV_chk(iz) *dt
+    
+    if (abs(DV(iz))>tol .and. abs( (DV(iz) - DV_chk(iz))/DV(iz) ) > tol) then 
+    ! if (abs(DV(iz))>0d0 .and. abs( (DV(iz) - DV_chk(iz))/DV(iz) ) > tol) then 
+        print *, 'PBE--volume conservation not satisfied',iz,DV(iz),DV_chk(iz)
+        psd_error_flg = .true.
+    endif 
+        
+    if (psd_error_flg) exit
+
+enddo 
+
+endsubroutine psd_diss_pbe_exp
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine psd_diss_pbe_expall( &
+    & nz,nps &! in
+    & ,z,DV,dt,pi,tol,poro &! in 
+    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,psd,ps,dps,ps_min,ps_max &! in 
+    & ,chrsp &! in 
+    & ,dpsd,psd_error_flg &! inout
+    & )
+! an attempt to solve population balance equation reflecting imposed dissolution rate
+implicit none 
+
+integer,intent(in)::nz,nps
+real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol,rough_c0,rough_c1 
+real(kind=8),dimension(nz),intent(in)::z,poro
+real(kind=8),dimension(nps),intent(in)::ps,dps
+real(kind=8),dimension(nz),intent(in)::DV
+real(kind=8),dimension(nps,nz),intent(in)::psd
+character(5),intent(in)::chrsp
+logical,intent(in)::incld_rough
+real(kind=8),dimension(nps,nz),intent(inout)::dpsd
+logical,intent(inout)::psd_error_flg
+! local 
+real(kind=8),dimension(nps,nz)::dVd,psd_old,psd_new,dpsd_tmp,psdx,psdxx
+real(kind=8),dimension(nps)::psd_tmp,dvd_tmp,dpsx,lambda
+real(kind=8),dimension(nz)::kpsd,kpsdx,DV_chk
+real(kind=8) ps_new,ps_newp,dvd_res,error,vol,fact,surf
+real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8),parameter::threshold = 20d0
+real(kind=8),parameter::corr = exp(threshold)
+integer,parameter :: iter_max = 50
+integer ips,iips,ips_new,iz,isps,row,col,ie,ie2,iter
+logical :: safe_mode = .false.
+
+real(kind=8) amx3(nps+1,nps+1),ymx3(nps+1),emx3(nps+1)
+integer ipiv3(nps+1) 
+integer info 
+        
+
+! attempt to calculate psd change by dissolution ( defined with particle number / bulk m3 / log (r) )
+! assumptions/formulations: 
+! 1. Solve population balance equation with shrinking particle: 
+!       [ ( f(r,t+dt) - f(r,t))/dt ] * dr 
+!               = mv * k * ( lambda(r+dr,t) * f(r+dr,t) - lambda(r,t) * f(r,t) ) 
+!               = k' * ( lambda(r+dr,t) * f(r+dr,t) - lambda(r,t) * f(r,t) ) 
+!               where k' = mv * k
+! 2. Constraint from main reaction-transport scheme: dV
+!       sigma [ 4 * pi /3 * r^3 * [f(r,t+dt) - f(r,t)]/dt *dr * dt ]  =  dV
+!       sigma [ 4 * pi * r^2 * f(r,t) *dr * dt ]  =  dV
+! 3. Solve for f(r,t+dt) (r=1, .., nps) and k from above (nps + 1) equations
+!
+! *** Caution must be paid to dr where in the rest of calculation it is defined as d log(r)
+
+
+! roughness factor as functin of radius
+lambda = 1d0
+if (incld_rough)  lambda = rough_c0*(10d0**ps(:))**rough_c1 
+
+! R = log10 r 
+! dR/dr =  1/(r * log10)
+! dr = dR * r * log10
+! note that dps is dR; we need dr denoted here as dpsx (?)
+dpsx = dps * 10d0**(ps) * log(10d0)
+
+! psd is given as number of particles/m3/log(m)
+! converting to number of particles/m3/m
+! note that psd*dps = psdx*dpsx
+do iz=1,nz
+    psdx(:,iz) = psd(:,iz) *dps(:) / dpsx(:)
+enddo 
+
+kpsd = 0d0
+do iz = 1, nz
+    if (dV(iz)>=0d0) then
+        do ips=1,nps
+            if (ips==nps) then
+                kpsd(iz)  = kpsd(iz) - ( - lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips+1)*psdx(ips+1,iz) - lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    else 
+        do ips=1,nps
+            if (ips==1) then
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            elseif (ips==nps) then 
+                kpsd(iz)  = kpsd(iz) - ( - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    endif
+    ! kpsdx(iz) = kpsd(iz)
+    ! do while (kpsdx(iz) * dV(iz) < 0d0) 
+        ! kpsd = 0d0
+        ! if (kpsdx(iz)>=0d0) then
+            ! do ips=1,nps
+                ! if (ips==nps) then
+                    ! kpsd(iz)  = kpsd(iz) - ( - lambda(ips)*psdx(ips,iz) ) &
+                        ! & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                ! else
+                    ! kpsd(iz)  = kpsd(iz) - ( lambda(ips+1)*psdx(ips+1,iz) - lambda(ips)*psdx(ips,iz) ) &
+                        ! & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                ! endif
+            ! enddo 
+        ! else 
+            ! do ips=1,nps
+                ! if (ips==1) then
+                    ! kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) ) &
+                        ! & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                ! elseif (ips==nps) then 
+                    ! kpsd(iz)  = kpsd(iz) - ( - lambda(ips-1)*psdx(ips-1,iz) ) &
+                        ! & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                ! else
+                    ! kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) - lambda(ips-1)*psdx(ips-1,iz) ) &
+                        ! & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+                ! endif
+            ! enddo 
+        ! endif
+        ! kpsdx(iz) = kpsd(iz)
+    ! enddo 
+    ! if (kpsd(iz) * dV(iz) < 0d0) then 
+        ! print *,' *** inconsistent between kpsd and DV ' , chrsld
+        ! print *,' *** maybe because previously dissolving phase starts to precipitate or vice versa ...?'
+        ! kpsd(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 * lambda(:) * psdx(:,iz) * dpsx(:) )
+    ! endif 
+    ! kpsd(iz) = dV(iz)/dt/ kpsd(iz) 
+    ! kpsd(iz) = dV(iz)/dt/ abs( kpsd(iz) )
+    
+    ! kpsd(iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 * lambda(:) * psdx(:,iz) * dpsx(:) )
+
+    kpsd(iz) = dV(iz)/dt/ kpsd(iz) 
+    
+    
+enddo 
+
+kpsdx = kpsd
+psdxx = psdx
+
+do iz = 1, nz
+    
+    do ips = 1, nps
+    
+        row =  ips 
+        
+        vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
+        surf  = 4d0*pi*(10d0**ps(ips))**2d0
+        
+        if ( dV(iz) >= 0d0) then 
+        ! if ( kpsdx(iz) >= 0d0) then 
+        ! if ( .true.) then 
+        
+            if (ips==nps) then 
+                ! & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                ! & - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) )  &
+                psdxx(ips,iz) = psdx(ips,iz) + kpsdx(iz) * ( - lambda(ips)*psdx(ips,iz) ) *dt/dpsx(ips)
+            else
+                ! & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                ! & - kpsdx(iz) * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) )  &
+                psdxx(ips,iz) = psdx(ips,iz) + kpsdx(iz) * ( lambda(ips+1)*psdx(ips+1,iz) - lambda(ips)*psdx(ips,iz) ) &
+                    & *dt/dpsx(ips)
+            endif
+        
+        else
+        
+            if (ips==1) then
+                ! & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                ! & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) )  &
+                psdxx(ips,iz) = psdx(ips,iz) + kpsdx(iz) * ( lambda(ips)*psdx(ips,iz) )*dt/dpsx(ips)
+            elseif (ips==nps) then 
+                ! & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                ! & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )  &
+                psdxx(ips,iz) = psdx(ips,iz) + kpsdx(iz) * ( - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & *dt/dpsx(ips)
+            else
+                ! & + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) &
+                ! & - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )  &
+                psdxx(ips,iz) = psdx(ips,iz) + kpsdx(iz) * ( lambda(ips)*psdx(ips,iz) - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & *dt/dpsx(ips)
+            endif
+            
+        endif 
+        
+    enddo ! end of do-loop for ips
+    
+    dpsd(:,iz) = psdxx(:,iz)*dpsx(:)/dps(:) - psd(:,iz)
+    ! dpsd(:,iz) = -dpsd(:,iz)
+
+    DV_chk(iz) = 0d0
+    if (dV(iz)>=0d0) then
+    ! if (kpsdx(iz)>=0d0) then
+        do ips=1,nps
+            if (ips==nps) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( - lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips+1)*psdx(ips+1,iz) - lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    else 
+        do ips=1,nps
+            if (ips==1) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips)*psdx(ips,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            elseif (ips==nps) then
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            else
+                DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips)*psdx(ips,iz) - lambda(ips-1)*psdx(ips-1,iz) ) &
+                    & * 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            endif
+        enddo 
+    endif
+    ! DV_chk(iz) = - sum( 4d0/3d0*pi*(10d0**ps(:))**3d0 * (psdxx(:,iz) - psdx(:,iz))/dt * dpsx(:))
+    
+    ! DV_chk(iz) = sum(kpsdx(iz) * 4d0*pi*(10d0**ps(:))**2d0 *lambda(:) * psdxx(:,iz) * dpsx(:))
+    
+    
+    DV_chk(iz) = DV_chk(iz) *dt
+    
+    if (abs(DV(iz))>tol .and. abs( (DV(iz) - DV_chk(iz))/DV(iz) ) > tol) then 
+    ! if (abs(DV(iz))>0d0 .and. abs( (DV(iz) - DV_chk(iz))/DV(iz) ) > tol) then 
+        print *, 'PBE--volume conservation not satisfied',iz,DV(iz),DV_chk(iz)
+        psd_error_flg = .true.
+    endif 
+        
+    if (psd_error_flg) exit
+
+enddo 
+
+endsubroutine psd_diss_pbe_expall
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -22892,8 +24243,8 @@ do while (error > tol)
             endif 
 
             amx3(row,row) = ( &
-                & vol * dps(iz) * 1d0  /  merge(1d0,dt,dt_norm)     &
-                & + vol * dps(iz) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
+                & vol * dps(ips) * 1d0  /  merge(1d0,dt,dt_norm)     &
+                & + vol * dps(ips) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
                 & + drxn_tmp * merge(dt,1d0,dt_norm) &
                 & ) &
                 & * psdx(ips,iz)
@@ -22908,7 +24259,7 @@ do while (error > tol)
             if (iz/=nz) then 
                 col = iz + 1  + ( ips - 1 ) * nz 
                 amx3(row,col) = &
-                    & (- vol * dps(iz) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+                    & (- vol * dps(ips) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
             endif 
             
             do iiz = 1, nz
@@ -23214,8 +24565,8 @@ do while (error > tol)
             endif 
 
             amx3(row,row) = ( &
-                & vol * dps(iz) * 1d0  /  merge(1d0,dt,dt_norm)     &
-                & + vol * dps(iz) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
+                & vol * dps(ips) * 1d0  /  merge(1d0,dt,dt_norm)     &
+                & + vol * dps(ips) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
                 & + drxn_tmp * merge(dt,1d0,dt_norm) &
                 & ) &
                 & * psdx(ips,iz)
@@ -23231,7 +24582,7 @@ do while (error > tol)
             if (iz/=nz) then 
                 col = iz + 1  + ( ips - 1 ) * nz 
                 amx3(row,col) = &
-                    & (- vol * dps(iz) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+                    & (- vol * dps(ips) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
             endif 
             
             do iiz = 1, nz
@@ -23587,10 +24938,10 @@ do while (error > 1d0)
             sporoprev_tmp = 1d0
 
             amx3(row,row) = ( &
-                ! & sporo_tmp * vol * dps(iz) * 1d0  /  merge(1d0,dt,dt_norm)     &
-                & sporo_tmp * vol * dps(iz) * 1d0  *  merge(1d0,dtinv,dt_norm)     &
-                ! & + sporo_tmp * vol * dps(iz) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
-                & + sporo_tmp * vol * dps(iz) * w_tmp * dzinv  *merge(dt,1d0,dt_norm)    &
+                ! & sporo_tmp * vol * dps(ips) * 1d0  /  merge(1d0,dt,dt_norm)     &
+                & sporo_tmp * vol * dps(ips) * 1d0  *  merge(1d0,dtinv,dt_norm)     &
+                ! & + sporo_tmp * vol * dps(ips) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
+                & + sporo_tmp * vol * dps(ips) * w_tmp * dzinv  *merge(dt,1d0,dt_norm)    &
                 & + sporo_tmp * drxn_tmp * merge(dt,1d0,dt_norm) &
                 & ) &
                 & * psdx(ips,iz)
@@ -23608,8 +24959,8 @@ do while (error > 1d0)
             if (iz/=nz) then 
                 col = iz + 1  
                 amx3(row,col) = &
-                    ! & (- sporop_tmp * vol * dps(iz) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
-                    & (- sporop_tmp * vol * dps(iz) * wp_tmp * dzinv) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+                    ! & (- sporop_tmp * vol * dps(ips) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+                    & (- sporop_tmp * vol * dps(ips) * wp_tmp * dzinv) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
             endif 
             
             do iiz = 1, nz
@@ -23890,6 +25241,1237 @@ if ( chkflx .and. dt > dt_th) then
 endif  
    
 endsubroutine psd_implicit_all_v2
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine psd_implicit_all_v3( &
+    & nz,nsp_sld,nps,nflx_psd &! in
+    & ,z,dz,dt,pi,tol,w0,w,poro,poroi,poroprev &! in 
+    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,trans &! in
+    & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in   
+    & ,chrsp &! in 
+    & ,flgback,flx_max_max &! inout
+    & ,psdx,flx_psd &! out
+    & )
+implicit none 
+
+integer,intent(in)::nz,nsp_sld,nps,nflx_psd
+real(kind=8),intent(in)::dt,pi,tol,w0,rough_c0,rough_c1,poroi
+real(kind=8),dimension(nz),intent(in)::z,dz,w,poro,poroprev,DV
+real(kind=8),dimension(nz,nz,nsp_sld),intent(in)::trans
+real(kind=8),dimension(nps),intent(in)::ps,dps,psd_pr,psd_norm_fact
+logical,intent(in)::incld_rough
+logical,intent(inout)::flgback
+real(kind=8),intent(inout)::flx_max_max
+character(5),intent(in)::chrsp
+real(kind=8),dimension(nps,nz),intent(in)::psd,dpsd,psd_rain
+real(kind=8),dimension(nps,nz),intent(out)::psdx
+! local 
+real(kind=8),dimension(nps,nz)::psd_old,dpsd_tmp
+real(kind=8),dimension(nz)::kpsd,sporo,kpsdx
+integer iz,isps,ips,iiz,row,col,ie,ie2,iips
+real(kind=8) vol,surf,m_tmp,mp_tmp,mi_tmp,mprev_tmp,rxn_tmp,drxn_tmp,w_tmp,wp_tmp,trans_tmp,msupp_tmp  &
+    & ,sporo_tmp, sporop_tmp,sporoprev_tmp,dtinv,dzinv,drxndk_tmp
+
+logical::dt_norm = .true.
+real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8),parameter::threshold = 20d0
+! real(kind=8),parameter::threshold = 3d0
+! real(kind=8),parameter::corr = 1.5d0
+real(kind=8),parameter::corr = exp(threshold)
+integer,parameter :: iter_max = 50
+! integer,parameter :: nflx_psd = 6
+real(kind=8) error,fact,flx_max! ,flx_max_max
+real(kind=8) :: flx_tol = 1d-3
+! real(kind=8) :: flx_tol = 1d-4
+real(kind=8) :: flx_max_tol = 1d-6
+! real(kind=8) :: flx_max_tol = 1d-5
+real(kind=8) :: dt_th = 1d-6
+real(kind=8) :: fact_tol(nps) 
+integer iter,iflx
+real(kind=8),dimension(nps,nflx_psd,nz),intent(out) :: flx_psd ! itflx,iadv,idif,irain,irxn,ires
+integer  itflx_psd,iadv_psd,idif_psd,irain_psd,irxn_psd,ires_psd
+data itflx_psd,iadv_psd,idif_psd,irain_psd,irxn_psd,ires_psd/1,2,3,4,5,6/
+character(5),dimension(nflx_psd)::chrflx_psd
+character(20) chrfmt
+! logical :: chkflx = .false.
+logical :: chkflx = .true.
+
+real(kind=8) amx3(nz*nps+nz,nz*nps+nz),ymx3(nz*nps+nz),emx3(nps*nps+nz),emx3_loc(nz*nps+nz)
+integer ipiv3(nz*nps+nz) 
+integer info 
+        
+
+! attempt to do psd ( defined with particle number / bulk m3 / log (r) )
+! assumptions/formulations: 
+! 1. d/dt|diss [4 * pi /3 * r^3 * f(r,t)] = k(r) * 4 * pi * r^2 * f(r,t)  
+!      ( < == >  d/dt [f(r,t)] = k(r) * 3 * r^(-1) * f(r,t) )
+! 2. integral for r (or summation numerically) :
+!    int [ d/dt|diss [4 * pi /3 * r^3 * f(r,t)] ] dr =  int [ k(r) * 4 * pi * r^2 * f(r,t) ] dr
+! 3. Both sides must equal dV calculated from `bulk' RTM 
+!    int [ k(r) * 4 * pi * r^2 * f(r,t) ] dr = dV
+!    Attempt here is to obtain k(r) using obtained dV  
+!    This can be easily done if one assumes k(r) is constant and independent r; 
+!    Even if k(r) is dependent on r (e.g., Emmanuel and Ague, 2011) 
+!    one would be able to obtain k(r) as long as r-dependent part is mechanistically known: k(r) = k' * gamma(r) 
+
+
+chrflx_psd = (/'tflx ','adv  ','dif  ','rain ','rxn  ','res  '/)
+
+dtinv = 1d0/dt
+
+sporo = 1d0 - poro
+sporo = 1d0 
+
+psdx = psd
+
+kpsd = 0d0
+! dV = 0d0
+do iz = 1, nz
+    if (.not. incld_rough) then 
+        kpsd(iz) = sum( psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) ! available surface area
+    else
+        kpsd(iz) = sum( psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) ! available surface area
+    endif 
+    kpsd(iz) = dV(iz)/kpsd(iz) 
+    ! kpsd(iz) = abs(dV(iz))/kpsd(iz) 
+enddo 
+
+
+error = 1d4 
+iter = 1
+emx3 = error
+
+do ips =1,nps
+    fact_tol(ips) = maxval(psd(ips,:)) * 1d-12
+    ! fact_tol(ips) = maxval(psd(ips,:)) * 1d-15
+enddo 
+! fact_tol = 1d0
+
+kpsdx = kpsd
+
+do while (error > tol*1d-3) 
+! do while (error > tol) 
+! do while (error > 1d0) 
+! do while ( any (emx3 > fact_tol )  ) 
+    
+
+    amx3 = 0d0
+    ymx3 = 0d0
+    
+    do ips = 1, nps
+        
+        do iz = 1, nz
+        
+            row =  iz + (ips - 1)*nz
+            
+            vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            surf = 4d0*pi*(10d0**ps(ips))**2d0
+            if (incld_rough) then 
+                surf = 4d0*pi*(10d0**ps(ips))**2d0 *rough_c0*(10d0**ps(ips))**rough_c1
+            endif 
+                    
+            m_tmp = vol * psdx(ips,iz) * dps(ips)
+            mprev_tmp = vol * psd(ips,iz) * dps(ips)        
+            ! rxn_tmp = vol * psdx(ips,iz)*dps(ips) &
+                ! & * surf * psdx(ips,iz)*dps(ips) * kpsd(iz) 
+            ! rxn_tmp = surf * psdx(ips,iz)*dps(ips) * kpsd(iz) 
+            ! rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) / dt 
+            ! rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) * dtinv
+            ! rxn_tmp =  - dsign(1d0,dV(iz))*  kpsdx(iz)*surf * psdx(ips,iz) * dps(ips) * dtinv
+            rxn_tmp =  kpsdx(iz)*surf * psdx(ips,iz) * dps(ips) * dtinv
+            
+            ! msupp_tmp = vol * psd_rain(ips,iz) * dps(ips)  / dt
+            msupp_tmp = vol * psd_rain(ips,iz) * dps(ips) * dtinv
+            
+            mi_tmp = vol * psd_pr(ips) * dps(ips)
+            mp_tmp = vol * psdx(ips,min(iz+1,nz)) * dps(ips)
+            
+            dzinv = 1d0/dz(iz)
+            
+            ! drxn_tmp = & 
+                ! & vol * 1d0 * dps(ips) &
+                ! & * surf * psdx(ips,iz) * dps(ips) * kpsd(iz) &
+                ! & + vol * psdx(ips,iz) * dps(ips) &
+                ! & * su
+            ! drxn_tmp = - dsign(1d0,dV(iz))* kpsdx(iz)* surf * 1d0 * dps(ips) *  dtinv
+            drxn_tmp = kpsdx(iz)* surf * 1d0 * dps(ips) *  dtinv
+            ! drxn_tmp = 0d0 
+            drxndk_tmp = 1d0* surf * psdx(ips,iz) * dps(ips) *  dtinv
+            
+            w_tmp = w(iz)
+            wp_tmp = w(min(nz,iz+1))
+
+            sporo_tmp = 1d0-poro(iz)
+            sporop_tmp = 1d0-poro(min(nz,iz+1))
+            sporoprev_tmp = 1d0-poroprev(iz)
+            
+            if (iz==nz) then 
+                mp_tmp = mi_tmp
+                wp_tmp = w0
+                sporop_tmp = 1d0- poroi
+            endif 
+            
+            sporo_tmp = 1d0
+            sporop_tmp = 1d0
+            sporoprev_tmp = 1d0
+
+            amx3(row,row) = ( &
+                ! & sporo_tmp * vol * dps(ips) * 1d0  /  merge(1d0,dt,dt_norm)     &
+                & sporo_tmp * vol * dps(ips) * 1d0  *  merge(1d0,dtinv,dt_norm)     &
+                ! & + sporo_tmp * vol * dps(ips) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
+                & + sporo_tmp * vol * dps(ips) * w_tmp * dzinv  *merge(dt,1d0,dt_norm)    &
+                & + sporo_tmp * drxn_tmp * merge(dt,1d0,dt_norm) &
+                & ) &
+                & * psdx(ips,iz)
+
+            ymx3(row) = ( &
+                ! & ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) / merge(1d0,dt,dt_norm) &
+                & ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) * merge(1d0,dtinv,dt_norm) &
+                ! & -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) / dz(iz) * merge(dt,1d0,dt_norm)  &
+                & -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) * dzinv * merge(dt,1d0,dt_norm)  &
+                & + sporo_tmp* rxn_tmp * merge(dt,1d0,dt_norm) &
+                & - sporo_tmp* msupp_tmp * merge(dt,1d0,dt_norm) &
+                & ) &
+                & * 1d0
+                        
+            if (iz/=nz) then 
+                col = iz + 1  + (ips - 1)*nz
+                amx3(row,col) = &
+                    ! & (- sporop_tmp * vol * dps(ips) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+                    & (- sporop_tmp * vol * dps(ips) * wp_tmp * dzinv) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+            endif 
+            
+            do iiz = 1, nz
+                col = iiz    + (ips - 1)*nz
+                trans_tmp = sum(trans(iiz,iz,:))/nsp_sld
+                if (trans_tmp == 0d0) cycle
+                    
+                amx3(row,col) = amx3(row,col) - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm) 
+                ymx3(row) = ymx3(row) - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm) 
+            enddo
+            
+            col = iz + nz + (nps - 1)*nz
+            amx3(row,col) = amx3(row,col) + ( &
+                & + sporo_tmp * drxndk_tmp * merge(dt,1d0,dt_norm) &
+                & )&
+                & * 1d0
+                ! & * kpsdx(iz)
+            
+            
+            ! if (ips == nps) then 
+            
+                ! amx3(row,:) = 0d0
+                ! ymx3(row  ) = 0d0
+                
+                
+                ! ymx3(row) = ( &
+                    ! &  sum( msldx(:,iz) * mv(:) * 1d-6 ) - sum ( 4d0/3d0*pi*(10d0**ps(:))**3d0 * psdx(:,iz) * dps(:) ) &
+                    ! & ) &
+                    ! & * 1d0
+                    
+                ! do iips = 1, nps
+                    ! col = iz  + ( iips - 1 ) * nz 
+                    ! amx3(row,col) = ( &
+                        ! &   -  ( 4d0/3d0*pi*(10d0**ps(iips))**3d0 * psdx(iips,iz) * dps(iips) )  &
+                        ! & ) &
+                        ! & * 1d0
+                
+                ! enddo 
+            
+            ! endif 
+            
+            ! fact = max( abs( ymx3(row) ), maxval( abs( amx3(row,:) ) ) )
+            
+            ! ymx3(row) = ymx3(row) / fact
+            ! amx3(row,:) = amx3(row,:) / fact
+            
+        enddo
+    
+    enddo 
+    
+    do iz=1,nz
+        row = iz + nz + (nps - 1)*nz
+        
+        do ips = 1,nps
+        
+            surf = 4d0*pi*(10d0**ps(ips))**2d0
+            if (incld_rough) then 
+                surf = 4d0*pi*(10d0**ps(ips))**2d0 *rough_c0*(10d0**ps(ips))**rough_c1
+            endif 
+            
+            ! rxn_tmp =  dsign(1d0,dV(iz))* kpsdx(iz)*surf * psdx(ips,iz) * dps(ips) * dtinv
+            ! drxn_tmp = dsign(1d0,dV(iz))* kpsdx(iz)* surf * 1d0 * dps(ips) *  dtinv
+            rxn_tmp =  kpsdx(iz)*surf * psdx(ips,iz) * dps(ips) * dtinv
+            drxn_tmp = kpsdx(iz)* surf * 1d0 * dps(ips) *  dtinv
+            drxndk_tmp = 1d0* surf * psdx(ips,iz) * dps(ips) *  dtinv
+            
+            ymx3(row) = ymx3(row) + (& 
+                & + sporo_tmp* rxn_tmp * merge(dt,1d0,dt_norm) &
+                & ) &
+                & * 1d0
+            
+            amx3(row,row) = amx3(row,row) + (& 
+                & + sporo_tmp* drxndk_tmp * merge(dt,1d0,dt_norm) &
+                & ) &
+                & * 1d0
+                ! & * kpsdx(iz)
+            
+            col = iz + (ips - 1)*nz
+            
+            amx3(row,col) = amx3(row,col) + (& 
+                & + sporo_tmp* drxn_tmp * merge(dt,1d0,dt_norm) &
+                & ) &
+                & * psdx(ips,iz)
+                
+        enddo 
+        
+        rxn_tmp = - dV(iz) *  dtinv
+        
+        ymx3(row) = ymx3(row) + (& 
+            & + sporo_tmp* rxn_tmp * merge(dt,1d0,dt_norm) &
+            & ) &
+            & * 1d0
+    
+    enddo 
+
+    fact = max( abs( ymx3(row) ), maxval( abs( amx3(row,:) ) ) )
+    
+    ymx3(row) = ymx3(row) / fact
+    amx3(row,:) = amx3(row,:) / fact
+
+    ymx3=-1.0d0*ymx3
+
+    if (any(isnan(amx3)).or.any(isnan(ymx3)).or.any(amx3>infinity).or.any(ymx3>infinity)) then 
+    ! if (.true.) then 
+        print*,'PSD--'//chrsp//': error in mtx'
+        print*,'PSD--'//chrsp//': any(isnan(amx3)),any(isnan(ymx3))'
+        print*,any(isnan(amx3)),any(isnan(ymx3))
+
+        if (any(isnan(ymx3))) then 
+            do iz = 1, nz*nps+nz
+                if (isnan(ymx3(iz))) then 
+                    print*,'NAN is here...',ips,iz
+                endif
+            enddo 
+        endif
+
+
+        if (any(isnan(amx3))) then 
+            do ie = 1,(nz*nps+nz)
+                do ie2 = 1,(nz*nps+nz)
+                    if (isnan(amx3(ie,ie2))) then 
+                        print*,'PSD: NAN is here...',ips,ie,ie2
+                    endif
+                enddo
+            enddo
+        endif
+        stop
+        
+    endif
+
+    call DGESV(Nz*nps+nz,int(1),amx3,Nz*nps+nz,IPIV3,ymx3,Nz*nps+nz,INFO) 
+
+    if (any(isnan(ymx3)) .or. info/=0 ) then
+        print*,'PSD--'//chrsp//': error in soultion',any(isnan(ymx3)),info
+        flgback = .true.
+        ! pause
+        exit
+    endif
+    
+    do ips = 1,nps
+        do iz = 1, nz
+            
+            row =  iz   + (ips - 1)* nz
+
+            if (isnan(ymx3(row))) then 
+                print *,'PSD--'//chrsp//': nan at', iz,ips
+                stop
+            endif
+            
+            emx3_loc(row) = dps(ips)*psdx(ips,iz)*exp(ymx3(row)) - dps(ips)*psdx(ips,iz)
+            
+            if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+                psdx(ips,iz) = psdx(ips,iz)*corr
+            else if (ymx3(row) < -threshold) then 
+                psdx(ips,iz) = psdx(ips,iz)/corr
+            else   
+                psdx(ips,iz) = psdx(ips,iz)*exp(ymx3(row))
+            endif
+        enddo 
+    enddo 
+
+    do iz = 1, nz
+        
+        row =  iz  + nz + (nps - 1)* nz
+
+        if (isnan(ymx3(row))) then 
+            print *,'PSD--'//chrsp//': nan at', iz
+            stop
+        endif
+        
+        ! linear case
+        
+        emx3_loc(row) = abs(ymx3(row)/kpsdx(iz))
+        
+        kpsdx(iz) = kpsdx(iz) + ymx3(row)
+        
+        ! if ((.not.isnan(ymx3(row))).and.ymx3(row) > exp(threshold)*kpsdx(iz)) then 
+            ! kpsdx(iz) = kpsdx(iz)*corr
+        ! else if (ymx3(row) < -exp(threshold)*kpsdx(iz)) then 
+            ! kpsdx(iz) = kpsdx(iz)/corr
+        ! else   
+            ! kpsdx(iz) = kpsdx(iz) + ymx3(row)
+        ! endif
+        
+        ! log case -----------------------
+        
+        ! emx3_loc(row) = exp(abs(ymx3(row))) - 1.0d0
+        
+        ! if (.not. incld_rough) then 
+            
+            ! emx3_loc(row) = kpsdx(iz)*exp(ymx3(row))* sum( psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) &
+                ! & - kpsdx(iz)*sum( psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 )
+        ! else
+            ! emx3_loc(row) = kpsdx(iz)*exp(ymx3(row)) &
+                ! & * sum( psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
+                ! & - kpsdx(iz)*sum( psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 )
+        ! endif 
+        
+        ! if ((.not.isnan(ymx3(row))).and.ymx3(row) > threshold) then 
+            ! kpsdx(iz) = kpsdx(iz)*corr
+        ! else if (ymx3(row) < -threshold) then 
+            ! kpsdx(iz) = kpsdx(iz)/corr
+        ! else   
+            ! kpsdx(iz) = kpsdx(iz) * exp( ymx3(row) )
+        ! endif
+    enddo 
+
+    ! if (all(fact_tol == 1d0)) then 
+        ! emx3(ips) = maxval(exp(abs(ymx3))) - 1.0d0
+    ! else 
+        ! emx3(ips) = maxval(abs(emx3_loc))
+    ! endif 
+    
+    ! error = maxval(emx3)
+    error = maxval(emx3_loc)
+    
+    ! if (isnan(error)) error = 1d4
+
+    if ( isnan(error) .or. any(isnan(psdx)) ) then 
+        error = 1d3
+        print*, 'PSD--'//chrsp//': !! error is NaN; values are returned to those before iteration with reducing dt'
+        print*, 'PSD--'//chrsp//': isnan(error), info/=0,any(isnan(pdsx))'
+        print*, isnan(error), any(isnan(psdx)) 
+        
+        flgback = .true.
+        stop
+        exit
+    endif
+
+    print '(a,E11.3,a,i0,a,E11.3)', 'PSD--'//chrsp//': iteration error = ',error, ', iteration = ',iter,', time step [yr] = ',dt
+    iter = iter + 1 
+    
+    if (iter > iter_Max ) then
+    ! if (iter > iter_Max .or. (method_precalc .and. error > infinity)) then
+        ! dt = dt/1.01d0
+        ! dt = dt/10d0
+        if (dt==0d0) then 
+            print *, chrsp,'dt==0d0; stop'
+        
+! #ifdef errmtx_printout
+            ! open(unit=11,file='amx.txt',status = 'replace')
+            ! open(unit=12,file='ymx.txt',status = 'replace')
+            ! do ie = 1,nsp3*(nz)
+                ! write(11,*) (amx3(ie,ie2),ie2 = 1,nsp3*nz)
+                ! write(12,*) ymx3(ie)
+            ! enddo 
+            ! close(11)
+            ! close(12)      
+! #endif 
+            stop
+        endif 
+        flgback = .true.
+        
+        exit 
+    end if
+    
+    if (flgback) exit
+
+enddo 
+
+
+do iz = 1, nz
+    if (.not. incld_rough) then 
+        if ( abs(DV(iz)) > tol  &
+            & .and. abs ( ( sum( kpsdx(iz) * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 * psdx(:,iz) * dps(:)) &
+            &  - DV(iz) ) / DV(iz) ) > tol ) then  
+            print *, chrsp,'checking the vol. balance and failed ... ' &
+                & , abs ( ( sum( kpsdx(iz) * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 * psdx(:,iz) * dps(:)) &
+                &  - DV(iz) ) / DV(iz) )
+            flgback = .true.
+        endif 
+    else
+        if ( abs(DV(iz)) > tol  &
+            & .and. abs ( ( sum( kpsdx(iz) * 4d0 * pi * (10d0**ps(:))**2d0 * psdx(:,iz) * dps(:)) &
+            &  - DV(iz) ) / DV(iz) ) > tol ) then  
+            print *, chrsp,'checking the vol. balance and failed ... ' &
+                & , abs ( ( sum( kpsdx(iz) * 4d0 * pi * (10d0**ps(:))**2d0 * psdx(:,iz) * dps(:)) &
+                &  - DV(iz) ) / DV(iz) )
+            flgback = .true.
+        endif 
+    endif 
+enddo 
+
+
+! calculating flux 
+flx_psd = 0d0
+do ips = 1, nps
+    
+    do iz = 1, nz
+    
+        row =  iz   
+        
+        vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
+        surf = 4d0*pi*(10d0**ps(ips))**2d0
+        if (incld_rough) then 
+            surf = 4d0*pi*(10d0**ps(ips))**2d0 *rough_c0*(10d0**ps(ips))**rough_c1
+        endif 
+                
+        m_tmp = vol * psdx(ips,iz) * dps(ips)
+        mprev_tmp = vol * psd(ips,iz) * dps(ips)        
+        ! rxn_tmp = vol * psdx(ips,iz)*dps(ips) &
+            ! & * surf * psdx(ips,iz)*dps(ips) * kpsd(iz) 
+        ! rxn_tmp = surf * psdx(ips,iz)*dps(ips) * kpsd(iz) 
+        ! rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) / dt 
+        rxn_tmp =  - kpsdx(iz)*surf * psdx(ips,iz) * dps(ips) * dtinv
+        
+        msupp_tmp = vol * psd_rain(ips,iz) * dps(ips)  / dt
+        
+        mi_tmp = vol * psd_pr(ips) * dps(ips)
+        mp_tmp = vol * psdx(ips,min(iz+1,nz)) * dps(ips)
+        
+        dzinv = 1d0/dz(iz)
+        
+        ! drxn_tmp = & 
+            ! & vol * 1d0 * dps(ips) &
+            ! & * surf * psdx(ips,iz) * dps(ips) * kpsd(iz) &
+            ! & + vol * psdx(ips,iz) * dps(ips) &
+            ! & * su
+        ! drxn_tmp = surf * 1d0 * dps(ips) * kpsd(iz) 
+        drxn_tmp = 0d0 
+        
+        w_tmp = w(iz)
+        wp_tmp = w(min(nz,iz+1))
+
+        sporo_tmp = 1d0-poro(iz)
+        sporop_tmp = 1d0-poro(min(nz,iz+1))
+        sporoprev_tmp = 1d0-poroprev(iz)
+        
+        if (iz==nz) then 
+            mp_tmp = mi_tmp
+            wp_tmp = w0
+            sporop_tmp = 1d0- poroi
+        endif 
+        
+        sporo_tmp = 1d0
+        sporop_tmp = 1d0
+        sporoprev_tmp = 1d0
+        
+        flx_psd(ips,itflx_psd,iz) = ( &
+            & ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) * dtinv  &
+            & )
+        flx_psd(ips,iadv_psd,iz) = ( &
+            & -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) * dzinv &
+            & )
+        flx_psd(ips,irxn_psd,iz) = ( &
+            & + sporo_tmp* rxn_tmp  &
+            & )
+        flx_psd(ips,irain_psd,iz) = ( &
+            & - sporo_tmp* msupp_tmp  &
+            & )
+        
+        do iiz = 1, nz  
+            trans_tmp = sum(trans(iiz,iz,:))/nsp_sld
+            if (trans_tmp == 0d0) cycle
+            
+            flx_psd(ips,idif_psd,iz) = flx_psd(ips,idif_psd,iz) + ( &
+                & - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips) &
+                & )
+        enddo
+        
+        
+        flx_psd(ips,ires_psd,iz) = sum(flx_psd(ips,:,iz))
+        
+    enddo
+enddo
+    
+#ifdef dispPSDiter
+
+write(chrfmt,'(i0)') nflx_psd
+chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,a11))'
+
+print *
+print *,' [fluxes -- PSD] '
+print *, '<'//chrsp//'>'
+print trim(adjustl(chrfmt)),'rad',(chrflx_psd(iflx),iflx=1,nflx_psd)
+
+write(chrfmt,'(i0)') nflx_psd
+chrfmt = '(f5.2,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+do ips = 1, nps
+    print trim(adjustl(chrfmt)), ps(ips), (sum(flx_psd(ips,iflx,:)*dz(:)),iflx=1,nflx_psd)
+enddo 
+print *
+
+#endif     
+   
+
+        
+if ( chkflx .and. dt > dt_th) then 
+    ! flx_max_max = 0d0
+    do ips = 1, nps
+        flx_max = 0d0
+        do iflx=1,nflx_psd 
+            flx_max= max( flx_max, abs( sum(flx_psd(ips,iflx,:)*dz(:)) ) )
+        enddo 
+        flx_max_max = max( flx_max_max, flx_max)
+    enddo 
+    do ips = 1, nps
+    
+        if ( flx_max > flx_max_max*flx_max_tol .and. abs( sum(flx_psd(ips,ires_psd,:)*dz(:)) ) > flx_max * flx_tol ) then 
+            
+            print *, chrsp,' too large error in PSD flx?'
+            print *, 'flx_max, flx_max_max,tol = ', flx_max,flx_max_max,flx_max_tol
+            print *, 'res, max = ', abs( sum(flx_psd(ips,ires_psd,:)*dz(:)) ), flx_max
+            print *, 'res/max, target = ', abs( sum(flx_psd(ips,ires_psd,:)*dz(:)) )/flx_max, flx_tol
+            
+            flgback = .true.
+        
+        endif 
+        
+    enddo 
+endif  
+   
+endsubroutine psd_implicit_all_v3
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine psd_implicit_all_v4( &
+    & nz,nsp_sld,nps,nflx_psd &! in
+    & ,z,dz,dt,pi,tol,w0,w,poro,poroi,poroprev &! in 
+    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,trans &! in
+    & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in   
+    & ,chrsp &! in 
+    & ,flgback,flx_max_max &! inout
+    & ,psdx,flx_psd &! out
+    & )
+implicit none 
+
+integer,intent(in)::nz,nsp_sld,nps,nflx_psd
+real(kind=8),intent(in)::dt,pi,tol,w0,rough_c0,rough_c1,poroi
+real(kind=8),dimension(nz),intent(in)::z,dz,w,poro,poroprev,DV
+real(kind=8),dimension(nz,nz,nsp_sld),intent(in)::trans
+real(kind=8),dimension(nps),intent(in)::ps,dps,psd_pr,psd_norm_fact
+logical,intent(in)::incld_rough
+logical,intent(inout)::flgback
+real(kind=8),intent(inout)::flx_max_max
+character(5),intent(in)::chrsp
+real(kind=8),dimension(nps,nz),intent(in)::psd,dpsd,psd_rain
+real(kind=8),dimension(nps,nz),intent(out)::psdx
+! local 
+real(kind=8),dimension(nps,nz)::psd_old,dpsd_tmp
+real(kind=8),dimension(nz)::kpsd,sporo,kpsdx
+integer iz,isps,ips,iiz,row,col,ie,ie2,iips
+real(kind=8) vol,surf,m_tmp,mp_tmp,mi_tmp,mprev_tmp,rxn_tmp,drxn_tmp,w_tmp,wp_tmp,trans_tmp,msupp_tmp  &
+    & ,sporo_tmp, sporop_tmp,sporoprev_tmp,dtinv,dzinv,drxndk_tmp
+
+logical::dt_norm = .true.
+real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8),parameter::threshold = 20d0
+! real(kind=8),parameter::threshold = 3d0
+! real(kind=8),parameter::corr = 1.5d0
+real(kind=8),parameter::corr = exp(threshold)
+integer,parameter :: iter_max = 50
+! integer,parameter :: nflx_psd = 6
+real(kind=8) error,fact,flx_max! ,flx_max_max
+real(kind=8) error_k
+real(kind=8) :: flx_tol = 1d-3
+! real(kind=8) :: flx_tol = 1d-4
+real(kind=8) :: flx_max_tol = 1d-6
+! real(kind=8) :: flx_max_tol = 1d-5
+real(kind=8) :: dt_th = 1d-6
+real(kind=8) :: k_tol = 1d-4
+! real(kind=8) :: k_tol = 1d-6
+real(kind=8) :: fact_tol(nps) 
+integer iter,iflx
+integer iter_k
+real(kind=8),dimension(nps,nflx_psd,nz),intent(out) :: flx_psd ! itflx,iadv,idif,irain,irxn,ires
+integer  itflx_psd,iadv_psd,idif_psd,irain_psd,irxn_psd,ires_psd
+data itflx_psd,iadv_psd,idif_psd,irain_psd,irxn_psd,ires_psd/1,2,3,4,5,6/
+character(5),dimension(nflx_psd)::chrflx_psd
+character(20) chrfmt
+! logical :: chkflx = .false.
+logical :: chkflx = .true.
+logical :: explicit = .false.
+! logical :: explicit = .true.
+
+real(kind=8) amx3(nz,nz),ymx3(nz),emx3(nps),emx3_loc(nz)
+integer ipiv3(nz) 
+integer info 
+        
+
+! attempt to do psd ( defined with particle number / bulk m3 / log (r) )
+! assumptions/formulations: 
+! 1. d/dt|diss [4 * pi /3 * r^3 * f(r,t)] = k(r) * 4 * pi * r^2 * f(r,t)  
+!      ( < == >  d/dt [f(r,t)] = k(r) * 3 * r^(-1) * f(r,t) )
+! 2. integral for r (or summation numerically) :
+!    int [ d/dt|diss [4 * pi /3 * r^3 * f(r,t)] ] dr =  int [ k(r) * 4 * pi * r^2 * f(r,t) ] dr
+! 3. Both sides must equal dV calculated from `bulk' RTM 
+!    int [ k(r) * 4 * pi * r^2 * f(r,t) ] dr = dV
+!    Attempt here is to obtain k(r) using obtained dV  
+!    This can be easily done if one assumes k(r) is constant and independent r; 
+!    Even if k(r) is dependent on r (e.g., Emmanuel and Ague, 2011) 
+!    one would be able to obtain k(r) as long as r-dependent part is mechanistically known: k(r) = k' * gamma(r) 
+
+
+chrflx_psd = (/'tflx ','adv  ','dif  ','rain ','rxn  ','res  '/)
+
+dtinv = 1d0/dt
+
+sporo = 1d0 - poro
+sporo = 1d0 
+
+psdx = psd
+
+kpsd = 0d0
+! dV = 0d0
+do iz = 1, nz
+    if (.not. incld_rough) then 
+        kpsd(iz) = sum( psd_norm_fact(:) * psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) ! available surface area
+    else
+        kpsd(iz) = sum( psd_norm_fact(:) * psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) ! available surface area
+    endif 
+    kpsd(iz) = dV(iz)/kpsd(iz) 
+    ! kpsd(iz) = abs(dV(iz))/kpsd(iz) 
+enddo 
+
+do ips =1,nps
+    fact_tol(ips) = maxval(psd(ips,:)) * 1d-12
+    ! fact_tol(ips) = maxval(psd(ips,:)) * 1d-15
+enddo 
+! fact_tol = 1d0
+
+
+! do loop for kpsd  
+error_k = 1d4
+iter_k = 1
+kpsdx = kpsd
+                        do while (error_k > k_tol)
+
+
+error = 1d4 
+iter = 1
+emx3 = error
+
+! do while (error > tol*1d-3) 
+! do while (error > tol) 
+do while (error > 1d0) 
+! do while ( any (emx3 > fact_tol )  ) 
+    
+    do ips = 1, nps
+    
+        fact = maxval( psd(ips,:) ) 
+    
+        if (emx3(ips) <= fact_tol(ips)) cycle
+
+        amx3 = 0d0
+        ymx3 = 0d0
+        
+        do iz = 1, nz
+        
+            row =  iz !+ (ips - 1)*nz
+            
+            vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
+            surf = 4d0*pi*(10d0**ps(ips))**2d0
+            if (incld_rough) then 
+                surf = 4d0*pi*(10d0**ps(ips))**2d0 *rough_c0*(10d0**ps(ips))**rough_c1
+            endif 
+                    
+            m_tmp = vol * psdx(ips,iz) * dps(ips)
+            mprev_tmp = vol * psd(ips,iz) * dps(ips)        
+            ! rxn_tmp = vol * psdx(ips,iz)*dps(ips) &
+                ! & * surf * psdx(ips,iz)*dps(ips) * kpsd(iz) 
+            ! rxn_tmp = surf * psdx(ips,iz)*dps(ips) * kpsd(iz) 
+            ! rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) / dt 
+            ! rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) * dtinv
+            ! rxn_tmp =  - dsign(1d0,dV(iz))*  kpsdx(iz)*surf * psdx(ips,iz) * dps(ips) * dtinv
+            rxn_tmp =  kpsdx(iz)*surf * psdx(ips,iz) * dps(ips) * dtinv
+            
+            ! msupp_tmp = vol * psd_rain(ips,iz) * dps(ips)  / dt
+            msupp_tmp = vol * psd_rain(ips,iz) * dps(ips) * dtinv
+            
+            mi_tmp = vol * psd_pr(ips) * dps(ips)
+            mp_tmp = vol * psdx(ips,min(iz+1,nz)) * dps(ips)
+            
+            dzinv = 1d0/dz(iz)
+            
+            ! drxn_tmp = & 
+                ! & vol * 1d0 * dps(ips) &
+                ! & * surf * psdx(ips,iz) * dps(ips) * kpsd(iz) &
+                ! & + vol * psdx(ips,iz) * dps(ips) &
+                ! & * su
+            ! drxn_tmp = - dsign(1d0,dV(iz))* kpsdx(iz)* surf * 1d0 * dps(ips) *  dtinv
+            drxn_tmp =  kpsdx(iz)* surf * 1d0 * dps(ips) *  dtinv
+            ! drxn_tmp = 0d0 
+            drxndk_tmp =  1d0* surf * psdx(ips,iz) * dps(ips) *  dtinv
+            
+            if (explicit) then 
+                rxn_tmp =  kpsd(iz)*surf * psd(ips,iz) * dps(ips) * dtinv
+                drxn_tmp = 0d0
+                drxndk_tmp = 0d0
+            endif 
+            
+            w_tmp = w(iz)
+            wp_tmp = w(min(nz,iz+1))
+
+            sporo_tmp = 1d0-poro(iz)
+            sporop_tmp = 1d0-poro(min(nz,iz+1))
+            sporoprev_tmp = 1d0-poroprev(iz)
+            
+            if (iz==nz) then 
+                mp_tmp = mi_tmp
+                wp_tmp = w0
+                sporop_tmp = 1d0- poroi
+            endif 
+            
+            sporo_tmp = 1d0
+            sporop_tmp = 1d0
+            sporoprev_tmp = 1d0
+
+            amx3(row,row) = ( &
+                ! & sporo_tmp * vol * dps(ips) * 1d0  /  merge(1d0,dt,dt_norm)     &
+                & sporo_tmp * vol * dps(ips) * 1d0  *  merge(1d0,dtinv,dt_norm)     &
+                ! & + sporo_tmp * vol * dps(ips) * w_tmp / dz(iz)  *merge(dt,1d0,dt_norm)    &
+                & + sporo_tmp * vol * dps(ips) * w_tmp * dzinv  *merge(dt,1d0,dt_norm)    &
+                & + sporo_tmp * drxn_tmp * merge(dt,1d0,dt_norm) &
+                & ) &
+                & * psdx(ips,iz)
+
+            ymx3(row) = ( &
+                ! & ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) / merge(1d0,dt,dt_norm) &
+                & ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) * merge(1d0,dtinv,dt_norm) &
+                ! & -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) / dz(iz) * merge(dt,1d0,dt_norm)  &
+                & -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) * dzinv * merge(dt,1d0,dt_norm)  &
+                & + sporo_tmp* rxn_tmp * merge(dt,1d0,dt_norm) &
+                & - sporo_tmp* msupp_tmp * merge(dt,1d0,dt_norm) &
+                & ) &
+                & * 1d0
+                        
+            if (iz/=nz) then 
+                col = iz + 1  !+ (ips - 1)*nz
+                amx3(row,col) = &
+                    ! & (- sporop_tmp * vol * dps(ips) * wp_tmp / dz(iz)) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+                    & (- sporop_tmp * vol * dps(ips) * wp_tmp * dzinv) * merge(dt,1d0,dt_norm) * psdx(ips,min(iz+1,nz))
+            endif 
+            
+            do iiz = 1, nz
+                col = iiz   ! + (ips - 1)*nz
+                trans_tmp = sum(trans(iiz,iz,:))/nsp_sld
+                if (trans_tmp == 0d0) cycle
+                    
+                amx3(row,col) = amx3(row,col) - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm) 
+                ymx3(row) = ymx3(row) - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips)  * merge(dt,1d0,dt_norm) 
+            enddo
+            
+            ! col = iz + nz + (nps - 1)*nz
+            ! amx3(row,col) = amx3(row,col) + ( &
+                ! & + sporo_tmp * drxndk_tmp * merge(dt,1d0,dt_norm) &
+                ! & )&
+                ! & * 1d0
+                ! & * kpsdx(iz)
+            
+            
+            ! if (ips == nps) then 
+            
+                ! amx3(row,:) = 0d0
+                ! ymx3(row  ) = 0d0
+                
+                
+                ! ymx3(row) = ( &
+                    ! &  sum( msldx(:,iz) * mv(:) * 1d-6 ) - sum ( 4d0/3d0*pi*(10d0**ps(:))**3d0 * psdx(:,iz) * dps(:) ) &
+                    ! & ) &
+                    ! & * 1d0
+                    
+                ! do iips = 1, nps
+                    ! col = iz  + ( iips - 1 ) * nz 
+                    ! amx3(row,col) = ( &
+                        ! &   -  ( 4d0/3d0*pi*(10d0**ps(iips))**3d0 * psdx(iips,iz) * dps(iips) )  &
+                        ! & ) &
+                        ! & * 1d0
+                
+                ! enddo 
+            
+            ! endif 
+            
+            ! fact = max( abs( ymx3(row) ), maxval( abs( amx3(row,:) ) ) )
+            
+            ! ymx3(row) = ymx3(row) / fact
+            ! amx3(row,:) = amx3(row,:) / fact
+            
+        enddo
+            
+        ymx3 = ymx3 / fact
+        amx3 = amx3 / fact
+
+        ymx3=-1.0d0*ymx3
+
+        if (any(isnan(amx3)).or.any(isnan(ymx3)).or.any(amx3>infinity).or.any(ymx3>infinity)) then 
+        ! if (.true.) then 
+            print*,'PSD--'//chrsp//': error in mtx'
+            print*,'PSD--'//chrsp//': any(isnan(amx3)),any(isnan(ymx3))'
+            print*,any(isnan(amx3)),any(isnan(ymx3))
+
+            if (any(isnan(ymx3))) then 
+                do iz = 1, nz!*nps+nz
+                    if (isnan(ymx3(iz))) then 
+                        print*,'NAN is here...',ips,iz
+                    endif
+                enddo 
+            endif
+
+
+            if (any(isnan(amx3))) then 
+                do ie = 1,nz!*nps+nz)
+                    do ie2 = 1,nz!*nps+nz)
+                        if (isnan(amx3(ie,ie2))) then 
+                            print*,'PSD: NAN is here...',ips,ie,ie2
+                        endif
+                    enddo
+                enddo
+            endif
+            stop
+            
+        endif
+
+        call DGESV(Nz,int(1),amx3,Nz,IPIV3,ymx3,Nz,INFO) 
+
+        if (any(isnan(ymx3)) .or. info/=0 ) then
+            print*,'PSD--'//chrsp//': error in soultion',any(isnan(ymx3)),info
+            flgback = .true.
+            ! pause
+            exit
+        endif
+    
+        do iz = 1, nz
+            
+            row =  iz   !+ (ips - 1)* nz
+
+            if (isnan(ymx3(row))) then 
+                print *,'PSD--'//chrsp//': nan at', iz,ips
+                stop
+            endif
+            
+            emx3_loc(row) = dps(ips)*psdx(ips,iz)*exp(ymx3(row)) - dps(ips)*psdx(ips,iz)
+            
+            if ((.not.isnan(ymx3(row))).and.ymx3(row) >threshold) then 
+                psdx(ips,iz) = psdx(ips,iz)*corr
+            else if (ymx3(row) < -threshold) then 
+                psdx(ips,iz) = psdx(ips,iz)/corr
+            else   
+                psdx(ips,iz) = psdx(ips,iz)*exp(ymx3(row))
+            endif
+        enddo
+        
+        if (all(fact_tol == 1d0)) then 
+            emx3(ips) = maxval(exp(abs(ymx3))) - 1.0d0
+        else 
+            emx3(ips) = maxval(abs(emx3_loc))
+        endif 
+    
+    enddo 
+    
+    ! error = maxval(emx3)
+    error = maxval(emx3/fact_tol)
+    
+    ! if (isnan(error)) error = 1d4
+
+    if ( isnan(error) .or. any(isnan(psdx)) ) then 
+        error = 1d3
+        print*, 'PSD--'//chrsp//': !! error is NaN; values are returned to those before iteration with reducing dt'
+        print*, 'PSD--'//chrsp//': isnan(error), info/=0,any(isnan(pdsx))'
+        print*, isnan(error), any(isnan(psdx)) 
+        
+        flgback = .true.
+        stop
+        exit
+    endif
+
+    print '(a,E11.3,a,i0,a,E11.3)', 'PSD--'//chrsp//': iteration error = ',error, ', iteration = ',iter,', time step [yr] = ',dt
+    iter = iter + 1 
+    
+    if (iter > iter_Max ) then
+    ! if (iter > iter_Max .or. (method_precalc .and. error > infinity)) then
+        ! dt = dt/1.01d0
+        ! dt = dt/10d0
+        if (dt==0d0) then 
+            print *, chrsp,'dt==0d0; stop'
+        
+! #ifdef errmtx_printout
+            ! open(unit=11,file='amx.txt',status = 'replace')
+            ! open(unit=12,file='ymx.txt',status = 'replace')
+            ! do ie = 1,nsp3*(nz)
+                ! write(11,*) (amx3(ie,ie2),ie2 = 1,nsp3*nz)
+                ! write(12,*) ymx3(ie)
+            ! enddo 
+            ! close(11)
+            ! close(12)      
+! #endif 
+            stop
+        endif 
+        flgback = .true.
+        
+        exit 
+    end if
+    
+    if (flgback) exit
+
+enddo 
+
+if (explicit) exit
+
+kpsd = kpsdx
+
+do iz = 1, nz
+    if (.not. incld_rough) then 
+        kpsdx(iz) = dV(iz)/sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) ! available surface area
+    else
+        kpsdx(iz) = dV(iz)/sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+            & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) ! available surface area
+    endif 
+    ! kpsdx(iz) = dV(iz)/kpsdx(iz) 
+    ! kpsd(iz) = abs(dV(iz))/kpsd(iz) 
+enddo 
+
+do iz = 1, nz
+    if (.not. incld_rough) then 
+        if ( abs(DV(iz)) > tol  &
+            & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) &
+            &  - DV(iz) ) / DV(iz) ) > tol ) then  
+            print *, chrsp,'checking the vol. balance within do-loop and failed ... ' &
+                & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 )  &
+                &  - DV(iz) ) / DV(iz) )
+            ! flgback = .true.
+        endif 
+    else
+        if ( abs(DV(iz)) > tol  &
+            & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+            & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
+            &  - DV(iz) ) / DV(iz) ) > tol ) then  
+            print *, chrsp,'checking the vol. balance within do-loop and failed ... ' &
+                & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+                & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
+                &  - DV(iz) ) / DV(iz) )
+            ! flgback = .true.
+        endif 
+    endif 
+enddo 
+
+error_k = 0d0
+do iz=1,nz
+    if (kpsdx(iz)/=0d0) then 
+        error_k = max(error_k, abs((kpsdx(iz) - kpsd(iz))/kpsdx(iz)) )
+        ! error_k = max(error_k, abs((kpsdx(iz) - kpsd(iz)))*dtinv )
+    endif 
+enddo
+
+print *, '----- kpsd iteration', iter_k, error_k
+iter_k = iter_k + 1 
+
+if (iter_k > iter_Max ) then
+! if (iter > iter_Max .or. (method_precalc .and. error > infinity)) then
+    ! dt = dt/1.01d0
+    ! dt = dt/10d0
+    if (dt==0d0) then 
+        print *, chrsp,'dt==0d0; stop'
+        stop
+    endif 
+    flgback = .true.
+    
+    exit 
+end if
+
+if (flgback) exit
+
+! end of do-loop for k
+                        enddo
+
+if (.not.explicit) then 
+    do iz = 1, nz
+        if (.not. incld_rough) then 
+            if ( abs(DV(iz)) > tol  &
+                & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) &
+                &  - DV(iz) ) / DV(iz) ) > tol ) then  
+                print *, chrsp,'checking the vol. balance and failed ... ' &
+                    & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 )  &
+                    &  - DV(iz) ) / DV(iz) )
+                flgback = .true.
+            endif 
+        else
+            if ( abs(DV(iz)) > tol  &
+                & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+                & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
+                &  - DV(iz) ) / DV(iz) ) > tol ) then  
+                print *, chrsp,'checking the vol. balance and failed ... ' &
+                    & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+                    & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
+                    &  - DV(iz) ) / DV(iz) )
+                flgback = .true.
+            endif 
+        endif 
+    enddo 
+endif 
+
+! calculating flux 
+flx_psd = 0d0
+do ips = 1, nps
+    
+    do iz = 1, nz
+    
+        row =  iz   
+        
+        vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
+        surf = 4d0*pi*(10d0**ps(ips))**2d0
+        if (incld_rough) then 
+            surf = 4d0*pi*(10d0**ps(ips))**2d0 *rough_c0*(10d0**ps(ips))**rough_c1
+        endif 
+                
+        m_tmp = vol * psdx(ips,iz) * dps(ips)
+        mprev_tmp = vol * psd(ips,iz) * dps(ips)        
+        ! rxn_tmp = vol * psdx(ips,iz)*dps(ips) &
+            ! & * surf * psdx(ips,iz)*dps(ips) * kpsd(iz) 
+        ! rxn_tmp = surf * psdx(ips,iz)*dps(ips) * kpsd(iz) 
+        ! rxn_tmp =  - vol * dpsd(ips,iz) * dps(ips) / dt 
+        rxn_tmp =   kpsdx(iz)*surf * psdx(ips,iz) * dps(ips) * dtinv
+            
+        if (explicit) then 
+            rxn_tmp =  kpsd(iz)*surf * psd(ips,iz) * dps(ips) * dtinv
+        endif 
+        
+        msupp_tmp = vol * psd_rain(ips,iz) * dps(ips)  / dt
+        
+        mi_tmp = vol * psd_pr(ips) * dps(ips)
+        mp_tmp = vol * psdx(ips,min(iz+1,nz)) * dps(ips)
+        
+        dzinv = 1d0/dz(iz)
+        
+        ! drxn_tmp = & 
+            ! & vol * 1d0 * dps(ips) &
+            ! & * surf * psdx(ips,iz) * dps(ips) * kpsd(iz) &
+            ! & + vol * psdx(ips,iz) * dps(ips) &
+            ! & * su
+        ! drxn_tmp = surf * 1d0 * dps(ips) * kpsd(iz) 
+        drxn_tmp = 0d0 
+        
+        w_tmp = w(iz)
+        wp_tmp = w(min(nz,iz+1))
+
+        sporo_tmp = 1d0-poro(iz)
+        sporop_tmp = 1d0-poro(min(nz,iz+1))
+        sporoprev_tmp = 1d0-poroprev(iz)
+        
+        if (iz==nz) then 
+            mp_tmp = mi_tmp
+            wp_tmp = w0
+            sporop_tmp = 1d0- poroi
+        endif 
+        
+        sporo_tmp = 1d0
+        sporop_tmp = 1d0
+        sporoprev_tmp = 1d0
+        
+        flx_psd(ips,itflx_psd,iz) = ( &
+            & ( sporo_tmp * m_tmp - sporoprev_tmp*mprev_tmp ) * dtinv  &
+            & )
+        flx_psd(ips,iadv_psd,iz) = ( &
+            & -( sporop_tmp * wp_tmp * mp_tmp - sporo_tmp * w_tmp * m_tmp ) * dzinv &
+            & )
+        flx_psd(ips,irxn_psd,iz) = ( &
+            & + sporo_tmp* rxn_tmp  &
+            & )
+        flx_psd(ips,irain_psd,iz) = ( &
+            & - sporo_tmp* msupp_tmp  &
+            & )
+        
+        do iiz = 1, nz  
+            trans_tmp = sum(trans(iiz,iz,:))/nsp_sld
+            if (trans_tmp == 0d0) cycle
+            
+            flx_psd(ips,idif_psd,iz) = flx_psd(ips,idif_psd,iz) + ( &
+                & - trans_tmp * sporo(iiz) * vol * psdx(ips,iiz) * dps(ips) &
+                & )
+        enddo
+        
+        
+        flx_psd(ips,ires_psd,iz) = sum(flx_psd(ips,:,iz))
+        
+    enddo
+enddo
+    
+#ifdef dispPSDiter
+
+write(chrfmt,'(i0)') nflx_psd
+chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,a11))'
+
+print *
+print *,' [fluxes -- PSD] '
+print *, '<'//chrsp//'>'
+print trim(adjustl(chrfmt)),'rad',(chrflx_psd(iflx),iflx=1,nflx_psd)
+
+write(chrfmt,'(i0)') nflx_psd
+chrfmt = '(f5.2,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+do ips = 1, nps
+    print trim(adjustl(chrfmt)), ps(ips), (sum(flx_psd(ips,iflx,:)*dz(:)),iflx=1,nflx_psd)
+enddo 
+print *
+
+#endif     
+   
+
+        
+if ( chkflx .and. dt > dt_th) then 
+    ! flx_max_max = 0d0
+    do ips = 1, nps
+        flx_max = 0d0
+        do iflx=1,nflx_psd 
+            flx_max= max( flx_max, abs( sum(flx_psd(ips,iflx,:)*dz(:)) ) )
+        enddo 
+        flx_max_max = max( flx_max_max, flx_max)
+    enddo 
+    do ips = 1, nps
+    
+        if ( flx_max > flx_max_max*flx_max_tol .and. abs( sum(flx_psd(ips,ires_psd,:)*dz(:)) ) > flx_max * flx_tol ) then 
+            
+            print *, chrsp,' too large error in PSD flx?'
+            print *, 'flx_max, flx_max_max,tol = ', flx_max,flx_max_max,flx_max_tol
+            print *, 'res, max = ', abs( sum(flx_psd(ips,ires_psd,:)*dz(:)) ), flx_max
+            print *, 'res/max, target = ', abs( sum(flx_psd(ips,ires_psd,:)*dz(:)) )/flx_max, flx_tol
+            
+            flgback = .true.
+        
+        endif 
+        
+    enddo 
+endif  
+   
+endsubroutine psd_implicit_all_v4
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
