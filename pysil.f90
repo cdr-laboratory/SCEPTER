@@ -113,6 +113,22 @@ real(kind=8),parameter :: fr_fer_agt = 0.0d0 ! Ferrosilite (and Hedenbergite; or
 real(kind=8),parameter :: fr_opx_agt = 0.0d0 ! OPX (or 1 - Ca:(Fe+Mg)) fraction for Augite; 0.0 - 1.0; from Beerling et al 2020
 real(kind=8),parameter :: fr_napx_agt = 0.1d0 ! Na fraction for Augite (or Na/(Ca+Fe+Mg)); 0.0 - 1.0; from Beerling et al 2020
 
+real(kind=8),parameter :: fr_si_gbas = 1d0 ! Si fraction of glass basalt; Pollyea and Rimstidt 2017 (referring to basalt used by Oelkers and Gislason (2001) and Gundbrandsson et al. (2011)
+real(kind=8),parameter :: fr_al_gbas = 0.358d0 ! Al fraction of glass basalt
+real(kind=8),parameter :: fr_na_gbas = 0.079d0 ! Na fraction of glass basalt 
+real(kind=8),parameter :: fr_k_gbas = 0.08d0 ! K fraction of glass basalt
+real(kind=8),parameter :: fr_mg_gbas = 0.281d0 ! Mg fraction of glass basalt
+real(kind=8),parameter :: fr_ca_gbas = 0.264d0 ! Ca fraction of glass basalt
+real(kind=8),parameter :: fr_fe2_gbas = 0.190d0 ! Fe2 fraction of glass basalt
+
+real(kind=8),parameter :: fr_si_cbas = 1d0 ! Si fraction of clystaline basalt; Pollyea and Rimstidt 2017 (referring to basalt used by Oelkers and Gislason (2001) and Gundbrandsson et al. (2011)
+real(kind=8),parameter :: fr_al_cbas = 0.358d0 ! Al fraction of clystaline basalt
+real(kind=8),parameter :: fr_na_cbas = 0.079d0 ! Na fraction of clystaline basalt 
+real(kind=8),parameter :: fr_k_cbas = 0.08d0 ! K fraction of clystaline basalt
+real(kind=8),parameter :: fr_mg_cbas = 0.281d0 ! Mg fraction of clystaline basalt
+real(kind=8),parameter :: fr_ca_cbas = 0.264d0 ! Ca fraction of clystaline basalt
+real(kind=8),parameter :: fr_fe2_cbas = 0.190d0 ! Fe2 fraction of clystaline basalt
+
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
 real(kind=8),parameter :: mvab_0 = 100.07d0 ! cm3/mol; molar volume of Ab(NaAlSi3O8); Robie et al. 1978 
@@ -179,6 +195,20 @@ real(kind=8),parameter :: mvagt = ( &
                                 ! = Fe(xy+x)(1-z)Mg(y-xy+1-x)(1-z)Ca(1-y)(1-z)NazAlzSi2O6
                                 ! ; assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mvamnt = 46.40173913043478d0 ! cm3/mol; molar volume of ammonium nitrate (NH4NO3); density 1.725 g/cm3 (at 20C) from wikipedea 
+real(kind=8),parameter :: mvfe2o = 12d0 ! cm3/mol; molar volume of ferrous oxide; Robie et al. 1978
+real(kind=8),parameter :: mvmgo = 11.248d0 ! cm3/mol; molar volume of periclase; Robie et al. 1978
+real(kind=8),parameter :: mvk2o = 40.38d0 ! cm3/mol; molar volume of dipotasium monoxide; Robie et al. 1978
+real(kind=8),parameter :: mvcao = 16.764d0 ! cm3/mol; molar volume of calcium monoxide; Robie et al. 1978
+real(kind=8),parameter :: mvna2o = 25.88d0 ! cm3/mol; molar volume of disodium monoxide; Robie et al. 1978
+real(kind=8),parameter :: mval2o3 = 25.575d0 ! cm3/mol; molar volume of corundum; Robie et al. 1978
+real(kind=8),parameter :: mvgbas = ( &
+                                & fr_si_gbas*mvamsi + fr_al_gbas/2d0*mval2o3 + fr_na_gbas/2d0*mvna2o &
+                                & + fr_k_gbas/2d0*mvk2o + fr_ca_gbas*mvcao + fr_mg_gbas*mvmgo + fr_fe2_gbas*mvfe2o &
+                                & ) ! assuming simply mixing molar volume?
+real(kind=8),parameter :: mvcbas = ( &
+                                & fr_si_gbas*mvqtz + fr_al_cbas/2d0*mval2o3 + fr_na_cbas/2d0*mvna2o &
+                                & + fr_k_cbas/2d0*mvk2o + fr_ca_cbas*mvcao + fr_mg_cbas*mvmgo + fr_fe2_cbas*mvfe2o &
+                                & ) ! assuming simply mixing molar volume? 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
@@ -246,6 +276,20 @@ real(kind=8),parameter :: mwtagt = ( &
                                 ! = Fe(xy+x)(1-z)Mg(y-xy+1-x)(1-z)Ca(1-y)(1-z)NazAlzSi2O6
                                 ! ; assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mwtamnt = 80.043d0 ! g/mol; formula weight of ammonium nitrate 
+real(kind=8),parameter :: mwtfe2o = 71.846d0 ! g/mol; molar weight of ferrous oxide; Robie et al. 1978 
+real(kind=8),parameter :: mwtmgo = 40.304d0 ! g/mol; molar weight of periclase; Robie et al. 1978 
+real(kind=8),parameter :: mwtk2o = 94.195d0 ! g/mol; molar weight of dipotasium monoxide; Robie et al. 1978 
+real(kind=8),parameter :: mwtcao = 56.079d0 ! g/mol; molar weight of calcium oxide; Robie et al. 1978 
+real(kind=8),parameter :: mwtna2o = 61.979d0 ! g/mol; molar weight of disodium monoxide; Robie et al. 1978 
+real(kind=8),parameter :: mwtal2o3 = 101.962d0 ! g/mol; molar weight of corundum; Robie et al. 1978 
+real(kind=8),parameter :: mwtgbas = ( &
+                                & fr_si_gbas*mwtamsi + fr_al_gbas/2d0*mwtal2o3 + fr_na_gbas/2d0*mwtna2o &
+                                & + fr_k_gbas/2d0*mwtk2o + fr_ca_gbas*mwtcao + fr_mg_gbas*mwtmgo + fr_fe2_gbas*mwtfe2o &
+                                & ) ! assuming simply mixing molar weight?
+real(kind=8),parameter :: mwtcbas = ( &
+                                & fr_si_cbas*mwtamsi + fr_al_cbas/2d0*mwtal2o3 + fr_na_cbas/2d0*mwtna2o &
+                                & + fr_k_cbas/2d0*mwtk2o + fr_ca_cbas*mwtcao + fr_mg_cbas*mwtmgo + fr_fe2_cbas*mwtfe2o &
+                                & ) ! assuming simply mixing molar weight?
                                 
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 real(kind=8) :: rho_grain_calc,rho_grain_calcx != 2.7d0 ! g/cm3 as soil grain density 
@@ -463,10 +507,10 @@ integer,intent(in)::nsp_sld != 5
 #ifdef diss_only
 integer,parameter::nsp_sld_2 = 0
 #else
-! integer,parameter::nsp_sld_2 = 22
-integer,parameter::nsp_sld_2 = 21 ! removing dolomite from secondary minerals
+! integer,parameter::nsp_sld_2 = 23
+integer,parameter::nsp_sld_2 = 22 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 53
+integer,parameter::nsp_sld_all = 61
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -731,7 +775,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'dp   ','hb   ','kfs  ','om   ','omb  ','amsi ','arg  ','dlm  ','hm   ','ill  ','anl  ','nph  ' &
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
-    & ,'nasp ','mgsp ' &
+    & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ' &
     & ,'g1   ','g2   ','g3   ','amnt '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -753,11 +797,11 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n2
 chrsld_2(:) = '     '
 #else
 ! chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    ! ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp '/) 
+    ! ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
     
 ! version that removes dolomite from 2ndary minerals
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp '/) 
+    ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
 #endif 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
@@ -809,10 +853,12 @@ endif
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
+    & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas &
     & ,mvg1,mvg2,mvg3,mvamnt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
+    & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt/)
 
 do isps = 1, nsp_sld 
@@ -1182,6 +1228,34 @@ stgas_all(findloc(chrsld_all,'dlm',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 2
 ! Gypsum; CaSO4*2H2O
 staq_all(findloc(chrsld_all,'gps',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'gps',dim=1), findloc(chraq_all,'so4',dim=1)) = 1d0
+! Ferrous oxide; FeO
+staq_all(findloc(chrsld_all,'fe2o',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
+! Periclase; MgO
+staq_all(findloc(chrsld_all,'mgo',dim=1), findloc(chraq_all,'mg',dim=1)) = 1d0
+! Dipotasium monoxide; K2O
+staq_all(findloc(chrsld_all,'k2o',dim=1), findloc(chraq_all,'k',dim=1)) = 2d0
+! Calcium oxide; CaO
+staq_all(findloc(chrsld_all,'cao',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+! Disodium monoxide; Na2O
+staq_all(findloc(chrsld_all,'na2o',dim=1), findloc(chraq_all,'na',dim=1)) = 2d0
+! Corundum; Al2O3
+staq_all(findloc(chrsld_all,'al2o3',dim=1), findloc(chraq_all,'al',dim=1)) = 2d0
+! Glass basalt
+staq_all(findloc(chrsld_all,'gbas',dim=1), findloc(chraq_all,'si',dim=1)) = fr_si_gbas
+staq_all(findloc(chrsld_all,'gbas',dim=1), findloc(chraq_all,'al',dim=1)) = fr_al_gbas
+staq_all(findloc(chrsld_all,'gbas',dim=1), findloc(chraq_all,'na',dim=1)) = fr_na_gbas
+staq_all(findloc(chrsld_all,'gbas',dim=1), findloc(chraq_all,'k',dim=1)) = fr_k_gbas
+staq_all(findloc(chrsld_all,'gbas',dim=1), findloc(chraq_all,'mg',dim=1)) = fr_mg_gbas
+staq_all(findloc(chrsld_all,'gbas',dim=1), findloc(chraq_all,'ca',dim=1)) = fr_ca_gbas
+staq_all(findloc(chrsld_all,'gbas',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fe2_gbas
+! crystaline basalt
+staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'si',dim=1)) = fr_si_cbas
+staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'al',dim=1)) = fr_al_cbas
+staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'na',dim=1)) = fr_na_cbas
+staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'k',dim=1)) = fr_k_cbas
+staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'mg',dim=1)) = fr_mg_cbas
+staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'ca',dim=1)) = fr_ca_cbas
+staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fe2_cbas
 ! OMs; CH2O
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
@@ -2072,7 +2146,7 @@ do iph = 1,nph
     write(idust,chrfmt) -log10(pro(1)),ksld_all(:,1)/sec2yr
 enddo 
 close(idust)
-stop
+! stop
 #endif 
 
 omega = 0d0
@@ -5635,7 +5709,7 @@ integer,intent(in)::nz
 real(kind=8),intent(in)::rg,rg2,tc,sec2yr,tempk_0
 real(kind=8),dimension(nz),intent(in)::pro
 real(kind=8),dimension(nz)::oh,po2,kin,dkin_dmsp
-real(kind=8) kho,po2th,mv_tmp,therm,ss_x,ss_y,ss_z
+real(kind=8) kho,po2th,mv_tmp,therm,ss_x,ss_y,ss_z,ss_tmp,therm_tmp
 real(kind=8),intent(out)::ucv,kw
 
 ! real(kind=8) k_arrhenius
@@ -5688,11 +5762,19 @@ data ieqaq_no3,ieqaq_no32/1,2/
 integer ieqaq_nh3,ieqaq_nh32
 data ieqaq_nh3,ieqaq_nh32/1,2/
 
-integer isps
+integer isps,ispss
 
 ! real(kind=8)::thon = 1d0
 real(kind=8)::thon = -1d100
-character(5) mineral
+character(5) mineral,ssaq,sssld
+character(5),dimension(7):: chrss_gbas_aq,chrss_cbas_aq
+character(5),dimension(7):: chrss_gbas_sld,chrss_cbas_sld
+
+
+chrss_gbas_aq  = (/'si   ','al   ','na   ','k    ','mg   ','ca   ','fe2  '/)
+chrss_cbas_aq  = (/'si   ','al   ','na   ','k    ','mg   ','ca   ','fe2  '/)
+chrss_gbas_sld = (/'amsi ','al2o3','na2o ','k2o  ','mgo  ','cao  ','fe2o '/)
+chrss_cbas_sld = (/'qtz  ','al2o3','na2o ','k2o  ','mgo  ','cao  ','fe2o '/)
 
 ucv = 1.0d0/(rg2*(tempk_0+tc))
 
@@ -5952,11 +6034,44 @@ do isps = 1, nsp_sld_all
             ss_z = 0d0 
     endselect 
     
-    call sld_therm( &
-        & rg,tc,tempk_0,ss_x,ss_y,ss_z &! input
-        & ,mineral &! input
-        & ,therm &! output
-        & ) 
+    select case(trim(adjustl(mineral))) 
+        case('gbas','cbas') 
+            ! doing rather complicated solid solution though simplified
+            ! following Pollyea and Rimstidt 2017; Aradóttir et al. 2012
+            ss_x = 0d0 
+            ss_y = 0d0 
+            ss_z = 0d0 
+            
+            therm = 0d0
+            
+            do ispss=1,7
+                if (trim(adjustl(mineral)) =='gbas') then
+                    ssaq = chrss_gbas_aq(ispss)
+                    sssld = chrss_gbas_sld(ispss)
+                elseif (trim(adjustl(mineral)) =='cbas') then
+                    ssaq = chrss_cbas_aq(ispss)
+                    sssld = chrss_cbas_sld(ispss)
+                endif 
+                call sld_therm( &
+                    & rg,tc,tempk_0,ss_x,ss_y,ss_z &! input
+                    & ,sssld &! input
+                    & ,therm_tmp &! output
+                    & ) 
+                ! required oxide mole per basalt mole
+                ss_tmp = staq_all(isps, findloc(chraq_all,trim(adjustl(ssaq)),dim=1)) &! contained cation per basalt
+                    & /staq_all(findloc(chrsld_all,trim(adjustl(sssld)),dim=1), findloc(chraq_all,trim(adjustl(ssaq)),dim=1)) ! divided by cation per oxide
+                therm = therm + ss_tmp*log(therm_tmp) + ss_tmp*log(ss_tmp) 
+            enddo
+            
+            therm = exp(therm)
+            
+        case default
+            call sld_therm( &
+                & rg,tc,tempk_0,ss_x,ss_y,ss_z &! input
+                & ,mineral &! input
+                & ,therm &! output
+                & ) 
+    endselect
     
     ! correction of thermodynamic data wrt primary species
     select case (trim(adjustl(mineral))) 
@@ -6045,7 +6160,7 @@ kin = 0d0
 dkin_dmsp = 0d0
 
 select case(trim(adjustl(mineral)))
-    case('ka')
+    case('ka','al2o3') ! corundum dissolution rate is assumed to be the same as kaolinite (cf., Carroll-Webb and Walther, 1988)
         mh = 0.777d0
         moh = -0.472d0
         kinn_ref = 10d0**(-13.18d0)*sec2yr
@@ -6906,6 +7021,97 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
         
+    case('fe2o','mgo','k2o','cao','na2o')
+        kin = ( &
+            & 1d0/1d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
+            & )
+        ! assuming randomly fast dissolution rate for oxides
+        dkin_dmsp = 0d0
+    
+    case('gbas')
+        mh = 1.013d0
+        moh = -0.258d0
+        kinn_ref = 0d0
+        kinh_ref = 10d0**(-4.27d0)*sec2yr
+        kinoh_ref = 10d0**(-11.00d0)*sec2yr
+        ean = 0d0
+        eah = 39.7d0
+        eaoh = 38.4d0
+        tc_ref = 25d0
+        ! from Pollyea and Rimstidt, 2017 (this is normalized to geometric surface area)
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        ! from Brantley et al. (2008)
+        mh = 1.16d0
+        moh = -0.16d0
+        eah = 47.5d0
+        eaoh = 47.5d0
+        kinh_ref = 588d0*sec2yr
+        kinoh_ref = 0.0822d0*kw**(-moh)*sec2yr
+        kin = ( &
+            & kinh_ref *exp(-eah/(rg*(tc+tempk_0)))*prox**mh &
+            & + kinoh_ref *exp(-eaoh/(rg*(tc+tempk_0)))*prox**moh &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+                ! from Brantley et al. (2008)
+                dkin_dmsp = ( &
+                    & kinh_ref *exp(-eah/(rg*(tc+tempk_0)))*prox**(mh-1d0)*mh &
+                    & + kinoh_ref *exp(-eaoh/(rg*(tc+tempk_0)))*prox**(moh-1d0)*moh &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+    
+    case('cbas')
+        mh = 0.68d0
+        moh = -0.286d0
+        kinn_ref = 0d0
+        kinh_ref = 10d0**(-6.15d0)*sec2yr
+        kinoh_ref = 10d0**(-11.83d0)*sec2yr
+        ean = 0d0
+        eah = 40.1d0
+        eaoh = 32.9d0
+        tc_ref = 25d0
+        ! from Pollyea and Rimstidt, 2017 (this is normalized to geometric surface area)
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        ! from Brantley et al. (2008)
+        mh = 1.16d0
+        moh = -0.16d0
+        eah = 47.5d0
+        eaoh = 47.5d0
+        kinh_ref = 588d0*sec2yr
+        kinoh_ref = 0.0822d0*kw**(-moh)*sec2yr
+        kin = ( &
+            & kinh_ref *exp(-eah/(rg*(tc+tempk_0)))*prox**mh &
+            & + kinoh_ref *exp(-eaoh/(rg*(tc+tempk_0)))*prox**moh &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+                ! from Brantley et al. (2008)
+                dkin_dmsp = ( &
+                    & kinh_ref *exp(-eah/(rg*(tc+tempk_0)))*prox**(mh-1d0)*mh &
+                    & + kinoh_ref *exp(-eaoh/(rg*(tc+tempk_0)))*prox**(moh-1d0)*moh &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+        
     case('py')
         mh = 0d0
         moh = -0.11d0
@@ -7281,6 +7487,49 @@ select case(trim(adjustl(mineral)))
         ha = 1d0
         tc_ref = 25d0
         ! from minteq.v4
+    case('fe2o')
+        ! FeO +2.0000 H+  =  + 1.0000 Fe++ + 1.0000 H2O
+        therm_ref = 10d0**(13.5318d0)
+        ha = -106.052d0
+        tc_ref = 25d0
+        ! from llnl.dat
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('mgo')
+        ! MgO +2.0000 H+  =  + 1.0000 H2O + 1.0000 Mg++
+        therm_ref = 10d0**(21.3354d0)
+        ha = -150.139d0
+        tc_ref = 25d0
+        ! from llnl.dat
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('k2o')
+        ! K2O +2.0000 H+  =  + 1.0000 H2O + 2.0000 K+
+        therm_ref = 10d0**(84.0405d0)
+        ha = -427.006d0
+        tc_ref = 25d0
+        ! from llnl.dat
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('cao')
+        ! Lime
+        ! CaO +2.0000 H+  =  + 1.0000 Ca++ + 1.0000 H2O
+        therm_ref = 10d0**(32.5761d0)
+        ha = -193.832d0
+        tc_ref = 25d0
+        ! from llnl.dat
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('na2o')
+        ! Na2O +2.0000 H+  =  + 1.0000 H2O + 2.0000 Na+
+        therm_ref = 10d0**(67.4269d0)
+        ha = -351.636d0
+        tc_ref = 25d0
+        ! from llnl.dat
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('al2o3')
+        ! Corundum
+        ! Al2O3 +6.0000 H+  =  + 2.0000 Al+++ + 3.0000 H2O
+        therm_ref = 10d0**(18.3121d0)
+        ha = -258.626d0
+        tc_ref = 25d0
+        ! from llnl.dat
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('la','ab','an','by','olg','and')
         ! CaxNa(1-x)Al(1+x)Si(3-x)O8 + (4x + 4) = xCa+2 + (1-x)Na+ + (1+x)Al+++ + (3-x)SiO2(aq) 
@@ -17910,7 +18159,8 @@ select case(trim(adjustl(mineral)))
     case ( &
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
-        & ,'agt','jd','wls','phsi','splt','casp','ksp','nasp','mgsp' &
+        & ,'agt','jd','wls','phsi','splt','casp','ksp','nasp','mgsp','fe2o','mgo','k2o','cao','na2o','al2o3' &
+        & ,'gbas','cbas' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
