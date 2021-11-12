@@ -587,8 +587,10 @@ logical :: psd_lim_min = .true.
 ! logical :: psd_vol_consv = .true.
 logical :: psd_vol_consv = .false.
 logical :: psd_impfull = .false.
-! logical :: psd_impfull = .true.
-real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old
+! logical :: psd_impfull = .true..
+! logical :: psd_loop = .false.
+logical :: psd_loop = .true.
+real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old,mpsd_save_2
 real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th
 real(kind=8),dimension(nsp_sld,nps,nflx_psd,nz) :: flx_mpsd ! itflx,iadv,idif,irain,irxn,ires
 
@@ -597,7 +599,7 @@ real(kind=8),dimension(nsp_sld,nz):: hr,ssa,hrprev,rough,hri,ssv,ssav
 real(kind=8),dimension(nsp_sld):: hrii
 integer nsld_sa
 character(5),dimension(:),allocatable::chrsld_sa
-real(kind=8) time_pbe,dt_pbe
+real(kind=8) time_pbe,dt_pbe,dt_save
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod
@@ -3411,6 +3413,29 @@ do while (it<nt)
             print *, '-- doing PSD'
         endif 
         
+        ! when not doing PSDFULL, not do while loop for PSD 
+        ! if (.not. do_psd_full) psd_loop = .false.
+        
+        
+        ! print '(3(1x,a11))','>>>PSD time','dt','%done'
+
+        dt_pbe = dt
+        dt_save = dt
+        time_pbe = 0
+        ddpsd = 0d0
+        do while(time_pbe < dt_save)
+        ! print *
+        ! print *,' ---- PSD time: ',time_pbe,' dt: ',dt, ' completeness [%]: ',100d0*time_pbe/dt_save
+        dt = dt*1.05d0
+        ! dt = dt*2d0
+        dt_pbe = dt ! temporary recording dt 
+        if (time_pbe + dt_pbe > dt_save) dt_pbe = dt_save - time_pbe ! modifying temporary dt not to exceed dt_save
+        dt = dt_pbe ! dt returned 
+        psd_save = psd
+        mpsd_save_2 = mpsd
+        
+        if (.not.psd_loop) dt = dt_save
+        
         if (do_psd_full) then 
             
             dmpsd = 0d0
@@ -3436,6 +3461,12 @@ do while (it<nt)
                         & ,chrsld(isps) &! in 
                         & ,dpsd,psd_error_flg &! inout
                         & )
+
+                    if ( flgback .or. psd_error_flg) then 
+                        print *, '*** error raised after PBE calc. for ',chrsld(isps)
+                        print *, '*** escape from do-loop'
+                        exit
+                    endif 
                     
                     ! dt_pbe = dt
                     ! time_pbe = 0
@@ -3473,25 +3504,25 @@ do while (it<nt)
                     ! enddo 
                     
                     
-                    if (psd_error_flg) then 
-                        psd_error_flg = .false. 
-                        flgback = .false. 
-                        flgreducedt = .true.
-                        psd = psd_old
-                        mpsd = mpsd_old
-                        poro = poroprev
-                        torg = torgprev
-                        tora = toraprev
-                        v = vprev
-                        hr = hrprev
-                        w = wprev
-                        call calcupwindscheme(  &
-                            up,dwn,cnr,adf & ! output 
-                            ,w,nz   & ! input &
-                            )
-                        dt = dt/1d1
-                        go to 100
-                    endif 
+                    ! if (psd_error_flg) then 
+                        ! psd_error_flg = .false. 
+                        ! flgback = .false. 
+                        ! flgreducedt = .true.
+                        ! psd = psd_old
+                        ! mpsd = mpsd_old
+                        ! poro = poroprev
+                        ! torg = torgprev
+                        ! tora = toraprev
+                        ! v = vprev
+                        ! hr = hrprev
+                        ! w = wprev
+                        ! call calcupwindscheme(  &
+                            ! up,dwn,cnr,adf & ! output 
+                            ! ,w,nz   & ! input &
+                            ! )
+                        ! dt = dt/1d1
+                        ! go to 100
+                    ! endif 
                 else
                     do iz=1,nz
                         dpsd(:,iz) = DV(iz)/nps/dps(:)
@@ -3503,6 +3534,16 @@ do while (it<nt)
                 ! print *, chrsld(isps),DV
             
             enddo 
+
+            if ( flgback .or. psd_error_flg) then 
+                print *,' *** because of PBE error, returning to do while loop with reduced dt'
+                flgback = .false.
+                psd_error_flg = .false.
+                dt = dt/10d0
+                psd = psd_save
+                mpsd = mpsd_save_2
+                cycle
+            endif 
     
         else 
 
@@ -3535,26 +3576,37 @@ do while (it<nt)
                     & ,' blk ' &! in 
                     & ,dpsd,psd_error_flg &! inout
                     & )
-                    
-                if (psd_error_flg) then 
-                    psd_error_flg = .false. 
-                    flgback = .false. 
-                    flgreducedt = .true.
-                    psd = psd_old
-                    mpsd = mpsd_old
-                    poro = poroprev
-                    torg = torgprev
-                    tora = toraprev
-                    v = vprev
-                    hr = hrprev
-                    w = wprev
-                    call calcupwindscheme(  &
-                        up,dwn,cnr,adf & ! output 
-                        ,w,nz   & ! input &
-                        )
-                    dt = dt/1d1
-                    go to 100
+
+                if ( flgback .or. psd_error_flg) then 
+                    print *,' *** because of PBE error, returning to do while loop with reduced dt'
+                    if (.not.psd_loop) exit
+                    flgback = .false.
+                    psd_error_flg = .false.
+                    dt = dt/10d0
+                    psd = psd_save
+                    mpsd = mpsd_save_2
+                    cycle
                 endif 
+                    
+                ! if (psd_error_flg) then 
+                    ! psd_error_flg = .false. 
+                    ! flgback = .false. 
+                    ! flgreducedt = .true.
+                    ! psd = psd_old
+                    ! mpsd = mpsd_old
+                    ! poro = poroprev
+                    ! torg = torgprev
+                    ! tora = toraprev
+                    ! v = vprev
+                    ! hr = hrprev
+                    ! w = wprev
+                    ! call calcupwindscheme(  &
+                        ! up,dwn,cnr,adf & ! output 
+                        ! ,w,nz   & ! input &
+                        ! )
+                    ! dt = dt/1d1
+                    ! go to 100
+                ! endif 
             else 
                 do iz=1,nz
                     dpsd(:,iz) = DV(iz)/nps/dps(:)
@@ -3587,7 +3639,7 @@ do while (it<nt)
                         psd_norm(ips,:) = mpsd(isps,ips,:) / psd_norm_fact(ips)
                         psd_pr_norm(ips) = mpsd_pr(isps,ips) / psd_norm_fact(ips)
                         dpsd_norm(ips,:) = dmpsd(isps,ips,:) / psd_norm_fact(ips)
-                        psd_rain_norm(ips,:) = mpsd_rain(isps,ips,:) / psd_norm_fact(ips)
+                        psd_rain_norm(ips,:) = mpsd_rain(isps,ips,:) / psd_norm_fact(ips) *dt /dt_save
                     enddo 
                     
                     if (.not.psd_impfull) then 
@@ -3614,26 +3666,31 @@ do while (it<nt)
                             & ,psdx_norm,flx_psd_norm &! out
                             & )
                     endif 
-                    
-                    if (flgback) then 
-                        flgback = .false. 
-                        flgreducedt = .true.
-                        psd = psd_old
-                        mpsd = mpsd_old
-                        poro = poroprev
-                        torg = torgprev
-                        tora = toraprev
-                        v = vprev
-                        hr = hrprev
-                        w = wprev
-                        call calcupwindscheme(  &
-                            up,dwn,cnr,adf & ! output 
-                            ,w,nz   & ! input &
-                            )
-                        ! pre_calc = .true.
-                        dt = dt/1d1
-                        go to 100
+
+                    if ( flgback .or. psd_error_flg) then 
+                        print *, '*** error raised after PSD calc. for ',chrsld(isps)
+                        print *, '*** escape from do-loop'
+                        exit
                     endif 
+                    
+                    ! if (flgback) then 
+                        ! flgback = .false. 
+                        ! flgreducedt = .true.
+                        ! psd = psd_old
+                        ! mpsd = mpsd_old
+                        ! poro = poroprev
+                        ! torg = torgprev
+                        ! tora = toraprev
+                        ! v = vprev
+                        ! hr = hrprev
+                        ! w = wprev
+                        ! call calcupwindscheme(  &
+                            ! up,dwn,cnr,adf & ! output 
+                            ! ,w,nz   & ! input &
+                            ! )
+                        ! dt = dt/1d1
+                        ! go to 100
+                    ! endif 
                         
                     do ips=1,nps
                         mpsdx(isps,ips,:) = psdx_norm(ips,:)*psd_norm_fact(ips)
@@ -3641,6 +3698,16 @@ do while (it<nt)
                     enddo 
                 
                 enddo 
+
+                if ( flgback .or. psd_error_flg) then 
+                    print *,' *** because of PSD(norm) error, returning to do while loop with reduced dt'
+                    flgback = .false.
+                    psd_error_flg = .false.
+                    dt = dt/10d0
+                    psd = psd_save
+                    mpsd = mpsd_save_2
+                    cycle
+                endif 
             
             else 
                 
@@ -3650,7 +3717,7 @@ do while (it<nt)
                     psd_norm(ips,:) = psd(ips,:) / psd_norm_fact(ips)
                     psd_pr_norm(ips) = psd_pr(ips) / psd_norm_fact(ips)
                     dpsd_norm(ips,:) = dpsd(ips,:) / psd_norm_fact(ips)
-                    psd_rain_norm(ips,:) = psd_rain(ips,:) / psd_norm_fact(ips)
+                    psd_rain_norm(ips,:) = psd_rain(ips,:) / psd_norm_fact(ips) *dt /dt_save
                 enddo 
                 
                 flx_max_max = 0d0
@@ -3678,26 +3745,36 @@ do while (it<nt)
                         & ,psdx_norm,flx_psd_norm &! out
                         & )
                 endif 
-                
-                if (flgback) then 
-                    flgback = .false. 
-                    flgreducedt = .true.
-                    psd = psd_old
-                    mpsd = mpsd_old
-                    poro = poroprev
-                    torg = torgprev
-                    tora = toraprev
-                    v = vprev
-                    hr = hrprev
-                    w = wprev
-                    call calcupwindscheme(  &
-                        up,dwn,cnr,adf & ! output 
-                        ,w,nz   & ! input &
-                        )
-                    ! pre_calc = .true.
-                    dt = dt/1d1
-                    go to 100
+
+                if ( flgback .or. psd_error_flg) then 
+                    print *,' *** because of PSD(norm) error, returning to do while loop with reduced dt'
+                    if (.not.psd_loop) exit
+                    flgback = .false.
+                    psd_error_flg = .false.
+                    dt = dt/10d0
+                    psd = psd_save
+                    mpsd = mpsd_save_2
+                    cycle
                 endif 
+                
+                ! if (flgback) then 
+                    ! flgback = .false. 
+                    ! flgreducedt = .true.
+                    ! psd = psd_old
+                    ! mpsd = mpsd_old
+                    ! poro = poroprev
+                    ! torg = torgprev
+                    ! tora = toraprev
+                    ! v = vprev
+                    ! hr = hrprev
+                    ! w = wprev
+                    ! call calcupwindscheme(  &
+                        ! up,dwn,cnr,adf & ! output 
+                        ! ,w,nz   & ! input &
+                        ! )
+                    ! dt = dt/1d1
+                    ! go to 100
+                ! endif 
                     
                 do ips=1,nps
                     psdx(ips,:) = psdx_norm(ips,:)*psd_norm_fact(ips)
@@ -3847,6 +3924,7 @@ do while (it<nt)
                 stop
             endif 
             if (any(mpsd<0d0)) then 
+                stop
                 error_psd = 0d0
                 do isps = 1, nsp_sld
                     do iz = 1, nz
@@ -3880,16 +3958,15 @@ do while (it<nt)
                 endif 
                 ! stop
             endif 
-            
-            ! trancating small psd 
-            if (psd_lim_min) then 
-            ! if (psd_lim_min .and. .not. psd_impfull) then 
+
+            if (psd_lim_min) then    
+                ! if (psd_lim_min .and. .not. psd_impfull) then 
                 where (mpsd < psd_th_0)  mpsd = psd_th_0
                 ! do isps = 1,nsp_sld
                     ! where ( mpsd(isps,:,:) < maxval(mpsd(isps,:,:)) * 1d-9 ) & 
                         ! & mpsd(isps,:,:) = maxval(mpsd(isps,:,:)) * 1d-9
                 ! enddo 
-            endif
+            endif 
         
         else 
         
@@ -3901,6 +3978,7 @@ do while (it<nt)
                 stop
             endif 
             if (any(psd<0d0)) then 
+                stop
                 error_psd = 0d0
                 do iz = 1, nz
                     do ips=1,nps
@@ -3932,11 +4010,69 @@ do while (it<nt)
                 endif 
                 ! stop
             endif 
-            
-            ! trancating small psd 
-            if (psd_lim_min) then 
-            ! if (psd_lim_min.and. .not. psd_impfull) then 
+            if (psd_lim_min) then         
+                ! if (psd_lim_min.and. .not. psd_impfull) then 
                 where (psd < psd_th_0)  psd = psd_th_0
+            endif 
+        endif 
+        
+        
+        if ( flgback .or. psd_error_flg) then 
+            print *, ' *** somehow error is still raised comming from PSD or PBE calc.'
+            print *, ' *** retuning the initial do while loop with reduced dt'
+            flgback = .false.
+            psd_error_flg = .false.
+            dt = dt/10d0
+            psd = psd_save
+            mpsd = mpsd_save_2
+            cycle
+        endif 
+        
+        time_pbe = time_pbe + dt
+        
+        print *,' ---- PSD time: ',time_pbe,' dt: ',dt, ' completeness [%]: ',100d0*time_pbe/dt_save
+        ! print '(3(1x,E11.3))',time_pbe,dt,100d0*time_pbe/dt_save
+        
+        if (time_pbe>= dt_save) then 
+            print *, ' time within PSD+PBE seems to reach dt in main loop'
+            print *, ' exiting the do while loop!!'
+            exit
+        endif 
+        
+        
+        enddo ! end of do while loop for psd
+
+        ! trancating small psd 
+        ! if (psd_lim_min) then         
+            ! if (do_psd_full) then
+                ! where (mpsd < psd_th_0)  mpsd = psd_th_0
+            ! else
+                ! where (psd < psd_th_0)  psd = psd_th_0
+            ! endif 
+        ! endif 
+        
+        
+        dt = dt_save
+                
+        if (.not. psd_loop) then
+            if (flgback .or. psd_error_flg) then 
+                flgback = .false. 
+                psd_error_flg = .false. 
+                flgreducedt = .true.
+                psd = psd_old
+                mpsd = mpsd_old
+                poro = poroprev
+                torg = torgprev
+                tora = toraprev
+                v = vprev
+                hr = hrprev
+                w = wprev
+                call calcupwindscheme(  &
+                    up,dwn,cnr,adf & ! output 
+                    ,w,nz   & ! input &
+                    )
+                dt = dt/1d1
+                go to 100
             endif 
         endif 
         
@@ -19513,8 +19649,8 @@ real(kind=8) msld_seed ,fact2
 ! real(kind=8):: fact_tol = 1d-3
 real(kind=8):: fact_tol = 1d-4
 real(kind=8):: dt_th = 1d-6
-! real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
-real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
+real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
+! real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
 ! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
 real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
@@ -22646,7 +22782,7 @@ real(kind=8),parameter::corr = exp(threshold)
 real(kind=8),parameter::threshold_k = 2d0
 real(kind=8),parameter::corr_k = exp(threshold_k)
 integer,parameter :: iter_max = 50
-integer ips,iips,ips_new,iz,isps,row,col,ie,ie2,iter
+integer ips,iips,ips_new,iz,isps,row,col,ie,ie2,iter,iiz
 
 logical :: logcalc = .true.
 ! logical :: logcalc = .false.
@@ -22682,12 +22818,35 @@ do iz = 1,nz
     DV_exist(iz) =  sum( 4d0/3d0*pi*(10d0**ps(:))**3d0 * psd(:,iz) * dps(:) )
     if (DV(iz)>0d0 .and.  DV(iz) > DV_exist(iz) ) then 
         ms_not_ok(iz) = .true.
-        print *, 'not enough stuff to dissolve material',chrsp,iz
-        exit
+        print *, '*** not enough stuff to dissolve material ',chrsp,iz
+        ! exit
     endif 
 enddo 
 
+if (any(isnan(DV)) .or. any(isnan(psd)) .or. dt==0d0) then  
+    print *,any(isnan(DV)),any(isnan(psd)),dt
+    stop
+endif 
+
+! if ( trim(adjustl(chrsp)) == 'blk') then 
+    ! safe_mode = .true.
+! else 
+    ! safe_mode = .false.
+! endif 
+select case(trim(adjustl(chrsp)))
+    case('cc','dlm','arg')
+        safe_mode = .false.
+    case default
+        safe_mode = .true.
+endselect 
+
 if (safe_mode .and. any(ms_not_ok)) then
+    psd_error_flg = .true.
+    return
+endif 
+
+! if time step is large, return to the main loop with reduced time step
+if (trim(adjustl(chrsp)) == 'blk' .and. dt >= 10d0 .and. any(ms_not_ok)) then
     psd_error_flg = .true.
     return
 endif 
@@ -22755,14 +22914,85 @@ psdxx = psdx
 do iz = 1, nz
     
     if (.not.safe_mode .and. ms_not_ok(iz)) then 
-        print *,'DV is larger than the amount existing at ',iz, ' for ' ,chrsp
+        print *,'****** DV is larger than the amount existing at ',iz, ' for ' ,chrsp
+        ! simply limiting the dissolution by existing particles
         dpsd(:,iz) = - psd(:,iz)
+        cycle
+        !!
+        ! scaling so that total dissolution volume change is conserved while assuming immediate dissolution 
+        ! dpsd(:,iz) = - psd(:,iz) * ( DV(iz) ) &
+            ! & / sum(4d0/3d0*pi*(10d0**ps(:))**3d0 * psd(:,iz) * dps(:))
+        ! cycle
+        !! 
+        dvd = 0d0
+        dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 *lambda(:) )
+        dVd(:,iz) = dVd(:,iz)*( DV(iz) )/sum(dVd(:,iz) * dps(:))
+        dpsd(:,iz) = - dVd(:,iz)/(4d0/3d0*pi*(10d0**ps(:))**3d0) 
+        cycle
+        ! !!! 
+        ! dpsd(:,iz) = -k *psd(:,iz)
+        ! int{dpsd(:,iz)*dps) = -k * int{ psd(:,iz)*dps} = DV
+        ! k = DV/int{ psd(:,iz)*dps}
+        ! dpsd(:,iz) = - psd(:,iz)*DV(iz)/sum(psd(:,iz)*dps(:))
+        ! cycle
+        ! or scaling dissolution with reflecting the surface area and trying keeping the mass balance
+        ! DV(iz) = sum( 4d0/3*pi*(10d0**ps(:))**3d0 * lambda(:) * dpsd(:,iz) * dps(:) )
+        ! dvd = 0d0
+        ! dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 *lambda(:) )
+        ! dVd(:,iz) = dVd(:,iz)*( DV(iz) -DV_exist(iz) )/sum(dVd(:,iz) * dps(:))
+        ! dpsd(:,iz) = dpsd(:,iz) - dVd(:,iz)/(4d0/3d0*pi*(10d0**ps(:))**3d0) 
+        ! cycle
+        ! or do explicit calculation based on the previous PSD
+        do iips = 1, nps
+            vol  = 4d0/3d0*pi*(10d0**ps(iips))**3d0
+            surf  = 4d0*pi*(10d0**ps(iips))**2d0
+            if ( dV(iz) >= 0d0) then 
+                if (iips==nps) then 
+                    ! & + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) &
+                    ! & - kpsdx(iz) * ( - lambda(iips)*psdxx(iips,iz) )  &
+                    psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( - lambda(iips)*psdx(iips,iz) ) *dt/dpsx(iips)
+                else
+                    ! & + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) &
+                    ! & - kpsdx(iz) * ( lambda(iips+1)*psdxx(iips+1,iz) - lambda(iips)*psdxx(iips,iz) )  &
+                    psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( lambda(iips+1)*psdx(iips+1,iz) - lambda(iips)*psdx(iips,iz) ) &
+                        & *dt/dpsx(iips)
+                endif
+            
+            else
+            
+                if (iips==1) then
+                    ! & + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) &
+                    ! & - kpsdx(iz) * ( lambda(iips)*psdxx(iips,iz) )  &
+                    psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( lambda(iips)*psdx(iips,iz) )*dt/dpsx(iips)
+                elseif (iips==nps) then 
+                    ! & + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) &
+                    ! & - kpsdx(iz) * ( lambda(iips)*psdxx(iips,iz) - lambda(iips-1)*psdxx(iips-1,iz) )  &
+                    psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( - lambda(iips-1)*psdx(iips-1,iz) ) &
+                        & *dt/dpsx(iips)
+                else
+                    ! & + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) &
+                    ! & - kpsdx(iz) * ( lambda(iips)*psdxx(iips,iz) - lambda(iips-1)*psdxx(iips-1,iz) )  &
+                    psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( lambda(iips)*psdx(iips,iz) - lambda(iips-1)*psdx(iips-1,iz) ) &
+                        & *dt/dpsx(iips)
+                endif
+                
+            endif 
+            
+        enddo ! end of do-loop for iips
+        
+        dpsd(:,iz) = psdxx(:,iz)*dpsx(:)/dps(:) - psd(:,iz)
+        
         cycle
     endif 
 
     error = 1d4 
     iter = 1
-    print*, DV(iz)
+    ! print*, DV(iz)
+    if (DV(Iz) == 0d0) then 
+        ! print *, 'DV is zero so dpsd = 0; return' 
+        dpsd(:,iz) =0d0
+        cycle
+    endif 
             
     do while (error > tol) 
     
@@ -23027,11 +23257,14 @@ do iz = 1, nz
             print*,'PBE--'//chrsp//': error in mtx'
             print*,'PBE--'//chrsp//': any(isnan(amx3)),any(isnan(ymx3))'
             print*,any(isnan(amx3)),any(isnan(ymx3))
+            psd_error_flg = .true.
+            ! pause
+            exit
 
             if (any(isnan(ymx3))) then 
                 do ie = 1, nps+1
                     if (isnan(ymx3(ie))) then 
-                        print*,'NAN is here...',iz,ie
+                        print*,'PBE: NAN is here...',iz,ie
                     endif
                 enddo 
             endif
@@ -23046,6 +23279,16 @@ do iz = 1, nz
                     enddo
                 enddo
             endif
+            
+
+            open(unit=11,file='amx.txt',status = 'replace')
+            open(unit=12,file='ymx.txt',status = 'replace')
+            do ie = 1,nps+1
+                write(11,*) (amx3(ie,ie2),ie2 = 1,nps+1)
+                write(12,*) ymx3(ie)
+            enddo 
+            close(11)
+            close(12)         
             stop
             
         endif
@@ -23109,34 +23352,36 @@ do iz = 1, nz
         
         ! linear case
         
-        if ( ( kpsdx(iz) + ymx3(row) ) *kpsdx(iz) >= 0d0) then ! signs are the same 
-            emx3(row) = log(1d0 + ymx3(row)/kpsdx(iz))
+        ! if ( ( kpsdx(iz) + ymx3(row) ) *kpsdx(iz) >= 0d0) then ! signs are the same 
+            ! emx3(row) = log(1d0 + ymx3(row)/kpsdx(iz))
             
-            if ((.not.isnan(emx3(row))).and.emx3(row) >threshold_k) then 
-                kpsdx(iz) = kpsdx(iz) * corr_k
-            else if (emx3(row) < -threshold_k) then 
-                kpsdx(iz) = kpsdx(iz) / corr_k
-            else   
-                kpsdx(iz) = kpsdx(iz)*exp(emx3(row))
-            endif
-        else ! signs are different 
-            emx3(row) = abs(ymx3(row)/kpsdx(iz))
-            kpsdx(iz) = kpsdx(iz) + ymx3(row)
-        endif 
+            ! if ((.not.isnan(emx3(row))).and.emx3(row) >threshold_k) then 
+                ! kpsdx(iz) = kpsdx(iz) * corr_k
+            ! else if (emx3(row) < -threshold_k) then 
+                ! kpsdx(iz) = kpsdx(iz) / corr_k
+            ! else   
+                ! kpsdx(iz) = kpsdx(iz)*exp(emx3(row))
+            ! endif
+        ! else ! signs are different 
+            ! emx3(row) = abs(ymx3(row)/kpsdx(iz))
+            ! kpsdx(iz) = kpsdx(iz) + ymx3(row)
+        ! endif 
+        emx3(row) = abs(ymx3(row)/kpsdx(iz))
+        kpsdx(iz) = kpsdx(iz) + ymx3(row)
         
         error = maxval(emx3)
 
-        if ( isnan(error) .or. any(isnan(psdxx)) ) then 
+        if ( isnan(error) .or. any(isnan(psdxx)) .or. any(isnan(kpsdx)) ) then 
             error = 1d3
             print*, 'PBE--'//chrsp//': !! error is NaN; values are returned to those before iteration with reducing dt'
             print*, 'PBE--'//chrsp//': isnan(error), info/=0,any(isnan(pdsx))'
-            print*, isnan(error), any(isnan(psdx)) 
+            print*, isnan(error), any(isnan(psdx)), any(isnan(kpsdx)) 
             
             psd_error_flg = .true.
             stop
             exit
         endif
-
+#ifdef show_PSDiter
         print '(a,E11.3,a,i0,a,E11.3,a,E11.3,a,E11.3,a,E11.3)' &
             & , 'PBE--'//chrsp//': iteration error = ',error, ', iteration = ',iter &
             & ,', time step [yr] = ',dt &
@@ -23144,6 +23389,7 @@ do iz = 1, nz
             & , ', min psd = ',minval(psdxx(:,iz))   &
             & , ', diss-rate [m/yr] = ',kpsdx(iz) 
         ! print *, error > tol
+#endif 
         iter = iter + 1 
         
         if (iter > iter_Max ) then
@@ -25028,6 +25274,16 @@ do while (error > 1d0)
                     enddo
                 enddo
             endif
+
+            open(unit=11,file='amx.txt',status = 'replace')
+            open(unit=12,file='ymx.txt',status = 'replace')
+            do ie = 1,nz
+                write(11,*) (amx3(ie,ie2),ie2 = 1,nz)
+                write(12,*) ymx3(ie)
+            enddo 
+            close(11)
+            close(12)        
+            
             stop
             
         endif
@@ -25084,8 +25340,9 @@ do while (error > 1d0)
         stop
         exit
     endif
-
+#ifdef show_PSDiter
     print '(a,E11.3,a,i0,a,E11.3)', 'PSD--'//chrsp//': iteration error = ',error, ', iteration = ',iter,', time step [yr] = ',dt
+#endif 
     iter = iter + 1 
     
     if (iter > iter_Max ) then
