@@ -478,7 +478,6 @@ integer,parameter :: imixtype_labs = 4
 logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
 logical poroiter_in !  true if porosity (or w) is iteratively checked  (input from input file swtiches.in)
 logical lim_minsld_in !  true if minimum sld conc. is enforced  (input from input file swtiches.in)
-real(kind=8),dimension(nsp_sld)::minsld
 
 data rectime_prof /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
@@ -637,7 +636,7 @@ logical :: psd_loop = .true.
 real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old,mpsd_save_2
 real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th
 real(kind=8),dimension(nsp_sld,nps,nflx_psd,nz) :: flx_mpsd ! itflx,iadv,idif,irain,irxn,ires
-
+real(kind=8),dimension(nsp_sld)::minsld
 ! attempting to do surface area calculation for individual sld sp. 
 real(kind=8),dimension(nsp_sld,nz):: hr,ssa,hrprev,rough,hri,ssv,ssav
 real(kind=8),dimension(nsp_sld):: hrii
@@ -8048,6 +8047,7 @@ subroutine precalc_slds_v2_1( &
 implicit none
 
 integer,intent(in)::nz
+integer,intent(in)::nsp_sld,nsp_sld_2                      
 real(kind=8),intent(in)::dt,w
 real(kind=8)::mfoi,mfoth
 real(kind=8),dimension(nz),intent(in)::dz,poro,sat
@@ -8056,7 +8056,6 @@ real(kind=8),dimension(nz)::mfo,mfosupp,mfox,rxn_tmp
 
 integer iz,isps,irxn,iiz
 
-integer,intent(in)::nsp_sld,nsp_sld_2
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2),intent(in)::chrsld_2
 real(kind=8),dimension(nsp_sld),intent(in)::msldth,msldi,mv
@@ -8296,6 +8295,7 @@ subroutine precalc_aqs( &
 implicit none
 
 integer,intent(in)::nz
+integer,intent(in)::nsp_aq,nsp_sld,nrxn_ext
 real(kind=8),intent(in)::dt
 real(kind=8)::nath,dna,nai,rxn_tmp
 real(kind=8),dimension(nz),intent(in)::v,tora,poro,sat,dz
@@ -8306,7 +8306,6 @@ integer iz,ispa,isps,irxn
 real(kind=8) ctmp,edifi,ediftmp
 real(kind=8),dimension(nz)::edif
 
-integer,intent(in)::nsp_aq,nsp_sld,nrxn_ext
 real(kind=8),dimension(nsp_aq),intent(in)::daq,maqth,maqi
 real(kind=8),dimension(nsp_aq,nz),intent(in)::maq
 real(kind=8),dimension(nsp_sld),intent(in)::mv
