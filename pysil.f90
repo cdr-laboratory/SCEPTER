@@ -22999,6 +22999,343 @@ endsubroutine psd_diss
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine psd_diss_iz( &
+    & nz,nps,iz &! in
+    & ,z,DV,dt,pi,tol,poro &! in 
+    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,psd,ps,dps,ps_min,ps_max &! in 
+    & ,chrsp &! in 
+    & ,dpsd,psd_error_flg &! inout
+    & )
+implicit none 
+
+integer,intent(in)::nz,nps,iz
+real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol,rough_c0,rough_c1 
+real(kind=8),dimension(nz),intent(in)::z,poro
+real(kind=8),dimension(nps),intent(in)::ps,dps
+real(kind=8),dimension(nz),intent(in)::DV
+real(kind=8),dimension(nps,nz),intent(in)::psd
+character(5),intent(in)::chrsp
+logical,intent(in)::incld_rough
+real(kind=8),dimension(nps,nz),intent(inout)::dpsd
+logical,intent(inout)::psd_error_flg
+! local 
+real(kind=8),dimension(nps,nz)::dVd,psd_old,psd_new,dpsd_tmp
+real(kind=8),dimension(nps)::psd_tmp,dvd_tmp
+real(kind=8) ps_new,ps_newp,dvd_res
+integer ips,iips,ips_new,isps
+logical :: safe_mode = .false.
+! logical :: safe_mode = .true.
+
+! attempt to do psd ( defined with particle number / bulk m3 / log (r) )
+! assumptions: 
+! 1. particle numbers are only affected by transport (including raining/dusting) 
+! 2. dissolution does not change particle numbers: it only affect particle distribution 
+! unless particle is the minimum radius. in this case particle can be lost via dissolution 
+! 3. when a mineral precipitates, it is assumed to increase particle radius?
+! e.g., when a 1 um of particle is dissolved by X m3, its radius is changed and this particle is put into a different bin of (smaller) radius 
+
+! sum of volume change of minerals at iz is DV = sum(flx_sld(5:5+nsp_sld,iz)*mv(:)*1d-6)*dt (m3 / m3) 
+! this must be distributed to different particle size bins (dV(r)) in proportion to psd * (4*pi*r^2)
+! dV(r) = DV/(psd*4*pi*r^2) where dV is m3 / bulk m3 / log(r) 
+! has to modify so that sum( dV * dps ) = DV 
+! new psd is obtained by dV(r) = psd(r)*( 4/3 * pi * r^3 - 4/3 * pi * r'^3 ) where r' is the new radius as a result of dissolution
+! if r' is exactly one of ps value (ps(ips) == r'), then  psd(r') = psd(r)
+! else: 
+! first find the closest r* value which is one of ps values.
+! then DV(r) = psd(r)* 4/3 * pi * r^3 - psd(r*)* 4/3 * pi * r*^3 
+! i.e., psd(r*) = [ psd(r)* 4/3 * pi * r^3 - DV(r)]  /( 4/3 * pi * r*^3)
+!               = [ psd(r)* 4/3 * pi * r^3 - psd(r)*( 4/3 * pi * r^3 - 4/3 * pi * r'^3 ) ] /( 4/3 * pi * r*^3)
+!               = psd(r) * 4/3 * pi * r'^3 /( 4/3 * pi * r*^3)
+!               = psd(r) * (r'/r*)^3
+! in this way volume is conservative? 
+! check: sum( psd(r) * 4/3 * pi * r^3 * dps) - sum( psd(r') * 4/3 * pi * r'^3 * dps) = DV 
+
+dpsd_tmp = 0d0 
+psd_old = psd
+psd_new = psd
+! do iz=1,nz
+
+! the following should be removed
+do ips = 1, nps
+    if ( psd (ips,iz) /= 0d0 ) then 
+        dVd(ips,iz) = DV(iz)/ ( psd (ips,iz) * (10d0**ps(ips))**2d0 )
+    else 
+        dVd(ips,iz) = 0d0
+    endif 
+enddo 
+
+! correct one?
+dVd = 0d0
+if (.not.incld_rough) then 
+    dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 )
+else
+    dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1)
+endif 
+
+if (all(dVd == 0d0)) then 
+    print *,chrsp,'all dissolved loc1?'
+    psd_error_flg = .true.
+    return
+    stop
+endif 
+
+! scale with DV
+dVd(:,iz) = dVd(:,iz)*DV(iz)/sum(dVd(:,iz) * dps(:))
+
+if ( abs( (sum(dVd(:,iz) * dps(:)) - DV(iz))/DV(iz)) > tol ) then
+    print *, chrsp,' vol. balance failed somehow ',abs( (sum(dVd(:,iz) * dps(:)) - DV(iz))/DV(iz))
+    print *, iz, sum(dVd(:,iz) * dps(:)), DV(iz)
+    stop
+endif 
+
+if (any(isnan(dVd(:,iz))) ) then 
+    print *,chrsp, 'nan in dVd loc 1'
+    stop
+endif 
+
+do ips = 1, nps
+    
+    if ( psd(ips,iz) == 0d0) cycle
+    
+    if ( ips == 1 .and. dVd(ips,iz) > 0d0 ) then 
+        ! this is the minimum size dealt within the model 
+        ! so if dissolved (dVd > 0), particle number must reduce 
+        ! (revised particle volumes) = (initial particle volumes) - (volume change) 
+        ! psd'(ips,iz) * 4d0/3d0*pi*(10d0**ps(ips))**3d0 =  psd(ips,iz) * 4d0/3d0*pi*(10d0**ps(ips))**3d0 - dVd(ips,iz) 
+        ! [ psd'(ips,iz) - psd(ips,iz) ] * 4d0/3d0*pi*(10d0**ps(ips))**3d0 = - dVd(ips,iz) 
+        if ( .not. safe_mode ) then  ! do not care about producing negative particle number
+            dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0**ps(ips))**3d0) 
+        elseif ( safe_mode ) then   ! never producing negative particle number
+            if ( dVd(ips,iz)/(4d0/3d0*pi*(10d0**ps(ips))**3d0) < psd(ips,iz) ) then ! when dissolution does not consume existing particles 
+                dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0**ps(ips))**3d0) 
+            else ! when dissolution exceeds potential consumption of existing particles 
+                ! dvd_res is defined as residual volume to be dissolved 
+                dvd_res = dVd(ips,iz) - psd(ips,iz)*(4d0/3d0*pi*(10d0**ps(ips))**3d0)  ! residual 
+                
+                ! distributing the volume to whole radius 
+                ! the wrong one?
+                dvd_tmp = 0d0
+                do iips = ips+1,nps
+                    if ( psd (iips,iz) /= 0d0 ) then 
+                        dVd_tmp(iips) = dvd_res *dps(ips)/ ( psd (iips,iz) * (10d0**ps(iips))**2d0 )
+                    else 
+                        dVd_tmp(iips) = 0d0
+                    endif 
+                enddo 
+                
+                ! correct one?
+                dVd_tmp = 0d0
+                if (.not.incld_rough) then 
+                    dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 )
+                else
+                    dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 *rough_c0*(10d0**ps(ips+1:))**rough_c1 )
+                endif 
+                
+                if (all(dVd_tmp == 0d0)) then 
+                    print *,chrsp,'all dissolved loc2?',ips, psd(ips+1:,iz)
+                    psd_error_flg = .true.
+                    return
+                    stop
+                endif 
+                
+                ! scale with dvd_res*dps
+                dVd_tmp(ips+1:) = dVd_tmp(ips+1:)*dvd_res*dps(ips)/sum(dVd_tmp(ips+1:) * dps(ips+1:))
+                
+                ! dVd(ips+1:,iz) = dVd(ips+1:,iz) + dvd_res/(nps - ips)
+                dVd(ips+1:,iz) = dVd(ips+1:,iz) + dVd_tmp(ips+1:)
+                dVd(ips,iz) = dVd(ips,iz) - dvd_res
+                
+                if ( abs( (sum(dVd(:,iz) * dps(:)) - DV(iz))/DV(iz)) > tol ) then
+                    print *,chrsp, ' vol. balance failed somehow loc2 ',abs( (sum(dVd(:,iz) * dps(:)) - DV(iz))/DV(iz))
+                    print *, iz, sum(dVd(:,iz) * dps(:)), DV(iz)
+                    stop
+                endif 
+                
+                if (any(isnan(dVd(:,iz))) ) then 
+                    print *, chrsp,'nan in dVd loc 2'
+                    stop
+                endif 
+                
+                ! if (dVd(ips,iz)/(4d0/3d0*pi*(10d0**ps(ips))**3d0) > psd(ips,iz)) then 
+                    ! print *, 'error: stop',psd(ips,iz),dVd(ips,iz)/(4d0/3d0*pi*(10d0**ps(ips))**3d0)
+                    ! stop
+                ! endif 
+                
+                ! dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0**ps(ips))**3d0) 
+                dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - psd(ips,iz) 
+            endif 
+        endif 
+    
+    elseif ( ips == nps .and. dVd(ips,iz) < 0d0 ) then 
+        ! this is the max size dealt within the model 
+        ! so if precipirated (dVd < 0), particle number must increase  
+        ! (revised particle volumes) = (initial particle volumes) - (volume change) 
+        ! psd'(ips,iz) * 4d0/3d0*pi*(10d0**ps(ips))**3d0 =  psd(ips,iz) * 4d0/3d0*pi*(10d0**ps(ips))**3d0 - dVd(ips,iz) 
+        ! [ psd'(ips,iz) - psd(ips,iz) ] * 4d0/3d0*pi*(10d0**ps(ips))**3d0 = - dVd(ips,iz) 
+        dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0**ps(ips))**3d0) 
+    
+    else 
+        ! new r*^3 after dissolution/precipitation 
+        ps_new =  ( 4d0/3d0*pi*(10d0**ps(ips))**3d0 - dVd(ips,iz) /psd(ips,iz) )/(4d0/3d0*pi) 
+        
+        if (ps_new <= 0d0) then  ! too much dissolution so removing all particles cannot explain dVd at a given bin ips
+            ps_new = ps_min
+            ps_newp = 10d0**ps(1)
+            dpsd_tmp(1,iz) =  dpsd_tmp(1,iz) + psd(ips,iz)
+            dpsd_tmp(ips,iz) =  dpsd_tmp(ips,iz) - psd(ips,iz)
+            
+            dvd_res = dVd(ips,iz) - psd(ips,iz)*(4d0/3d0*pi*(10d0**ps(ips))**3d0)  ! residual
+            
+            ! distributing the volume to whole radius 
+            ! wrong one ?
+            dvd_tmp = 0d0
+            do iips = ips+1,nps
+                if ( psd (iips,iz) /= 0d0 ) then 
+                    dVd_tmp(iips) = dvd_res *dps(ips)/ ( psd (iips,iz) * (10d0**ps(iips))**2d0 )
+                else 
+                    dVd_tmp(iips) = 0d0
+                endif 
+            enddo 
+            
+            ! correct one?
+            dVd_tmp = 0d0
+            if (.not.incld_rough) then 
+                ! dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 )
+                do iips=1,nps
+                    if (iips == ips) cycle
+                    dVd_tmp(iips) = ( psd (iips,iz) * (10d0**ps(iips))**2d0 )
+                enddo 
+            else
+                ! dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 * rough_c0*(10d0**ps(ips+1:))**rough_c1 )
+                do iips = 1,nps
+                    if (iips == ips) cycle
+                    dVd_tmp(iips) = ( psd (iips,iz) * (10d0**ps(iips))**2d0 * rough_c0*(10d0**ps(iips))**rough_c1 )
+                enddo 
+            endif 
+            
+            if (all(dVd_tmp == 0d0)) then 
+                print *,chrsp,'all dissolved loc3?',ips, psd(:,iz)
+                psd_error_flg = .true.
+                return
+                stop
+            endif 
+            
+            ! dVd_tmp(ips+1:) = dVd_tmp(ips+1:)*dvd_res*dps(ips)/sum(dVd_tmp(ips+1:) * dps(ips+1:))
+            dVd_tmp(:) = dVd_tmp(:)*dvd_res*dps(ips)/sum(dVd_tmp(:) * dps(:))
+            dVd_tmp(ips) = - dvd_res
+            
+            ! dVd(ips+1:,iz) = dVd(ips+1:,iz) + dVd_tmp(ips+1:)
+            ! dVd(ips,iz) = dVd(ips,iz) - dvd_res
+            dVd(:,iz) = dVd(:,iz) + dVd_tmp(:)
+            
+            if ( abs( (sum(dVd(:,iz) * dps(:)) - DV(iz))/DV(iz)) > tol ) then
+                print *,chrsp, ' vol. balance failed somehow loc4 ',abs( (sum(dVd(:,iz) * dps(:)) - DV(iz))/DV(iz))
+                print *, 'going to stop'
+                print *, iz, sum(dVd(:,iz) * dps(:)), DV(iz)
+                stop
+            endif 
+            
+            if (any(isnan(dVd(:,iz))) ) then 
+                print *,chrsp, 'nan in dVd loc 4'
+                stop
+            endif 
+            
+        else 
+            ! new r*
+            ps_new =  ps_new**(1d0/3d0) 
+            if (ps_new <= ps_min) then 
+                ips_new = 1
+            elseif (ps_new >= ps_max) then 
+                ips_new = nps
+            else 
+                do iips = 1, nps -1
+                    if ( ( ps_new - 10d0**ps(iips) ) *  ( ps_new - 10d0**ps(iips+1) ) <= 0d0 ) then 
+                        if ( log10(ps_new) <= 0.5d0*( ps(iips) + ps(iips+1) ) ) then 
+                            ips_new = iips
+                        else 
+                            ips_new = iips + 1 
+                        endif 
+                        exit 
+                    endif 
+                enddo 
+            endif 
+            ps_newp = 10d0**ps(ips_new)  ! closest binned particle radius to r*
+            dpsd_tmp(ips_new,iz) = dpsd_tmp(ips_new,iz) + psd(ips,iz)*(ps_new/ps_newp)**3d0
+            dpsd_tmp(ips,iz) =  dpsd_tmp(ips,iz) - psd(ips,iz)
+            ! print *,iz,ips,dVd(ips,iz), psd(ips,iz)* 4d0/3d0 * pi * (10d0**ps(ips) - 10d0**ps(ips_new))**3d0 
+        endif 
+    
+    endif 
+    ! print *, iz, ips,ps_new,ps_newp
+enddo 
+! enddo 
+
+if (any(isnan(psd))) then 
+    print *,chrsp, 'nan in psd'
+    stop
+endif 
+if (any(psd<0d0)) then 
+    print *,chrsp, 'negative psd'
+    stop
+endif 
+if (any(isnan(dvd))) then 
+    print *,chrsp, 'nan in dvd' 
+    ! do iz = 1, nz
+    do ips=1,nps
+        if (isnan(dvd(ips,iz))) then 
+            print *,chrsp, 'ips,iz,dvd,psd',ips,iz,dvd(ips,iz),psd(ips,iz)
+        endif 
+    enddo 
+    ! enddo 
+    stop
+endif 
+
+psd_new = psd_new + dpsd_tmp
+! do iz = 1, nz
+! if ( abs(DV(iz)) > tol  &
+    ! & .and. abs ( ( sum( psd_old(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) &
+    ! & - sum( psd_new(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) - DV(iz) ) / DV(iz) ) > tol ) then  
+if ( abs(DV(iz)) > tol  &
+    & .and. abs ( ( - sum( dpsd_tmp(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) &
+    &  - DV(iz) ) / DV(iz) ) > tol ) then  
+    print *, chrsp,'checking the vol. balance and failed ... ' &
+        ! & , abs ( ( sum( psd_old(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) &
+        ! & - sum( psd_new(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) - DV(iz) ) / DV(iz) )
+        & , abs ( ( - sum( dpsd_tmp(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) &
+        &  - DV(iz) ) / DV(iz) )
+    print *, iz, sum( psd_new(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) &
+        & ,sum( psd_old(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) & 
+        & ,sum( psd_new(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:)) &
+        &   -sum( psd_old(:,iz) * 4d0/3d0 * pi * (10d0**ps(:))**3d0 * dps(:))  &
+        & ,DV(iz)
+    ! stop 
+    ! pause
+    psd_error_flg = .true.
+endif 
+! enddo 
+
+if (any(isnan(dpsd_tmp))) then 
+    print *,chrsp, 'nan in dpsd _rxn' 
+    ! do iz = 1, nz
+    do ips=1,nps
+        if (isnan(dpsd_tmp(ips,iz))) then 
+            print *, 'ips,iz,dpsd_tmp,psd',ips,iz,dpsd_tmp(ips,iz),psd(ips,iz)
+        endif 
+    enddo 
+    ! enddo 
+    stop
+endif 
+
+dpsd = dpsd + dpsd_tmp
+   
+endsubroutine psd_diss_iz
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine psd_diss_pbe( &
     & nz,nps &! in
     & ,z,DV,dt,pi,tol,poro &! in 
@@ -23165,7 +23502,21 @@ do iz = 1, nz
     if (.not.safe_mode .and. ms_not_ok(iz)) then 
         print *,'****** DV is larger than the amount existing at ',iz, ' for ' ,chrsp
         ! simply limiting the dissolution by existing particles
-        dpsd(:,iz) = - psd(:,iz)
+        ! dpsd(:,iz) = - psd(:,iz)
+        ! cycle
+        !!
+        ! calling previous subroutine but only at a depth 
+        dpsd_tmp = 0d0
+        call psd_diss_iz( &
+            & nz,nps,iz &! in
+            & ,z,DV,dt,pi,tol,poro &! in 
+            & ,incld_rough,rough_c0,rough_c1 &! in
+            & ,psd,ps,dps,ps_min,ps_max &! in 
+            & ,chrsp &! in 
+            & ,dpsd_tmp,psd_error_flg &! inout
+            & )
+        if (psd_error_flg) return
+        dpsd(:,iz) = dpsd_tmp(:,iz)
         cycle
         !!
         ! scaling so that total dissolution volume change is conserved while assuming immediate dissolution 
@@ -23173,11 +23524,11 @@ do iz = 1, nz
             ! & / sum(4d0/3d0*pi*(10d0**ps(:))**3d0 * psd(:,iz) * dps(:))
         ! cycle
         !! 
-        dvd = 0d0
-        dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 *lambda(:) )
-        dVd(:,iz) = dVd(:,iz)*( DV(iz) )/sum(dVd(:,iz) * dps(:))
-        dpsd(:,iz) = - dVd(:,iz)/(4d0/3d0*pi*(10d0**ps(:))**3d0) 
-        cycle
+        ! dvd = 0d0
+        ! dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 *lambda(:) )
+        ! dVd(:,iz) = dVd(:,iz)*( DV(iz) )/sum(dVd(:,iz) * dps(:))
+        ! dpsd(:,iz) = - dVd(:,iz)/(4d0/3d0*pi*(10d0**ps(:))**3d0) 
+        ! cycle
         ! !!! 
         ! dpsd(:,iz) = -k *psd(:,iz)
         ! int{dpsd(:,iz)*dps) = -k * int{ psd(:,iz)*dps} = DV
