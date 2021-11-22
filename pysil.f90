@@ -213,6 +213,7 @@ real(kind=8),parameter :: mvep = 139.10d0 ! cm3/mol; molar volume of epidote; Ca
 real(kind=8),parameter :: mvclch = 211.470d0 ! cm3/mol; molar volume of clinochlore; Mg5Al2Si3O10(OH)8; Roots 1994 Eur. J. Mineral.
 real(kind=8),parameter :: mvsdn = 109.05d0 ! cm3/mol; molar volume of sanidine; Robie et al. 1978
 real(kind=8),parameter :: mvcdr = 584.95d0 /2.65d0  ! cm3/mol; molar volume of cordierite Mg2Al4Si5O18 from molar weight and density from http://www.webmineral.com/data/Cordierite.shtml#.YZtITrqIaUk
+real(kind=8),parameter :: mvleu =  88.39d0 ! cm3/mol; molar volume of leucite KAlSi206; Robie et al. 1978
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
@@ -299,6 +300,7 @@ real(kind=8),parameter :: mwtep = 483.22675d0 ! g/mol; molar weight of epidote; 
 real(kind=8),parameter :: mwtclch = 555.79754d0 ! g/mol; molar weight of clinochlore; Mg5Al2Si3O10(OH)8; calculated from elemental molar weight
 real(kind=8),parameter :: mwtsdn = 278.333d0 ! cm3/mol; molar weight of sanidine; Robie et al. 1978
 real(kind=8),parameter :: mwtcdr = 584.95d0 ! cm3/mol; from molar weight of cordierite Mg2Al4Si5O18 from http://www.webmineral.com/data/Cordierite.shtml#.YZtITrqIaUk
+real(kind=8),parameter :: mwtleu =  218.248d0 ! cm3/mol; molar volume of leucite KAlSi206; Robie et al. 1978
  
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 real(kind=8) :: rho_grain_calc,rho_grain_calcx != 2.7d0 ! g/cm3 as soil grain density 
@@ -518,7 +520,7 @@ integer,parameter::nsp_sld_2 = 0
 ! integer,parameter::nsp_sld_2 = 23
 integer,parameter::nsp_sld_2 = 22 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 65
+integer,parameter::nsp_sld_all = 66
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -785,7 +787,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
-    & ,'sdn  ','cdr  ' &
+    & ,'sdn  ','cdr  ','leu  ' &
     & ,'g1   ','g2   ','g3   ','amnt '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
@@ -863,12 +865,12 @@ endif
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
-    & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr &
+    & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu &
     & ,mvg1,mvg2,mvg3,mvamnt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
-    & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr &
+    & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt/)
 
 do isps = 1, nsp_sld 
@@ -1283,6 +1285,10 @@ staq_all(findloc(chrsld_all,'clch',dim=1), findloc(chraq_all,'si',dim=1)) = 3d0
 staq_all(findloc(chrsld_all,'cdr',dim=1), findloc(chraq_all,'mg',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'cdr',dim=1), findloc(chraq_all,'al',dim=1)) = 4d0
 staq_all(findloc(chrsld_all,'cdr',dim=1), findloc(chraq_all,'si',dim=1)) = 5d0
+! Leucite (KAlSi206)
+staq_all(findloc(chrsld_all,'leu',dim=1), findloc(chraq_all,'k',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'leu',dim=1), findloc(chraq_all,'al',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'leu',dim=1), findloc(chraq_all,'si',dim=1)) = 2d0
 ! OMs; CH2O
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
@@ -6296,6 +6302,32 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
 
+    case('leu') 
+        mh = 0.7d0
+        moh = -0.2d0
+        kinn_ref = 10d0**(-9.20d0)*sec2yr
+        kinh_ref = 10d0**(-6.00d0)*sec2yr
+        kinoh_ref = 10d0**(-10.66d0)*sec2yr
+        ean = 75.5d0
+        eah = 132.2d0
+        eaoh = 56.6d0
+        tc_ref = 25d0
+        ! Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        select case(trim(adjustl(dev_sp)))
+            case('pro')
+                dkin_dmsp = ( & 
+                    & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+                    & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+                    & ) 
+            case default 
+                dkin_dmsp = 0d0
+        endselect 
+
     case('fo')
         mh = 0.47d0
         moh = 0d0
@@ -7361,6 +7393,13 @@ select case(trim(adjustl(mineral)))
         ha = -35.0284d0
         tc_ref = 25d0
         ! from llnl.dat in Phreeqc
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('leu')
+        ! Leucite: KAlSi2O6 + 2H2O + 4H+ = 2H4SiO4 + Al+3 + K+
+        therm_ref = 10d0**(6.423d0)
+        ha = -22.085d0*cal2j
+        tc_ref = 25d0
+        ! from minteq.dat in Phreeqc
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('anl')
         ! NaAlSi2O6*H2O  + 5 H2O  = Na+  + Al(OH)4-  + 2 Si(OH)4(aq)
@@ -18300,7 +18339,7 @@ select case(trim(adjustl(mineral)))
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
         & ,'agt','jd','wls','phsi','splt','casp','ksp','nasp','mgsp','fe2o','mgo','k2o','cao','na2o','al2o3' &
-        & ,'gbas','cbas','ep','clch','sdn','cdr' &
+        & ,'gbas','cbas','ep','clch','sdn','cdr','leu' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
