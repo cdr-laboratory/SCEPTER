@@ -678,6 +678,7 @@ integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ip
 
 logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
 real(kind=8),dimension(nz,nz,nsp_sld)::trans
+real(kind=8),dimension(nsp_sld)::zml
 real(kind=8),intent(in)::zml_ref
 real(kind=8) dbl_ref
 integer izml
@@ -2511,8 +2512,9 @@ if (biot_till) till = .true.
 
 save_trans = .true.
 save_trans = .false.
+zml = zsupp
 call make_transmx(  &
-    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
+    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
     & ,trans,nonlocal,izml  &! output 
     & )
     
@@ -2786,8 +2788,9 @@ do while (it<nt)
     
     ! nobio = .true.
     save_trans = .false.
+    zml = zsupp
     call make_transmx(  &
-        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
+        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
         & ,trans,nonlocal,izml  &! output 
         & )
 
@@ -2889,6 +2892,7 @@ do while (it<nt)
             dust_norm = 0d0
             ! only implement fickian mixing 
             fick = .true. 
+            zml = zsupp ! mixed layer depth is common to all solid sp. 
         else 
             ! print *, 'dust time !!', time 
             msldsupp = msldsupp/step_tau
@@ -2899,33 +2903,37 @@ do while (it<nt)
             if (biot_fick) fick = .true.
             if (biot_labs) labs = .true.
             if (biot_till) till = .true.
+            zml = zml_ref ! mixed layer depth is the value specified for dust  
             ! OM is mixed in fickian
-            if (any(chrsld == 'g1')) then 
+            if (any(chrsld == 'g1') .and. rfrc_sld_plant_all(findloc(chrsld_all,'g1',dim=1))>0d0) then 
                 fick(findloc(chrsld,'g1',dim=1)) = .true.
                 nobio(findloc(chrsld,'g1',dim=1)) = .false.
                 labs(findloc(chrsld,'g1',dim=1)) = .false.
                 turbo2(findloc(chrsld,'g1',dim=1)) = .false.
                 till(findloc(chrsld,'g1',dim=1)) = .false.
+                zml(findloc(chrsld,'g1',dim=1)) = zsupp
             endif 
-            if (any(chrsld == 'g2')) then 
+            if (any(chrsld == 'g2') .and. rfrc_sld_plant_all(findloc(chrsld_all,'g2',dim=1))>0d0) then 
                 fick(findloc(chrsld,'g2',dim=1)) = .true.
                 nobio(findloc(chrsld,'g2',dim=1)) = .false.
                 labs(findloc(chrsld,'g2',dim=1)) = .false.
                 turbo2(findloc(chrsld,'g2',dim=1)) = .false.
                 till(findloc(chrsld,'g2',dim=1)) = .false.
+                zml(findloc(chrsld,'g2',dim=1)) = zsupp
             endif 
-            if (any(chrsld == 'g3')) then 
+            if (any(chrsld == 'g3') .and. rfrc_sld_plant_all(findloc(chrsld_all,'g3',dim=1))>0d0) then 
                 fick(findloc(chrsld,'g3',dim=1)) = .true.
                 nobio(findloc(chrsld,'g3',dim=1)) = .false.
                 labs(findloc(chrsld,'g3',dim=1)) = .false.
                 turbo2(findloc(chrsld,'g3',dim=1)) = .false.
                 till(findloc(chrsld,'g3',dim=1)) = .false.
+                zml(findloc(chrsld,'g3',dim=1)) = zsupp
             endif 
         endif 
         ! mixing reload
         save_trans = .false.
         call make_transmx(  &
-            & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
+            & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
             & ,trans,nonlocal,izml  &! output 
             & )
         
@@ -3216,7 +3224,7 @@ do while (it<nt)
         
     save_trans = .false.
     call make_transmx(  &
-        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
+        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
         & ,trans,nonlocal,izml  &! output 
         & )
         
@@ -19480,12 +19488,12 @@ endsubroutine calc_rxn_ext_dev_2
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine make_transmx(  &
-    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml_ref,dbl_ref,fick,till,tol,save_trans  &! input
+    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
     & ,trans,nonlocal,izml  &! output 
     & )
 implicit none
 integer,intent(in)::nsp_sld,nz
-real(kind=8),intent(in)::dz(nz),poro(nz),z(nz),zml_ref,dbl_ref,tol
+real(kind=8),intent(in)::dz(nz),poro(nz),z(nz),zml(nsp_sld),dbl_ref,tol
 real(kind=8)::sporo(nz)
 logical,intent(in)::labs(nsp_sld),turbo2(nsp_sld),nobio(nsp_sld),fick(nsp_sld),till(nsp_sld),save_trans
 real(kind=8),intent(out)::trans(nz,nz,nsp_sld)
@@ -19493,7 +19501,7 @@ logical,intent(out)::nonlocal(nsp_sld)
 integer,intent(out)::izml
 integer iz,isp,iiz,izdbl
 real(kind=8) :: translabs(nz,nz),dbio(nz),transdbio(nz,nz),transturbo2(nz,nz),transtill(nz,nz)
-real(kind=8) :: zml(nsp_sld),probh,dbl
+real(kind=8) :: probh,dbl
 character(10) chr
 
 sporo = 1d0 - poro
@@ -19517,7 +19525,7 @@ if (.true.) then  ! devided by the time duration when transition matrices are cr
     translabs = translabs *365.25d0/10d0*1d0/10d0
 endif
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-zml=zml_ref ! mixed layer depth assumed to be a reference value at first 
+! zml=zml_ref ! mixed layer depth assumed to be a reference value at first 
 
 dbl = dbl_ref
 
@@ -23446,6 +23454,9 @@ if (incld_rough)  lambda = rough_c0*(10d0**ps(:))**rough_c1
 ! dr = dR * r * log10
 ! note that dps is dR; we need dr denoted here as dpsx (?)
 dpsx = dps * 10d0**(ps) * log(10d0)
+! do ips = 1,nps
+    ! dpsx(ips) = 10d0**(ps(ips)+0.5d0*dps(ips)) - 10d0**(ps(ips)-0.5d0*dps(ips))
+! enddo
 
 ! psd is given as number of particles/m3/log(m)
 ! converting to number of particles/m3/m
