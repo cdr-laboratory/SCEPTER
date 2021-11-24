@@ -2577,6 +2577,8 @@ do while (it<nt)
         print *
     endif
     dt_prev = dt
+    ! only relevant when doing non-continuous dusting    
+    if (dust_step) dust_norm_prev = dust_norm
     
     if (time>rectime_prof(nrec_prof)) exit
     
@@ -2898,19 +2900,44 @@ do while (it<nt)
     ! non continueous
     if (dust_step) then 
         
-        dust_norm_prev = dust_norm
+        ! dust_norm_prev = dust_norm
         
         if (dt > step_tau) then 
             dt = step_tau
             ! go to 100
         endif 
         
-        if (time - floor(time) < step_tau .and. time + dt - floor(time) >= step_tau ) then 
-            if ( abs (step_tau - ( time - floor(time) ) ) > step_tau * tol_step_tau ) then 
+        ! if (step_tau + floor(time) < time  .and.  time < 1d0 + floor(time)) then 
+            ! if (time + dt >= 1d0 + floor(time)) then ! chenge has to happen in next time step
+                ! dt = 1d0 - floor(time) - time
+            ! endif
+        ! elseif (0d0 + floor(time) <= time  .and.  time <= step_tau + floor(time)) then 
+            ! if (step_tau + floor(time) < time + dt ) then ! chenge has to happen in next time step
+                ! dt = step_tau + floor(time) - time
+            ! endif 
+        ! else 
+            ! print *, 'Fatale error in dusting:dt?',time,floor(time),dt,step_tau
+            ! stop
+        ! endif 
+        
+        if (time < step_tau + floor(time)  .and. time + dt >= step_tau + floor(time) ) then 
+            if ( ( step_tau + floor(time) - time  ) > step_tau * tol_step_tau ) then 
                 dt = step_tau - ( time - floor(time) )
+            endif 
+            if (dt > step_tau/10d0) then 
+                dt = step_tau/10d0
                 ! go to 100
             endif 
+        elseif (time >= step_tau + floor(time) .and. time + dt >= 1d0 + floor(time) ) then 
+            if ( ( 1d0 + floor(time) - time  ) > step_tau * tol_step_tau ) then 
+                dt = 1d0 + floor(time)  - time + step_tau * tol_step_tau 
+            endif
+            ! print *,time,dt
+            ! stop
+        ! else
+            ! print *, 'too small time step?',time,floor(time),dt,step_tau
         endif 
+        
 
         ! an attempt to use fickian mixing when applying rock powder
         ! when not applying the powder use the chosen mixing (can be fickian)
@@ -2919,14 +2946,17 @@ do while (it<nt)
         nobio = .false.
         till = .false.
         fick = .false.   
-        if (time - floor(time) >= step_tau) then 
+        ! if (time - floor(time) >= step_tau) then 
+        ! if (time - floor(time) > step_tau) then 
+        if (step_tau + floor(time) < time  .and.  time < 1d0 + floor(time)) then 
             ! print *, 'no dust time', time 
             msldsupp = 0d0
             dust_norm = 0d0
             ! only implement fickian mixing 
             fick = .true. 
             zml = zsupp ! mixed layer depth is common to all solid sp. 
-        else 
+        ! else 
+        elseif (0d0 + floor(time) <= time  .and.  time <= step_tau + floor(time)) then 
             ! print *, 'dust time !!', time 
             msldsupp = msldsupp/step_tau
             dust_norm = 1d0/step_tau
@@ -2962,6 +2992,9 @@ do while (it<nt)
                 till(findloc(chrsld,'g3',dim=1)) = .false.
                 zml(findloc(chrsld,'g3',dim=1)) = zsupp
             endif 
+        else 
+            print *, 'Fatale error in dusting?',time,floor(time),dt,step_tau
+            stop
         endif 
         ! mixing reload
         save_trans = .false.
@@ -2970,13 +3003,13 @@ do while (it<nt)
             & ,trans,nonlocal,izml  &! output 
             & )
         
-        if ( dust_norm /= dust_norm_prev ) then
-            open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
-                & status='old',action='write',position='append')
-            write(idust,*) time-dt,dust_norm_prev
-            write(idust,*) time,dust_norm
-            close(idust)
-        endif 
+        ! if ( dust_norm /= dust_norm_prev ) then
+            ! open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
+                ! & status='old',action='write',position='append')
+            ! write(idust,*) time-dt_prev,dust_norm_prev
+            ! write(idust,*) time,dust_norm
+            ! close(idust)
+        ! endif 
         
     endif 
     
@@ -4876,6 +4909,20 @@ do while (it<nt)
         endif 
         
     endif 
+    
+    ! save only if everything goes well
+    if (dust_step) then
+        if ( dust_norm /= dust_norm_prev ) then
+            open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
+                & status='old',action='write',position='append')
+            write(idust,*) time-dt_prev,dust_norm_prev
+            write(idust,*) time,dust_norm
+            close(idust)
+        endif 
+        ! print *, time-dt_prev,dust_norm_prev
+        ! print *, time,dust_norm
+    endif
+    
 
     it = it + 1
     time = time + dt
