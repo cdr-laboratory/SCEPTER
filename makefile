@@ -5,7 +5,9 @@ FC            = gfortran
 
 CPFLAGS       = 
 CPFLAGS       += -Dno_intr_findloc # need to use in cluster
+# CPFLAGS       += -Dshow_PSDiter # showing iteration process during PSD calculation
 # CPFLAGS       += -Dksld_chk # checking rate consts for sld species
+# CPFLAGS       += -Ddef_flx_save_alltime # flux reported each integration (costs lots of bites)
 # CPFLAGS       += -Dfull_flux_report # output all cumulative flux
 # CPFLAGS       += -Ddisp_lim # limiting the display of results
 # CPFLAGS       += -Ddiss_only # not allowing precipitation of minerals
@@ -26,6 +28,8 @@ LDFLAGS       =
 LIBS          = -lopenblas
 # OBJS          = pysil_dev.o 
 # SRC           = pysil_dev.f90 
+# OBJS          = pysil_sent.o 
+# SRC           = pysil_sent.f90 
 # OBJS          = pysil.o 
 # SRC           = pysil.f90  
 OBJS          = pysil_dev_dev.o 
@@ -40,7 +44,7 @@ $(PROGRAM):     $(SRC)
 	$(FC) $(SRC) -o $(PROGRAM) -cpp $(CPFLAGS) $(CFLAGS) $(LIBS) $(LDFLAGS)
 
 
-clean:;         rm -f *.out 
+clean:;         rm -f *.o  *~ $(PROGRAM)
 blank:;         truncate -s 0 *.out
 cleanall:;         rm -f *.o *.out *~ $(PROGRAM)
 

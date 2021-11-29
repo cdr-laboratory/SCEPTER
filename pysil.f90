@@ -356,8 +356,8 @@ real(kind=8),intent(in) :: p80 != 1d-6 ! m
 ! real(kind=8) ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save,mvka_save,mvgb_save
 real(kind=8),dimension(nz):: pro,prox,poroprev,hrb,vprev,torgprev,toraprev,wprev,ssab
 real(kind=8),dimension(nz):: dummy,up,dwn,cnr,adf
-real(kind=8) :: rough_c0 = 10d0**(3.3d0)
-real(kind=8) :: rough_c1 = 0.33d0
+real(kind=8) :: rough_c0 != 10d0**(3.3d0)
+real(kind=8) :: rough_c1 != 0.33d0
 
 real(kind=8) kho,ucv,kco2,k1,kw,k2,khco2i,knh3,k1nh3,khnh3i,kn2o
 
@@ -454,12 +454,19 @@ logical,dimension(3) :: climate != .false.
 logical :: season = .false.
 ! logical :: season = .true.
 
+#ifdef def_flx_save_alltime
+logical :: flx_save_alltime = .true.
+#else
+logical :: flx_save_alltime = .false.
+#endif
+
 real(kind=8),intent(in) :: step_tau ! = 0.1d0 ! yr time duration during which dust is added
 real(kind=8) :: tol_step_tau = 1d-6 ! yr time duration during which dust is added
 
 real(kind=8) :: wave_tau = 2d0 ! yr periodic time for wave 
 real(kind=8) :: dust_norm = 0d0
 real(kind=8) :: dust_norm_prev = 0d0
+logical :: dust_change 
 
 real(kind=8),dimension(:,:),allocatable :: clim_T,clim_q,clim_sat
 real(kind=8),dimension(3) :: dct,ctau
@@ -557,12 +564,15 @@ real(kind=8),dimension(nsp_sld,nsp_aq)::staq
 real(kind=8),dimension(nsp_sld,nsp_gas)::stgas
 real(kind=8),dimension(nsp_sld,nz)::msldx,msld,ksld,omega,msldsupp,nonprec,rxnsld
 real(kind=8),dimension(nsp_sld,5 + nrxn_ext + nsp_sld,nz)::flx_sld
+real(kind=8),dimension(nsp_sld,5 + nrxn_ext + nsp_sld)::int_flx_sld
 real(kind=8),dimension(nsp_aq)::maqi,maqth,daq
 real(kind=8),dimension(nsp_aq,nz)::maqx,maq,rxnaq,maqsupp
 real(kind=8),dimension(nsp_aq,5 + nrxn_ext + nsp_sld,nz)::flx_aq
+real(kind=8),dimension(nsp_aq,5 + nrxn_ext + nsp_sld)::int_flx_aq
 real(kind=8),dimension(nsp_gas)::mgasi,mgasth,dgasa,dgasg,dmgas,khgasi,dgasi
 real(kind=8),dimension(nsp_gas,nz)::mgasx,mgas,khgasx,khgas,dgas,agasx,agas,rxngas,mgassupp 
-real(kind=8),dimension(nsp_gas,5 + nrxn_ext + nsp_sld,nz)::flx_gas 
+real(kind=8),dimension(nsp_gas,5 + nrxn_ext + nsp_sld,nz)::flx_gas  
+real(kind=8),dimension(nsp_gas,5 + nrxn_ext + nsp_sld)::int_flx_gas  
 real(kind=8),dimension(nrxn_ext,nz)::rxnext
 real(kind=8),dimension(nrxn_ext,nsp_gas)::stgas_ext,stgas_dext
 real(kind=8),dimension(nrxn_ext,nsp_aq)::staq_ext,staq_dext
@@ -597,6 +607,7 @@ real(kind=8),dimension(nsp_gas_all - nsp_gas,nz)::mgasc
 real(kind=8),dimension(nsp_sld_all - nsp_sld,nz)::msldc
 
 real(kind=8),dimension(4,5 + nrxn_ext + nsp_sld,nz)::flx_co2sp
+real(kind=8),dimension(6,5 + nrxn_ext + nsp_sld)::int_flx_co2sp
 character(5),dimension(6)::chrco2sp
 
 ! an attempt to record psd
@@ -681,6 +692,8 @@ integer,dimension(nsp_aq)::iaqflx
 integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
 integer,dimension(6)::ico2flx
+integer,parameter::nsp_saveall = 1
+character(5),dimension(nsp_saveall)::chrsp_saveall
 #endif 
 
 integer,parameter::idust = 15
@@ -756,6 +769,10 @@ ipsdv = idust + nsp_sld + nsp_gas + nsp_aq + 10
 ipsds = idust + nsp_sld + nsp_gas + nsp_aq + 11
 ipsdflx = idust + nsp_sld + nsp_gas + nsp_aq + 12
 isa = idust + nsp_sld + nsp_gas + nsp_aq + 13
+
+! species whose flux is saved all time
+! chrsp_saveall = (/'pco2 '/)
+chrsp_saveall = (/'xxxxx'/)
 
 nflx = 5 + nrxn_ext + nsp_sld
 
@@ -1814,6 +1831,18 @@ do isps = 1,nsp_sld
         & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', status='replace')
     write(isldflx(isps),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(isldflx(isps))
+    
+    open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+        & //'int_flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', status='replace')
+    write(isldflx(isps),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+    close(isldflx(isps))
+    
+    if ( any ( chrsp_saveall == chrsld(isps)) ) then
+        open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+            & //'flx_all_sld-'//trim(adjustl(chrsld(isps)))//'.txt', status='replace')
+        write(isldflx(isps),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+        close(isldflx(isps))
+    endif
 enddo 
 
 do ispa = 1,nsp_aq
@@ -1821,6 +1850,18 @@ do ispa = 1,nsp_aq
         & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', status='replace')
     write(iaqflx(ispa),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(iaqflx(ispa))
+    
+    open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
+        & //'int_flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', status='replace')
+    write(iaqflx(ispa),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+    close(iaqflx(ispa))
+    
+    if ( any ( chrsp_saveall == chraq(ispa) ) ) then
+        open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
+            & //'flx_all_aq-'//trim(adjustl(chraq(ispa)))//'.txt', status='replace')
+        write(iaqflx(ispa),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+        close(iaqflx(ispa))
+    endif 
 enddo 
 
 do ispg = 1,nsp_gas
@@ -1828,11 +1869,28 @@ do ispg = 1,nsp_gas
         & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', status='replace')
     write(igasflx(ispg),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(igasflx(ispg))
+    
+    open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
+        & //'int_flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', status='replace')
+    write(igasflx(ispg),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+    close(igasflx(ispg))
+    
+    if ( any ( chrsp_saveall == chrgas(ispg) ) ) then
+        open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
+            & //'flx_all_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', status='replace')
+        write(igasflx(ispg),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+        close(igasflx(ispg))
+    endif 
 enddo 
 
 do ico2 = 1,6
     open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
         & //'flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', status='replace')
+    write(ico2flx(ico2),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+    close(ico2flx(ico2))
+    
+    open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
+        & //'int_flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', status='replace')
     write(ico2flx(ico2),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(ico2flx(ico2))
 enddo 
@@ -1957,6 +2015,12 @@ do isps = 1, nsp_sld
 enddo
 
 rough = 1d0
+! from Navarre-Sitchler and Brantley (2007)
+rough_c0 = 10d0**(3.3d0)
+rough_c1 = 0.33d0
+! from Brantley and Mellott (2000)
+! rough_c0 = 10d0**(0.7d0)
+! rough_c1 = -0.1d0
 if (incld_rough) then 
     ! rough = 10d0**(3.3d0)*p80**0.33d0 ! from Navarre-Sitchler and Brantley (2007)
     do isps=1,nsp_sld
@@ -2563,6 +2627,11 @@ ict_change = .false.
 
 count_dtunchanged = 0
 
+int_flx_aq = 0d0
+int_flx_gas = 0d0
+int_flx_sld = 0d0
+int_flx_co2sp = 0d0
+
 !! @@@@@@@@@@@@@@@   start of time integration  @@@@@@@@@@@@@@@@@@@@@@
 
 do while (it<nt)
@@ -2899,6 +2968,8 @@ do while (it<nt)
     
     ! non continueous
     if (dust_step) then 
+    
+        dust_change = .false.
         
         ! dust_norm_prev = dust_norm
         
@@ -2907,36 +2978,38 @@ do while (it<nt)
             ! go to 100
         endif 
         
-        ! if (step_tau + floor(time) < time  .and.  time < 1d0 + floor(time)) then 
-            ! if (time + dt >= 1d0 + floor(time)) then ! chenge has to happen in next time step
-                ! dt = 1d0 - floor(time) - time
-            ! endif
-        ! elseif (0d0 + floor(time) <= time  .and.  time <= step_tau + floor(time)) then 
-            ! if (step_tau + floor(time) < time + dt ) then ! chenge has to happen in next time step
-                ! dt = step_tau + floor(time) - time
-            ! endif 
-        ! else 
-            ! print *, 'Fatale error in dusting:dt?',time,floor(time),dt,step_tau
-            ! stop
-        ! endif 
-        
-        if (time < step_tau + floor(time)  .and. time + dt >= step_tau + floor(time) ) then 
-            if ( ( step_tau + floor(time) - time  ) > step_tau * tol_step_tau ) then 
-                dt = step_tau - ( time - floor(time) )
-            endif 
+        if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
+            continue
+        elseif (step_tau + floor(time) < time  .and.  time + dt >= 1d0 + floor(time)) then 
+            dt = 1d0 + floor(time) - time + step_tau * tol_step_tau 
+            dust_change = .true.
+        elseif (0d0 + floor(time) <= time  .and.  time +dt <= step_tau + floor(time)) then 
             if (dt > step_tau/10d0) then 
                 dt = step_tau/10d0
-                ! go to 100
             endif 
-        elseif (time >= step_tau + floor(time) .and. time + dt >= 1d0 + floor(time) ) then 
-            if ( ( 1d0 + floor(time) - time  ) > step_tau * tol_step_tau ) then 
-                dt = 1d0 + floor(time)  - time + step_tau * tol_step_tau 
-            endif
-            ! print *,time,dt
-            ! stop
-        ! else
-            ! print *, 'too small time step?',time,floor(time),dt,step_tau
+        elseif (0d0 + floor(time) <= time  .and.  time +dt > step_tau + floor(time)) then 
+            dt = step_tau + floor(time) - time + step_tau * tol_step_tau 
+            if (dt > step_tau/10d0) then 
+                dt = step_tau/10d0
+            endif 
+            ! checking again
+            if (0d0 + floor(time) <= time  .and.  time +dt > step_tau + floor(time)) then 
+                dust_change = .true.
+            endif  
         endif 
+        
+        ! if (time < step_tau + floor(time)  .and. time + dt >= step_tau + floor(time) ) then 
+            ! if ( ( step_tau + floor(time) - time  ) > step_tau * tol_step_tau ) then 
+                ! dt = step_tau - ( time - floor(time) ) !+ step_tau * tol_step_tau 
+            ! endif 
+            ! if (dt > step_tau/10d0) then 
+                ! dt = step_tau/10d0
+            ! endif 
+        ! elseif (time >= step_tau + floor(time) .and. time + dt >= 1d0 + floor(time) ) then 
+            ! if ( ( 1d0 + floor(time) - time  ) > step_tau * tol_step_tau ) then 
+                ! dt = 1d0 + floor(time)  - time + step_tau * tol_step_tau 
+            ! endif
+        ! endif 
         
 
         ! an attempt to use fickian mixing when applying rock powder
@@ -2948,7 +3021,8 @@ do while (it<nt)
         fick = .false.   
         ! if (time - floor(time) >= step_tau) then 
         ! if (time - floor(time) > step_tau) then 
-        if (step_tau + floor(time) < time  .and.  time < 1d0 + floor(time)) then 
+        ! if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
+        if (step_tau + floor(time) < time  ) then 
             ! print *, 'no dust time', time 
             msldsupp = 0d0
             dust_norm = 0d0
@@ -2956,6 +3030,7 @@ do while (it<nt)
             fick = .true. 
             zml = zsupp ! mixed layer depth is common to all solid sp. 
         ! else 
+        ! elseif (0d0 + floor(time) <= time  .and.  time + dt <= step_tau + floor(time)) then 
         elseif (0d0 + floor(time) <= time  .and.  time <= step_tau + floor(time)) then 
             ! print *, 'dust time !!', time 
             msldsupp = msldsupp/step_tau
@@ -4417,6 +4492,10 @@ do while (it<nt)
     so4fprev = so4f
     
     mblk = mblkx
+
+    it = it + 1
+    time = time + dt
+    count_dtunchanged = count_dtunchanged + 1
     
     do iz = 1, nz
         ! rho_grain_z(iz) = sum(msldx(:,iz)*mwt(:)*1d-6)
@@ -4436,6 +4515,35 @@ do while (it<nt)
     do iz=1,nz
         hrb(iz) = sum( hr(:,iz)* msldx(:,iz)*mv(:)*1d-6) / sum(msldx(:,iz)*mv(:)*1d-6)
         ssab(iz) = sum( ssa(:,iz)* msldx(:,iz)*mv(:)*1d-6) / sum(msldx(:,iz)*mv(:)*1d-6)
+    enddo 
+    
+    
+    do iflx=1,nflx
+        do isps=1,nsp_sld 
+            int_flx_sld(isps,iflx) = int_flx_sld(isps,iflx) + sum(flx_sld(isps,iflx,:)*dz(:))*dt
+        enddo 
+        
+        do ispa=1,nsp_aq 
+            int_flx_aq(ispa,iflx) = int_flx_aq(ispa,iflx) + sum(flx_aq(ispa,iflx,:)*dz(:))*dt
+        enddo 
+        
+        do ispg=1,nsp_gas 
+            int_flx_gas(ispg,iflx) = int_flx_gas(ispg,iflx) + sum(flx_gas(ispg,iflx,:)*dz(:))*dt
+        enddo 
+        
+        do ico2=1,6 
+            if (ico2 .le. 4) then 
+                int_flx_co2sp(ico2,iflx) = int_flx_co2sp(ico2,iflx) + sum(flx_co2sp(ico2,iflx,:)*dz(:))*dt
+            elseif (ico2 .eq. 5) then 
+                int_flx_co2sp(ico2,iflx) = int_flx_co2sp(ico2,iflx) + ( &
+                    & sum(flx_co2sp(2,iflx,:)*dz(:))+sum(flx_co2sp(3,iflx,:)*dz(:))+sum(flx_co2sp(4,iflx,:)*dz(:)) &
+                    & ) * dt
+            elseif (ico2 .eq. 6) then 
+                int_flx_co2sp(ico2,iflx) = int_flx_co2sp(ico2,iflx) + ( &
+                    & sum(flx_co2sp(3,iflx,:)*dz(:))+2d0*sum(flx_co2sp(4,iflx,:)*dz(:)) &
+                    & ) *dt
+            endif 
+        enddo 
     enddo 
 
     if (time > savetime) then 
@@ -4777,6 +4885,11 @@ do while (it<nt)
                 & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
             write(isldflx(isps),*) time,(sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
             close(isldflx(isps))
+            
+            open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+                & //'int_flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+            write(isldflx(isps),*) time,(int_flx_sld(isps,iflx)/time,iflx=1,nflx)
+            close(isldflx(isps))
         enddo 
         
         do ispa=1,nsp_aq 
@@ -4784,12 +4897,22 @@ do while (it<nt)
                 & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
             write(iaqflx(ispa),*) time,(sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
             close(iaqflx(ispa))
+            
+            open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
+                & //'int_flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
+            write(iaqflx(ispa),*) time,(int_flx_aq(ispa,iflx)/time,iflx=1,nflx)
+            close(iaqflx(ispa))
         enddo 
         
         do ispg=1,nsp_gas 
             open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
                 & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
             write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
+            close(igasflx(ispg))
+            
+            open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
+                & //'int_flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
+            write(igasflx(ispg),*) time,(int_flx_gas(ispg,iflx)/time,iflx=1,nflx)
             close(igasflx(ispg))
         enddo 
         
@@ -4807,6 +4930,11 @@ do while (it<nt)
                     & ,(sum(flx_co2sp(3,iflx,:)*dz(:))+2d0*sum(flx_co2sp(4,iflx,:)*dz(:)) &
                     & ,iflx=1,nflx)
             endif 
+            close(ico2flx(ico2))
+            
+            open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
+                & //'int_flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', action='write',status='old',position='append')
+            write(ico2flx(ico2),*) time,(int_flx_co2sp(ico2,iflx)/time,iflx=1,nflx)
             close(ico2flx(ico2))
         enddo 
 #endif 
@@ -4861,9 +4989,12 @@ do while (it<nt)
     ! saving flx when climate is changed within model 
     if ( (any(climate) .and. any (ict_change))  & 
         ! or when time to record flx 
-        & .or.(time>=rectime_flx(irec_flx+1)) ) then 
+        & .or.(time>=rectime_flx(irec_flx+1)) &
+        ! or when definining flx_save_alltime
+        & .or. flx_save_alltime &
+        ) then 
         
-        if (time>=rectime_flx(irec_flx+1)) then 
+        if (.not. flx_save_alltime .and. time>=rectime_flx(irec_flx+1)) then 
             irec_flx = irec_flx + 1
         endif 
         
@@ -4874,6 +5005,11 @@ do while (it<nt)
                     & //'flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
                 write(isldflx(isps),*) time,(sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
                 close(isldflx(isps))
+            
+                open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+                    & //'int_flx_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+                write(isldflx(isps),*) time,(int_flx_sld(isps,iflx)/time,iflx=1,nflx)
+                close(isldflx(isps))
             enddo 
             
             do ispa=1,nsp_aq 
@@ -4881,12 +5017,22 @@ do while (it<nt)
                     & //'flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
                 write(iaqflx(ispa),*) time,(sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
                 close(iaqflx(ispa))
+            
+                open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
+                    & //'int_flx_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
+                write(iaqflx(ispa),*) time,(int_flx_aq(ispa,iflx)/time,iflx=1,nflx)
+                close(iaqflx(ispa))
             enddo 
             
             do ispg=1,nsp_gas 
                 open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
                     & //'flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
                 write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
+                close(igasflx(ispg))
+            
+                open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
+                    & //'int_flx_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
+                write(igasflx(ispg),*) time,(int_flx_gas(ispg,iflx)/time,iflx=1,nflx)
                 close(igasflx(ispg))
             enddo 
             
@@ -4905,28 +5051,64 @@ do while (it<nt)
                         & ,iflx=1,nflx)
                 endif 
                 close(ico2flx(ico2))
+                
+                open(ico2flx(ico2), file=trim(adjustl(flxdir))//'/' &
+                    & //'int_flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', action='write',status='old',position='append')
+                write(ico2flx(ico2),*) time,(int_flx_co2sp(ico2,iflx)/time,iflx=1,nflx)
+                close(ico2flx(ico2))
             enddo 
+            
         endif 
+    endif 
+    
+    ! save flux all time for specified species
+    if ( .not. flx_save_alltime  ) then 
+        
+        do isps=1,nsp_sld 
+            if ( any ( chrsp_saveall == chrsld(isps)) ) then
+                open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+                    & //'flx_all_sld-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+                write(isldflx(isps),*) time,(sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
+                close(isldflx(isps))
+            endif 
+        enddo 
+        
+        do ispa=1,nsp_aq 
+            if ( any ( chrsp_saveall == chraq(ispa) ) ) then
+                open(iaqflx(ispa), file=trim(adjustl(flxdir))//'/' &
+                    & //'flx_all_aq-'//trim(adjustl(chraq(ispa)))//'.txt', action='write',status='old',position='append')
+                write(iaqflx(ispa),*) time,(sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
+                close(iaqflx(ispa))
+            endif 
+        enddo 
+        
+        do ispg=1,nsp_gas 
+            if ( any ( chrsp_saveall == chrgas(ispg) ) ) then
+                open(igasflx(ispg), file=trim(adjustl(flxdir))//'/' &
+                    & //'flx_all_gas-'//trim(adjustl(chrgas(ispg)))//'.txt', action='write',status='old',position='append')
+                write(igasflx(ispg),*) time,(sum(flx_gas(ispg,iflx,:)*dz(:)),iflx=1,nflx)
+                close(igasflx(ispg))
+            endif 
+        enddo 
         
     endif 
     
     ! save only if everything goes well
     if (dust_step) then
-        if ( dust_norm /= dust_norm_prev ) then
+        if ( dust_norm /= dust_norm_prev .or. dust_change) then
+        ! if ( dust_change ) then
             open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
                 & status='old',action='write',position='append')
-            write(idust,*) time-dt_prev,dust_norm_prev
+            ! write(idust,*) time-dt_prev,dust_norm_prev
+            ! integration is now from time - dt to time with dust_norm
+            write(idust,*) time-dt,dust_norm
             write(idust,*) time,dust_norm
             close(idust)
         endif 
-        ! print *, time-dt_prev,dust_norm_prev
-        ! print *, time,dust_norm
+        ! print *, time-dt,dust_norm_prev
+        print *, time-dt,dust_norm
+        print *, time,dust_norm
     endif
-    
-
-    it = it + 1
-    time = time + dt
-    count_dtunchanged = count_dtunchanged + 1
     
     progress_rate_prev = progress_rate
     
