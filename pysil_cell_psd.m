@@ -25,14 +25,17 @@ function test
     p80 = 1d-5;                 % particle size [m3/m2]
     ttot = 1d-3;                % time step [yr]
     
-    for i=1:1000
+    for i=1:1
         % maq = ones(2,1)*1d-20;  % conc.list of aq  [mol/L]
         if i==1 
             first_call = true; % also added to differentiate the first call or not; will not be necessary if the initial PSD is calculated outside of the module
         else
             first_call = false;
         end 
-        [maq,mgas,msld,pro,so4f,poroi,omega,mpsd] = cell_out_psd( ...
+        % newly added output 
+        % ps: bins for paticle radius 
+        % agas: solubility  [mol /pore m3 / atm]
+        [maq,mgas,msld,pro,so4f,poroi,omega,mpsd,ps,agas] = cell_out_psd( ...
             ztot,poroi,p80,ttot  ...% input
             ,chraq,chrgas,chrsld,chrrxn_ext ...% input
             ,tcin ...% input 
@@ -44,7 +47,7 @@ function test
 
 end 
 
-function [maq,mgas,msld,pro,so4f,poro,omega,mpsd] = cell_out_psd( ...
+function [maq,mgas,msld,pro,so4f,poro,omega,mpsd,ps,agasx] = cell_out_psd( ...
     ztot,poroi,p80,ttot  ...% input
     ,chraq,chrgas,chrsld,chrrxn_ext ...% input
     ,tcin ...% input 
@@ -2217,6 +2220,7 @@ function [maq,mgas,msld,pro,so4f,poro,omega,mpsd] = cell_out_psd( ...
             [ ... 
                 flgback,w ...    % output 
                 ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,so4f ... 
+                ,agasx  ... % added output for explicit calc
                 ] = alsilicate_aq_gas_1D_v3_1_cell( ...
                 nz,nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext ...
                 ,chrsld,chrsld_2,chraq,chraq_ph,chrgas_ph,chrgas,chrrxn_ext  ...
@@ -2236,6 +2240,11 @@ function [maq,mgas,msld,pro,so4f,poro,omega,mpsd] = cell_out_psd( ...
                 ,dt,flgback,w ...    % old inout
                 ,msldx,omega,maqx,mgasx ... % inout 
                 );
+            % for explicit calculation 
+            % converting unit conv factor from [mol / bulk m3 /atm] to [mol / pore m3 /atm]
+            for ispg = 1: nsp_gas
+                agasx(ispg,:) = agasx(ispg,:)./poro(:)';
+            end 
             
             save_trans = false;
             [trans,nonlocal,izml] = make_transmx(  ...
@@ -8866,6 +8875,7 @@ end
 function [ ... 
     flgback,w ...    % inout
     ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,so4f ... % inout/out
+    ,agasx ... % added output for explicit calc
     ] = alsilicate_aq_gas_1D_v3_1_cell( ...
     nz,nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext ...
     ,chrsld,chrsld_2,chraq,chraq_ph,chrgas_ph,chrgas,chrrxn_ext  ...
