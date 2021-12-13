@@ -23829,7 +23829,7 @@ endif
     ! safe_mode = .false.
 ! endif 
 select case(trim(adjustl(chrsp)))
-    case('cc','dlm','arg')
+    case('cc','dlm','arg','gps')
         safe_mode = .false.
     case default
         safe_mode = .true.
