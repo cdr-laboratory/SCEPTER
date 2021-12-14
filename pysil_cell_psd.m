@@ -1,6 +1,6 @@
 function test
 
-    maq = ones(2,1)*1d-20;  % conc.list of aq  [mol/L]
+    maq = ones(1,1)*1d-20;  % conc.list of aq  [mol/L]
     msld = ones(1,1)*1d3;   % conc.list of solid  [mol/m3] *** consistency with porosity and density must be assured outside of the model 
     % mgas = ones(0,1)*1d-20;  % conc.list of gas  [atm] 
     
@@ -15,17 +15,17 @@ function test
     pro = ones(1,1)*1d-5;     % H+ conc. [mol/L]
     so4f = ones(1,1)*1d-20;   % free SO4= [mol/L]
     tcin = 12;                % temperature [oC]
-    chraq = string({'mg';'si'});   % string list of aq phase
-    chrsld = string({'fo'});  % string list of sld phase
+    chraq = string({'ca'});   % string list of aq phase
+    chrsld = string({'cc'});  % string list of sld phase
     % chrgas = strings(0,1);
     chrgas = string({'pco2'});  % string list of gas phase
     chrrxn_ext = strings(0,1); % string list of etra rxn
     ztot = 0.01;               % grid size [m] (does not matter given that transport is all shut down(?))
     poroi = 0.1;                % porosity of cell [m3/m3]
     p80 = 1d-5;                 % particle size [m3/m2]
-    ttot = 1d-3;                % time step [yr]
+    ttot = 1d-7;                % time step [yr]
     
-    for i=1:1
+    for i=1:10
         % maq = ones(2,1)*1d-20;  % conc.list of aq  [mol/L]
         if i==1 
             first_call = true; % also added to differentiate the first call or not; will not be necessary if the initial PSD is calculated outside of the module
@@ -2442,7 +2442,8 @@ function [maq,mgas,msld,pro,so4f,poro,omega,mpsd,ps,agasx] = cell_out_psd( ...
                     dpsd(:,:) = 0d0;
                     psd(:,:) = mpsd(isps,:,:);
                 
-                    [dpsd,psd_error_flg] = psd_diss( ...
+                    % [dpsd,psd_error_flg] = psd_diss( ...
+                    [dpsd,psd_error_flg] = psd_diss_pbe( ...
                         nz,nps ...% in
                         ,z,DV,dt,pi,tol_dvd,poro ...% in 
                         ,incld_rough,rough_c0,rough_c1 ...% in
@@ -2485,7 +2486,8 @@ function [maq,mgas,msld,pro,so4f,poro,omega,mpsd,ps,agasx] = cell_out_psd( ...
 
                 dpsd(:,:) = 0d0;
                 
-                [dpsd,psd_error_flg] = psd_diss( ...
+                % [dpsd,psd_error_flg] = psd_diss( ...
+                [dpsd,psd_error_flg] = psd_diss_pbe( ...
                     nz,nps ...% in
                     ,z,DV,dt,pi,tol,poro ...% in 
                     ,incld_rough,rough_c0,rough_c1 ...% in
@@ -11265,6 +11267,967 @@ function [dpsd,psd_error_flg] = psd_diss( ...
     dpsd(:,:) = dpsd(:,:) + dpsd_tmp(:,:);
    
 end 
+
+
+function [dpsd,psd_error_flg] = psd_diss_iz( ...
+    nz,nps,iz ...% in
+    ,z,DV,dt,pi,tol,poro ...% in 
+    ,incld_rough,rough_c0,rough_c1 ...% in
+    ,psd,ps,dps,ps_min,ps_max ...% in 
+    ,chrsp ...% in 
+    ,dpsd,psd_error_flg ...% inout
+    )
+    
+    % local 
+    dVd=zeros(nps,nz,'double');psd_old=zeros(nps,nz,'double');psd_new=zeros(nps,nz,'double');dpsd_tmp=zeros(nps,nz,'double');
+    psd_tmp=zeros(nps,1,'double');dvd_tmp=zeros(nps,1,'double');
+    ps_new=0;ps_newp=0;dvd_res=0;
+    ips=0;iips=0;ips_new=0;isps=0;
+    safe_mode = false;
+    % safe_mode = true;
+
+    % attempt to do psd ( defined with particle number / bulk m3 / log (r) )
+    % assumptions: 
+    % 1. particle numbers are only affected by transport (including raining/dusting) 
+    % 2. dissolution does not change particle numbers: it only affect particle distribution 
+    % unless particle is the minimum radius. in this case particle can be lost via dissolution 
+    % 3. when a mineral precipitates, it is assumed to increase particle radius?
+    % e.g., when a 1 um of particle is dissolved by X m3, its radius is changed and this particle is put into a different bin of (smaller) radius 
+
+    % sum of volume change of minerals at iz is DV = sum(flx_sld(5:5+nsp_sld,iz)*mv(:)*1d-6)*dt (m3 / m3) 
+    % this must be distributed to different particle size bins (dV(r)) in proportion to psd * (4*pi*r^2)
+    % dV(r) = DV/(psd*4*pi*r^2) where dV is m3 / bulk m3 / log(r) 
+    % has to modify so that sum( dV * dps ) = DV 
+    % new psd is obtained by dV(r) = psd(r)*( 4/3 * pi * r^3 - 4/3 * pi * r'^3 ) where r' is the new radius as a result of dissolution
+    % if r' is exactly one of ps value (ps(ips) == r'), then  psd(r') = psd(r)
+    % else: 
+    % first find the closest r* value which is one of ps values.
+    % then DV(r) = psd(r)* 4/3 * pi * r^3 - psd(r*)* 4/3 * pi * r*^3 
+    % i.e., psd(r*) = [ psd(r)* 4/3 * pi * r^3 - DV(r)]  /( 4/3 * pi * r*^3)
+    %               = [ psd(r)* 4/3 * pi * r^3 - psd(r)*( 4/3 * pi * r^3 - 4/3 * pi * r'^3 ) ] /( 4/3 * pi * r*^3)
+    %               = psd(r) * 4/3 * pi * r'^3 /( 4/3 * pi * r*^3)
+    %               = psd(r) * (r'/r*)^3
+    % in this way volume is conservative? 
+    % check: sum( psd(r) * 4/3 * pi * r^3 * dps) - sum( psd(r') * 4/3 * pi * r'^3 * dps) = DV 
+
+    dpsd_tmp(:,:) = 0d0;
+    psd_old = psd;
+    psd_new = psd;
+
+    % correct one?
+    dVd(:,:) = 0d0;
+    if (~incld_rough)  
+        dVd(:,iz) = ( psd (:,iz) .* (10d0.^ps(:)).^2d0 );
+    else
+        dVd(:,iz) = ( psd (:,iz) .* (10d0.^ps(:)).^2d0 *rough_c0.*(10d0.^ps(:)).^rough_c1);
+    end 
+    
+    if (all(dVd == 0d0))  
+        fprintf('%s\t%s\n', chrsp,'all dissolved loc1?');
+        psd_error_flg = true;
+        return
+    end 
+    
+    % scale with DV
+    dVd(:,iz) = dVd(:,iz)*DV(iz)/sum(dVd(:,iz) .* dps(:));
+    
+    if ( abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) > tol ) 
+        error('%s\t%s\t%7.6e\n', chrsp,' vol. balance failed somehow ',abs( (sum(dVd(:,iz) * dps(:)) - DV(iz))/DV(iz)));
+        error('%d\t%7.6e\t%7.6e\n', iz, sum(dVd(:,iz) .* dps(:)), DV(iz));
+    end 
+    
+    if (any(isnan(dVd(:,iz))) )  
+        error('%s\t%s\n',chrsp, 'nan in dVd loc 1');
+    end 
+    
+    for ips = 1: nps
+        
+        if ( psd(ips,iz) == 0d0); continue; end 
+        
+        if ( ips == 1 && dVd(ips,iz) > 0d0 )  
+            % this is the minimum size dealt within the model 
+            % so if dissolved (dVd > 0), particle number must reduce 
+            % (revised particle volumes) = (initial particle volumes) - (volume change) 
+            % psd'(ips,iz) * 4d0/3d0*pi*(10d0^ps(ips))^3d0 =  psd(ips,iz) * 4d0/3d0*pi*(10d0^ps(ips))^3d0 - dVd(ips,iz) 
+            % [ psd'(ips,iz) - psd(ips,iz) ] * 4d0/3d0*pi*(10d0^ps(ips))^3d0 = - dVd(ips,iz) 
+            if ( ~ safe_mode )   % for not care about producing negative particle number
+                dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0); 
+            elseif ( safe_mode )    % never producing negative particle number
+                if ( dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0) < psd(ips,iz) )  % when dissolution does not consume existing particles 
+                    dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0); 
+                else % when dissolution exceeds potential consumption of existing particles 
+                    % dvd_res is defined as residual volume to be dissolved 
+                    dvd_res = dVd(ips,iz) - psd(ips,iz)*(4d0/3d0*pi*(10d0^ps(ips))^3d0);  % residual 
+                    
+                    % distributing the volume to whole radius 
+                    
+                    % correct one?
+                    dVd_tmp(:) = 0d0;
+                    if (~incld_rough)  
+                        dVd_tmp(ips+1:end) = ( psd (ips+1:end,iz) .* (10d0.^ps(ips+1:end)).^2d0 );
+                    else
+                        dVd_tmp(ips+1:end) = ( psd (ips+1:end,iz) .* (10d0.^ps(ips+1:end)).^2d0 *rough_c0.*(10d0.^ps(ips+1:end)).^rough_c1 );
+                    end 
+                    
+                    if (all(dVd_tmp == 0d0))  
+                        fprintf('%s\t%s\t%d\n',chrsp,'all dissolved loc2?',ips);
+                        psd_error_flg = true;
+                        return
+                    end 
+                    
+                    % scale with dvd_res*dps
+                    dVd_tmp(ips+1:end) = dVd_tmp(ips+1:end)*dvd_res*dps(ips)./sum(dVd_tmp(ips+1:end) .* dps(ips+1:end));
+                    
+                    % dVd(ips+1:,iz) = dVd(ips+1:,iz) + dvd_res/(nps - ips)
+                    dVd(ips+1:end,iz) = dVd(ips+1:end,iz) + dVd_tmp(ips+1:end);
+                    dVd(ips,iz) = dVd(ips,iz) - dvd_res;
+                    
+                    if ( abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) > tol ) 
+                        error('%s\t%s\t%7.6e\n',chrsp, ' vol. balance failed somehow loc2 ',abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) );
+                        error('%d\t%7.6e\t%7.6e\n', iz, sum(dVd(:,iz) * dps(:)), DV(iz) );
+                    end 
+                    
+                    if (any(isnan(dVd(:,iz))) )  
+                        error('%s\t%s\n', chrsp,'nan in dVd loc 2');
+                    end 
+                    
+                    % if (dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0) > psd(ips,iz))  
+                        % print *, 'error: stop',psd(ips,iz),dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0)
+                        % stop
+                    % end 
+                    
+                    % dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0) 
+                    dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - psd(ips,iz); 
+                end 
+            end 
+        
+        elseif ( ips == nps && dVd(ips,iz) < 0d0 )  
+            % this is the max size dealt within the model 
+            % so if precipirated (dVd < 0), particle number must increase  
+            % (revised particle volumes) = (initial particle volumes) - (volume change) 
+            % psd'(ips,iz) * 4d0/3d0*pi*(10d0^ps(ips))^3d0 =  psd(ips,iz) * 4d0/3d0*pi*(10d0^ps(ips))^3d0 - dVd(ips,iz) 
+            % [ psd'(ips,iz) - psd(ips,iz) ] * 4d0/3d0*pi*(10d0^ps(ips))^3d0 = - dVd(ips,iz) 
+            dpsd_tmp(ips,iz) = dpsd_tmp(ips,iz) - dVd(ips,iz)/(4d0/3d0*pi*(10d0^ps(ips))^3d0);
+        
+        else 
+            % new r*^3 after dissolution/precipitation 
+            ps_new =  ( 4d0/3d0*pi*(10d0^ps(ips))^3d0 - dVd(ips,iz) /psd(ips,iz) )/(4d0/3d0*pi);
+            
+            if (ps_new <= 0d0)   % too much dissolution so removing all particles cannot explain dVd at a given bin ips
+                ps_new = ps_min;
+                ps_newp = 10d0^ps(1);
+                dpsd_tmp(1,iz) =  dpsd_tmp(1,iz) + psd(ips,iz);
+                dpsd_tmp(ips,iz) =  dpsd_tmp(ips,iz) - psd(ips,iz);
+                
+                dvd_res = dVd(ips,iz) - psd(ips,iz)*(4d0/3d0*pi*(10d0^ps(ips))^3d0);  % residual
+                
+                % distributing the volume to whole radius 
+                
+                % correct one?
+                dVd_tmp(:) = 0d0;
+                if (~incld_rough)  
+                    % dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0^ps(ips+1:))^2d0 )
+                    for iips=1:nps
+                        if (iips == ips); continue; end
+                        dVd_tmp(iips) = ( psd (iips,iz) * (10d0^ps(iips))^2d0 );
+                    end 
+                else
+                    % dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0^ps(ips+1:))^2d0 * rough_c0*(10d0^ps(ips+1:))^rough_c1 )
+                    for iips = 1:nps
+                        if (iips == ips); continue; end
+                        dVd_tmp(iips) = ( psd (iips,iz) * (10d0^ps(iips))^2d0 * rough_c0*(10d0^ps(iips))^rough_c1 );
+                    end 
+                end 
+                
+                if (all(dVd_tmp == 0d0))  
+                    fprintf('%s\t%s\t%d\n',chrsp,'all dissolved loc3?',ips);
+                    psd_error_flg = true;
+                    return
+                end 
+                
+                % dVd_tmp(ips+1:) = dVd_tmp(ips+1:)*dvd_res*dps(ips)/sum(dVd_tmp(ips+1:) * dps(ips+1:))
+                dVd_tmp(:) = dVd_tmp(:)*dvd_res*dps(ips)/sum(dVd_tmp(:) .* dps(:));
+                dVd_tmp(ips) = - dvd_res;
+                
+                % dVd(ips+1:,iz) = dVd(ips+1:,iz) + dVd_tmp(ips+1:)
+                % dVd(ips,iz) = dVd(ips,iz) - dvd_res
+                dVd(:,iz) = dVd(:,iz) + dVd_tmp(:);
+                
+                if ( abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) > tol ) 
+                    error('%s\t%s\t%7.6e\n',chrsp, ' vol. balance failed somehow loc4 ',abs( (sum(dVd(:,iz) .* dps(:)) - DV(iz))/DV(iz)) );
+                    error('going to stop\n');
+                    error('%d\t%7.6e\t%7.6e\n', iz, sum(dVd(:,iz) * dps(:)), DV(iz));
+                end 
+                
+                if (any(isnan(dVd(:,iz))) )  
+                    error('%s\t%s\n',chrsp, 'nan in dVd loc 4');
+                end 
+                
+            else 
+                % new r*
+                ps_new =  ps_new^(1d0/3d0); 
+                if (ps_new <= ps_min)  
+                    ips_new = 1;
+                elseif (ps_new >= ps_max)  
+                    ips_new = nps;
+                else 
+                    for iips = 1: nps -1
+                        if ( ( ps_new - 10d0^ps(iips) ) *  ( ps_new - 10d0^ps(iips+1) ) <= 0d0 )  
+                            if ( log10(ps_new) <= 0.5d0*( ps(iips) + ps(iips+1) ) )  
+                                ips_new = iips;
+                            else 
+                                ips_new = iips + 1; 
+                            end 
+                            break 
+                        end 
+                    end 
+                end 
+                ps_newp = 10d0^ps(ips_new);  % closest binned particle radius to r*
+                dpsd_tmp(ips_new,iz) = dpsd_tmp(ips_new,iz) + psd(ips,iz)*(ps_new/ps_newp)^3d0;
+                dpsd_tmp(ips,iz) =  dpsd_tmp(ips,iz) - psd(ips,iz);
+            end 
+        
+        end 
+    end 
+
+    if (any(isnan(psd),'all'))  
+        error('%s\t%s\n',chrsp, 'nan in psd');
+    end 
+    if (any(psd<0d0,'all'))  
+        error('%s\t%s\n' ,chrsp, 'negative psd');
+    end 
+    if (any(isnan(dVd),'all'))  
+        fprintf('%s\t%s\n', chrsp, 'nan in dVd'); 
+        for ips=1:nps
+            if (isnan(dVd(ips,iz)))  
+                fprintf('%s\t%s\t%d\t%d\t%7.6e\t%7.6e\n',chrsp, 'ips,iz,dVd,psd',ips,iz,dVd(ips,iz),psd(ips,iz));
+            end 
+        end 
+        error('stop');
+    end 
+
+    psd_new(:,:) = psd_new(:,:) + dpsd_tmp(:,:);
+    
+    if ( abs(DV(iz)) > tol  ...
+        && abs ( ( - sum( dpsd_tmp(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:)) ...
+         - DV(iz) ) / DV(iz) ) > tol )   
+        % fprintf( '%s\t%s\t%7.6e\n', chrsp,'checking the vol. balance and failed ... ' ...
+        cprintf('-comment', '%s\t%s\t%7.6e\n', chrsp,'checking the vol. balance and failed ... ' ...
+            , abs ( ( - sum( dpsd_tmp(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:)) ...
+             - DV(iz) ) / DV(iz) ) );
+        % fprintf( '%s\t%7.6e\t%7.6e\t%7.6e\t%7.6e\n', iz, sum( psd_new(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:)) ...
+        cprintf('-comment', '%d\t%7.6e\t%7.6e\t%7.6e\t%7.6e\n', iz, sum( psd_new(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:)) ...
+            ,sum( psd_old(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:)) ... 
+            ,sum( psd_new(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:)) ...
+              -sum( psd_old(:,iz) * 4d0/3d0 * pi .* (10d0.^ps(:)).^3d0 .* dps(:))  ...
+            ,DV(iz) );
+        psd_error_flg = true;
+    end 
+
+    if (any(isnan(dpsd_tmp),'all'))  
+        fprintf('%s\t%s\n',chrsp, 'nan in dpsd _rxn' );
+        for ips=1:nps
+            if (isnan(dpsd_tmp(ips,iz)))  
+                fprintf('%s\t%d\t%d\t%7.6e\t%7.6e\n', 'ips,iz,dpsd_tmp,psd',ips,iz,dpsd_tmp(ips,iz),psd(ips,iz) );
+            end 
+        end 
+        error('stop');
+    end 
+
+    dpsd(:,:) = dpsd(:,:) + dpsd_tmp(:,:);
+   
+end 
+
+function [dpsd,psd_error_flg] = psd_diss_pbe( ...
+    nz,nps ...% in
+    ,z,DV,dt,pi,tol,poro ...% in 
+    ,incld_rough,rough_c0,rough_c1 ...% in
+    ,psd,ps,dps,ps_min,ps_max ...% in 
+    ,chrsp ...% in 
+    ,dpsd,psd_error_flg ...% inout
+    )
+    % an attempt to solve population balance equation reflecting imposed dissolution rate
+    
+    % local 
+    dVd=zeros(nps,nz,'double');psd_old=zeros(nps,nz,'double');psd_new=zeros(nps,nz,'double');dpsd_tmp=zeros(nps,nz,'double');psdx=zeros(nps,nz,'double');psdxx=zeros(nps,nz,'double');
+    psd_tmp=zeros(nps,1,'double');dvd_tmp=zeros(nps,1,'double');dpsx=zeros(nps,1,'double');lambda=zeros(nps,1,'double');
+    kpsd=zeros(nz,1,'double');kpsdx=zeros(nz,1,'double');DV_chk=zeros(nz,1,'double');DV_exist=zeros(nz,1,'double');
+    ps_new=0;ps_newp=0;dvd_res=0;error=0;vol=0;fact=0;surf=0;
+    infinity = Inf;
+    threshold = 20d0;
+    corr = exp(threshold);
+    threshold_k = 2d0;
+    corr_k = exp(threshold_k);
+    iter_max = 50;
+    ips=0;iips=0;ips_new=0;iz=0;isps=0;row=0;col=0;ie=0;ie2=0;iter=0;iiz=0;
+
+    logcalc = true;
+    % logcalc = false;
+
+    % safe_mode = true;
+    safe_mode = false;
+
+    % show_PSDiter = false;
+    global show_PSDiter %= false;
+
+    ms_not_ok=zeros(nz,1,'logical');
+
+    amx3=zeros(nps+1,nps+1,'double');ymx3=zeros(nps+1,1,'double');emx3=zeros(nps+1,1,'double');ymx3_pre=zeros(nps+1,1,'double');
+    xmx3=zeros(nps+1,1,'double');
+    rmx3=0;
+    ipiv3=zeros(nps+1,1,'int32'); 
+    info =0;
+            
+
+    % attempt to calculate psd change by dissolution ( defined with particle number / bulk m3 / log (r) )
+    % assumptions/formulations: 
+    % 1. Solve population balance equation with shrinking particle: 
+    %       [ ( f(r,t+dt) - f(r,t))/dt ] * dr 
+    %               = mv * k * ( lambda(r+dr,t) * f(r+dr,t) - lambda(r,t) * f(r,t) ) 
+    %               = k' * ( lambda(r+dr,t) * f(r+dr,t) - lambda(r,t) * f(r,t) ) 
+    %               where k' = mv * k
+    % 2. Constraint from main reaction-transport scheme: dV
+    %       sigma [ 4 * pi /3 * r^3 * [f(r,t+dt) - f(r,t)]/dt *dr * dt ]  =  dV
+    %       sigma [ 4 * pi * r^2 * f(r,t) *dr * dt ]  =  dV
+    % 3. Solve for f(r,t+dt) (r=1, .., nps) and k from above (nps + 1) equations
+    %
+    % *** Caution must be paid to dr where in the rest of calculation it is defined as d log(r)
+
+    % check whether there is enough material to dissolve DV 
+    ms_not_ok(:) = false;
+    DV_exist(:) = 0d0;
+    for iz = 1:nz
+        DV_exist(iz) =  sum( 4d0/3d0*pi*(10d0.^ps(:)).^3d0 .* psd(:,iz) .* dps(:) );
+        if (DV(iz)>0d0 &&  DV(iz) > DV_exist(iz) )  
+            ms_not_ok(iz) = true;
+            cprintf('-comment', '%s\t %s\t %d\n', '*** not enough stuff to dissolve material ',chrsp,iz);
+        end 
+    end 
+
+    if (any(isnan(DV),'all') || any(isnan(psd),'all') || dt==0d0)   
+        cprintf('-comment', '%s\t%s\t%7.6E\n',string(any(isnan(DV),'all')),string(any(isnan(psd),'all')),dt);
+        error('stop');
+    end 
+
+    % if ( trim(adjustl(chrsp)) == 'blk')  
+        % safe_mode = true;
+    % else 
+        % safe_mode = false;
+    % end 
+    switch(chrsp)
+        case{'cc','dlm','arg'}
+            safe_mode = false;
+        otherwise
+            safe_mode = true;
+    end 
+
+    if (safe_mode && any(ms_not_ok)) 
+        psd_error_flg = true;
+        return
+    end 
+
+    % if time step is large, return to the main loop with reduced time step
+    if (chrsp == 'blk' & dt >= 10d0 & any(ms_not_ok)) 
+        psd_error_flg = true;
+        return
+    end 
+
+    % roughness factor as functin of radius
+    lambda(:) = 1d0;
+    if (incld_rough)  
+        lambda(:) = rough_c0*(10d0.^ps(:)).^rough_c1; 
+    end 
+
+    % R = log10 r 
+    % dR/dr =  1/(r * log10)
+    % dr = dR * r * log10
+    % note that dps is dR; we need dr denoted here as dpsx (?)
+    dpsx(:) = dps(:) .* 10d0.^(ps(:)) * log(10d0);
+
+    % psd is given as number of particles/m3/log(m)
+    % converting to number of particles/m3/m
+    % note that psd*dps = psdx*dpsx
+    for iz=1:nz
+        psdx(:,iz) = psd(:,iz) .*dps(:) ./ dpsx(:);
+    end 
+
+    kpsd(:) = 0d0;
+    for iz = 1: nz
+        if (DV(iz)>=0d0) 
+            for ips=1:nps
+                if (ips==nps) 
+                    kpsd(iz)  = kpsd(iz) - ( - lambda(ips)*psdx(ips,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                else
+                    kpsd(iz)  = kpsd(iz) - ( lambda(ips+1)*psdx(ips+1,iz) - lambda(ips)*psdx(ips,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                end
+            end 
+        else 
+            for ips=1:nps
+                if (ips==1) 
+                    kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                elseif (ips==nps) 
+                    kpsd(iz)  = kpsd(iz) - ( - lambda(ips-1)*psdx(ips-1,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                else
+                    kpsd(iz)  = kpsd(iz) - ( lambda(ips)*psdx(ips,iz) - lambda(ips-1)*psdx(ips-1,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                end
+            end 
+        end
+        % if (kpsd(iz) * DV(iz) < 0d0)  
+            % print *,' *** inconsistent between kpsd and DV ' , chrsp
+            % psd_error_flg = true;
+            % return
+            % kpsd(iz) = sum( 4d0*pi*(10d0^ps(:))^2d0 * lambda(:) * psdx(:,iz) * dpsx(:) )
+        % end 
+        % kpsd(iz) = DV(iz)/dt/ kpsd(iz) 
+        % kpsd(iz) = DV(iz)/dt/ abs( kpsd(iz) )
+        
+        % kpsd(iz) = sum( 4d0*pi*(10d0^ps(:))^2d0 * lambda(:) * psdx(:,iz) * dpsx(:) )
+
+        kpsd(iz) = DV(iz)/dt/ kpsd(iz) ;
+    end 
+
+    kpsdx(:) = kpsd(:);
+    psdxx(:,:) = psdx(:,:);
+
+    for iz = 1: nz
+        
+        if (~safe_mode && ms_not_ok(iz))  
+            cprintf('-comment','%s\t%d\t%s%s\n','****** DV is larger than the amount existing at ',iz, ' for ' ,chrsp);
+            % simply limiting the dissolution by existing particles
+            % dpsd(:,iz) = - psd(:,iz);
+            % continue
+            %% 
+            % calling previous subroutine but only at a depth 
+            dpsd_tmp(:,:) = 0d0;
+            [dpsd,psd_error_flg] = psd_diss_iz( ...
+                nz,nps,iz ...% in
+                ,z,DV,dt,pi,tol,poro ...% in 
+                ,incld_rough,rough_c0,rough_c1 ...% in
+                ,psd,ps,dps,ps_min,ps_max ...% in 
+                ,chrsp ...% in 
+                ,dpsd_tmp,psd_error_flg ...% inout
+                );
+            if (psd_error_flg) return; end
+            dpsd(:,iz) = dpsd_tmp(:,iz);
+            continue
+            %%
+            % scaling so that total dissolution volume change is conserved while assuming immediate dissolution 
+            % dpsd(:,iz) = - psd(:,iz) * ( DV(iz) ) ...
+                % / sum(4d0/3d0*pi*(10d0^ps(:))^3d0 * psd(:,iz) * dps(:))
+            % cycle
+            %% 
+            dvd(:,:) = 0d0;
+            dVd(:,iz) = ( psd (:,iz) .* (10d0.^ps(:)).^2d0 .*lambda(:) );
+            dVd(:,iz) = dVd(:,iz)*( DV(iz) )/sum(dVd(:,iz) .* dps(:));
+            dpsd(:,iz) = - dVd(:,iz)./(4d0/3d0*pi*(10d0.^ps(:)).^3d0); 
+            continue
+            % %%% 
+            % dpsd(:,iz) = -k *psd(:,iz)
+            % int{dpsd(:,iz)*dps) = -k * int{ psd(:,iz)*dps} = DV
+            % k = DV/int{ psd(:,iz)*dps}
+            % dpsd(:,iz) = - psd(:,iz)*DV(iz)/sum(psd(:,iz)*dps(:))
+            % cycle
+            % or scaling dissolution with reflecting the surface area and trying keeping the mass balance
+            % DV(iz) = sum( 4d0/3*pi*(10d0^ps(:))^3d0 * lambda(:) * dpsd(:,iz) * dps(:) )
+            % dvd = 0d0
+            % dVd(:,iz) = ( psd (:,iz) * (10d0^ps(:))^2d0 *lambda(:) )
+            % dVd(:,iz) = dVd(:,iz)*( DV(iz) -DV_exist(iz) )/sum(dVd(:,iz) * dps(:))
+            % dpsd(:,iz) = dpsd(:,iz) - dVd(:,iz)/(4d0/3d0*pi*(10d0^ps(:))^3d0) 
+            % cycle
+            % or do explicit calculation based on the previous PSD
+            for iips = 1: nps
+                vol  = 4d0/3d0*pi*(10d0^ps(iips))^3d0;
+                surf  = 4d0*pi*(10d0^ps(iips))^2d0;
+                if ( DV(iz) >= 0d0)  
+                    if (iips==nps)  
+                        % + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) ...
+                        % - kpsdx(iz) * ( - lambda(iips)*psdxx(iips,iz) )  ...
+                        psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( - lambda(iips)*psdx(iips,iz) ) *dt/dpsx(iips);
+                    else
+                        % + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) ...
+                        % - kpsdx(iz) * ( lambda(iips+1)*psdxx(iips+1,iz) - lambda(iips)*psdxx(iips,iz) )  ...
+                        psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( lambda(iips+1)*psdx(iips+1,iz) - lambda(iips)*psdx(iips,iz) ) ...
+                            *dt/dpsx(iips);
+                    end
+                
+                else
+                
+                    if (iips==1) 
+                        % + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) ...
+                        % - kpsdx(iz) * ( lambda(iips)*psdxx(iips,iz) )  ...
+                        psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( lambda(iips)*psdx(iips,iz) )*dt/dpsx(iips);
+                    elseif (iips==nps)  
+                        % + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) ...
+                        % - kpsdx(iz) * ( lambda(iips)*psdxx(iips,iz) - lambda(iips-1)*psdxx(iips-1,iz) )  ...
+                        psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( - lambda(iips-1)*psdx(iips-1,iz) ) ...
+                            *dt/dpsx(iips);
+                    else
+                        % + ( psdxx(iips,iz) -  psdx(iips,iz) ) /dt * dpsx(iips) ...
+                        % - kpsdx(iz) * ( lambda(iips)*psdxx(iips,iz) - lambda(iips-1)*psdxx(iips-1,iz) )  ...
+                        psdxx(iips,iz) = psdx(iips,iz) + kpsdx(iz) * ( lambda(iips)*psdx(iips,iz) - lambda(iips-1)*psdx(iips-1,iz) ) ...
+                            *dt/dpsx(iips);
+                    end
+                    
+                end 
+                
+            end % end of for-loop for iips
+            
+            dpsd(:,iz) = psdxx(:,iz).*dpsx(:)./dps(:) - psd(:,iz);
+            
+            continue
+        end 
+
+        error = 1d4; 
+        iter = 1;
+        % print*, DV(iz)
+        if (DV(iz) == 0d0)  
+            % print *, 'DV is zero so dpsd = 0; return' 
+            dpsd(:,iz) =0d0;
+            continue
+        end 
+                
+        while (error > tol) 
+        
+            amx3(:,:) = 0d0;
+            ymx3(:) = 0d0;
+            xmx3(:) = 0d0;
+            rmx3 = 0d0;
+        
+            for ips = 1: nps
+            
+                row =  ips ;
+                
+                vol  = 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                surf  = 4d0*pi*(10d0^ps(ips))^2d0;
+                
+                % if ( DV(iz) >= 0d0)  
+                if ( kpsdx(iz) >= 0d0)  
+                
+                    if (ips==nps) 
+                        ymx3(row) = ( ... 
+                            + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) )  ...
+                            );
+                        amx3(row,row) = ( ... 
+                            + ( 1d0 ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( - lambda(ips)*1d0 )  ...
+                            ) ...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                        
+                        col = nps + 1;
+                        amx3(row,col) = ( ... 
+                            - 1d0 * ( - lambda(ips)*psdxx(ips,iz) )  ...
+                            ) ...
+                            * 1d0;
+                            
+                        ymx3(col) = ymx3(col) + ( ...
+                            - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) )*vol  ...
+                            );
+                            
+                        amx3(col,col) = amx3(col,col) + ( ...
+                            - 1d0 * ( - lambda(ips)*psdxx(ips,iz) )*vol  ...
+                            )...
+                            * 1d0;
+                            
+                        amx3(col,row) = amx3(col,row) + ( ...
+                            - kpsdx(iz) * ( - lambda(ips)*1d0 )*vol  ...
+                            )...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                    else
+                        ymx3(row) = ( ... 
+                            + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) )  ...
+                            );
+                        amx3(row,row) = ( ... 
+                            + ( 1d0 ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( - lambda(ips)*1d0 )  ...
+                            ) ...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                            
+                        col = ips + 1;
+                        amx3(row,col) = ( ... 
+                            - kpsdx(iz) * ( lambda(ips+1)*1d0 )  ...
+                            ) ...
+                            * merge( psdxx(ips+1,iz),1d0,logcalc);
+                        
+                        col = nps + 1;
+                        amx3(row,col) = ( ... 
+                            - 1d0 * (lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz))  ...
+                            ) ...
+                            * 1d0;
+                            
+                        % volume conserv.
+                        ymx3(col) = ymx3(col) + ( ...
+                            - kpsdx(iz) * (lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) )*vol  ...
+                            );
+                            
+                        amx3(col,col) = amx3(col,col) + ( ...
+                            - 1d0 * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) )*vol  ...
+                            )...
+                            * 1d0;
+                            
+                        amx3(col,row) = amx3(col,row) + ( ...
+                            - kpsdx(iz) * ( - lambda(ips)*1d0 )*vol  ...
+                            )...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                            
+                        amx3(col,row+1) = amx3(col,row+1) + ( ...
+                            - kpsdx(iz) * ( lambda(ips+1)*1d0 )*vol  ...
+                            )...
+                            * merge( psdxx(ips+1,iz),1d0,logcalc);
+                    end
+                
+                else
+                
+                    if (ips==1) 
+                        ymx3(row) = ( ... 
+                            + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) )  ...
+                            );
+                        amx3(row,row) = ( ... 
+                            + ( 1d0 ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( lambda(ips)*1d0 )  ...
+                            ) ...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                        
+                        col = nps + 1;
+                        amx3(row,col) = ( ... 
+                            - 1d0 * ( lambda(ips)*psdxx(ips,iz) )  ...
+                            ) ...
+                            * 1d0;
+                            
+                        % volume conserv.
+                        ymx3(col) = ymx3(col) + ( ...
+                            - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) )*vol  ...
+                            );
+                            
+                        amx3(col,col) = amx3(col,col) + ( ...
+                            - 1d0 * ( lambda(ips)*psdxx(ips,iz) )*vol  ...
+                            )...
+                            * 1d0;
+                            
+                        amx3(col,row) = amx3(col,row) + ( ...
+                            - kpsdx(iz) * ( lambda(ips)*1d0 )*vol  ...
+                            )...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                            
+                    elseif (ips==nps) 
+                        ymx3(row) = ( ... 
+                            + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( - lambda(ips-1)*psdxx(ips-1,iz) )  ...
+                            );
+                        amx3(row,row) = ( ... 
+                            + ( 1d0 ) /dt * dpsx(ips) ...
+                            ) ...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                            
+                        col = ips - 1;
+                        amx3(row,col) = ( ... 
+                            - kpsdx(iz) * ( - lambda(ips-1)*1d0 )  ...
+                            ) ...
+                            * merge( psdxx(ips-1,iz),1d0,logcalc);
+                        
+                        col = nps + 1;
+                        amx3(row,col) = ( ... 
+                            - 1d0 * ( - lambda(ips-1)*psdxx(ips-1,iz) )  ...
+                            ) ...
+                            * 1d0;
+                            
+                        % volume conserv.
+                        ymx3(col) = ymx3(col) + ( ...
+                            - kpsdx(iz) * ( - lambda(ips-1)*psdxx(ips-1,iz) )*vol  ...
+                            );
+                            
+                        amx3(col,col) = amx3(col,col) + ( ...
+                            - 1d0 * (  - lambda(ips-1)*psdxx(ips-1,iz) )*vol  ...
+                            )...
+                            * 1d0;
+                            
+                        amx3(col,row-1) = amx3(col,row-1) + ( ...
+                            - kpsdx(iz) * ( - lambda(ips-1)*1d0 )*vol  ...
+                            )...
+                            * merge( psdxx(ips-1,iz),1d0,logcalc);
+                    else
+                        ymx3(row) = ( ... 
+                            + ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )  ...
+                            );
+                        amx3(row,row) = ( ... 
+                            + ( 1d0 ) /dt * dpsx(ips) ...
+                            - kpsdx(iz) * ( lambda(ips)*1d0 )  ...
+                            ) ...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                            
+                        col = ips - 1;
+                        amx3(row,col) = ( ... 
+                            - kpsdx(iz) * ( - lambda(ips-1)*1d0 )  ...
+                            ) ...
+                            * merge( psdxx(ips-1,iz),1d0,logcalc);
+                        
+                        col = nps + 1;
+                        amx3(row,col) = ( ... 
+                            - 1d0 * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )  ...
+                            ) ...
+                            * 1d0;
+                        
+                        % volume conserv.
+                        ymx3(col) = ymx3(col) + ( ...
+                            - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )*vol  ...
+                            );
+                            
+                        amx3(col,col) = amx3(col,col) + ( ...
+                            - 1d0 * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) )*vol  ...
+                            )...
+                            * 1d0;
+                            
+                        amx3(col,row) = amx3(col,row) + ( ...
+                            - kpsdx(iz) * ( lambda(ips)*1d0 )*vol  ...
+                            )...
+                            * merge( psdxx(ips,iz),1d0,logcalc);
+                            
+                        amx3(col,row-1) = amx3(col,row-1) + ( ...
+                            - kpsdx(iz) * ( - lambda(ips-1)*1d0 )*vol  ...
+                            )...
+                            * merge( psdxx(ips-1,iz),1d0,logcalc);
+                    end
+                    
+                end 
+                
+                % fact = max( abs( ymx3(row) ), maxval( abs( amx3(row,:) ) ) )
+                
+                % ymx3(row) = ymx3(row) / fact
+                % amx3(row,:) = amx3(row,:) / fact
+                
+            end % end of for-loop for ips
+            
+            row = nps+1;
+            ymx3(row) = ymx3(row) + ( ...
+                - DV(iz)/dt  ...
+                );
+            
+            % for ips=1,nps
+                % vol  = 4d0/3d0*pi*(10d0^ps(ips))^3d0
+                % surf  = 4d0*pi*(10d0^ps(ips))^2d0
+                            
+                % ymx3(row) = ymx3(row) + ( ...
+                    % - kpsdx(iz)* surf * lambda(ips)*psdxx(ips,iz) *dpsx(ips)   ...
+                    % )
+                    
+                % amx3(row,row) = amx3(row,row) + ( ...
+                    % - 1d0 * surf * lambda(ips)*psdxx(ips,iz) *dpsx(ips)   ...
+                    % )...
+                    % * 1d0
+                
+                % col = ips
+                % amx3(row,col) = amx3(row,col) + ( ...
+                    % - kpsdx(iz) * surf * lambda(ips)*1d0 *dpsx(ips)   ...
+                    % )...
+                    % * psdxx(ips,iz)
+                    
+                            
+                % ymx3(row) = ymx3(row) + ( ...
+                    % - vol * ( psdxx(ips,iz) -  psdx(ips,iz) ) /dt * dpsx(ips) ...
+                    % )
+                
+                % col = ips
+                % amx3(row,col) = amx3(row,col) + ( ...
+                    % - vol * ( 1d0 -  psdx(ips,iz) ) /dt * dpsx(ips) ...
+                    % )...
+                    % * psdxx(ips,iz)
+                    
+                    
+            % end 
+                
+            fact = 1d1;
+            
+            ymx3(row) = ymx3(row) * fact;
+            amx3(row,:) = amx3(row,:) * fact;
+        
+            ymx3=-1.0d0*ymx3;
+            ymx3_pre = ymx3;
+
+            if (any(isnan(amx3),'all')||any(isnan(ymx3),'all')||any(amx3>infinity,'all')||any(ymx3>infinity,'all'))  
+            % if (.true.)  
+                cprintf('-comment','%s%s%s\n','PBE--',chrsp,': error in mtx');
+                cprintf('-comment','%s%s%s\n','PBE--',chrsp,': any(isnan(amx3)),any(isnan(ymx3))');
+                cprintf('-comment','%s%s\n',string(any(isnan(amx3),'all')),string(any(isnan(ymx3),'all')));
+                psd_error_flg = true;
+                % pause
+                break
+
+                if (any(isnan(ymx3),'all'))  
+                    for ie = 1: nps+1
+                        if (isnan(ymx3(ie)))  
+                            cprintf('-comment','%s%d\t%d\n','PBE: NAN is here...',iz,ie);
+                        end
+                    end 
+                end
+
+
+                if (any(isnan(amx3),'all'))
+                    for ie = 1:nps+1
+                        for ie2 = 1:nps+1
+                            if (isnan(amx3(ie,ie2)))  
+                                cprintf('-comment','%s%d\t%d\t%d\n','PBE: NAN is here...',iz,ie,ie2);
+                            end
+                        end
+                    end
+                end
+                error('stop');
+                
+            end
+
+            % call DGESV(nps+1,int(1),amx3,nps+1,IPIV3,ymx3,nps+1,INFO) 
+            [xmx3,rmx3] = linsolve(amx3,ymx3);
+            ymx3 = xmx3;
+
+            if (any(isnan(ymx3),'all')) 
+                cprintf('-comment','%s%s%s%s\t%7.6E\t%s\n','*** PBE--',chrsp,': error in soultion',string(any(isnan(ymx3),'all')),kpsdx(iz),string(ms_not_ok(iz)));
+                psd_error_flg = true;
+                % pause
+                break
+                
+            end
+            
+            for ips = 1:nps
+                row =  ips ;
+
+                if (isnan(ymx3(row)))  
+                    cprintf('-comment','%s%s%s\t%d\t%d\n','PBE--',chrsp,': nan at', iz,ips);
+                    error('stop');
+                end
+                
+                
+                if (logcalc) 
+                    % emx3(row) = dpsx(ips)*psdxx(ips,iz)*exp(ymx3(row)) - dpsx(ips)*psdxx(ips,iz)
+                    emx3(row) = exp(abs(ymx3(row))) - 1d0;
+                    
+                    if ((~isnan(ymx3(row)))&&ymx3(row) >threshold)  
+                        psdxx(ips,iz) = psdxx(ips,iz)*corr;
+                    elseif (ymx3(row) < -threshold)  
+                        psdxx(ips,iz) = psdxx(ips,iz)/corr;
+                    else   
+                        psdxx(ips,iz) = psdxx(ips,iz)*exp(ymx3(row));
+                    end
+                else
+                    emx3(row) = abs(ymx3(row)/psdxx(ips,iz));
+                    psdxx(ips,iz) = psdxx(ips,iz) + ymx3(row);
+                end 
+            end 
+            
+            row = nps+1;
+            
+            if (isnan(ymx3(row)))  
+                cprintf('-comment','%s%s%s\t%d\n','PBE--',chrsp,': nan at', iz);
+                error('stop');
+            end
+            
+            % linear case
+            
+            % if ( ( kpsdx(iz) + ymx3(row) ) *kpsdx(iz) >= 0d0)  % signs are the same 
+                % emx3(row) = log(1d0 + ymx3(row)/kpsdx(iz))
+                
+                % if ((~isnan(emx3(row)))&&emx3(row) >threshold_k)  
+                    % kpsdx(iz) = kpsdx(iz) * corr_k
+                % else if (emx3(row) < -threshold_k)  
+                    % kpsdx(iz) = kpsdx(iz) / corr_k
+                % else   
+                    % kpsdx(iz) = kpsdx(iz)*exp(emx3(row))
+                % end
+            % else % signs are different 
+                % emx3(row) = abs(ymx3(row)/kpsdx(iz))
+                % kpsdx(iz) = kpsdx(iz) + ymx3(row)
+            % end 
+            emx3(row) = abs(ymx3(row)/kpsdx(iz));
+            kpsdx(iz) = kpsdx(iz) + ymx3(row);
+            
+            error = max(emx3);
+
+            if ( isnan(error) || any(isnan(psdxx),'all') || any(isnan(kpsdx),'all') )  
+                error = 1d3;
+                cprintf('-comment','%s%s%s\n','PBE--',chrsp,': !! error is NaN; values are returned to those before iteration with reducing dt');
+                cprintf('-comment','%s%s%s\n','PBE--',chrsp,': isnan(error), info/=0,any(isnan(pdsx))');
+                cprintf('-comment','%s%s%s\t%d\t%d\n', string(isnan(error)), string(any(isnan(psdx),'all')), string(any(isnan(kpsdx),'all'))); 
+                
+                psd_error_flg = true;
+                error('stop');
+                break
+            end
+            if  show_PSDiter
+                cprintf('-comment','%s%s%s%7.6E%s%d\n %s%7.6E\n %s%7.6E\n %s%7.6E\n %s%7.6E\n' ...
+                    , 'PBE--',chrsp,': iteration error = ',error, ', iteration = ',iter ...
+                    ,', time step [yr] = ',dt ...
+                    , ', max psd = ',max(psdxx(:,iz)) ...
+                    , ', min psd = ',min(psdxx(:,iz))   ...
+                    , ', diss-rate [m/yr] = ',kpsdx(iz) );
+                % print *, error > tol
+            end 
+            iter = iter + 1 ;
+            
+            if (iter > iter_max ) 
+                if (dt==0d0)  
+                    cprintf('-comment','%s\t %s\n', chrsp,'dt==0d0; stop');
+                    error('stop');
+                end 
+                psd_error_flg = true;
+                break 
+            end 
+            
+            if (psd_error_flg) break; end
+            
+        end 
+        
+        dpsd(:,iz) = psdxx(:,iz).*dpsx(:)./dps(:) - psd(:,iz);
+        % dpsd(:,iz) = -dpsd(:,iz)
+
+        DV_chk(iz) = 0d0;
+        if (DV(iz)>=0d0) 
+            for ips=1:nps
+                if (ips==nps) 
+                    DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( - lambda(ips)*psdxx(ips,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                else
+                    DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips+1)*psdxx(ips+1,iz) - lambda(ips)*psdxx(ips,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                end
+            end 
+        else 
+            for ips=1:nps
+                if (ips==1) 
+                    DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                elseif (ips==nps) 
+                    DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * (  - lambda(ips-1)*psdxx(ips-1,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                else
+                    DV_chk(iz) = DV_chk(iz) - kpsdx(iz) * ( lambda(ips)*psdxx(ips,iz) - lambda(ips-1)*psdxx(ips-1,iz) ) ...
+                        * 4d0/3d0*pi*(10d0^ps(ips))^3d0;
+                end
+            end 
+        end
+        % DV_chk(iz) = - sum( 4d0/3d0*pi*(10d0^ps(:))^3d0 * (psdxx(:,iz) - psdx(:,iz))/dt * dpsx(:))
+        
+        % DV_chk(iz) = sum(kpsdx(iz) * 4d0*pi*(10d0^ps(:))^2d0 *lambda(:) * psdxx(:,iz) * dpsx(:))
+        
+        
+        DV_chk(iz) = DV_chk(iz) *dt;
+        
+        if (abs(DV(iz))>tol && abs( (DV(iz) - DV_chk(iz))/DV(iz) ) > tol)  
+        % if (abs(DV(iz))>0d0 && abs( (DV(iz) - DV_chk(iz))/DV(iz) ) > tol)  
+            cprintf('-comment','%s\t %d\t %7.6E\t %7.6E\n','PBE--volume conservation not satisfied',iz,DV(iz),DV_chk(iz));
+            psd_error_flg = true;
+        end 
+            
+        if (psd_error_flg) break; end
+
+    end 
+
+end
 
 
 function [ ...
