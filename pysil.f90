@@ -1930,10 +1930,10 @@ do iclim = 1,3
                     read (idust,*) clim_T(1,ict),clim_T(2,ict)
                 enddo 
                 close(idust)
-                print *
-                do ict = 1, nclim(iclim)
-                    print *, clim_T(:,ict)
-                enddo 
+                ! print *
+                ! do ict = 1, nclim(iclim)
+                    ! print *, clim_T(:,ict)
+                ! enddo 
                 dct(iclim) = clim_T(1,2) - clim_T(1,1)
                 ctau(iclim) = clim_T(1,nclim(iclim)) + dct(iclim)
             case(2)
@@ -1949,10 +1949,10 @@ do iclim = 1,3
                 close(idust)
                 ! converting mm/month to m/yr 
                 clim_q(2,:) = clim_q(2,:)*12d0/1d3
-                print *
-                do ict = 1, nclim(iclim)
-                    print *, clim_q(:,ict)
-                enddo 
+                ! print *
+                ! do ict = 1, nclim(iclim)
+                    ! print *, clim_q(:,ict)
+                ! enddo 
                 dct(iclim) = clim_q(1,2) - clim_q(1,1)
                 ctau(iclim) = clim_q(1,nclim(iclim)) + dct(iclim)
             case(3)
@@ -1968,10 +1968,10 @@ do iclim = 1,3
                 close(idust)
                 ! converting mm/m to m/m 
                 clim_sat(2,:) = clim_sat(2,:)*1d0/1d3
-                print *
-                do ict = 1, nclim(iclim)
-                    print *, clim_sat(:,ict)
-                enddo 
+                ! print *
+                ! do ict = 1, nclim(iclim)
+                    ! print *, clim_sat(:,ict)
+                ! enddo 
                 dct(iclim) = clim_sat(1,2) - clim_sat(1,1)
                 ctau(iclim) = clim_sat(1,nclim(iclim)) + dct(iclim)
             case default
@@ -2728,7 +2728,12 @@ do while (it<nt)
                     case(1)
                         if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
                         do ict = 1, nclim(iclim)
-                            print *, clim_T(1,ict),mod(time,ctau(iclim)),clim_T(1,ict) + dct(iclim)
+                            if (ict /= nclim(iclim)) then 
+                                dct(iclim) = clim_T(1,ict+1) - clim_T(1,ict)
+                            elseif (ict == nclim(iclim)) then 
+                                dct(iclim) = ctau(iclim) - clim_T(1,ict)
+                            endif 
+                            ! print *, clim_T(1,ict),mod(time,ctau(iclim)),clim_T(1,ict) + dct(iclim)
                             if ( &
                                 & clim_T(1,ict) <= mod(time,ctau(iclim)) & 
                                 & .and. clim_T(1,ict) + dct(iclim) >= mod(time,ctau(iclim)) &
@@ -2739,13 +2744,13 @@ do while (it<nt)
                                     ! & ) then 
                                     ! dt = clim_T(1,ict) + dct(iclim) - mod(time,ctau(iclim))
                                 ! endif 
-                                print *, ict
+                                ! print *, ict
                                 if (ict /= ict_prev(iclim)) ict_change(iclim) = .true.
                                 ict_prev(iclim) = ict
                                 exit 
                             endif 
                         enddo 
-                        if (ict /= nclim(iclim)) then 
+                        if (ict /= nclim(iclim)) then
                             tc = ( clim_T(2,ict+1) - clim_T(2,ict) ) /( clim_T(1,ict+1) - clim_T(1,ict) ) &
                                 & * ( mod(time,ctau(iclim)) - clim_T(1,ict) ) + clim_T(2,ict)
                         elseif (ict == nclim(iclim)) then 
@@ -2756,7 +2761,12 @@ do while (it<nt)
                     case(2)
                         if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
                         do ict = 1, nclim(iclim)
-                            print *, clim_q(1,ict),mod(time,ctau(iclim)),clim_q(1,ict) + dct(iclim)
+                            if (ict /= nclim(iclim)) then 
+                                dct(iclim) = clim_q(1,ict+1) - clim_q(1,ict)
+                            elseif (ict == nclim(iclim)) then 
+                                dct(iclim) = ctau(iclim) - clim_q(1,ict)
+                            endif 
+                            ! print *, clim_q(1,ict),mod(time,ctau(iclim)),clim_q(1,ict) + dct(iclim)
                             if ( &
                                 & clim_q(1,ict) <= mod(time,ctau(iclim)) & 
                                 & .and. clim_q(1,ict) + dct(iclim) >= mod(time,ctau(iclim)) &
@@ -2767,7 +2777,7 @@ do while (it<nt)
                                     ! & ) then 
                                     ! dt = clim_q(1,ict) + dct(iclim) - mod(time,ctau(iclim))
                                 ! endif 
-                                print *, ict
+                                ! print *, ict
                                 if (ict /= ict_prev(iclim)) ict_change(iclim) = .true.
                                 ict_prev(iclim) = ict
                                 exit 
@@ -2784,7 +2794,12 @@ do while (it<nt)
                     case(3)
                         if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
                         do ict = 1, nclim(iclim)
-                            print *, clim_sat(1,ict),mod(time,ctau(iclim)),clim_sat(1,ict) + dct(iclim)
+                            if (ict /= nclim(iclim)) then 
+                                dct(iclim) = clim_sat(1,ict+1) - clim_sat(1,ict)
+                            elseif (ict == nclim(iclim)) then 
+                                dct(iclim) = ctau(iclim) - clim_sat(1,ict)
+                            endif 
+                            ! print *, clim_sat(1,ict),mod(time,ctau(iclim)),clim_sat(1,ict) + dct(iclim)
                             if ( &
                                 & clim_sat(1,ict) <= mod(time,ctau(iclim)) & 
                                 & .and. clim_sat(1,ict) + dct(iclim) >= mod(time,ctau(iclim)) &
@@ -2795,7 +2810,7 @@ do while (it<nt)
                                     ! & ) then 
                                     ! dt = clim_sat(1,ict) + dct(iclim) - mod(time,ctau(iclim))
                                 ! endif 
-                                print *, ict
+                                ! print *, ict
                                 if (ict /= ict_prev(iclim)) ict_change(iclim) = .true.
                                 ict_prev(iclim) = ict
                                 exit 
@@ -3759,6 +3774,7 @@ do while (it<nt)
 
             if ( flgback .or. psd_error_flg) then 
                 print *,' *** because of PBE error, returning to do while loop with reduced dt'
+                if (.not.psd_loop) exit
                 flgback = .false.
                 psd_error_flg = .false.
                 dt = dt/10d0
@@ -3923,6 +3939,7 @@ do while (it<nt)
 
                 if ( flgback .or. psd_error_flg) then 
                     print *,' *** because of PSD(norm) error, returning to do while loop with reduced dt'
+                    if (.not.psd_loop) exit
                     flgback = .false.
                     psd_error_flg = .false.
                     dt = dt/10d0
@@ -4252,7 +4269,8 @@ do while (it<nt)
         
         time_pbe = time_pbe + dt
         
-        print *,' ---- PSD time: ',time_pbe,' dt: ',dt, ' completeness [%]: ',100d0*time_pbe/dt_save
+        ! print *,' ---- PSD time: ',time_pbe,' dt: ',dt, ' completeness [%]: ',100d0*time_pbe/dt_save
+        print '(a,1x,f11.7)',' ---- PSD completeness [%]: ',100d0*time_pbe/dt_save
         ! print '(3(1x,E11.3))',time_pbe,dt,100d0*time_pbe/dt_save
         
         if (time_pbe>= dt_save) then 
@@ -5105,9 +5123,8 @@ do while (it<nt)
             write(idust,*) time,dust_norm
             close(idust)
         endif 
-        ! print *, time-dt,dust_norm_prev
-        print *, time-dt,dust_norm
-        print *, time,dust_norm
+        ! print *, time-dt,dust_norm
+        ! print *, time,dust_norm
     endif
     
     progress_rate_prev = progress_rate
@@ -12512,8 +12529,8 @@ real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas,df2dmgas
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dprodmaq_all,dso4fdmaq_all
 real(kind=8),dimension(nsp_gas_all,nz),intent(out)::dprodmgas_all,dso4fdmgas_all
 
-real(kind=8),dimension(nsp_aq_all,nz)::dmaq
-real(kind=8),dimension(nsp_gas_all,nz)::dmgas
+real(kind=8),dimension(nsp_aq_all,nz)::dmaq,maqtmp_loc
+real(kind=8),dimension(nsp_gas_all,nz)::dmgas,mgastmp_loc
 real(kind=8),dimension(nz)::df1_dum,f1_dum,f2_dum,df2_dum,df21_dum,df12_dum
 real(kind=8),dimension(nsp_aq_all,nz)::df1dmaq_dum,df2dmaq_dum
 real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas_dum,df2dmgas_dum
@@ -12757,11 +12774,12 @@ call calc_so4_balance( &
 do ispa=1,nsp_aq_all
     dmaq = 0d0
     dmaq(ispa,:) = dconc!*maqx_loc(ispa,:)
+    maqtmp_loc = maqx_loc+dmaq
     call get_maqf_all( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
         & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-        & ,mgasx_loc,maqx_loc+dmaq,prox,so4f &
+        & ,mgasx_loc,maqtmp_loc,prox,so4f &
         & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
         & ,maqf_loc  &! output
         & )
@@ -12796,11 +12814,12 @@ enddo
 do ispg=1,nsp_gas_all
     dmgas = 0d0
     dmgas(ispg,:) = dconc!*mgasx_loc(ispg,:)
+    mgastmp_loc = mgasx_loc+dmgas
     call get_maqf_all( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
         & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-        & ,mgasx_loc+dmgas,maqx_loc,prox,so4f &
+        & ,mgastmp_loc,maqx_loc,prox,so4f &
         & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
         & ,maqf_loc  &! output
         & )
@@ -12809,7 +12828,7 @@ do ispg=1,nsp_gas_all
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
         & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-        & ,mgasx_loc+dmgas,maqf_loc &
+        & ,mgastmp_loc,maqf_loc &
         & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
         & ,z,prox,so4f &
         & ,print_loc,print_res,ph_add_order &
@@ -21636,7 +21655,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             flx_gas(ispg,ires,iz) = sum(flx_gas(ispg,:,iz))
             
             if (any(isnan(flx_gas(ispg,:,iz)))) then
-                print *,flx_gas(ispg,:,iz)
+                ! print *,flx_gas(ispg,:,iz)
+                print *,'NAN detected in flx_gas'
             endif 
             
             ! amx3(row,:) = amx3(row,:)/alpha(iz)
@@ -22303,7 +22323,8 @@ do iz = 1, nz
         flx_gas(ispg,ires,iz) = sum(flx_gas(ispg,:,iz))
         
         if (any(isnan(flx_gas(ispg,:,iz)))) then
-            print *,flx_gas(ispg,:,iz)
+            ! print *,flx_gas(ispg,:,iz)
+            print *,'NAN detected in flx_gas'
         endif 
     enddo 
     
@@ -23854,10 +23875,10 @@ if (incld_rough)  lambda = rough_c0*(10d0**ps(:))**rough_c1
 ! dR/dr =  1/(r * log10)
 ! dr = dR * r * log10
 ! note that dps is dR; we need dr denoted here as dpsx (?)
-dpsx = dps * 10d0**(ps) * log(10d0)
-! do ips = 1,nps
-    ! dpsx(ips) = 10d0**(ps(ips)+0.5d0*dps(ips)) - 10d0**(ps(ips)-0.5d0*dps(ips))
-! enddo
+! dpsx = dps * 10d0**(ps) * log(10d0)
+do ips = 1,nps
+    dpsx(ips) = 10d0**(ps(ips)+0.5d0*dps(ips)) - 10d0**(ps(ips)-0.5d0*dps(ips))
+enddo
 
 ! psd is given as number of particles/m3/log(m)
 ! converting to number of particles/m3/m
@@ -25078,7 +25099,7 @@ endsubroutine psd_diss_pbe_expall
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine psd_adv( &
-    & nsp_sld,nps,nflx,iadv &! in
+    & nsp_sld,nps,nz,nflx,iadv &! in
     & ,z,flx_sld,mv,dt,pi,tol,w,w0,dz &! in 
     & ,profdir,ipsd &! in
     & ,ps,dps,psd_pr &! in 
@@ -25086,7 +25107,7 @@ subroutine psd_adv( &
     & )
 implicit none 
 
-integer,intent(in)::nsp_sld,nps,nflx,ipsd,iadv
+integer,intent(in)::nsp_sld,nps,nz,nflx,ipsd,iadv
 real(kind=8),intent(in)::dt,pi,tol,w0 
 real(kind=8),dimension(nz),intent(in)::z,w,dz
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
@@ -25178,7 +25199,7 @@ endsubroutine psd_adv
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine psd_adv_implicit( &
-    & nsp_sld,nps,nflx,iadv &! in
+    & nsp_sld,nps,nz,nflx,iadv &! in
     & ,z,flx_sld,mv,dt,pi,tol,w,w0,dz &! in 
     & ,profdir,ipsd &! in
     & ,ps,dps,psd_pr &! in 
@@ -25186,7 +25207,7 @@ subroutine psd_adv_implicit( &
     & )
 implicit none 
 
-integer,intent(in)::nsp_sld,nps,nflx,ipsd,iadv
+integer,intent(in)::nsp_sld,nps,nflx,ipsd,iadv,nz
 real(kind=8),intent(in)::dt,pi,tol,w0 
 real(kind=8),dimension(nz),intent(in)::z,w,dz
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
@@ -25293,7 +25314,7 @@ endsubroutine psd_adv_implicit
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine psd_dif( &
-    & nsp_sld,nps,nflx,idif &! in
+    & nsp_sld,nps,nz,nflx,idif &! in
     & ,z,flx_sld,mv,dt,pi,tol &! in 
     & ,trans &! in
     & ,profdir,ipsd &! in
@@ -25302,7 +25323,7 @@ subroutine psd_dif( &
     & )
 implicit none 
 
-integer,intent(in)::nsp_sld,nps,nflx,ipsd,idif
+integer,intent(in)::nsp_sld,nps,nflx,ipsd,idif,nz
 real(kind=8),intent(in)::dt,pi,tol 
 real(kind=8),dimension(nz),intent(in)::z
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
@@ -25394,7 +25415,7 @@ endsubroutine psd_dif
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine psd_dif_implicit( &
-    & nsp_sld,nps,nflx,idif,iadv &! in
+    & nsp_sld,nps,nz,nflx,idif,iadv &! in
     & ,z,dz,flx_sld,mv,dt,pi,tol,w0,w,hr &! in 
     & ,incld_rough,rough_c0,rough_c1 &! in
     & ,trans &! in
@@ -25406,7 +25427,7 @@ subroutine psd_dif_implicit( &
     & )
 implicit none 
 
-integer,intent(in)::nsp_sld,nps,nflx,ipsd,idif,iadv
+integer,intent(in)::nsp_sld,nps,nflx,ipsd,idif,iadv,nz
 real(kind=8),intent(in)::dt,pi,tol,w0,rough_c0,rough_c1
 real(kind=8),dimension(nz),intent(in)::z,dz,w,hr
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
@@ -25710,7 +25731,7 @@ endsubroutine psd_dif_implicit
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine psd_implicit_all( &
-    & nsp_sld,nps,nflx,idif,iadv &! in
+    & nsp_sld,nps,nz,nflx,idif,iadv &! in
     & ,z,dz,flx_sld,mv,dt,pi,tol,w0,w,hr &! in 
     & ,incld_rough,rough_c0,rough_c1 &! in
     & ,trans &! in
@@ -25722,7 +25743,7 @@ subroutine psd_implicit_all( &
     & )
 implicit none 
 
-integer,intent(in)::nsp_sld,nps,nflx,ipsd,idif,iadv
+integer,intent(in)::nsp_sld,nps,nflx,ipsd,idif,iadv,nz
 real(kind=8),intent(in)::dt,pi,tol,w0,rough_c0,rough_c1
 real(kind=8),dimension(nz),intent(in)::z,dz,w,hr
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(in)::flx_sld
