@@ -653,8 +653,8 @@ logical :: psd_lim_min = .true.
 logical :: psd_vol_consv = .false.
 logical :: psd_impfull = .false.
 ! logical :: psd_impfull = .true..
-! logical :: psd_loop = .false.
-logical :: psd_loop = .true.
+logical :: psd_loop = .false.
+! logical :: psd_loop = .true.
 real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old,mpsd_save_2
 real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th
 real(kind=8),dimension(nsp_sld,nps,nflx_psd,nz) :: flx_mpsd ! itflx,iadv,idif,irain,irxn,ires
@@ -3658,7 +3658,7 @@ do while (it<nt)
 
         dt_pbe = dt
         dt_save = dt
-        time_pbe = 0
+        time_pbe = 0d0
         ddpsd = 0d0
         do while(time_pbe < dt_save)
         ! print *
@@ -11039,158 +11039,6 @@ df21 = so4x*ss_add*prox**(ss_add-1d0) - so4f*ss_add*prox**(ss_add-1d0)*f2 - so4f
 f2 = so4x*prox**ss_add - so4f*prox**ss_add*f2
 
 endsubroutine calc_so4_balance
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine calc_so4( &
-    & nz,so4x,nax,kx,mgx,cax,fe2x,alx,fe3x,pco2x,prox &! input 
-    & ,nsp_gas_all,nsp_aq_all,chraq_all,chrgas_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input 
-    & ,so4f,so4_error &! output
-    & )
-implicit none 
-
-integer,intent(in)::nz,nsp_gas_all,nsp_aq_all
-real(kind=8),dimension(nz),intent(in)::so4x,nax,kx,mgx,cax,fe2x,alx,fe3x,pco2x,prox
-real(kind=8),dimension(nz),intent(out)::so4f
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-logical,intent(out)::so4_error
-
-real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al &
-    & ,k1fe2,k1fe2co3,k1fe2hco3,k1fe3,k2fe3,k3fe3,k4fe3,k1naco3,k1nahco3,k1so4,k1kso4,k1naso4  &
-    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42
-
-real(kind=8),dimension(nz)::f,df
-real(kind=8) error,tol 
-integer iter
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
-data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
-
-integer ieqaq_co3,ieqaq_hco3
-data ieqaq_co3,ieqaq_hco3/1,2/
-
-integer ieqaq_so4,ieqaq_so42
-data ieqaq_so4,ieqaq_so42/1,2/
-
-
-kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
-k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
-k2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)
-k1si = keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h1)
-k2si = keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h2)
-k1mg = keqaq_h(findloc(chraq_all,'mg',dim=1),ieqaq_h1)
-k1mgco3 = keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_co3)
-k1mghco3  = keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_hco3)
-k1ca = keqaq_h(findloc(chraq_all,'ca',dim=1),ieqaq_h1)
-k1caco3 = keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_co3)
-k1cahco3 = keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_hco3)
-k1al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h1)
-k2al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h2)
-k3al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h3)
-k4al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h4)
-k1fe2 = keqaq_h(findloc(chraq_all,'fe2',dim=1),ieqaq_h1)
-k1fe2co3 = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_co3)
-k1fe2hco3  = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_hco3)
-k1fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h1)
-k2fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h2)
-k3fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3)
-k4fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4)
-k1naco3 = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_co3)
-k1nahco3  = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_hco3)
-
-k1so4 = keqaq_h(findloc(chraq_all,'so4',dim=1),ieqaq_h1)
-k1naso4 = keqaq_s(findloc(chraq_all,'na',dim=1),ieqaq_so4)
-k1kso4 = keqaq_s(findloc(chraq_all,'k',dim=1),ieqaq_so4)
-k1caso4 = keqaq_s(findloc(chraq_all,'ca',dim=1),ieqaq_so4)
-k1mgso4 = keqaq_s(findloc(chraq_all,'mg',dim=1),ieqaq_so4)
-k1fe2so4 = keqaq_s(findloc(chraq_all,'fe2',dim=1),ieqaq_so4)
-k1also4 = keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so4)
-k1fe3so4 = keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so4)
-k1also42 = keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so42)
-k1fe3so42 = keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so42)
-
-
-error = 1d4
-tol = 1d-6
-
-iter = 0
-
-so4f = so4x
-
-do while (error > tol)
-    f = so4x - so4f*( 1d0+k1so4/prox &
-        & +k1kso4*kx/(1d0+k1kso4*so4f) &
-        & +k1naso4*nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f) &
-        & +k1caso4*cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f) &
-        & +k1mgso4*mgx/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f) &
-        & +k1fe2so4*fe2x/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f) &
-        & +k1also4*alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f) &
-        & +k1fe3so4*fe3x/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f) &
-        & )
-        
-    df = - 1d0*( 1d0+k1so4/prox &
-        & +k1kso4*kx/(1d0+k1kso4*so4f) &
-        & +k1naso4*nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f) &
-        & +k1caso4*cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f) &
-        & +k1mgso4*mgx/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f) &
-        & +k1fe2so4*fe2x/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f) &
-        & +k1also4*alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f) &
-        & +k1fe3so4*fe3x/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f) &
-        & ) &
-        & - so4f*( &
-        & +k1kso4*kx*(-1d0)/(1d0+k1kso4*so4f)**2d0*k1kso4 &
-        & +k1naso4*nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)**2d0*k1naso4 &
-        & +k1caso4*cax*(-1d0) &
-        &       /(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)**2d0*k1caso4 &
-        & +k1mgso4*mgx*(-1d0) &
-        &       /(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)**2d0*k1mgso4 &
-        & +k1fe2so4*fe2x*(-1d0) &
-        &       /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)**2d0*k1fe2so4 &
-        & +k1also4*alx*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)**2d0*k1also4 &
-        & +k1fe3so4*fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0*k1fe3so4 &
-        & )
-    
-    
-    df = df*so4f
-    so4f = so4f*exp( -f/df )
-    error = maxval(abs(exp( -f/df )-1d0))
-    if (any(isnan(f)).or.any(isnan(df))) then 
-        ! print *,so4x
-        ! print *,any(isnan(f))
-        ! print *,f
-        ! print *,any(isnan(df))
-        ! print *,df
-        so4_error = .true.
-        exit
-    endif 
-    if (isnan(error)) error = 1d4
-    
-    ! print *,iter,error
-    
-    iter = iter + 1
-enddo 
-
-so4_error = .false.
-if (any(isnan(so4f))) then     
-    print *, so4f
-    print*,'so4f is nan'
-    print*,so4x
-    so4_error = .true.
-    stop
-endif 
-
-endsubroutine calc_so4
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
