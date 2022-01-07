@@ -506,6 +506,8 @@ data rectime_prof /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
 real(kind=8) :: savetime = 1d3
 real(kind=8) :: dsavetime = 1d3
 
+! logical :: rectime_scheme_old = .false.
+logical :: rectime_scheme_old = .true.
 
 integer poro_iter , poro_iter_max
 real(kind=8) poro_error, poro_tol, porox(nz), dwsporo(nz), wsporo(nz) 
@@ -1625,13 +1627,6 @@ do isps = 1, nsp_sld
     endselect
 enddo 
 
-do while (rectime_prof(nrec_prof)>ttot) 
-    rectime_prof = rectime_prof/10d0
-enddo 
-do while (rectime_prof(nrec_prof)<ttot) 
-    rectime_prof = rectime_prof*10d0
-enddo 
-
 rectime_flx = 0d0
 do irec_flx = 1,20
     rectime_flx(irec_flx) = irec_flx/20d0
@@ -1643,12 +1638,30 @@ do irec_flx = 39,60
     rectime_flx(irec_flx) = rectime_flx(38) + (irec_flx-38)/20d0*100d0
 enddo
 
-do while (rectime_flx(nrec_flx)>ttot) 
-    rectime_flx = rectime_flx/10d0
-enddo 
-do while (rectime_flx(nrec_flx)<ttot) 
-    rectime_flx = rectime_flx*10d0
-enddo 
+if (rectime_scheme_old) then 
+    do while (rectime_flx(nrec_flx)>ttot) 
+        rectime_flx = rectime_flx/10d0
+    enddo 
+    do while (rectime_flx(nrec_flx)<ttot) 
+        rectime_flx = rectime_flx*10d0
+    enddo 
+
+    do while (rectime_prof(nrec_prof)>ttot) 
+        rectime_prof = rectime_prof/10d0
+    enddo 
+    do while (rectime_prof(nrec_prof)<ttot) 
+        rectime_prof = rectime_prof*10d0
+    enddo 
+    
+    savetime = rectime_prof(18)/100d0
+    dsavetime = rectime_prof(18)/100d0
+    
+else 
+    rectime_flx = rectime_flx*ttot/maxval(rectime_flx)
+    rectime_prof = rectime_prof*ttot/maxval(rectime_prof)
+    savetime = ttot/100d0
+    dsavetime = ttot/100d0
+endif 
 
 ! print*, rectime_flx
 ! stop
