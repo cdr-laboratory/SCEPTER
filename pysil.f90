@@ -4998,6 +4998,28 @@ do while (it<nt)
         close(ipsd)
         close(isa)
         
+        if (do_psd) then 
+            if (do_psd_full) then 
+                do isps=1,nsp_sld
+                    open(ipsd, file=trim(adjustl(profdir))//'/'  &
+                        & //'psd_'//trim(adjustl(chrsld(isps)))//'-save.txt', status='replace')
+                    write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
+                    do iz = 1, Nz
+                        write(ipsd,*) z(iz), (mpsd(isps,ips,iz),ips=1,nps), time 
+                    end do
+                    close(ipsd)
+                enddo 
+            else 
+                open(ipsd, file=trim(adjustl(profdir))//'/'  &
+                    & //'psd-save.txt', status='replace')
+                write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
+                do iz = 1, Nz
+                    write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
+                end do
+                close(ipsd)
+            endif 
+        endif 
+        
 ! #ifdef disp_lim
         if (display_lim_in) display_lim = .false.
 ! #endif 
@@ -5222,6 +5244,28 @@ close(igasprof)
 close(ibsd)
 close(ipsd)
 close(isa)
+        
+if (do_psd) then 
+    if (do_psd_full) then 
+        do isps=1,nsp_sld
+            open(ipsd, file=trim(adjustl(profdir))//'/'  &
+                & //'psd_'//trim(adjustl(chrsld(isps)))//'-save.txt', status='replace')
+            write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
+            do iz = 1, Nz
+                write(ipsd,*) z(iz), (mpsd(isps,ips,iz),ips=1,nps), time 
+            end do
+            close(ipsd)
+        enddo 
+    else 
+        open(ipsd, file=trim(adjustl(profdir))//'/'  &
+            & //'psd-save.txt', status='replace')
+        write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
+        do iz = 1, Nz
+            write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
+        end do
+        close(ipsd)
+    endif 
+endif 
 
 call system ('cp gases.in '//trim(adjustl(profdir))//'/gases.save')
 call system ('cp solutes.in '//trim(adjustl(profdir))//'/solutes.save')
