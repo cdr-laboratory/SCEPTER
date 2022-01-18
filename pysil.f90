@@ -77,6 +77,9 @@ subroutine weathering_main( &
 implicit none
 
 !-----------------------------
+#ifdef mod_basalt_cmp
+#include <basalt_defines.h>
+#endif 
 
 real(kind=8),intent(in) :: ztot != 3.0d0 ! m
 real(kind=8),intent(in) :: ttot  ! yr
@@ -113,6 +116,7 @@ real(kind=8),parameter :: fr_fer_agt = 0.0d0 ! Ferrosilite (and Hedenbergite; or
 real(kind=8),parameter :: fr_opx_agt = 0.0d0 ! OPX (or 1 - Ca:(Fe+Mg)) fraction for Augite; 0.0 - 1.0; from Beerling et al 2020
 real(kind=8),parameter :: fr_napx_agt = 0.1d0 ! Na fraction for Augite (or Na/(Ca+Fe+Mg)); 0.0 - 1.0; from Beerling et al 2020
 
+#ifndef mod_basalt_cmp
 real(kind=8),parameter :: fr_si_gbas = 1d0 ! Si fraction of glass basalt; Pollyea and Rimstidt 2017 (referring to basalt used by Oelkers and Gislason (2001) and Gundbrandsson et al. (2011)
 real(kind=8),parameter :: fr_al_gbas = 0.358d0 ! Al fraction of glass basalt
 real(kind=8),parameter :: fr_na_gbas = 0.079d0 ! Na fraction of glass basalt 
@@ -128,6 +132,14 @@ real(kind=8),parameter :: fr_k_cbas = 0.08d0 ! K fraction of clystaline basalt
 real(kind=8),parameter :: fr_mg_cbas = 0.281d0 ! Mg fraction of clystaline basalt
 real(kind=8),parameter :: fr_ca_cbas = 0.264d0 ! Ca fraction of clystaline basalt
 real(kind=8),parameter :: fr_fe2_cbas = 0.190d0 ! Fe2 fraction of clystaline basalt
+#else
+real(kind=8) fr_si_gbas,fr_al_gbas,fr_na_gbas,fr_k_gbas,fr_mg_gbas,fr_ca_gbas,fr_fe2_gbas
+real(kind=8) fr_si_cbas,fr_al_cbas,fr_na_cbas,fr_k_cbas,fr_mg_cbas,fr_ca_cbas,fr_fe2_cbas
+parameter(fr_si_gbas=def_bas_si_fr ,fr_al_gbas=def_bas_al_fr, fr_na_gbas=def_bas_na_fr, fr_k_gbas=def_bas_k_fr &
+    & , fr_mg_gbas=def_bas_mg_fr,fr_ca_gbas=def_bas_ca_fr,fr_fe2_gbas=def_bas_fe2_fr)
+parameter(fr_si_cbas=def_bas_si_fr, fr_al_cbas=def_bas_al_fr, fr_na_cbas=def_bas_na_fr, fr_k_cbas=def_bas_k_fr &
+    & , fr_mg_cbas=def_bas_mg_fr,fr_ca_cbas=def_bas_ca_fr,fr_fe2_cbas=def_bas_fe2_fr)
+#endif
 
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
@@ -506,8 +518,8 @@ data rectime_prof /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
 real(kind=8) :: savetime = 1d3
 real(kind=8) :: dsavetime = 1d3
 
-! logical :: rectime_scheme_old = .false.
-logical :: rectime_scheme_old = .true.
+logical :: rectime_scheme_old = .false.
+! logical :: rectime_scheme_old = .true.
 
 integer poro_iter , poro_iter_max
 real(kind=8) poro_error, poro_tol, porox(nz), dwsporo(nz), wsporo(nz) 
@@ -633,10 +645,10 @@ real(kind=8),dimension(nps)::psd_pr_norm,psd_norm_fact,psd_rain_tmp
 real(kind=8),dimension(nz)::DV
 integer,parameter :: nps_rain_char = 4
 real(kind=8),dimension(nps_rain_char)::pssigma_rain_list,psu_rain_list 
-real(kind=8) psu_pr,pssigma_pr,psu_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd,volsld,flx_max_max
-real(kind=8) :: ps_sigma_std = 1d0
-! real(kind=8) :: ps_sigma_std = 0.8d0
-! real(kind=8) :: ps_sigma_std = 0.2d0
+real(kind=8) psu_pr,pssigma_pr,psu_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd,volsld,flx_max_max,psd_th_flex
+! real(kind=8) :: ps_sigma_std = 1d0
+! real(kind=8) :: ps_sigma_std = 0.5d0
+real(kind=8) :: ps_sigma_std = 0.2d0
 integer ips,iips,ips_new
 logical psd_error_flg
 integer,parameter :: nflx_psd = 6
@@ -655,8 +667,8 @@ logical :: psd_lim_min = .true.
 logical :: psd_vol_consv = .false.
 logical :: psd_impfull = .false.
 ! logical :: psd_impfull = .true..
-logical :: psd_loop = .false.
-! logical :: psd_loop = .true.
+! logical :: psd_loop = .false.
+logical :: psd_loop = .true.
 real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old,mpsd_save_2
 real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th
 real(kind=8),dimension(nsp_sld,nps,nflx_psd,nz) :: flx_mpsd ! itflx,iadv,idif,irain,irxn,ires
@@ -2029,11 +2041,11 @@ enddo
 
 rough = 1d0
 ! from Navarre-Sitchler and Brantley (2007)
-rough_c0 = 10d0**(3.3d0)
-rough_c1 = 0.33d0
+! rough_c0 = 10d0**(3.3d0)
+! rough_c1 = 0.33d0
 ! from Brantley and Mellott (2000)
-! rough_c0 = 10d0**(0.7d0)
-! rough_c1 = -0.1d0
+rough_c0 = 10d0**(0.7d0)
+rough_c1 = -0.1d0
 if (incld_rough) then 
     ! rough = 10d0**(3.3d0)*p80**0.33d0 ! from Navarre-Sitchler and Brantley (2007)
     do isps=1,nsp_sld
@@ -4212,12 +4224,14 @@ do while (it<nt)
             endif 
 
             if (psd_lim_min) then    
-                ! if (psd_lim_min .and. .not. psd_impfull) then 
                 where (mpsd < psd_th_0)  mpsd = psd_th_0
-                ! do isps = 1,nsp_sld
-                    ! where ( mpsd(isps,:,:) < maxval(mpsd(isps,:,:)) * 1d-9 ) & 
-                        ! & mpsd(isps,:,:) = maxval(mpsd(isps,:,:)) * 1d-9
-                ! enddo 
+                ! do isps = 1, nsp_sld
+                    ! do ips = 1, nps
+                        ! psd_norm_fact(ips) = maxval(mpsd(isps,ips,:))
+                        ! psd_th_flex = psd_norm_fact(ips) * 1d-12
+                        ! where (mpsd < psd_th_flex)  mpsd = psd_th_flex
+                    ! enddo 
+                ! enddo
             endif 
         
         else 
