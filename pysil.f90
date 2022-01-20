@@ -370,6 +370,8 @@ real(kind=8),dimension(nz):: pro,prox,poroprev,hrb,vprev,torgprev,toraprev,wprev
 real(kind=8),dimension(nz):: dummy,up,dwn,cnr,adf
 real(kind=8) :: rough_c0 != 10d0**(3.3d0)
 real(kind=8) :: rough_c1 != 0.33d0
+real(kind=8) :: c_disp,c0_disp,c1_disp,zdisp  ! dispersion coefficients 
+real(kind=8),dimension(nz) :: disp,dispprev  ! dispersion coefficients 
 
 real(kind=8) kho,ucv,kco2,k1,kw,k2,khco2i,knh3,k1nh3,khnh3i,kn2o
 
@@ -465,6 +467,9 @@ logical,dimension(3) :: climate != .false.
 
 logical :: season = .false.
 ! logical :: season = .true.
+
+! logical :: disp_ON = .false.
+logical :: disp_ON = .true.
 
 #ifdef def_flx_save_alltime
 logical :: flx_save_alltime = .true.
@@ -2041,11 +2046,11 @@ enddo
 
 rough = 1d0
 ! from Navarre-Sitchler and Brantley (2007)
-! rough_c0 = 10d0**(3.3d0)
-! rough_c1 = 0.33d0
+rough_c0 = 10d0**(3.3d0)
+rough_c1 = 0.33d0
 ! from Brantley and Mellott (2000)
-rough_c0 = 10d0**(0.7d0)
-rough_c1 = -0.1d0
+! rough_c0 = 10d0**(0.7d0)
+! rough_c1 = -0.1d0
 if (incld_rough) then 
     ! rough = 10d0**(3.3d0)*p80**0.33d0 ! from Navarre-Sitchler and Brantley (2007)
     do isps=1,nsp_sld
@@ -2069,6 +2074,23 @@ w = w_btm
     ! w(:) = w0/(1d0- poro(:)) ! from w*(1- poro) = w0*(1 - poroi) --- isovolumetric weathering?
     ! w_btm = w0/(1d0- poroi) ! from w*(1- poro) = w0*(1 - poroi) --- isovolumetric weathering?
 ! endif 
+
+! adding dispersion calculation
+if (disp_ON) then 
+    zdisp = ztot ! assuming dispersion scale = total depth 
+else 
+    zdisp = 0d0
+endif
+! parameterization by Schulz-Makuch 2005 
+! for basalt 
+c0_disp = 0.15d0
+c1_disp = 0.61d0
+! for granite
+c0_disp = 0.21d0
+c1_disp = 0.51d0
+c_disp = c0_disp*zdisp**c1_disp
+
+disp = c_disp * v
 
 
 ! ------------ determine calculation scheme for advection (from IMP code)
@@ -2401,6 +2423,9 @@ if (read_data) then
     
     torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
     tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+        
+    c_disp = c0_disp*zdisp**c1_disp
+    disp = c_disp * v
     
     do isps = 1,nsp_sld_save
         if (any(chrsld == chrsld_save(isps))) then 
@@ -2866,6 +2891,9 @@ do while (it<nt)
         torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
         tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
         
+        c_disp = c0_disp*zdisp**c1_disp
+        disp = c_disp * v
+        
     endif 
         
     call coefs_v2( &
@@ -2958,6 +2986,8 @@ do while (it<nt)
     torgprev = torg
     toraprev = tora
     wprev = w 
+    
+    dispprev = disp
     
     mblkx = mblk
     
@@ -3395,7 +3425,7 @@ do while (it<nt)
         & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
         & ,precstyle,solmod &! in 
         !  old inputs
-        & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev & 
+        & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
         ! old inout
         & ,dt,flgback,w &    
@@ -3429,6 +3459,7 @@ do while (it<nt)
         poro = poroprev
         torg = torgprev
         tora = toraprev
+        disp = dispprev
         v = vprev
         hr = hrprev
         w = wprev
@@ -3492,6 +3523,7 @@ do while (it<nt)
             poro = poroprev
             torg = torgprev
             tora = toraprev
+            disp = dispprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -3518,6 +3550,7 @@ do while (it<nt)
             poro = poroprev
             torg = torgprev
             tora = toraprev
+            disp = dispprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -3542,6 +3575,9 @@ do while (it<nt)
         v = qin/poro/sat
         torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
         tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+        
+        c_disp = c0_disp*zdisp**c1_disp
+        disp = c_disp * v
         
 #ifndef calcw_full
         w(:) = w0 
@@ -3649,6 +3685,7 @@ do while (it<nt)
             poro = poroprev
             torg = torgprev
             tora = toraprev
+            disp = dispprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -3775,6 +3812,7 @@ do while (it<nt)
                         ! poro = poroprev
                         ! torg = torgprev
                         ! tora = toraprev
+                        ! disp = dispprev
                         ! v = vprev
                         ! hr = hrprev
                         ! w = wprev
@@ -3860,6 +3898,7 @@ do while (it<nt)
                     ! poro = poroprev
                     ! torg = torgprev
                     ! tora = toraprev
+                    ! disp = dispprev
                     ! v = vprev
                     ! hr = hrprev
                     ! w = wprev
@@ -3944,6 +3983,7 @@ do while (it<nt)
                         ! poro = poroprev
                         ! torg = torgprev
                         ! tora = toraprev
+                        ! disp = dispprev
                         ! v = vprev
                         ! hr = hrprev
                         ! w = wprev
@@ -4029,6 +4069,7 @@ do while (it<nt)
                     ! poro = poroprev
                     ! torg = torgprev
                     ! tora = toraprev
+                    ! disp = dispprev
                     ! v = vprev
                     ! hr = hrprev
                     ! w = wprev
@@ -4109,6 +4150,7 @@ do while (it<nt)
                         poro = poroprev
                         torg = torgprev
                         tora = toraprev
+                        disp = dispprev
                         v = vprev
                         hr = hrprev
                         w = wprev
@@ -4163,6 +4205,7 @@ do while (it<nt)
                     poro = poroprev
                     torg = torgprev
                     tora = toraprev
+                    disp = dispprev
                     v = vprev
                     hr = hrprev
                     w = wprev
@@ -4210,6 +4253,7 @@ do while (it<nt)
                     poro = poroprev
                     torg = torgprev
                     tora = toraprev
+                    disp = dispprev
                     v = vprev
                     hr = hrprev
                     w = wprev
@@ -4264,6 +4308,7 @@ do while (it<nt)
                     poro = poroprev
                     torg = torgprev
                     tora = toraprev
+                    disp = dispprev
                     v = vprev
                     hr = hrprev
                     w = wprev
@@ -4331,6 +4376,7 @@ do while (it<nt)
                 poro = poroprev
                 torg = torgprev
                 tora = toraprev
+                disp = dispprev
                 v = vprev
                 hr = hrprev
                 w = wprev
@@ -15164,7 +15210,7 @@ subroutine alsilicate_aq_gas_1D_v3_1( &
     & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
     & ,precstyle,solmod &! input
     !  old inputs
-    & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev & 
+    & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
     ! old inout
     & ,dt,flgback,w &    
@@ -15176,7 +15222,8 @@ implicit none
 
 integer,intent(in)::nz,nflx
 real(kind=8),intent(in)::w_btm,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi,poroi
-real(kind=8),dimension(nz),intent(in)::poro,z,sat,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf,so4fprev
+real(kind=8),dimension(nz),intent(in)::poro,z,sat,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf,so4fprev &
+    & ,disp
 real(kind=8),dimension(nz),intent(out)::prox,so4f
 real(kind=8),dimension(nz),intent(inout)::w
 integer,intent(inout)::it
@@ -15960,7 +16007,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             endselect 
         endif 
         
-        dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*tora*dgasa(ispg)
+        dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*(tora*dgasa(ispg)+disp)
         dgasi(ispg) = ucv*1d3*dgasg(ispg) 
         
         agas(ispg,:)= ucv*poroprev*(1.0d0-sat)*1d3+poroprev*sat*khgas(ispg,:)*1d3
@@ -15968,13 +16015,13 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         
         do ispa = 1,nsp_aq 
             if (.not. new_gassol) dkhgas_dmaq(ispg,ispa,:) = dkhgas_dpro(ispg,:)*dprodmaq(ispa,:) ! old way to calc solubility (to be removed?)
-            ddgas_dmaq(ispg,ispa,:) = poro*sat*dkhgas_dmaq(ispg,ispa,:)*1d3*tora*dgasa(ispg)
+            ddgas_dmaq(ispg,ispa,:) = poro*sat*dkhgas_dmaq(ispg,ispa,:)*1d3*(tora*dgasa(ispg)+disp)
             dagas_dmaq(ispg,ispa,:) =  poro*sat*dkhgas_dmaq(ispg,ispa,:)*1d3
         enddo 
         
         do ispg2 = 1,nsp_gas 
             if (.not. new_gassol) dkhgas_dmgas(ispg,ispg2,:) = dkhgas_dpro(ispg,:)*dprodmgas(ispg2,:) ! old way to calc solubility (to be removed?)
-            ddgas_dmgas(ispg,ispg2,:) = poro*sat*dkhgas_dmgas(ispg,ispg2,:)*1d3*tora*dgasa(ispg)
+            ddgas_dmgas(ispg,ispg2,:) = poro*sat*dkhgas_dmgas(ispg,ispg2,:)*1d3*(tora*dgasa(ispg)+disp)
             dagas_dmgas(ispg,ispg2,:) =  poro*sat*dkhgas_dmgas(ispg,ispg2,:)*1d3
         enddo 
     enddo 
@@ -17292,7 +17339,7 @@ do ispg = 1, nsp_gas
         endselect 
     endif 
     
-    dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*tora*dgasa(ispg)
+    dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*(tora*dgasa(ispg)+disp)
     dgasi(ispg) = ucv*1d3*dgasg(ispg) 
     
     agas(ispg,:)= ucv*poroprev*(1.0d0-sat)*1d3+poroprev*sat*khgas(ispg,:)*1d3
@@ -17382,18 +17429,18 @@ do iz = 1, nz
             
         ! dissolved CO2
         
-        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*1d3*tora(max(1,iz-1))*dgasa(ispg)
+        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*1d3*(tora(max(1,iz-1))*dgasa(ispg)+disp(max(1,iz-1)))
         if (iz==1) edifn_tmp = 0d0
         
         flx_co2sp(2,itflx,iz) = ( &
             & (poro(iz)*sat(iz)*kco2*1d3*mgasx(ispg,iz)-poroprev(iz)*sat(iz)*kco2*1d3*mgas(ispg,iz))/dt &
             & )  
         flx_co2sp(2,idif,iz) = ( &
-            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*1d3*tora(iz)*dgasa(ispg) &
-            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*1d3*tora(min(nz,iz+1))*dgasa(ispg)) &
+            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) &
+            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*1d3*(tora(min(nz,iz+1))*dgasa(ispg)+disp(min(nz,iz+1)))) &
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(poro(iz)*sat(iz)*kco2*1d3*tora(iz)*dgasa(ispg) + edifn_tmp) &
+            & - 0.5d0*(poro(iz)*sat(iz)*kco2*1d3*(tora(iz)*dgasa(ispg) +disp(iz)) + edifn_tmp) &
             &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
             & ) 
         flx_co2sp(2,iadv,iz) = ( &
@@ -17402,18 +17449,20 @@ do iz = 1, nz
             
         ! HCO3-
         
-        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*k1/prox(max(1,iz-1))*1d3*tora(max(1,iz-1))*dgasa(ispg)
+        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*k1/prox(max(1,iz-1))*1d3 &
+            & *(tora(max(1,iz-1))*dgasa(ispg)+disp(max(1,iz-1)))
         if (iz==1) edifn_tmp = 0d0
         
         flx_co2sp(3,itflx,iz) = ( &
             & (poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*mgasx(ispg,iz)-poroprev(iz)*sat(iz)*kco2*k1/pro(iz)*1d3*mgas(ispg,iz))/dt &
             & )  
         flx_co2sp(3,idif,iz) = ( &
-            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*tora(iz)*dgasa(ispg) &
-            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*k1/prox(min(nz,iz+1))*1d3*tora(min(nz,iz+1))*dgasa(ispg)) &
+            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) &
+            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*k1/prox(min(nz,iz+1))*1d3 &
+            &       *(tora(min(nz,iz+1))*dgasa(ispg)+disp(min(nz,iz+1))) ) &
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*tora(iz)*dgasa(ispg) + edifn_tmp) &
+            & - 0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
             &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
             & ) 
         flx_co2sp(3,iadv,iz) = ( &
@@ -17424,7 +17473,8 @@ do iz = 1, nz
             
         ! CO32-
         
-        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*k1*k2/prox(max(1,iz-1))**2d0*1d3*tora(max(1,iz-1))*dgasa(ispg)
+        edifn_tmp = poro(max(1,iz-1))*sat(max(1,iz-1))*kco2*k1*k2/prox(max(1,iz-1))**2d0*1d3 &
+            & *(tora(max(1,iz-1))*dgasa(ispg)+disp(max(1,iz-1)))
         if (iz==1) edifn_tmp = 0d0
         
         flx_co2sp(4,itflx,iz) = (  &
@@ -17432,11 +17482,12 @@ do iz = 1, nz
             &       -poroprev(iz)*sat(iz)*kco2*k1*k2/pro(iz)**2d0*1d3*mgas(ispg,iz))/dt &
             & )  
         flx_co2sp(4,idif,iz) = ( &
-            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*tora(iz)*dgasa(ispg) &
-            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*k1*k2/prox(min(nz,iz+1))**2d0*1d3*tora(min(nz,iz+1))*dgasa(ispg)) &
+            & -( 0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) &
+            &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*k1*k2/prox(min(nz,iz+1))**2d0*1d3 &
+            &       *(tora(min(nz,iz+1))*dgasa(ispg)+disp(min(nz,iz+1)))) &
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*tora(iz)*dgasa(ispg) + edifn_tmp) &
+            & - 0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
             &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
             & ) 
         flx_co2sp(4,iadv,iz) = ( &
