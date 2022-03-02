@@ -475,7 +475,15 @@ logical :: disp_ON = .true.
 ! logical :: ads_ON = .false.
 logical :: ads_ON = .true.
 
-logical ads_ON_tmp
+logical :: env_limits_dust = .false.
+! logical :: env_limits_dust = .true.
+
+logical ads_ON_tmp,dust_Off
+
+! real(kind=8)::z_chk_ph = zsupp
+real(kind=8)::z_chk_ph = 0.5d0
+real(kind=8)::ph_lim = 8d0 
+real(kind=8)::time_lim = 40d0 
 
 #ifdef def_flx_save_alltime
 logical :: flx_save_alltime = .true.
@@ -676,9 +684,9 @@ real(kind=8),dimension(nz)::DV
 integer,parameter :: nps_rain_char = 4
 real(kind=8),dimension(nps_rain_char)::pssigma_rain_list,psu_rain_list 
 real(kind=8) psu_pr,pssigma_pr,psu_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd,volsld,flx_max_max,psd_th_flex
-! real(kind=8) :: ps_sigma_std = 1d0
+real(kind=8) :: ps_sigma_std = 1d0
 ! real(kind=8) :: ps_sigma_std = 0.5d0
-real(kind=8) :: ps_sigma_std = 0.2d0
+! real(kind=8) :: ps_sigma_std = 0.2d0
 integer ips,iips,ips_new
 logical psd_error_flg,no_psd_prevrun
 integer,parameter :: nflx_psd = 6
@@ -2404,6 +2412,7 @@ call get_maqgasx_all( &
 
 ! getting maqft_loc and its derivatives
 call get_maqt_all( &
+! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
@@ -2742,6 +2751,7 @@ if (read_data) then
 
     ! getting maqft_loc and its derivatives
     call get_maqt_all( &
+    ! call get_maqt_all_v2( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
         & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
@@ -3208,6 +3218,18 @@ do while (it<nt)
         stop
     endif 
     
+    ! determine whether or not dust depending on pH 
+    dust_off = .false.
+    if (env_limits_dust) then 
+        ! do iz=1,nz
+            ! if (z(iz)<=z_chk_ph .and. -log10(pro(iz)) > ph_lim ) then 
+                ! dust_off = .true.
+                ! exit 
+            ! endif 
+        ! enddo 
+        if (time > time_lim) dust_off = .true.
+    endif 
+    
     ! if defined wave function is imposed on dust 
     if (dust_wave) then 
         do isps = 1, nsp_sld
@@ -3304,34 +3326,35 @@ do while (it<nt)
             if (biot_till) till = .true.
             zml = zml_ref ! mixed layer depth is the value specified for dust  
             ! OM is mixed in fickian
-            if (any(chrsld == 'g1') .and. rfrc_sld_plant_all(findloc(chrsld_all,'g1',dim=1))>0d0) then 
-                fick(findloc(chrsld,'g1',dim=1)) = .true.
-                nobio(findloc(chrsld,'g1',dim=1)) = .false.
-                labs(findloc(chrsld,'g1',dim=1)) = .false.
-                turbo2(findloc(chrsld,'g1',dim=1)) = .false.
-                till(findloc(chrsld,'g1',dim=1)) = .false.
-                zml(findloc(chrsld,'g1',dim=1)) = zsupp
-            endif 
-            if (any(chrsld == 'g2') .and. rfrc_sld_plant_all(findloc(chrsld_all,'g2',dim=1))>0d0) then 
-                fick(findloc(chrsld,'g2',dim=1)) = .true.
-                nobio(findloc(chrsld,'g2',dim=1)) = .false.
-                labs(findloc(chrsld,'g2',dim=1)) = .false.
-                turbo2(findloc(chrsld,'g2',dim=1)) = .false.
-                till(findloc(chrsld,'g2',dim=1)) = .false.
-                zml(findloc(chrsld,'g2',dim=1)) = zsupp
-            endif 
-            if (any(chrsld == 'g3') .and. rfrc_sld_plant_all(findloc(chrsld_all,'g3',dim=1))>0d0) then 
-                fick(findloc(chrsld,'g3',dim=1)) = .true.
-                nobio(findloc(chrsld,'g3',dim=1)) = .false.
-                labs(findloc(chrsld,'g3',dim=1)) = .false.
-                turbo2(findloc(chrsld,'g3',dim=1)) = .false.
-                till(findloc(chrsld,'g3',dim=1)) = .false.
-                zml(findloc(chrsld,'g3',dim=1)) = zsupp
-            endif 
+            do isps = 1, nsp_sld
+                if ( rfrc_sld_plant(isps) > 0d0 ) then 
+                    fick(isps) = .true.
+                    nobio(isps) = .false.
+                    labs(isps) = .false.
+                    turbo2(isps) = .false.
+                    till(isps) = .false.
+                    zml(isps) = zsupp
+                endif 
+            enddo
         else 
             print *, 'Fatale error in dusting?',time,floor(time),dt,step_tau
             stop
         endif 
+        
+        ! not dusting if ph is too high
+        if (dust_off) then 
+            labs = .false.
+            turbo2 = .false.
+            nobio = .false.
+            till = .false.
+            fick = .false. 
+            msldsupp = 0d0
+            dust_norm = 0d0
+            ! only implement fickian mixing 
+            fick = .true. 
+            zml = zsupp ! mixed layer depth is common to all solid sp. 
+        endif 
+        
         ! mixing reload
         save_trans = .false.
         call make_transmx(  &
@@ -3352,16 +3375,32 @@ do while (it<nt)
     ! overload with OM rain 
     do isps = 1, nsp_sld
         if (no_biot) then 
-            ! msldsupp(isps,:) = msldsupp(isps,:) &
-                ! & + plant_rain/12d0/((1d0-poroi)*rho_grain*1d6) &! converting g_C/g_soil/yr to mol_C/m3_soil/yr
-                ! & *1d0 &! assuming 1m depth to which plant C is supplied 
-                ! & *rfrc_sld_plant(isps) &
-                ! & *exp(-z/zsupp_plant)/zsupp_plant
-            msldsupp(isps,:) = msldsupp(isps,:) &
-                & + plant_rain/12d0*rfrc_sld_plant(isps)*exp(-z/zsupp_plant)/zsupp_plant ! when plant_
+            selectcase(trim(adjustl(chrsld(isps))))
+                case('g1','g2','g3')
+                    ! msldsupp(isps,:) = msldsupp(isps,:) &
+                        ! & + plant_rain/12d0/((1d0-poroi)*rho_grain*1d6) &! converting g_C/g_soil/yr to mol_C/m3_soil/yr
+                        ! & *1d0 &! assuming 1m depth to which plant C is supplied 
+                        ! & *rfrc_sld_plant(isps) &
+                        ! & *exp(-z/zsupp_plant)/zsupp_plant
+                    msldsupp(isps,:) = msldsupp(isps,:) &
+                        & + plant_rain/12d0*rfrc_sld_plant(isps)*exp(-z/zsupp_plant)/zsupp_plant ! when plant_
+                case('amnt','cc')
+                    msldsupp(isps,:) = msldsupp(isps,:) &
+                        & + plant_rain/mwt(isps)*rfrc_sld_plant(isps)*exp(-z/zsupp_plant)/zsupp_plant ! when plant_
+                case default
+                    ! not doing anything
+            endselect
         else 
-            msldsupp(isps,1) = msldsupp(isps,1) &
-                & + plant_rain/12d0*rfrc_sld_plant(isps)/dz(1) ! when plant_rain is in g_C/m2/yr
+            selectcase(trim(adjustl(chrsld(isps))))
+                case('g1','g2','g3')
+                    msldsupp(isps,1) = msldsupp(isps,1) &
+                        & + plant_rain/12d0*rfrc_sld_plant(isps)/dz(1) ! when plant_rain is in g_C/m2/yr
+                case('amnt','cc')
+                    msldsupp(isps,1) = msldsupp(isps,1) &
+                        & + plant_rain/mwt(isps)*rfrc_sld_plant(isps)/dz(1) ! when plant_rain is in g_(isps)/m2/yr
+                case default
+                    ! not doing anything
+            endselect
         endif 
     enddo 
     ! when enforcing solid states without previous OM spin-up
@@ -8077,6 +8116,7 @@ select case(trim(adjustl(mineral)))
         tc_ref = 15d0
         q10 = 3d0
         kin = k_q10(kref,tc,tc_ref,q10)
+        ! kin = kref
         dkin_dmsp = 0d0
         
     case default 
@@ -10850,6 +10890,7 @@ call get_base_charge( &
     & )
     
 call get_maqt_all( &
+! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
@@ -15836,7 +15877,7 @@ do ispa = 1, nsp_aq_all
             dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
                 & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(pnh3x*knh3/k1nh3)**rspa_nh3*rspa_nh3*prox**(rspa_nh3-1d0)
             dmaqft_dmgas(ispa,ipnh3,:) = dmaqft_dmgas(ispa,ipnh3,:) &
-                & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3)**rspa_nh3*rspa_nh3*pnh3x**(rspa_nh3-1d0)*prox**rspa_nh3
+                & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3*prox)**rspa_nh3*rspa_nh3*pnh3x**(rspa_nh3-1d0)
         endif 
     enddo 
     
@@ -15942,6 +15983,165 @@ do ispa = 1, nsp_aq_all
 enddo     
 
 endsubroutine get_maqt_all
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_maqt_all_v2( &
+    & nz,nsp_aq_all,nsp_gas_all &
+    & ,chraq_all,chrgas_all &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
+    & ,mgasx_loc,maqf_loc,prox &
+    & ,dmaqft_dpro,dmaqft_dmaqf,dmaqft_dmgas &! output
+    & ,maqft_loc  &! output
+    & )
+! calculating ratio of total dissolved species relative to maqf_loc
+implicit none
+integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
+real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
+real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
+real(kind=8),dimension(nz),intent(in)::prox
+
+real(kind=8),dimension(nsp_aq_all,nz),intent(out)::maqft_loc
+real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dmaqft_dpro
+real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz),intent(out)::dmaqft_dmaqf
+real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz),intent(out)::dmaqft_dmgas
+
+integer ispa,ispa_h,ispa_c,ispa_s,ispa_no3,ispa_nh3,ispg,iso4,ipco2,ino3,ipnh3,ispa2
+
+integer ieqgas_h0,ieqgas_h1,ieqgas_h2
+data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
+
+integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
+data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
+
+real(kind=8) kco2,k1,k2,k1no3,rspa_h,rspa_s,rspa_no3,rspa_nh3,knh3,k1nh3
+real(kind=8),dimension(nz)::pco2x,so4f,no3f,pnh3x
+
+iso4 = findloc(chraq_all,'so4',dim=1)
+ino3 = findloc(chraq_all,'no3',dim=1)
+ipco2 = findloc(chrgas_all,'pco2',dim=1)
+ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
+
+kco2 = keqgas_h(ipco2,ieqgas_h0)
+k1 = keqgas_h(ipco2,ieqgas_h1)
+k2 = keqgas_h(ipco2,ieqgas_h2)
+knh3 = keqgas_h(ipnh3,ieqgas_h0)
+k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
+
+pnh3x = mgasx_loc(ipnh3,:)
+pco2x = mgasx_loc(ipco2,:)
+so4f = maqf_loc(iso4,:)
+no3f = maqf_loc(ino3,:)
+
+maqft_loc = 1d0
+
+dmaqft_dpro = 0d0
+dmaqft_dmaqf = 0d0
+dmaqft_dmgas = 0d0
+
+do ispa = 1, nsp_aq_all
+    
+    ! complex with NH4
+    do ispa_nh3 = 1,2
+        rspa_nh3 = real(ispa_nh3,kind=8)
+        if ( keqaq_nh3(ispa,ispa_nh3) > 0d0) then 
+            maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_nh3(ispa,ispa_nh3)*(pnh3x*knh3/k1nh3*prox)**rspa_nh3
+            dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
+                & + keqaq_nh3(ispa,ispa_nh3)*(pnh3x*knh3/k1nh3)**rspa_nh3*rspa_nh3*prox**(rspa_nh3-1d0)
+            dmaqft_dmgas(ispa,ipnh3,:) = dmaqft_dmgas(ispa,ipnh3,:) &
+                & + keqaq_nh3(ispa,ispa_nh3)*(knh3/k1nh3*prox)**rspa_nh3*rspa_nh3*pnh3x**(rspa_nh3-1d0)
+        endif 
+    enddo 
+    
+    ! annions
+    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
+        ! maqft_loc(ispa,:) = 1d0
+        ! account for hydrolysis speces
+        do ispa_h = 1,4
+            rspa_h = real(ispa_h,kind=8)
+            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*prox**rspa_h
+                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*rspa_h*prox**(rspa_h-1d0)
+            endif 
+        enddo 
+    ! cations
+    else 
+        ! maqft_loc(ispa,:) = 1d0
+        ! account for hydrolysis speces
+        do ispa_h = 1,4
+            rspa_h = real(ispa_h,kind=8)
+            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)/prox**rspa_h
+                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*(-rspa_h)/prox**(1d0+rspa_h)
+            endif 
+        enddo 
+        ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
+        do ispa_c = 1,2
+            if ( keqaq_c(ispa,ispa_c) > 0d0) then 
+                if (ispa_c == 1) then ! with CO3--
+                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x/prox**2d0
+                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
+                        & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x*(-2d0)/prox**3d0
+                    dmaqft_dmgas(ispa,ipco2,:) = dmaqft_dmgas(ispa,ipco2,:) &
+                        & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*1d0/prox**2d0
+                elseif (ispa_c == 2) then ! with HCO3- ( CO32- + H+)
+                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x/prox
+                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
+                        & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x*(-1d0)/prox**2d0
+                    dmaqft_dmgas(ispa,ipco2,:) = dmaqft_dmgas(ispa,ipco2,:) &
+                        & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*1d0/prox
+                endif 
+            endif 
+        enddo 
+        ! account for complexation with free SO4
+        do ispa_s = 1,2
+            rspa_s = real(ispa_s,kind=8)
+            if ( keqaq_s(ispa,ispa_s) > 0d0) then 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_s(ispa,ispa_s)*so4f**rspa_s
+                dmaqft_dmaqf(ispa,iso4,:) = dmaqft_dmaqf(ispa,iso4,:) &
+                    & + keqaq_s(ispa,ispa_s)*rspa_s*so4f**(rspa_s-1d0)
+                
+                maqft_loc(iso4,:) = maqft_loc(iso4,:) &
+                    & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**(rspa_s-1d0)
+                dmaqft_dmaqf(iso4,iso4,:) = dmaqft_dmaqf(iso4,iso4,:) + ( &
+                    & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*(rspa_s-1d0)*so4f**(rspa_s-2d0) &
+                    & )
+                dmaqft_dmaqf(iso4,ispa,:) = dmaqft_dmaqf(iso4,ispa,:) + ( &
+                    & + rspa_s*keqaq_s(ispa,ispa_s)*1d0*so4f**(rspa_s-1d0) &
+                    & )
+            endif 
+        enddo 
+        ! account for complexation with free NO3
+        do ispa_no3 = 1,2
+            rspa_no3 = real(ispa_no3,kind=8)
+            if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_no3(ispa,ispa_no3)*no3f**rspa_no3
+                dmaqft_dmaqf(ispa,ino3,:) = dmaqft_dmaqf(ispa,ino3,:) &
+                    & + keqaq_no3(ispa,ispa_no3)*(rspa_no3-1d0)*no3f**(rspa_no3-2d0)
+                
+                maqft_loc(ino3,:) = maqft_loc(ino3,:) &
+                    & + rspa_no3*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**(rspa_no3-1d0)
+                dmaqft_dmaqf(ino3,ino3,:) = dmaqft_dmaqf(ino3,ino3,:) + ( &
+                    & + rspa_no3*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*(rspa_no3-1d0)*no3f**(rspa_no3-2d0) &
+                    & )
+                dmaqft_dmaqf(ino3,ispa,:) = dmaqft_dmaqf(ino3,ispa,:) + ( &
+                    & + rspa_no3*keqaq_no3(ispa,ispa_no3)*1d0*no3f**(rspa_no3-1d0) &
+                    & )
+            endif 
+        enddo 
+    endif 
+    
+enddo     
+
+endsubroutine get_maqt_all_v2
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -19385,6 +19585,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     
     ! getting maqft_loc and its derivatives
     call get_maqt_all( &
+    ! call get_maqt_all_v2( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
         & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
@@ -21113,6 +21314,7 @@ call get_maqgasx_all( &
 
 ! getting maqft_loc and its derivatives
 call get_maqt_all( &
+! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
