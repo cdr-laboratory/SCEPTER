@@ -475,15 +475,14 @@ logical :: disp_ON = .true.
 ! logical :: ads_ON = .false.
 logical :: ads_ON = .true.
 
-logical :: env_limits_dust = .false.
-! logical :: env_limits_dust = .true.
+logical :: ph_limits_dust = .false.
+! logical :: ph_limits_dust = .true.
 
 logical ads_ON_tmp,dust_Off
 
 ! real(kind=8)::z_chk_ph = zsupp
 real(kind=8)::z_chk_ph = 0.5d0
 real(kind=8)::ph_lim = 8d0 
-real(kind=8)::time_lim = 40d0 
 
 #ifdef def_flx_save_alltime
 logical :: flx_save_alltime = .true.
@@ -550,7 +549,7 @@ logical :: flgreducedt = .false.
 logical :: flgreducedt_prev = .false.
 
 real(kind=8) time_start, time_fin, progress_rate, progress_rate_prev
-integer count_dtunchanged  
+integer count_dtunchanged,count_dtunchanged_Max_loc  
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
@@ -2392,16 +2391,17 @@ call calc_pH_v7_2( &
     ! & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
     ! & ,pro,ph_error,so4f,ph_iter &! output
     ! & ) 
-! pro = 1d0
+pro = 1d0
 call calc_pH_v7_4( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+    & ,poro,sat &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,pro,ph_error,ph_iter &! output
     & ) 
-    
+! stop
 ! getting mgasx_loc & maqx_loc
 call get_maqgasx_all( &
     & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
@@ -2732,15 +2732,17 @@ if (read_data) then
         ! & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
         ! & ,prox,ph_error,so4f,ph_iter &! output
         ! & ) 
-    ! prox = pro
+    prox = pro
     call calc_pH_v7_4( &
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+        & ,poro,sat &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
         & ,print_cb,print_loc,z &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
         & ) 
+    ! stop
     ! getting mgasx_loc & maqx_loc
     call get_maqgasx_all( &
         & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
@@ -2950,6 +2952,8 @@ do while (it<nt)
     ! elseif (dt>=1d0 ) then 
         ! count_dtunchanged_Max = 1000
     ! endif 
+    count_dtunchanged_Max_loc = count_dtunchanged_Max
+    if (dt < 1d-6 ) count_dtunchanged_Max_loc = 10d0
 
     ! -------- modifying dt --------
 
@@ -3220,14 +3224,13 @@ do while (it<nt)
     
     ! determine whether or not dust depending on pH 
     dust_off = .false.
-    if (env_limits_dust) then 
-        ! do iz=1,nz
-            ! if (z(iz)<=z_chk_ph .and. -log10(pro(iz)) > ph_lim ) then 
-                ! dust_off = .true.
-                ! exit 
-            ! endif 
-        ! enddo 
-        if (time > time_lim) dust_off = .true.
+    if (ph_limits_dust) then 
+        do iz=1,nz
+            if (z(iz)<=z_chk_ph .and. -log10(pro(iz)) > ph_lim ) then 
+                dust_off = .true.
+                exit 
+            endif 
+        enddo 
     endif 
     
     ! if defined wave function is imposed on dust 
@@ -5022,6 +5025,7 @@ do while (it<nt)
             
         call calc_pH_v7_4( &
             & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+            & ,poro,sat &! input 
             & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
             & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
             & ,print_cb,print_loc,z &! input 
@@ -5561,7 +5565,7 @@ do while (it<nt)
                 ! if (dt > maxdt) dt = maxdt
             endif 
             
-            if (count_dtunchanged > count_dtunchanged_Max) then 
+            if (count_dtunchanged > count_dtunchanged_Max_loc) then 
                 maxdt = maxdt*10d0
                 count_dtunchanged = 0
             endif 
@@ -10776,7 +10780,8 @@ endsubroutine calc_pH_v7_3
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine calc_pH_v7_4( &
-    & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+    & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input
+    & ,poro,sat &! input  
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,print_cb,print_loc,z &! input 
@@ -10790,15 +10795,16 @@ implicit none
 integer,intent(in)::nz
 real(kind=8),intent(in)::kw
 real(kind=8) so4th
-real(kind=8),dimension(nz)::so4x
-real(kind=8),dimension(nz),intent(in)::z
+real(kind=8),dimension(nz)::so4x,prox_save,error_save,prox_save_newton,prox_save_bisec,prox_init
+real(kind=8),dimension(nz),intent(in)::z,poro,sat
 real(kind=8),dimension(nz),intent(inout)::prox
 logical,intent(out)::ph_error
 
-real(kind=8),dimension(nz)::prox_max,prox_min
+real(kind=8),dimension(nz)::prox_max,prox_min,ph_add_order,prox_tmp1,prox_tmp2
 real(kind=8),dimension(nz)::f1_max,f1_min
 real(kind=8),dimension(nz)::df1,f1,f2,df2,df21,df12,d2f1
-real(kind=8) error,tol,dconc,ph_add_order 
+real(kind=8) k_order,ph_inflex,a_order,c_order
+real(kind=8) error,tol,dconc 
 integer iter,iz,ispa,ispg
 
 integer,intent(in)::nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst
@@ -10832,22 +10838,27 @@ real(kind=8),dimension(nsp_gas_all,nz),intent(out)::dprodmgas_all
 
 real(kind=8),dimension(nsp_aq_all,nz)::dmaq,maqtmp_loc
 real(kind=8),dimension(nsp_gas_all,nz)::dmgas,mgastmp_loc
-real(kind=8),dimension(nz)::df1_dum,f1_dum,f2_dum,df2_dum,df21_dum,df12_dum,fact
-real(kind=8),dimension(nsp_aq_all,nz)::df1dmaq_dum,df2dmaq_dum
-real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas_dum,df2dmgas_dum
+real(kind=8),dimension(nz)::df1_dum,f1_dum,d2f1_dum,fact,f1_tmp,df1_tmp,d2f1_tmp
+real(kind=8),dimension(nz)::f1_tmp1,df1_tmp1,d2f1_tmp1
+real(kind=8),dimension(nz)::f1_tmp2,df1_tmp2,d2f1_tmp2
+real(kind=8),dimension(nsp_aq_all,nz)::df1dmaqf_dum,d2f1dmaqf_dum,df1dmaqf_tmp,d2f1dmaqf_tmp
+real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas_dum,d2f1dmgas_dum,df1dmgas_tmp,d2f1dmgas_tmp
 
 real(kind=8),dimension(nsp_aq_all,nz)::dmaqft_dpro_loc,maqft_loc
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz)::dmaqft_dmaqf_loc
 real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz)::dmaqft_dmgas_loc
 
-integer iso4
+integer iso4,iph,iph2,iph3
+integer :: nph = 3000
+integer :: nph2 = 1000
+integer :: nph3 = 15
 
 integer,intent(out)::ph_iter
 
 logical,intent(in)::print_cb
 character(500),intent(in)::print_loc
 logical so4_error,print_res
-logical bisec_chk,bisec_chk_ON,bisec_only
+logical bisec_chk,bisec_chk_ON,bisec_only,mod_ph_order,calc_simple,halley,first_chk_done
 
 real(kind=8),allocatable::amx(:,:),ymx(:)
 integer,allocatable::ipiv(:)
@@ -10856,17 +10867,38 @@ integer info,nmx
 real(kind=8),parameter :: threshold = 10d0
 real(kind=8),parameter :: corr = exp(threshold)
 
+real(kind=8) ph_tmp,ph_fact,err1,err2,slp,slplog,ph_tmp_min,ph_tmp_max
+real(kind=8) ph_max,ph_min 
 
-bisec_chk_ON = .false.
-! bisec_chk_ON = .true.
+
+! bisec_chk_ON = .false.
+bisec_chk_ON = .true.
 
 bisec_only = .false.
 ! bisec_only = .true.
 
+mod_ph_order = .false.
+! mod_ph_order = .true.
+
+! calc_simple = .false.
+calc_simple = .true.
+
 error = 1d4
 tol = 1d-6
 dconc = 1d0
+ph_add_order = 0d0
 ph_add_order = 2d0
+
+k_order = 0.5d0
+ph_inflex = 7d0
+a_order = 2d0
+c_order = 2d0
+
+! where(-log10(prox)<3d0)
+    ! ph_add_order=0d0
+! endwhere 
+
+! ph_add_order = a_order/(1d0+EXP(-2d0*k_order*(-log10(prox)-ph_inflex))) + c_order
 
 ! prox = 1d0 
 iter = 0
@@ -10915,13 +10947,21 @@ ph_error = .false.
 
 print_res = .false.
 
+prox_init = prox
+
 ! print*,'calc_pH'
 if (.not. print_cb) then
     ! obtaining ph and so4f from scratch
   
-    prox = 1d0 
+    ! prox = 1d0 
     do while (error > tol)
-    
+    ! do while (error > tol*1d-4)
+
+        prox_save = prox
+        
+        if (mod_ph_order) ph_add_order = a_order/(1d0+EXP(-2d0*k_order*(-log10(prox)-ph_inflex))) + c_order
+        ! ph_add_order = 4d0/14d0*(-log10(prox))
+        
         if (bisec_only) then 
             ph_error = .true.
             bisec_chk_ON = .true.
@@ -10941,63 +10981,105 @@ if (.not. print_cb) then
             & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
             & )
         
-        df1 = df1*prox
+        ! df1 = df1*prox
         
         if (any(isnan(f1)).or.any(isnan(df1))) then 
             print*,'found nan during the course of ph calc: newton'
             print *,any(isnan(f1)),any(isnan(df1))
             print *,prox
             ph_error = .true.
+            return
             exit
             ! pause 
         endif 
         
-        ! where (-f1/df1 < -threshold)
-            ! fact = 1d0/corr
-        ! elsewhere (-f1/df1 > threshold)
-            ! fact = corr
-        ! elsewhere 
+        if (calc_simple) then         
+            ! where (-f1/df1 < -threshold)
+                ! fact = 1d0/corr
+            ! elsewhere (-f1/df1 > threshold)
+                ! fact = corr
+            ! elsewhere 
+                ! fact = exp(-f1/df1)
+            ! endwhere
             ! fact = exp(-f1/df1)
-        ! endwhere
-        ! fact = exp(-f1/df1)
-        ! prox = prox*fact
-        
-        ! prox = prox*exp( -f1/df1 )
-        ! error = maxval(abs(exp( -f1/df1 )-1d0))
-        ! if (isnan(error)) error = 1d4    
+            ! prox = prox*fact
+            ! prox = prox*dexp( -f1/df1/prox )
+            ! error = maxval(dabs(dexp( -f1/df1/prox )-1d0))
             
-        amx = 0d0
-        ymx = 0d0
-        
-        ymx(1:nz) = f1(:)
-        
-        do iz=1,nz
-            amx(iz,iz)=df1(iz)
-        enddo 
-        ymx = -ymx
-        
-        call DGESV(nmx,int(1),amx,nmx,ipiv,ymx,nmx,info) 
-        
-        prox = prox*exp( ymx(1:nz) )
-        
-        error = maxval(abs(exp( ymx )-1d0))
-        if (isnan(error) .or. info/=0) then 
-            print*,error,info
-            error = 1d4
-            ph_error = .true.
-            exit 
+            ! if (maxval(dabs(dexp( -f1/df1/prox )-1d0)) < &
+                ! & maxval(dabs(dexp( -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )/prox )-1d0)) ) then 
+            ! if (.false.) then
+            if (.true.) then
+                halley = .false.
+                where (prox -f1/df1>0d0)
+                    prox = prox -f1/df1
+                elsewhere 
+                    prox = prox*dexp( -f1/df1/prox )
+                    ! prox = prox*0.1d0
+                endwhere
+                error = maxval(dabs(dexp( -f1/df1/prox )-1d0))
+            else 
+                halley = .true.
+                ! where (prox -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 ) >0d0)
+                    ! prox = prox - 2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )
+                ! elsewhere 
+                    ! prox = prox*dexp( -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )/prox )
+                ! endwhere
+                prox = prox*dexp( -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )/prox )
+                error = maxval(dabs(dexp( -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )/prox )-1d0))
+            endif 
+            ! if (isnan(error)) error = 1d4    
+
+        else
+            halley = .false.
+            
+            amx = 0d0
+            ymx = 0d0
+            
+            ymx(1:nz) = f1(:)
+            
+            do iz=1,nz
+                amx(iz,iz)=df1(iz)*prox(iz)
+            enddo 
+            ymx = -ymx
+            
+            call DGESV(nmx,int(1),amx,nmx,ipiv,ymx,nmx,info) 
+            
+            error = maxval(abs(exp( ymx )-1d0))
+            ! error = maxval( abs ( prox*exp( ymx(1:nz) )*poro*sat*1d3 - prox*poro*sat*1d3))
+            
+            prox = prox*exp( ymx(1:nz) )
+            
+            if (isnan(error) .or. info/=0) then 
+                print*,error,info
+                error = 1d4
+                ph_error = .true.
+                return
+                exit 
+            endif 
         endif 
         
-        ! where (prox <= 1d-15)
-            ! prox = 1d0
-        ! endwhere
+        error = maxval(dabs((prox_save-prox)/prox))
+        error_save = dabs((prox_save-prox)/prox)
+        
+        ! if (any(prox == 0d0)) then 
+            ! error = 1d4
+            ! where (prox == 0d0)
+                ! prox = 1d-12
+                ! error_save = 1d4
+            ! endwhere
+        ! endif 
         
         iter = iter + 1
         
         if (iter > 3000) then 
-            print *,'iteration exceeds 3000 with newton method'
-            print*,error
-            print*,prox
+            print *,'iteration exceeds 3000 with newton method: error = ',error, ' tol = ',tol,halley
+            do iz=1,nz
+                print*,iz,-log10(prox_save(iz)),-log10(prox(iz)),dabs((prox_save(iz)-prox(iz))/prox(iz)),abs(f1(iz))
+                error_save(iz) = dabs((prox_save(iz)-prox(iz))/prox(iz))
+            enddo
+            ! print*,error
+            ! print*,prox
             ph_error = .true.
             if (.not.bisec_chk_ON) return
         endif 
@@ -11008,10 +11090,297 @@ if (.not. print_cb) then
     bisec_chk = .false.
     if ( bisec_chk_ON .and. ph_error ) bisec_chk = .true.
     
+    ! tring brutal forcing 
     if (bisec_chk) then 
+        prox_save_newton = prox
+        do iz=1,nz
+            if (error_save(iz)<tol) cycle
+            print *, 'not converged @ ',iz
+            
+            first_chk_done = .false.
+            ! check to where a root likely exists
+            ph_min = -1d0
+            ph_max = 15d0
+            prox_tmp1 = prox
+            prox_tmp2 = prox 
+            do iph3 = 1,nph3
+                ph_tmp_min = -1d100
+                ph_tmp_max = 1d100
+                
+                do iph2=1,nph2 ! start from alkaline pH
+                    ph_tmp = ph_max + (ph_min - ph_max) &
+                        & * (real(iph2,kind=8)-1d0)/(real(nph2,kind=8)-1d0) 
+                    ph_tmp = 10d0**-ph_tmp
+                    
+                    dconc = ph_tmp*1d-6
+                    
+                    prox_tmp1(iz) = ph_tmp + dconc
+                    prox_tmp2(iz) = ph_tmp - dconc
+                    
+                    call calc_charge_balance_point( &
+                        & nz,nsp_aq_all,nsp_gas_all &
+                        & ,chraq_all,chrgas_all &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,base_charge &
+                        & ,mgasx_loc,maqf_loc &
+                        & ,z,prox_tmp1,iz &
+                        & ,print_loc,print_res,ph_add_order &
+                        & ,f1_tmp1,df1_tmp1,df1dmaqf_dum,df1dmgas_dum &!output
+                        & ,d2f1_tmp1,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                        & )
+                    
+                    call calc_charge_balance_point( &
+                        & nz,nsp_aq_all,nsp_gas_all &
+                        & ,chraq_all,chrgas_all &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,base_charge &
+                        & ,mgasx_loc,maqf_loc &
+                        & ,z,prox_tmp2,iz &
+                        & ,print_loc,print_res,ph_add_order &
+                        & ,f1_tmp2,df1_tmp2,df1dmaqf_dum,df1dmgas_dum &!output
+                        & ,d2f1_tmp2,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                        & )
+                    
+                    err1 = dabs(dexp(-f1_tmp1(iz)/df1_tmp1(iz)/prox_tmp1(iz))-1d0)
+                    err2 = dabs(dexp(-f1_tmp2(iz)/df1_tmp2(iz)/prox_tmp2(iz))-1d0)
+                    
+                    slp = ( err1 - err2) / (2d0*dconc)
+                    slplog = ( err1 - err2) / (-dlog10(prox_tmp1(iz)) - (-dlog10(prox_tmp1(iz)))  )
+                    
+                    prox(iz) = ph_tmp
+
+                    call calc_charge_balance_point( &
+                        & nz,nsp_aq_all,nsp_gas_all &
+                        & ,chraq_all,chrgas_all &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,base_charge &
+                        & ,mgasx_loc,maqf_loc &
+                        & ,z,prox,iz &
+                        & ,print_loc,print_res,ph_add_order &
+                        & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
+                        & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                        & )
+                    
+                    ! print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_min)
+                    
+                    if (slp <= 0d0 .and. f1_dum(iz) <= 0d0) ph_tmp_min = max(ph_tmp_min,ph_tmp)
+                
+                enddo 
+                
+                do iph2=nph2,1,-1 ! start from acidic pH
+                    ph_tmp = ph_max + (ph_min - ph_max) &
+                        & * (real(iph2,kind=8)-1d0)/(real(nph2,kind=8)-1d0) 
+                    ph_tmp = 10d0**-ph_tmp
+                    
+                    dconc = ph_tmp*1d-6
+                    
+                    prox_tmp1(iz) = ph_tmp + dconc
+                    prox_tmp2(iz) = ph_tmp - dconc
+                    
+                    call calc_charge_balance_point( &
+                        & nz,nsp_aq_all,nsp_gas_all &
+                        & ,chraq_all,chrgas_all &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,base_charge &
+                        & ,mgasx_loc,maqf_loc &
+                        & ,z,prox_tmp1,iz &
+                        & ,print_loc,print_res,ph_add_order &
+                        & ,f1_tmp1,df1_tmp1,df1dmaqf_dum,df1dmgas_dum &!output
+                        & ,d2f1_tmp1,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                        & )
+                    
+                    call calc_charge_balance_point( &
+                        & nz,nsp_aq_all,nsp_gas_all &
+                        & ,chraq_all,chrgas_all &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,base_charge &
+                        & ,mgasx_loc,maqf_loc &
+                        & ,z,prox_tmp2,iz &
+                        & ,print_loc,print_res,ph_add_order &
+                        & ,f1_tmp2,df1_tmp2,df1dmaqf_dum,df1dmgas_dum &!output
+                        & ,d2f1_tmp2,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                        & )
+                    
+                    err1 = dabs(dexp(-f1_tmp1(iz)/df1_tmp1(iz)/prox_tmp1(iz))-1d0)
+                    err2 = dabs(dexp(-f1_tmp2(iz)/df1_tmp2(iz)/prox_tmp2(iz))-1d0)
+                    
+                    slp = ( err1 - err2) / (2d0*dconc)
+                    slplog = ( err1 - err2) / (-dlog10(prox_tmp1(iz)) - (-dlog10(prox_tmp1(iz)))  )
+                    
+                    prox(iz) = ph_tmp
+
+                    call calc_charge_balance_point( &
+                        & nz,nsp_aq_all,nsp_gas_all &
+                        & ,chraq_all,chrgas_all &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,base_charge &
+                        & ,mgasx_loc,maqf_loc &
+                        & ,z,prox,iz &
+                        & ,print_loc,print_res,ph_add_order &
+                        & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
+                        & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                        & )
+                        
+                    ! print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_max)
+                    
+                    if (slp >= 0d0 .and. f1_dum(iz) >= 0d0) ph_tmp_max = min(ph_tmp_max,ph_tmp)
+                
+                enddo 
+                ph_max = -log10(ph_tmp_min)
+                ph_min = -log10(ph_tmp_max)
+                error = abs( 10d0**-ph_min -  10d0**-ph_max)/10d0**-ph_max
+                
+                print*, iph3, 'a root likely between'& 
+                    & , ph_min , 'and', ph_max, '>>> error=', error 
+                
+                if (ph_min > ph_max) then 
+                    print *, 'ph_min > ph_max detected: something is wrong in bracketing root'
+                    stop
+                endif 
+                
+                if (error < tol*1d-6) then 
+                    print *, ' *** root found *** ',iz
+                    prox(iz) = 10d0**(-0.5d0*(ph_max + ph_min))
+                    first_chk_done = .true.
+                    exit
+                endif 
+            enddo
+            ! pause
+            cycle
+            if (first_chk_done) cycle
+            
+            ! trying to find solution where error = 0d0 instead of f1
+            prox_tmp1 = prox
+            prox_tmp2 = prox
+            
+            dconc = 1d-7
+            
+            first_chk_done = .false.
+            
+            do iph=1,nph
+                
+                ! dconc = prox(iz)*1d-6
+                
+                prox_tmp1(iz) = prox(iz) + dconc
+                prox_tmp2(iz) = prox(iz) - dconc
+                
+                call calc_charge_balance_point( &
+                    & nz,nsp_aq_all,nsp_gas_all &
+                    & ,chraq_all,chrgas_all &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                    & ,base_charge &
+                    & ,mgasx_loc,maqf_loc &
+                    & ,z,prox_tmp1,iz &
+                    & ,print_loc,print_res,ph_add_order &
+                    & ,f1_tmp1,df1_tmp1,df1dmaqf_dum,df1dmgas_dum &!output
+                    & ,d2f1_tmp1,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                    & )
+                
+                call calc_charge_balance_point( &
+                    & nz,nsp_aq_all,nsp_gas_all &
+                    & ,chraq_all,chrgas_all &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                    & ,base_charge &
+                    & ,mgasx_loc,maqf_loc &
+                    & ,z,prox_tmp2,iz &
+                    & ,print_loc,print_res,ph_add_order &
+                    & ,f1_tmp2,df1_tmp2,df1dmaqf_dum,df1dmgas_dum &!output
+                    & ,d2f1_tmp2,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                    & )
+                
+                err1 = dabs(dexp(-f1_tmp1(iz)/df1_tmp1(iz)/prox_tmp1(iz))-1d0)
+                err2 = dabs(dexp(-f1_tmp2(iz)/df1_tmp2(iz)/prox_tmp2(iz))-1d0)
+                
+                if (isnan(err1) .or. isnan(err2)) then 
+                    print*,prox_tmp1(iz),f1_tmp1(iz),df1_tmp1(iz)
+                    print*,prox_tmp2(iz),f1_tmp2(iz),df1_tmp2(iz)
+                    ! stop
+                    ! exit
+                    err1 = f1_tmp1(iz)
+                    err2 = f1_tmp2(iz)
+                endif 
+                
+                slp = ( err1 - err2) / (2d0*dconc)
+                slplog = ( err1 - err2) / (-dlog10(prox_tmp1(iz)) - (-dlog10(prox_tmp1(iz)))  )
+                
+                if (prox_tmp1(iz) - err1/slp > 0d0) then 
+                    ph_tmp = prox_tmp1(iz) - err1/slp
+                else 
+                    ph_tmp = -dlog10(prox_tmp1(iz)) - err1/slplog
+                    ph_tmp = 10d0**(-ph_tmp)
+                endif 
+                
+                prox(iz) = ph_tmp
+
+                call calc_charge_balance_point( &
+                    & nz,nsp_aq_all,nsp_gas_all &
+                    & ,chraq_all,chrgas_all &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                    & ,base_charge &
+                    & ,mgasx_loc,maqf_loc &
+                    & ,z,prox,iz &
+                    & ,print_loc,print_res,ph_add_order &
+                    & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
+                    & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                    & )
+
+                print *, iph, -log10(ph_tmp),dabs(dexp(-f1_dum(iz)/df1_dum(iz)/prox(iz))-1d0),dabs(f1_dum(iz))
+
+                if ( dabs(dexp(-f1_dum(iz)/df1_dum(iz)/prox(iz))-1d0) < tol ) then 
+                    first_chk_done = .true.
+                    exit 
+                endif 
+            
+            enddo 
+            print *, 'new ph ', -dlog10(ph_tmp), 'old ph ',  -dlog10(prox_save_newton(iz))
+            
+            if (first_chk_done) cycle
+            
+            ph_tmp = prox_save_newton(iz)
+            ph_fact = 3d0
+            f1_tmp = 1d100
+            do iph=1,nph
+                prox(iz) = ph_fact*prox_save_newton(iz) &
+                    & + (prox_save_newton(iz)/ph_fact - ph_fact*prox_save_newton(iz)) &
+                    & * (real(iph,kind=8)-1d0)/(real(nph,kind=8)-1d0) 
+                call calc_charge_balance_point( &
+                    & nz,nsp_aq_all,nsp_gas_all &
+                    & ,chraq_all,chrgas_all &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                    & ,base_charge &
+                    & ,mgasx_loc,maqf_loc &
+                    & ,z,prox,iz &
+                    & ,print_loc,print_res,ph_add_order &
+                    & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
+                    & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+                    & )
+                ! if (ph_tmp -f1_dum(iz)/df1_dum(iz) > 0d0) then 
+                    ! ph_tmp = ph_tmp -f1_dum(iz)/df1_dum(iz) 
+                ! else 
+                    ! ph_tmp = ph_tmp*exp(-f1_dum(iz)/df1_dum(iz)/ph_tmp)
+                ! endif 
+                ! ph_tmp = ph_tmp*exp(-f1_dum(iz)/df1_dum(iz)/prox(iz))
+                ! ph_tmp = ph_tmp &
+                    ! & *dexp( -2d0*f1_dum(iz)*df1_dum(iz)/(2d0*df1_dum(iz)**2d0 - f1_dum(Iz)*d2f1_dum(iz) )/prox(iz))
+                ! prox(iz) = ph_tmp
+                ! print *, iph, -log10(ph_tmp),dabs(exp(-f1_dum(iz)/df1_dum(iz)/prox(iz))-1d0),dabs(f1_dum(iz))
+                ! if ( dabs(exp(-f1_dum(iz)/df1_dum(iz)/prox(iz))-1d0) < tol ) exit 
+                if ( abs(f1_dum(iz)) < abs(f1_tmp(iz)) ) then 
+                    ph_tmp = prox(iz)
+                    f1_tmp(iz) = f1_dum(iz)
+                endif 
+            enddo 
+            prox(iz) = ph_tmp
+            print *, 'new ph ', -dlog10(ph_tmp), 'old ph ',  -dlog10(prox_save_newton(iz))
+        enddo 
+    endif 
+    
+    ! if (bisec_chk) then 
+    if (.false.) then 
         ! bisection method 
-        prox_min = 1d-16
-        prox_max = 1d0
+        prox_save_newton = prox
+        prox_min = prox/2d0
+        prox_max = prox*2d0
         error = 1d4
         iter = 0
         ph_error = .false.
@@ -11108,22 +11477,35 @@ if (.not. print_cb) then
             if (ph_error) exit 
             
         enddo  
-        ! print *,'solved with bisection'
-        ! print *,prox
+        print *,'solved with bisection'
+        print *,' updated ', ' newton ', ' bisec ', ' previous error '
+        prox_save_bisec = prox
+        prox = prox_save_newton
+        where (error_save > tol) 
+            prox = prox_save_bisec
+        endwhere 
+        do iz=1,nz
+            print *,-log10(prox(iz)),-log10(prox_save_newton(iz)),-log10(prox_save_bisec(iz)),error_save(iz)
+        enddo
     endif 
     
 endif 
 
 ph_iter = iter
 
+ph_error = .false.
+
 if (any(isnan(prox)) .or. any(prox<=0d0)) then     
     print *, (-log10(prox(iz)),iz=1,nz,nz/5)
     print*,'ph is nan or <= zero'
+    ! prox = prox_init
     ph_error = .true.
     ! stop
 endif 
 
 if (print_cb) print_res = .true.
+
+if (mod_ph_order) ph_add_order = a_order/(1d0+EXP(-2d0*k_order*(-log10(prox)-ph_inflex))) + c_order
 
         
 call calc_charge_balance( &
@@ -11137,6 +11519,55 @@ call calc_charge_balance( &
     & ,f1,df1,df1dmaqf,df1dmgas &!output
     & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
     & )
+
+f1_tmp = 0d0
+df1_tmp = 0d0 
+d2f1_tmp = 0d0
+df1dmaqf_tmp = 0d0
+df1dmgas_tmp = 0d0
+d2f1dmaqf_tmp = 0d0
+d2f1dmgas_tmp = 0d0 
+do iz=1,nz
+    call calc_charge_balance_point( &
+        & nz,nsp_aq_all,nsp_gas_all &
+        & ,chraq_all,chrgas_all &
+        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+        & ,base_charge &
+        & ,mgasx_loc,maqf_loc &
+        & ,z,prox,iz &
+        & ,print_loc,print_res,ph_add_order &
+        & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
+        & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+        & )
+    f1_tmp(iz) = f1_dum(iz)
+    df1_tmp(iz) = df1_dum(iz) 
+    d2f1_tmp(iz) = d2f1_dum(iz)
+    df1dmaqf_tmp(:,iz) = df1dmaqf_dum(:,iz)
+    df1dmgas_tmp(:,iz) = df1dmgas_dum(:,iz)
+    d2f1dmaqf_tmp(:,iz) = d2f1dmaqf_dum(:,iz)
+    d2f1dmgas_tmp(:,iz) = d2f1dmgas_dum(:,iz)
+
+enddo 
+
+if (maxval(abs((f1_tmp -f1)/f1)) > tol) then 
+    print *, 'point wrong for f1?'
+    stop
+endif 
+
+if (maxval(abs((df1_tmp - df1)/df1)) > tol) then 
+    print *, 'point wrong for df1?'
+    stop
+endif 
+
+if (maxval(abs((df1dmaqf_tmp - df1dmaqf)/df1dmaqf)) > tol) then 
+    print *, 'point wrong for df1dmaqf?'
+    stop
+endif 
+
+if (maxval(abs((df1dmgas_tmp - df1dmgas)/df1dmgas)) > tol) then 
+    print *, 'point wrong for df1dmaqf?'
+    stop
+endif 
 
 ! solving two equations analytically:
 ! df1/dmsp + df1/dph * dph/dmsp  = 0  
@@ -11536,14 +11967,14 @@ implicit none
 integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
 character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),intent(in)::kw,ph_add_order
+real(kind=8),intent(in)::kw
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
-real(kind=8),dimension(nz),intent(in)::z,prox
+real(kind=8),dimension(nz),intent(in)::z,prox,ph_add_order
 real(kind=8),dimension(nz),intent(out)::f1,df1,d2f1
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df1dmaqf,d2f1dmaqf
 real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df1dmgas,d2f1dmgas
@@ -11556,9 +11987,9 @@ data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 
 integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3,iso4,ispa_no3,ino3,ispa_nh3
 
-real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,ss_add,rspa_no3,rspa_nh3
+real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3
 real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f
-real(kind=8),dimension(nz)::f1_chk
+real(kind=8),dimension(nz)::f1_chk,ss_add
 
 character(1) chrint
 
@@ -11811,20 +12242,21 @@ f1_chk = 0d0
 ss_add = 0d0
 if (print_res) then
     do iz = 1, nz
-        f1_chk(iz) = f1_chk(iz) + prox(iz)**(ss_add+1d0) - kw*prox(iz)**(ss_add-1d0)
+        f1_chk(iz) = f1_chk(iz) + prox(iz)**(ss_add(iz)+1d0) - kw*prox(iz)**(ss_add(iz)-1d0)
         write(88,'(3E11.3)', advance='no') z(iz),prox(iz), kw/prox(iz)
 
         ! adding charges coming from aq species in eq with gases
         ! pCO2
-        f1_chk(iz) = f1_chk(iz)  -  k1*kco2*pco2x(iz)*prox(iz)**(ss_add-1d0)  -  2d0*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add-2d0)
+        f1_chk(iz) = f1_chk(iz)  -  k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0) &
+            & -  2d0*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
         write(88,'(2E11.3)', advance='no')    k1*kco2*pco2x(iz)/prox(iz),  k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
         ! pNH3
-        f1_chk(iz) = f1_chk(iz)  +  pnh3x(iz)*knh3/k1nh3*prox(iz)**(ss_add+1d0)
+        f1_chk(iz) = f1_chk(iz)  +  pnh3x(iz)*knh3/k1nh3*prox(iz)**(ss_add(iz)+1d0)
         write(88,'(E11.3)', advance='no')    pnh3x(iz)*knh3/k1nh3*prox(iz)
 
         do ispa = 1, nsp_aq_all
             
-            f1_chk(iz) = f1_chk(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*prox(iz)**(ss_add)
+            f1_chk(iz) = f1_chk(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz))
             write(88,'(E11.3)', advance='no') maqf_loc(ispa,iz) 
             
             ! account for speces associated with NH4+ (both anions and cations)
@@ -11833,7 +12265,7 @@ if (print_res) then
                     rspa_nh3 = real(ispa_nh3,kind=8)
                     f1_chk(iz) = f1_chk(iz) &
                         & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
-                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add)
+                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz))
                     write(88,'(E11.3)', advance='no') keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
                         & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**rspa_nh3
                 endif 
@@ -11847,7 +12279,7 @@ if (print_res) then
                     if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                         rspa_h = real(ispa_h,kind=8)
                         f1_chk(iz) = f1_chk(iz) &
-                            & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add)
+                            & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
                         write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
                     endif 
                 enddo 
@@ -11858,7 +12290,7 @@ if (print_res) then
                     if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                         rspa_h = real(ispa_h,kind=8)
                         f1_chk(iz) = f1_chk(iz) &
-                            & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add-rspa_h)
+                            & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
                         write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
                     endif 
                 enddo 
@@ -11867,12 +12299,12 @@ if (print_res) then
                     if ( keqaq_c(ispa,ispa_c) > 0d0) then 
                         if (ispa_c == 1) then ! with CO3--
                             f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-2d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add-2d0)
+                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
                             write(88,'(E11.3)', advance='no') &
                                 & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0
                         elseif (ispa_c == 2) then ! with HCO3-
                             f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-1d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add-1d0)
+                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
                             write(88,'(E11.3)', advance='no') &
                                 & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)
                         endif 
@@ -11883,7 +12315,7 @@ if (print_res) then
                     if ( keqaq_s(ispa,ispa_s) > 0d0) then 
                         rspa_s = real(ispa_s,kind=8)
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add
+                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
                         write(88,'(E11.3)', advance='no') keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s
                     endif 
                 enddo 
@@ -11892,7 +12324,7 @@ if (print_res) then
                     if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
                         rspa_no3 = real(ispa_no3,kind=8)
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
-                            & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*prox(iz)**ss_add
+                            & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
                         write(88,'(E11.3)', advance='no') keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3
                     endif 
                 enddo 
@@ -11905,6 +12337,246 @@ endif
 if (print_res) close(88)
 
 endsubroutine calc_charge_balance
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calc_charge_balance_point( &
+    & nz,nsp_aq_all,nsp_gas_all &
+    & ,chraq_all,chrgas_all &
+    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+    & ,base_charge &
+    & ,mgasx_loc,maqf_loc &
+    & ,z,prox,iz &
+    & ,print_loc,print_res,ph_add_order &
+    & ,f1,df1,df1dmaqf,df1dmgas &!output
+    & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
+    & )
+implicit none
+
+integer,intent(in)::nz,nsp_aq_all,nsp_gas_all,iz
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+real(kind=8),intent(in)::kw
+real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
+real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3
+real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
+real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
+real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
+real(kind=8),dimension(nz),intent(in)::z,prox,ph_add_order
+real(kind=8),dimension(nz),intent(out)::f1,df1,d2f1
+real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df1dmaqf,d2f1dmaqf
+real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df1dmgas,d2f1dmgas
+
+logical,intent(in)::print_res
+character(500),intent(in)::print_loc
+
+integer ieqgas_h0,ieqgas_h1,ieqgas_h2
+data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
+
+integer ispa,ispa_h,ispa_c,ispa_s,ipco2,ipnh3,iso4,ispa_no3,ino3,ispa_nh3
+
+real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3
+real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f
+real(kind=8),dimension(nz)::f1_chk,ss_add
+
+character(1) chrint
+
+ipco2 = findloc(chrgas_all,'pco2',dim=1)
+ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
+iso4 = findloc(chraq_all,'so4',dim=1)
+ino3 = findloc(chraq_all,'no3',dim=1)
+
+kco2 = keqgas_h(ipco2,ieqgas_h0)
+k1 = keqgas_h(ipco2,ieqgas_h1)
+k2 = keqgas_h(ipco2,ieqgas_h2)
+
+pco2x = mgasx_loc(ipco2,:)
+
+
+knh3 = keqgas_h(ipnh3,ieqgas_h0)
+k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
+
+pnh3x = mgasx_loc(ipnh3,:)
+
+so4f = maqf_loc(iso4,:)
+no3f = maqf_loc(ino3,:)
+
+ss_add = ph_add_order
+
+f1 = 0d0
+df1 = 0d0
+d2f1 = 0d0
+df1dmaqf = 0d0
+df1dmgas = 0d0
+d2f1dmaqf = 0d0
+d2f1dmgas = 0d0
+
+
+f1(iz) = f1(iz) + prox(iz)**(ss_add(iz)+1d0) - kw*prox(iz)**(ss_add(iz)-1d0)
+df1(iz) = df1(iz) + (ss_add(iz)+1d0)*prox(iz)**(ss_add(iz)) &
+    & - kw*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
+d2f1(iz) = d2f1(iz) + (ss_add(iz)+1d0)*(ss_add(iz))*prox(iz)**(ss_add(iz)-1d0) &
+    & - kw*(ss_add(iz)-1d0)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
+
+! adding charges coming from aq species in eq with gases
+! pCO2
+f1(iz) = f1(iz)  -  k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0) &
+    & -  2d0*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
+df1(iz) = df1(iz)  &
+    & -  k1*kco2*pco2x(iz)*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0) &
+    & -  2d0*k2*k1*kco2*pco2x(iz)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
+d2f1(iz) = d2f1(iz)  &
+    & -  k1*kco2*pco2x(iz)*(ss_add(iz)-1d0)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0) &
+    & -  2d0*k2*k1*kco2*pco2x(iz)*(ss_add(iz)-2d0)*(ss_add(iz)-3d0)*prox(iz)**(ss_add(iz)-4d0)
+df1dmgas(ipco2,iz) = df1dmgas(ipco2,iz)  -  k1*kco2*1d0*prox(iz)**(ss_add(iz)-1d0) &
+    & -  2d0*k2*k1*kco2*1d0*prox(iz)**(ss_add(iz)-2d0)
+! pNH3
+f1(iz) = f1(iz)  +  pnh3x(iz)*knh3/k1nh3*prox(iz)**(ss_add(iz)+1d0)
+df1(iz) = df1(iz)  +  pnh3x(iz)*knh3/k1nh3*(ss_add(iz)+1d0)*prox(iz)**(ss_add(iz))
+d2f1(iz) = d2f1(iz)  +  pnh3x(iz)*knh3/k1nh3*(ss_add(iz)+1d0)*(ss_add(iz))*prox(iz)**(ss_add(iz)-1d0)
+df1dmgas(ipnh3,iz) = df1dmgas(ipnh3,iz)  +  1d0*knh3/k1nh3*prox(iz)**(ss_add(iz)+1d0)
+
+do ispa = 1, nsp_aq_all
+    
+    f1(iz) = f1(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz))
+    df1(iz) = df1(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*(ss_add(iz))*prox(iz)**(ss_add(iz)-1d0)
+    d2f1(iz) = d2f1(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*(ss_add(iz))*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
+    df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) + base_charge(ispa)*1d0*prox(iz)**(ss_add(iz))
+    
+    ! account for speces associated with NH4+ (both anions and cations)
+    do ispa_nh3 = 1,2
+        if ( keqaq_nh3(ispa,ispa_nh3) > 0d0) then 
+            rspa_nh3 = real(ispa_nh3,kind=8)
+            f1(iz) = f1(iz) &
+                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                & * (pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz))
+            df1(iz) = df1(iz) &
+                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                & * (pnh3x(iz)*knh3/k1nh3)**rspa_nh3*(rspa_nh3+ss_add(iz))*prox(iz)**(rspa_nh3+ss_add(iz)-1d0)
+            d2f1(iz) = d2f1(iz) &
+                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                & * (pnh3x(iz)*knh3/k1nh3)**rspa_nh3*(rspa_nh3+ss_add(iz))*(rspa_nh3+ss_add(iz)-1d0) &
+                & * prox(iz)**(rspa_nh3+ss_add(iz)-2d0)
+            df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
+                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*1d0 &
+                & * (pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz))
+            df1dmgas(ipnh3,iz) = df1dmgas(ipnh3,iz) &
+                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                & * (knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz)) &
+                & * rspa_nh3*pnh3x(iz)**(rspa_nh3-1d0)
+        endif 
+    enddo 
+    
+    ! annions
+    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
+        
+        ! account for speces associated with H+
+        do ispa_h = 1,4
+            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                rspa_h = real(ispa_h,kind=8)
+                f1(iz) = f1(iz) &
+                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
+                df1(iz) = df1(iz) &
+                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
+                    & * prox(iz)**(rspa_h+ss_add(iz)-1d0)
+                d2f1(iz) = d2f1(iz) &
+                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
+                    & * (rspa_h+ss_add(iz)-1d0)*prox(iz)**(rspa_h+ss_add(iz)-2d0)
+                df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
+                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(rspa_h+ss_add(iz))
+            endif 
+        enddo 
+    ! cations
+    else 
+        ! account for hydrolysis speces
+        do ispa_h = 1,4
+            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                rspa_h = real(ispa_h,kind=8)
+                f1(iz) = f1(iz) &
+                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
+                df1(iz) = df1(iz) &
+                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
+                    & * prox(iz)**(ss_add(iz)-rspa_h-1d0)
+                d2f1(iz) = d2f1(iz) &
+                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
+                    & * (ss_add(iz)-rspa_h-1d0)* prox(iz)**(ss_add(iz)-rspa_h-2d0)
+                df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
+                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(ss_add(iz)-rspa_h)
+            endif 
+        enddo 
+        ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
+        do ispa_c = 1,2
+            if ( keqaq_c(ispa,ispa_c) > 0d0) then 
+                if (ispa_c == 1) then ! with CO3--
+                    f1(iz) = f1(iz) + (base_charge(ispa)-2d0) &
+                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
+                    df1(iz) = df1(iz) + (base_charge(ispa)-2d0) &
+                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
+                    d2f1(iz) = d2f1(iz) + (base_charge(ispa)-2d0) &
+                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-2d0) &
+                        & *(ss_add(iz)-3d0)*prox(iz)**(ss_add(iz)-4d0)
+                    df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) + (base_charge(ispa)-2d0) &
+                        & *keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
+                    df1dmgas(ipco2,iz) = df1dmgas(ipco2,iz) + (base_charge(ispa)-2d0) &
+                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*1d0*prox(iz)**(ss_add(iz)-2d0)
+                elseif (ispa_c == 2) then ! with HCO3-
+                    f1(iz) = f1(iz) + (base_charge(ispa)-1d0) &
+                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
+                    df1(iz) = df1(iz) + (base_charge(ispa)-1d0) &
+                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
+                    d2f1(iz) = d2f1(iz) + (base_charge(ispa)-1d0) &
+                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-1d0) &
+                        & *(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
+                    df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) + (base_charge(ispa)-1d0) &
+                        & *keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
+                    df1dmgas(ipco2,iz) = df1dmgas(ipco2,iz) + (base_charge(ispa)-1d0) &
+                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*1d0*prox(iz)**(ss_add(iz)-1d0)
+                endif 
+            endif 
+        enddo 
+        ! account for complexation with free SO4
+        do ispa_s = 1,2
+            if ( keqaq_s(ispa,ispa_s) > 0d0) then 
+                rspa_s = real(ispa_s,kind=8)
+                f1(iz) = f1(iz)  + (base_charge(ispa)-2d0*rspa_s) &
+                    & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
+                df1(iz) = df1(iz)  + (base_charge(ispa)-2d0*rspa_s) &
+                    & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
+                d2f1(iz) = d2f1(iz)  + (base_charge(ispa)-2d0*rspa_s) &
+                    & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*ss_add(iz) &
+                    & *(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
+                df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz)  + (base_charge(ispa)-2d0*rspa_s) &
+                    & *keqaq_s(ispa,ispa_s)*1d0*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
+                df1dmaqf(iso4,iz) = df1dmaqf(iso4,iz)  + (base_charge(ispa)-2d0*rspa_s) &
+                    & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*rspa_s*so4f(iz)**(rspa_s-1d0)*prox(iz)**ss_add(iz)
+            endif 
+        enddo 
+        ! account for complexation with free NO3
+        do ispa_no3 = 1,2
+            if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
+                rspa_no3 = real(ispa_no3,kind=8)
+                f1(iz) = f1(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
+                    & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
+                df1(iz) = df1(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
+                    & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
+                d2f1(iz) = d2f1(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
+                    & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*ss_add(iz) &
+                    & *(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
+                df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
+                    & *keqaq_no3(ispa,ispa_no3)*1d0*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
+                df1dmaqf(ino3,iz) = df1dmaqf(ino3,iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
+                    & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*rspa_no3*no3f(iz)**(rspa_no3-1d0)*prox(iz)**ss_add(iz)
+            endif 
+        enddo 
+    endif 
+enddo
+
+
+endsubroutine calc_charge_balance_point
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -16706,6 +17378,13 @@ do isps = 1, nsp_sld_all
     
     if (keqcec_all(isps) == 0d0) cycle
     
+    select case(trim(adjustl(chrsld_all(isps))))
+        case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3')
+            ! do nothing 
+        case default 
+            cycle
+    endselect 
+    
     a = 0d0
     da_dpro = 0d0
     da_dmaqf = 0d0
@@ -16799,8 +17478,17 @@ do ispa=1,nsp_aq_all
     selectcase(trim(adjustl(chraq_all(ispa))))
         case('na','k')
             do isps=1,nsp_sld_all
+                
+                if (keqcec_all(isps) == 0d0) cycle
+
+                select case(trim(adjustl(chrsld_all(isps))))
+                    case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3')
+                        ! do nothing 
+                    case default 
+                        cycle
+                endselect 
+                
                 if (cec_pH_depend(isps)) then
-                    if (keqcec_all(isps) == 0d0) cycle
                         
                     maqfads_sld_loc(ispa,isps,:) = maqfads_sld_loc(ispa,isps,:) &
                         & + keqcec_all(isps)*msldx_loc(isps,:)*keqiex_all(isps,ispa)*msldf_loc(isps,:)/prox 
@@ -16838,6 +17526,13 @@ do ispa=1,nsp_aq_all
         case('ca','mg')
             do isps=1,nsp_sld_all
                 if (keqcec_all(isps) == 0d0) cycle
+
+                select case(trim(adjustl(chrsld_all(isps))))
+                    case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3')
+                        ! do nothing 
+                    case default 
+                        cycle
+                endselect 
                 
                 if (cec_pH_depend(isps)) then
                     
@@ -19059,7 +19754,8 @@ do isp=1,nsp_sld
             izdbl = iz
         elseif (dbl < z(iz) .and. z(iz) <=zml(isp)) then
             ! dbio(iz) =  0.15d-4   !  within mixed layer 150 cm2/kyr (Emerson, 1985) 
-            dbio(iz) =  2d-4   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
+            ! dbio(iz) =  2d-4   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
+            dbio(iz) =  3d-5   !  within mixed layer (Jarvis et al., 2010) 
             ! dbio(iz) =  2d-4*exp(z(iz)/0.1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
             ! dbio(iz) =  2d-7*exp(z(iz)/1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
             ! dbio(iz) =  2d-10   !  just a small value 
@@ -19292,14 +19988,15 @@ real(kind=8),dimension(nsp_sld,nsp_gas,nz)::domega_dmgas,dksld_dmgas,drxnsld_dmg
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(out)::flx_sld
 real(kind=8),dimension(nsp_aq,nz),intent(in)::maq,maqsupp,maqft_prev,maqfads_prev
 real(kind=8),dimension(nsp_aq,nz),intent(inout)::maqx,maqft,maqfads 
-real(kind=8),dimension(nsp_aq,nz)::dprodmaq,dmaq,maqf,dmaqft_dpro,dmaqfads_dpro
+real(kind=8),dimension(nsp_aq,nz)::dprodmaq,dmaq,maqf,dmaqft_dpro,dmaqfads_dpro,maqx_save,dmaqx
 real(kind=8),dimension(nsp_aq,nsp_aq,nz)::dmaqft_dmaqf,dmaqfads_dmaqf
 real(kind=8),dimension(nsp_aq,nsp_gas,nz)::dmaqft_dmgas,dmaqfads_dmgas
 real(kind=8),dimension(nsp_aq,nsp_sld,nz)::dmaqfads_dmsld
 real(kind=8),dimension(nsp_aq,nflx,nz),intent(out)::flx_aq
 real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas,mgassupp
 real(kind=8),dimension(nsp_gas,nz),intent(inout)::mgasx 
-real(kind=8),dimension(nsp_gas,nz)::khgasx,khgas,dgas,agasx,agas,rxngas,dkhgas_dpro,dprodmgas,dmgas,dso4fdmgas,dkhgas_dso4f
+real(kind=8),dimension(nsp_gas,nz)::khgasx,khgas,dgas,agasx,agas,rxngas,dkhgas_dpro,dprodmgas,dmgas,dso4fdmgas,dkhgas_dso4f &
+    & ,mgasx_save,dmgasx
 real(kind=8),dimension(nsp_gas,nsp_aq,nz)::dkhgas_dmaq,ddgas_dmaq,dagas_dmaq,drxngas_dmaq 
 real(kind=8),dimension(nsp_gas,nsp_sld,nz)::drxngas_dmsld 
 real(kind=8),dimension(nsp_gas,nsp_gas,nz)::dkhgas_dmgas,ddgas_dmgas,dagas_dmgas,drxngas_dmgas 
@@ -19422,7 +20119,7 @@ real(kind=8),parameter::threshold = 10d0
 ! real(kind=8),parameter::corr = 1.5d0
 real(kind=8),parameter::corr = exp(threshold)
 
-real(kind=8),dimension(nz)::dummy,dummy2,dummy3,kin,dkin_dmsp,dumtest,sporo
+real(kind=8),dimension(nz)::dummy,dummy2,dummy3,kin,dkin_dmsp,dumtest,sporo,prox_save
 
 logical print_cb,ph_error,omega_error,rxnext_error
 character(500) print_loc
@@ -19447,6 +20144,9 @@ logical::new_gassol = .true.
 logical,intent(in)::ads_ON != .true.
 ! logical::ads_ON = .false.
 
+logical::ph_precalc = .true.
+! logical::ph_precalc = .false.
+
 ! logical::sld_enforce = .false.
 logical,intent(in)::sld_enforce != .true.
 
@@ -19461,6 +20161,9 @@ real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 ! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
 real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
+
+real(kind=8):: sat_lim_prec = 1d50 ! maximum value of saturation state for minerals that can precipitate 
+real(kind=8):: sat_lim_noprec = 2d0 ! maximum value of saturation state for minerals that cannot precipitate 
 
 !-----------------------------------------------
 
@@ -19519,6 +20222,8 @@ if (cplprec)then
     enddo
 endif 
 
+prox = pro
+
 dummy = 0d0
 dummy2 = 0d0
 
@@ -19538,12 +20243,25 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     flx_aq = 0d0
     flx_gas = 0d0
     
+    ! precalculation of pH when iteration is not first time
+    if (ph_precalc .and. iter/=0) then 
+        dmaqx = maqx - maqx_save
+        dmgasx = mgasx - mgasx_save
+        do iz=1,nz
+            prox(iz) = prox(iz) * exp( &
+                & sum(dprodmaq(:,iz)*dmaqx(:,iz))/prox_save(iz) &
+                & + sum(dprodmgas(:,iz)*dmgasx(:,iz))/prox_save(iz) &
+                & )
+        enddo 
+    endif 
+    
     ! pH calculation and its derivative wrt aq and gas species
     
     ! print_cb = .true. 
     
     call calc_pH_v7_4( &
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+        & ,poro,sat &! input  
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
         & ,print_cb,print_loc,z &! input 
@@ -19557,8 +20275,16 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     ! print *
 
     if (ph_error) then 
+        print *, 'error issued from ph calculation: raising flag and return to main' 
         flgback = .true.
         return
+    endif 
+    
+    ! *** sanity check 
+    if (any(isnan(prox)) .or. any(prox<=0d0)) then    
+        print *, ' NAN or <=0 H+ conc.',any(isnan(prox)),any(prox<=0d0)
+        print *,prox
+        stop
     endif 
     
     dprodmaq = 0d0
@@ -19574,6 +20300,11 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             dprodmgas(ispg,:)=dprodmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
         endif 
     enddo 
+    
+    ! saving maqx and mgasx
+    maqx_save = maqx
+    mgasx_save = mgasx
+    prox_save = prox
     
     ! getting mgasx_loc & maqx_loc
     call get_maqgasx_all( &
@@ -19794,7 +20525,21 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     ! print *
     ! print *,dksld_dmaq(findloc(chrsld,'ab',dim=1),findloc(chraq,'no3',dim=1),:)
     ! print *
-                    
+                   
+    ! *** sanity check *** 
+    if (any(isnan(ksld)) .or. any(ksld>infinity)) then 
+        print *,' *** found insanity in ksld: listing below -- '
+        do isps=1,nsp_sld
+            do iz=1,nz
+                if (isnan(ksld(isps,iz)) .or. ksld(isps,iz)>infinity) print*,chrsld(isps),iz,ksld(isps,iz)
+            enddo
+        enddo 
+        stop
+    ! else 
+        ! print *,' *** found sanity in ksld -- '
+    endif 
+    ! print *, 'main loop'
+    ! print *, ksld(findloc(chrsld,'kfs',dim=1),:)
     
     ! saturation state calc. and their derivatives wrt aq and gas species
     
@@ -19845,6 +20590,62 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             endif 
         enddo
     enddo 
+    
+    
+    ! *** reducing saturation ***    
+    do isps=1,nsp_sld
+        dummy = 0d0
+        if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+            ! cycle
+            do iz=1,nz
+                if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
+            enddo 
+        else
+            ! omega(isps,:) = dummy
+            do iz=1,nz
+                if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
+            enddo 
+        endif 
+    enddo 
+                
+    ! *** sanity check ***     
+    if (any(isnan(omega))) then 
+        print *,' *** found NAN in omega: listing below -- '
+        do isps=1,nsp_sld
+            do iz=1,nz
+                if (isnan(omega(isps,iz))) print*,chrsld(isps),iz,omega(isps,iz)
+            enddo
+        enddo 
+        stop
+    endif 
+    if (any(omega>infinity)) then 
+        print *,' *** found INF in omega  '
+        stop
+        print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
+        do isps=1,nsp_sld
+            dummy = 0d0
+            if (any(omega(isps,:)>infinity)) then 
+                dummy = omega(isps,:)
+                if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+                    print *,chrsld(isps),' (precipitation allowed)'
+                    where(dummy>infinity)
+                        dummy = sat_lim_prec
+                    endwhere
+                else
+                    print *,chrsld(isps),' (precipitation not allowed)'
+                    where(dummy>infinity)
+                        dummy = sat_lim_noprec
+                    endwhere
+                endif 
+                if (any(dummy>infinity)) then 
+                    print *, 'somthing is wrong'
+                    stop
+                endif 
+                omega(isps,:) = dummy
+            endif 
+        enddo 
+    endif 
+    
     
     ! adding reactions that are not based on dis/prec of minerals
     rxnext = 0d0
@@ -20044,9 +20845,20 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     call sld_rxn( &
         & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
         & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle,solmod &! input
-        & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
+        & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas,chrsld &! input
         & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
         & ) 
+                
+    ! *** sanity check ***     
+    if (any(isnan(rxnsld)) .or. any(rxnsld>infinity)) then 
+        print *,' *** found insanity in rxnsld: listing below -- '
+        do isps=1,nsp_sld
+            do iz=1,nz
+                if (isnan(rxnsld(isps,iz)) .or. rxnsld(isps,iz)>infinity) print*,chrsld(isps),iz,rxnsld(isps,iz)
+            enddo
+        enddo 
+        stop
+    endif 
     
     ! gas reactions 
     
@@ -21286,6 +22098,7 @@ flx_co2sp = 0d0
 
 call calc_pH_v7_4( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+    & ,poro,sat &! input  
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,print_cb,print_loc,z &! input 
@@ -21293,6 +22106,19 @@ call calc_pH_v7_4( &
     & ,prox,ph_error,ph_iter &! output
     & ) 
     
+if (ph_error) then 
+    print *, 'error issued from ph calculation (after main iteration in alsilicate_aq_gas_1D_v3_2)'
+    print *, '---> raising flag and return to main' 
+    flgback = .true.
+    return
+endif 
+
+! *** sanity check 
+if (any(isnan(prox)) .or. any(prox<=0d0)) then    
+    print *, ' NAN or <=0 H+ conc. (after main iteration)',any(isnan(prox)),any(prox<=0d0)
+    print *,prox
+    stop
+endif 
 ! print_cb = .true. 
 
 ! call calc_pH_v7_4( &
@@ -21399,6 +22225,17 @@ if (nsld_kinspc > 0) then
     enddo 
 endif 
 
+! *** sanity check
+if (any(isnan(ksld)) .or. any(ksld>infinity)) then 
+    print *,' *** found insanity in ksld (after main loop): listing below -- '
+    do isps=1,nsp_sld
+        do iz=1,nz
+            if (isnan(ksld(isps,iz)) .or. ksld(isps,iz)>infinity) print*,chrsld(isps),iz,ksld(isps,iz)
+        enddo
+    enddo 
+    stop
+endif 
+
 ! saturation state calc. and their derivatives wrt aq and gas species
 
 omega = 0d0
@@ -21418,12 +22255,28 @@ do isps =1, nsp_sld
     omega(isps,:) = dummy
 enddo 
 
+! *** reducing saturation ***    
+do isps=1,nsp_sld
+    dummy = 0d0
+    if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+        ! cycle
+        do iz=1,nz
+            if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
+        enddo 
+    else
+        ! omega(isps,:) = dummy
+        do iz=1,nz
+            if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
+        enddo 
+    endif 
+enddo 
+
 rxnsld = 0d0
     
 call sld_rxn( &
     & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
     & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle,solmod &! input
-    & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
+    & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas,chrsld &! input
     & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
     & ) 
 
@@ -22053,7 +22906,7 @@ endsubroutine alsilicate_aq_gas_1D_v3_2
 subroutine sld_rxn( &
     & nz,nsp_sld,nsp_aq,nsp_gas,msld_seed,hr,poro,mv,ksld,omega,nonprec,msldx,dz &! input 
     & ,dksld_dmaq,domega_dmaq,dksld_dmgas,domega_dmgas,precstyle,solmod &! input
-    & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas &! input
+    & ,msld,msldth,dt,sat,maq,maqth,agas,mgas,mgasth,staq,stgas,chrsld &! input
     & ,rxnsld,drxnsld_dmsld,drxnsld_dmaq,drxnsld_dmgas &! output
     & ) 
 implicit none 
@@ -22073,6 +22926,7 @@ real(kind=8),dimension(nsp_sld,nz),intent(in)::ksld,omega,nonprec,msldx,msld,sol
 real(kind=8),dimension(nsp_sld,nsp_aq,nz),intent(in)::dksld_dmaq,domega_dmaq
 real(kind=8),dimension(nsp_sld,nsp_gas,nz),intent(in)::dksld_dmgas,domega_dmgas
 character(10),dimension(nsp_sld),intent(in)::precstyle
+character(5),dimension(nsp_sld),intent(in)::chrsld
 real(kind=8),dimension(nsp_sld,nz),intent(out)::rxnsld,drxnsld_dmsld
 real(kind=8),dimension(nsp_sld,nsp_aq,nz),intent(out)::drxnsld_dmaq
 real(kind=8),dimension(nsp_sld,nsp_gas,nz),intent(out)::drxnsld_dmgas
@@ -22081,6 +22935,23 @@ integer ispa,isps,ispg,iz
 real(kind=8),dimension(nsp_sld,nz)::maxdis,maxprec
 
 real(kind=8)::auth_th = 1d2
+real(kind=8),parameter::infinity = huge(0d0)
+    
+    
+
+! *** sanity check
+if (any(isnan(ksld)) .or. any(ksld>infinity)) then 
+    print *,' *** found insanity in ksld (in sld_rxn): listing below -- '
+    do isps=1,nsp_sld
+        do iz=1,nz
+            if (isnan(ksld(isps,iz)) .or. ksld(isps,iz)>infinity) print*,chrsld(isps),iz,ksld(isps,iz)
+        enddo
+    enddo 
+    stop
+endif 
+! print *, 'in sld_rxn'
+! print *, ksld(findloc(chrsld,'kfs',dim=1),:)
+
     
 rxnsld = 0d0
 drxnsld_dmsld = 0d0
@@ -22395,6 +23266,15 @@ do isps = 1,nsp_sld
                 & + ksld(isps,:)*poro*hr(isps,:)*mv(isps)*1d-6*msldx(isps,:)*(1d0-omega(isps,:)) &
                 & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
                 & )
+            
+            if (any(isnan(rxnsld(isps,:)))) then 
+                print *, 'NAN in rxnsld: ',chrsld(isps)
+                print *, 'ksld(isps,:)',ksld(isps,:)
+                print *, 'hr(isps,:)',hr(isps,:)
+                print *, 'msldx(isps,:)',msldx(isps,:)
+                print *, 'omega(isps,:)',omega(isps,:)
+                stop
+            endif 
         
             drxnsld_dmsld(isps,:) = ( &
                 & + ksld(isps,:)*poro*hr(isps,:)*mv(isps)*1d-6*1d0*(1d0-omega(isps,:)) &
