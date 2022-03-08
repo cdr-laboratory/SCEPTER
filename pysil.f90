@@ -142,6 +142,7 @@ parameter(fr_si_cbas=def_bas_si_fr, fr_al_cbas=def_bas_al_fr, fr_na_cbas=def_bas
 #endif
 
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
+real(kind=8),parameter :: mvinrt = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
 real(kind=8),parameter :: mvab_0 = 100.07d0 ! cm3/mol; molar volume of Ab(NaAlSi3O8); Robie et al. 1978 
 real(kind=8),parameter :: mvan_0 = 100.79d0 ! cm3/mol; molar volume of An (CaAl2Si2O8); Robie et al. 1978
@@ -229,6 +230,7 @@ real(kind=8),parameter :: mvleu =  88.39d0 ! cm3/mol; molar volume of leucite KA
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
+real(kind=8),parameter :: mwtinrt = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
 real(kind=8),parameter :: mwtab_0 = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
 real(kind=8),parameter :: mwtan_0 = 278.311d0 ! g/mol; formula weight of An; Robie et al. 1978
@@ -559,7 +561,8 @@ integer,parameter::nsp_sld_2 = 0
 ! integer,parameter::nsp_sld_2 = 23
 integer,parameter::nsp_sld_2 = 22 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 66
+integer,parameter::nsp_sld_fast = 4 ! minerals that react too fast and do not have so much meaning of tracking PSD 
+integer,parameter::nsp_sld_all = 67
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 10
@@ -577,6 +580,7 @@ integer,intent(in)::nsld_kinspc_in
 integer :: nsld_kinspc,nsld_kinspc_add
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2)::chrsld_2
+character(5),dimension(nsp_sld_fast)::chrsld_fast
 character(5),dimension(nsp_sld_all)::chrsld_all
 character(5),dimension(nsp_sld_all - nsp_sld)::chrsld_cnst
 character(5),dimension(nsp_aq),intent(in)::chraq
@@ -703,9 +707,11 @@ logical :: psd_lim_min = .true.
 ! logical :: psd_vol_consv = .true.
 logical :: psd_vol_consv = .false.
 logical :: psd_impfull = .false.
-! logical :: psd_impfull = .true..
+! logical :: psd_impfull = .true.
 ! logical :: psd_loop = .false.
 logical :: psd_loop = .true.
+! logical :: psd_fast_skip = .false.
+logical :: psd_fast_skip = .true.
 real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old,mpsd_save_2
 real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th
 real(kind=8),dimension(nsp_sld,nps,nflx_psd,nz) :: flx_mpsd ! itflx,iadv,idif,irain,irxn,ires
@@ -859,7 +865,8 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
     & ,'sdn  ','cdr  ','leu  ' &
-    & ,'g1   ','g2   ','g3   ','amnt '/)
+    & ,'g1   ','g2   ','g3   ','amnt ' &
+    & ,'inrt '/)
 chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22'/)
@@ -886,6 +893,8 @@ chrsld_2(:) = '     '
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
     ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
 #endif 
+! fast reacting minerals
+chrsld_fast = (/'cc   ','dlm  ','arg  ','gps  '/)
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
@@ -937,12 +946,14 @@ mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mv
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
     & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu &
-    & ,mvg1,mvg2,mvg3,mvamnt/)
+    & ,mvg1,mvg2,mvg3,mvamnt  &
+    & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
     & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu &
-    & ,mwtg1,mwtg2,mwtg3,mwtamnt/)
+    & ,mwtg1,mwtg2,mwtg3,mwtamnt &
+    & ,mwtinrt/)
 
 do isps = 1, nsp_sld 
     mv(isps) = mv_all(findloc(chrsld_all,chrsld(isps),dim=1))
@@ -1667,12 +1678,12 @@ solmod = 1d0
 
 do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
-        case('g1','g2','g3','amnt')
+        case('g1','g2','g3','amnt','inrt')
             precstyle(isps) = 'decay'
         case('cc','arg') ! added to change solubility 
             precstyle(isps) = 'def'
-            ! precstyle(isps) = 'emmanuel'
-            ! solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
+            precstyle(isps) = 'emmanuel'
+            solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
         case('casp','ksp','nasp','mgsp')
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
@@ -3421,49 +3432,51 @@ do while (it<nt)
     
     ! do PSD for raining dust & OM 
     if (do_psd) then 
-        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
-        ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
-        ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
-        ! pssigma_rain_list = (/ 0.5d0,  0.5d0, 0.5d0 /)
-        pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
 
         open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_rain.txt',status = 'replace')
+        
         if (do_psd_full) then 
             write(ipsd,*) ' sldsp\log10(radius) ', (ps(ips),ips=1,nps), 'time'
-        else
-            write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'time'
-        endif 
         
-        do iz = 1,nz
-        
-            ! rained particle distribution 
-            if (read_data) then 
-                psd_rain(:,iz) = 0d0
-                do ips = 1, nps_rain_char
-                    psu_rain = psu_rain_list(ips)
-                    pssigma_rain = pssigma_rain_list(ips)
-                    psd_rain(:,iz) = psd_rain(:,iz) &
-                        & + 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
-                enddo 
-            else
-                psu_rain = log10(p80)
-                pssigma_rain = 1d0
-                pssigma_rain = ps_sigma_std
-                psd_rain(:,iz) = 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
-            endif 
-            ! to ensure sum is 1
-            ! print *, sum(psd_rain*dps)
-            psd_rain(:,iz) = psd_rain(:,iz)/sum(psd_rain(:,iz)*dps(:)) 
-            ! print *, sum(psd_rain*dps)
-            ! stop
-            
-            psd_rain_tmp = psd_rain(:,iz)
+            do iz = 1,nz
 
-            ! balance for volumes
-            ! sum(msldsupp*mv*1d-6) *dt (m3/m3) must be equal to sum( 4/3(pi)r3 * psd_rain * dps) 
-            ! where psd is number / bulk m3 / log r
-            if (do_psd_full) then 
+                ! balance for volumes
+                ! sum(msldsupp*mv*1d-6) *dt (m3/m3) must be equal to sum( 4/3(pi)r3 * psd_rain * dps) 
+                ! where psd is number / bulk m3 / log r
                 do isps = 1, nsp_sld
+                
+                    if ( rfrc_sld_plant(isps) > 0d0 ) then 
+                        psu_rain_list = (/ log10(p80), log10(p80),  log10(p80), log10(p80) /)
+                        pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
+                    else 
+                        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+                        pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
+                    endif 
+            
+                    ! rained particle distribution 
+                    if (read_data) then 
+                        psd_rain(:,iz) = 0d0
+                        do ips = 1, nps_rain_char
+                            psu_rain = psu_rain_list(ips)
+                            pssigma_rain = pssigma_rain_list(ips)
+                            psd_rain(:,iz) = psd_rain(:,iz) &
+                                & + 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
+                        enddo 
+                    else
+                        psu_rain = log10(p80)
+                        pssigma_rain = 1d0
+                        pssigma_rain = ps_sigma_std
+                        psd_rain(:,iz) = 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
+                    endif 
+                    ! to ensure sum is 1
+                    ! print *, sum(psd_rain*dps)
+                    psd_rain(:,iz) = psd_rain(:,iz)/sum(psd_rain(:,iz)*dps(:)) 
+                    ! print *, sum(psd_rain*dps)
+                    ! stop
+                    
+                    psd_rain_tmp = psd_rain(:,iz)
+                
+                
                     volsld = msldsupp(isps,iz)*mv(isps)*1d-6
                     psd_rain(:,iz) = psd_rain_tmp * volsld *dt &
                         ! & /(1d0 - poroi)  &
@@ -3484,7 +3497,44 @@ do while (it<nt)
             
                     if (iz==1) write(ipsd,*) chrsld(isps),(mpsd_rain(isps,ips,iz),ips=1,nps), time
                 enddo 
-            else 
+            enddo 
+        else
+            write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'time'
+            
+            psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+            ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
+            ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
+            ! pssigma_rain_list = (/ 0.5d0,  0.5d0, 0.5d0 /)
+            pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
+        
+            do iz = 1,nz
+            
+                ! rained particle distribution 
+                if (read_data) then 
+                    psd_rain(:,iz) = 0d0
+                    do ips = 1, nps_rain_char
+                        psu_rain = psu_rain_list(ips)
+                        pssigma_rain = pssigma_rain_list(ips)
+                        psd_rain(:,iz) = psd_rain(:,iz) &
+                            & + 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
+                    enddo 
+                else
+                    psu_rain = log10(p80)
+                    pssigma_rain = 1d0
+                    pssigma_rain = ps_sigma_std
+                    psd_rain(:,iz) = 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
+                endif 
+                ! to ensure sum is 1
+                ! print *, sum(psd_rain*dps)
+                psd_rain(:,iz) = psd_rain(:,iz)/sum(psd_rain(:,iz)*dps(:)) 
+                ! print *, sum(psd_rain*dps)
+                ! stop
+                
+                psd_rain_tmp = psd_rain(:,iz)
+
+                ! balance for volumes
+                ! sum(msldsupp*mv*1d-6) *dt (m3/m3) must be equal to sum( 4/3(pi)r3 * psd_rain * dps) 
+                ! where psd is number / bulk m3 / log r
                 volsld = sum(msldsupp(:,iz)*mv(:)*1d-6)
                 psd_rain(:,iz) = psd_rain_tmp * volsld *dt &
                     ! & /(1d0 - poroi)  &
@@ -3503,8 +3553,9 @@ do while (it<nt)
                 endif 
             
                 write(ipsd,*) z(iz),(psd_rain(ips,iz),ips=1,nps), time
-            endif 
-        enddo 
+            enddo 
+            
+        endif 
         
         close(ipsd)
     endif 
@@ -4004,6 +4055,8 @@ do while (it<nt)
             do isps = 1, nsp_sld
             
                 if ( trim(adjustl(precstyle(isps))) == 'decay') cycle ! solid species not related to SA
+                
+                if (psd_fast_skip .and. any(chrsld_fast == chrsld(isps)) ) cycle
             
                 DV(:) = flx_sld(isps, 4 + isps,:)*mv(isps)*1d-6*dt  
             
@@ -4189,7 +4242,11 @@ do while (it<nt)
                 
                 do isps=1,nsp_sld
                     
-                    if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA                    
+                    ! if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA              
+                    if ( &
+                        & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
+                        & .or. ( psd_fast_skip .and. any(chrsld_fast == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
+                        & ) then
                         flx_mpsd(isps,:,:,:) = 0d0
                         do iz=1,nz
                             mpsdx(isps,:,iz) = mpsd_pr(isps,:)
@@ -4357,7 +4414,11 @@ do while (it<nt)
             
                 do isps = 1, nsp_sld
                     
-                    if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA                    
+                    ! if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA               
+                    if ( &
+                        & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
+                        & .or. ( psd_fast_skip .and. any(chrsld_fast == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
+                        & ) then           
                         flx_mpsd(isps,:,:,:) = 0d0
                         do iz=1,nz
                             mpsdx(isps,:,iz) = mpsd_pr(isps,:)
@@ -6737,6 +6798,15 @@ do isps = 1, nsp_sld_all
             keqcec_all(isps) = 16.2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
                 & *mwt_tmp  ! mol/g converted to mol/mol using molar weigtht g/mol
         
+        case('inrt')
+            ! keqcec_all(isps) = 3000d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 300d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            keqcec_all(isps) = 16d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 80d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 300d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 160.2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+                & *mwt_tmp  ! mol/g converted to mol/mol using molar weigtht g/mol
+        
         case('cabd','mgbd','kbd','nabd')
             keqcec_all(isps) = 70d-2/1d3 &! 70 cmol/kg (from Parfitt et al. 1996) converted mol/g
             ! keqcec_all(isps) = 16.2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
@@ -8685,6 +8755,8 @@ select case(trim(adjustl(mineral)))
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case('amnt')
         therm = 0.121d0 ! mo2 Michaelis for fertilizer
+    case('inrt')
+        therm = 1d0 ! not reacting in any case
     case default 
         therm = 0d0
 endselect 
@@ -15924,6 +15996,9 @@ select case(trim(adjustl(mineral)))
             & - 1d0/(po2x+mo2_tmp)*merge(0d0,1d0,po2x < po2th*thon) &
             & - po2x*(-1d0)/(po2x+mo2_tmp)**2d0*merge(0d0,1d0,po2x < po2th*thon) &
             & )
+    
+    case('inrt') ! not reacting in any case
+        omega = 1d0
         
     case default 
         ! this should not be selected
@@ -16173,6 +16248,9 @@ select case(trim(adjustl(mineral)))
             & - 1d0/(po2x+mo2_tmp)*merge(0d0,1d0,po2x < po2th*thon) &
             & - po2x*(-1d0)/(po2x+mo2_tmp)**2d0*merge(0d0,1d0,po2x < po2th*thon) &
             & )
+    
+    case('inrt') ! not reacting in any case
+        omega = 1d0
         
     case default 
         ! this should not be selected
@@ -17379,7 +17457,7 @@ do isps = 1, nsp_sld_all
     if (keqcec_all(isps) == 0d0) cycle
     
     select case(trim(adjustl(chrsld_all(isps))))
-        case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3')
+        case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
             ! do nothing 
         case default 
             cycle
@@ -17482,7 +17560,7 @@ do ispa=1,nsp_aq_all
                 if (keqcec_all(isps) == 0d0) cycle
 
                 select case(trim(adjustl(chrsld_all(isps))))
-                    case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3')
+                    case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
                         ! do nothing 
                     case default 
                         cycle
@@ -17528,7 +17606,7 @@ do ispa=1,nsp_aq_all
                 if (keqcec_all(isps) == 0d0) cycle
 
                 select case(trim(adjustl(chrsld_all(isps))))
-                    case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3')
+                    case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
                         ! do nothing 
                     case default 
                         cycle
