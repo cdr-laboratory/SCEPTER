@@ -103,6 +103,8 @@ real(kind=8),parameter :: n2c_g1 = 0.1d0 ! N to C ratio for OM-G1; Could be rela
 real(kind=8),parameter :: n2c_g2 = 0.1d0
 real(kind=8),parameter :: n2c_g3 = 0.1d0
 
+real(kind=8),parameter :: oxa2c_g2 = 0.01d0 ! amount of oxlate (C2O4=) released 
+
 real(kind=8),parameter :: fr_an_ab = 0.0d0 ! Anorthite fraction for albite (Beerling et al., 2020); 0.0 - 0.1
 real(kind=8),parameter :: fr_an_olg = 0.2d0 ! Anorthite fraction for oligoclase (Beerling et al., 2020); 0.1 - 0.3
 real(kind=8),parameter :: fr_an_and = 0.4d0 ! Anorthite fraction for andesine (Beerling et al., 2020); 0.3 - 0.5
@@ -565,8 +567,8 @@ integer,parameter::nsp_sld_fast = 4 ! minerals that react too fast and do not ha
 integer,parameter::nsp_sld_all = 67
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
-integer,parameter::nsp_aq_ph = 10
-integer,parameter::nsp_aq_all = 10
+integer,parameter::nsp_aq_ph = 11
+integer,parameter::nsp_aq_all = 11
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 2
@@ -624,6 +626,7 @@ real(kind=8),dimension(nsp_aq_all,2)::keqaq_c
 real(kind=8),dimension(nsp_aq_all,2)::keqaq_s
 real(kind=8),dimension(nsp_aq_all,2)::keqaq_no3
 real(kind=8),dimension(nsp_aq_all,2)::keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,2)::keqaq_oxa
 real(kind=8),dimension(nsp_sld_all,nz)::ksld_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_gas_all)::stgas_all
@@ -867,7 +870,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'sdn  ','cdr  ','leu  ' &
     & ,'g1   ','g2   ','g3   ','amnt ' &
     & ,'inrt '/)
-chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
+chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22'/)
 
@@ -896,7 +899,7 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
 ! fast reacting minerals
 chrsld_fast = (/'cc   ','dlm  ','arg  ','gps  '/)
 ! below are species which are sensitive to pH 
-chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  '/)
+chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
@@ -1382,9 +1385,10 @@ stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g1
 
-stgas_all(findloc(chrsld_all,'g2',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
+stgas_all(findloc(chrsld_all,'g2',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0 - 2d0*oxa2c_g2
 stgas_all(findloc(chrsld_all,'g2',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
 stgas_all(findloc(chrsld_all,'g2',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g2
+staq_all(findloc(chrsld_all,'g2',dim=1), findloc(chraq_all,'oxa',dim=1)) = oxa2c_g2
 
 stgas_all(findloc(chrsld_all,'g3',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'g3',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
@@ -2351,6 +2355,7 @@ do iph = 1,nph
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
+        & ,keqaq_oxa &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
         & ,keqcec_all,keqiex_all &! output 
         & ) 
@@ -2378,6 +2383,7 @@ call coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
+    & ,keqaq_oxa &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ,keqcec_all,keqiex_all &! output 
     & ) 
@@ -2385,29 +2391,13 @@ call coefs_v2( &
 print_cb = .false. 
 print_loc = './ph.txt'
 
-#ifdef phv7_2
-call calc_pH_v7_2( &
-    & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    & ,print_cb,print_loc,z &! input 
-    & ,pro,ph_error,so4f,ph_iter &! output
-    & ) 
-#else
-! call calc_pH_v7_3( &
-    ! & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    ! & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    ! & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    ! & ,print_cb,print_loc,z &! input 
-    ! & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
-    ! & ,pro,ph_error,so4f,ph_iter &! output
-    ! & ) 
 pro = 1d0
 call calc_pH_v7_4( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,poro,sat &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+    & ,keqaq_oxa &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,pro,ph_error,ph_iter &! output
@@ -2426,7 +2416,7 @@ call get_maqt_all( &
 ! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
     & ,mgasx_loc,maqx_loc,pro &
     & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
     & ,maqft_loc  &! output
@@ -2468,7 +2458,6 @@ do ispa=1,nsp_aq
     enddo
 enddo 
 
-#endif 
 
 ! so4fprev = so4f
 maqft_prev = maqft
@@ -2735,20 +2724,13 @@ if (read_data) then
     print_cb = .false. 
     print_loc = './ph.txt'
     
-    ! call calc_pH_v7_3( &
-        ! & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-        ! & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-        ! & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-        ! & ,print_cb,print_loc,z &! input 
-        ! & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
-        ! & ,prox,ph_error,so4f,ph_iter &! output
-        ! & ) 
     prox = pro
     call calc_pH_v7_4( &
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
         & ,poro,sat &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+        & ,keqaq_oxa &! input
         & ,print_cb,print_loc,z &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
@@ -2767,7 +2749,7 @@ if (read_data) then
     ! call get_maqt_all_v2( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
-        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
+        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
         & ,mgasx_loc,maqx_loc,prox &
         & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
         & ,maqft_loc  &! output
@@ -2849,6 +2831,7 @@ call coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
+    & ,keqaq_oxa &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ,keqcec_all,keqiex_all &! output 
     & ) 
@@ -3115,6 +3098,7 @@ do while (it<nt)
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
+        & ,keqaq_oxa &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
         & ,keqcec_all,keqiex_all &! output 
         & ) 
@@ -3725,7 +3709,7 @@ do while (it<nt)
         & ,stgas_ext,stgas_dext,staq_ext,stsld_ext,staq_dext,stsld_dext &
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst &
         & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
-        & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3 &
+        & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
         & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
         & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
@@ -5066,34 +5050,17 @@ do while (it<nt)
         print_loc = trim(adjustl(profdir))//'/' &
             & //'chrge_balance-'//chr//'.txt'
 
-#ifdef phv7_2
-        call calc_pH_v7_2( &
-            & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-            & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-            & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-            & ,print_cb,print_loc,z &! input 
-            & ,prox,ph_error,so4f,ph_iter &! output
-            & ) 
-#else
-        ! call calc_pH_v7_3( &
-            ! & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-            ! & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-            ! & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-            ! & ,print_cb,print_loc,z &! input 
-            ! & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
-            ! & ,prox,ph_error,so4f,ph_iter &! output
-            ! & )
             
         call calc_pH_v7_4( &
             & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
             & ,poro,sat &! input 
             & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
             & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+            & ,keqaq_oxa &! input
             & ,print_cb,print_loc,z &! input 
             & ,dprodmaq_all,dprodmgas_all &! output
             & ,prox,ph_error,ph_iter &! output
             & ) 
-#endif
         
         open(isldprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld-'//chr//'.txt', status='replace')
@@ -6480,6 +6447,7 @@ subroutine coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
+    & ,keqaq_oxa &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ,keqcec_all,keqiex_all &! output 
     & ) 
@@ -6508,6 +6476,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_c
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_s
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_no3
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_oxa
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::ksld_all
 real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all,mwt_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
@@ -6546,6 +6515,9 @@ data ieqaq_no3,ieqaq_no32/1,2/
 integer ieqaq_nh3,ieqaq_nh32
 data ieqaq_nh3,ieqaq_nh32/1,2/
 
+integer ieqaq_oxa,ieqaq_oxa2
+data ieqaq_oxa,ieqaq_oxa2/1,2/
+
 integer isps,ispss,ispa
 
 ! real(kind=8)::thon = 1d0
@@ -6573,6 +6545,12 @@ daq_all(findloc(chraq_all,'mg',dim=1)) = k_arrhenius(1.7218079d-2 , 15d0+tempk_0
 daq_all(findloc(chraq_all,'si',dim=1)) = k_arrhenius(2.682396d-2  , 15d0+tempk_0, tc+tempk_0, 22.71378d0 , rg)
 daq_all(findloc(chraq_all,'ca',dim=1)) = k_arrhenius(1.9023312d-2 , 15d0+tempk_0, tc+tempk_0, 20.219661d0, rg)
 daq_all(findloc(chraq_all,'al',dim=1)) = k_arrhenius(1.1656226d-2 , 15d0+tempk_0, tc+tempk_0, 21.27788d0 , rg)
+
+! organic acid 
+! oxalic acid (value at 25 oC from Wen et al. 2008; activation just assumed)
+daq_all(findloc(chraq_all,'oxa',dim=1)) = k_arrhenius(3.114735d-02, 25d0+tempk_0, tc+tempk_0, 20.00000d0 , rg)
+
+! --------------------------------- gas diff
 
 ! values used in Kanzaki and Murakami 2016 for oxygen 
 dgasa_all(findloc(chrgas_all,'po2',dim=1)) = k_arrhenius(5.49d-2 , 15d0+tempk_0, tc+tempk_0, 20.07d0 , rg)
@@ -6627,6 +6605,7 @@ keqaq_h = 0d0
 keqaq_s = 0d0
 keqaq_no3 = 0d0
 keqaq_nh3 = 0d0
+keqaq_oxa = 0d0
 
 ! SO4-2 + H+ = HSO4- 
 ! keqaq_s(findloc(chraq_all,'so4',dim=1),ieqaq_so4) = &
@@ -6643,6 +6622,18 @@ keqaq_nh3(findloc(chraq_all,'so4',dim=1),ieqaq_nh3) = &
 keqaq_h(findloc(chraq_all,'no3',dim=1),ieqaq_h1) = 1d0/35.5d0 ! from Levanov et al. 2017 
 keqaq_h(findloc(chraq_all,'no3',dim=1),ieqaq_h1) = 1d0/(10d0**1.3d0) ! from Maggi et al. 2007 
 ! (temperature dependence is assumed to be 0) 
+
+! Oxa= + H+ = OxaH-
+! keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h1) = 1d0/(10d0**-4.266d0) ! from Lawrence et al., GCA, 2014
+! Oxa= + 2H+ = OxaH2
+! keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h2) = 1d0/(10d0**-5.516d0) ! from Lawrence et al., GCA, 2014
+
+!  OxaH- = Oxa= + H+ 
+keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h1) = (10d0**-4.266d0) ! from Lawrence et al., GCA, 2014
+!  OxaH- + H+ = OxaH2
+keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h2) = 1d0/(10d0**-1.25d0) ! from Lawrence et al., GCA, 2014
+
+! ----------------
 
 ! Al3+ + H2O = Al(OH)2+ + H+
 keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h1) = &
@@ -6663,6 +6654,14 @@ keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so4) = &
 ! ignoring for now
 ! keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so42) = &
     ! & k_arrhenius(10d0**(5.0d0),25d0+tempk_0,tc+tempk_0,3.11d0*cal2j,rg) ! from PHREEQC.DAT 
+! Al+3 + OxaH- = AlOxa+ + H+ (Al+3 + Oxa= = AlOxa+  plus OxaH- = Oxa= + H+ )
+! keqaq_oxa(findloc(chraq_all,'al',dim=1),ieqaq_oxa) = 1d0/(10d0**-7.26d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
+! Al3+ + H2O + Oxa= = Al(OH)Oxa + H+ (dominant reaction according to Lawrence et al., GCA, 2014)
+! Al3+ + H2O + HOxa- = Al(OH)Oxa + 2H+ <----> Al3+ + H2O + Oxa= = Al(OH)Oxa + H+  plus  OxaH- = Oxa= + H+
+keqaq_oxa(findloc(chraq_all,'al',dim=1),ieqaq_oxa) = 1d0/(10d0**-2.57d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
+! Al3+ + 2H2O + Oxa= = Al(OH)2Oxa- + 2H+ (dominant reaction according to Lawrence et al., GCA, 2014)
+! Al3+ + 2H2O + HOxa- = Al(OH)2Oxa- + 3H+ <----> Al3+ + 2H2O + Oxa= = Al(OH)2Oxa + 2H+  plus  OxaH- = Oxa= + H+
+keqaq_oxa(findloc(chraq_all,'al',dim=1),ieqaq_oxa2) = 1d0/(10d0**3.12d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
 
 ! H4SiO4 = H3SiO4- + H+
 keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h1) = &
@@ -6684,6 +6683,9 @@ keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_hco3) = &
 ! Mg+2 + SO4-2 = MgSO4
 keqaq_s(findloc(chraq_all,'mg',dim=1),ieqaq_so4) = & 
     & k_arrhenius(10d0**(2.37d0),25d0+tempk_0,tc+tempk_0, 4.550d0*cal2j,rg) ! from PHREEQC.DAT 
+! Mg2+ + OxaH- = MgOxa + H+ (Mg2+ + Oxa= = MgOxa  plus OxaH- = Oxa= + H+ )
+keqaq_oxa(findloc(chraq_all,'mg',dim=1),ieqaq_oxa) = 1d0/(10d0**-3.43d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
+
 
 ! Ca2+ + H2O = Ca(OH)+ + H+
 keqaq_h(findloc(chraq_all,'ca',dim=1),ieqaq_h1) =  &
@@ -6708,6 +6710,10 @@ keqaq_nh3(findloc(chraq_all,'ca',dim=1),ieqaq_nh3) = &
 ! ignoring for now
 ! keqaq_nh3(findloc(chraq_all,'ca',dim=1),ieqaq_nh32) = &
     ! & k_arrhenius(10d0**(-18.788d0),25d0+tempk_0,tc+tempk_0,0d0,rg) ! from MINTEQV4.DAT 
+! Ca2+ + Oxa= = CaOxa
+! keqaq_oxa(findloc(chraq_all,'ca',dim=1),ieqaq_oxa) = 1d0/(10d0**-3.19d0) ! from Prapaipong et al., GCA, 1999
+! Ca2+ + OxaH- = CaOxa + H+ (Ca2+ + Oxa= = CaOxa  plus OxaH- = Oxa= + H+ )
+keqaq_oxa(findloc(chraq_all,'ca',dim=1),ieqaq_oxa) = 1d0/(10d0**-3.19d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
 
     
 ! Fe2+ + H2O = Fe(OH)+ + H+
@@ -6747,6 +6753,11 @@ keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so4) = &
 ! Fe+3 + NO3- = FeNO3+2
 keqaq_no3(findloc(chraq_all,'fe3',dim=1),ieqaq_no3) = &
     & k_arrhenius(10d0**(1d0),25d0+tempk_0,tc+tempk_0,-37d0,rg) ! from MINTEQV4.DAT 
+! Fe+3 + OxaH- = FeOxa+ + H+ (Fe+3 + Oxa= = FeOxa+  plus OxaH- = Oxa= + H+ )
+! keqaq_oxa(findloc(chraq_all,'fe3',dim=1),ieqaq_oxa) = 1d0/(10d0**-9.33d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
+keqaq_oxa(findloc(chraq_all,'fe3',dim=1),ieqaq_oxa) = 1d0/(10d0**-9.15d0)*(10d0**-4.266d0) ! from Perez-Fodich and Derry GCA, 2019
+! Fe+3 + 2 OxaH- = Fe(Oxa)2- + 2 H+ (Fe+3 + 2Oxa= = Fe(Oxa)2-  plus 2  {OxaH- = Oxa= + H+} )
+! keqaq_oxa(findloc(chraq_all,'fe3',dim=1),ieqaq_oxa) = 1d0/(10d0**-15.45d0)*(10d0**(-4.266d0*2d0)) ! from Perez-Fodich and Derry, 2019
 
 
 
@@ -6763,6 +6774,10 @@ keqaq_s(findloc(chraq_all,'na',dim=1),ieqaq_so4) = &
 ! +1.000Na+     +1.000NO3-          = Na(NO3)
 keqaq_no3(findloc(chraq_all,'na',dim=1),ieqaq_no3) = & 
     & k_arrhenius(10d0**(0.4d0),25d0+tempk_0,tc+tempk_0, 0d0,rg) ! from SIT.DAT (no enthalpy data)
+! Na+ + Oxa= = NaOxa-
+! keqaq_oxa(findloc(chraq_all,'na',dim=1),ieqaq_oxa) = 1d0/(10d0**-0.86d0) ! from Prapaipong et al., GCA, 1999
+! Na+ + OxaH- = NaOxa- + H+ (Na+ + Oxa= = NaOxa-  plus OxaH- = Oxa= + H+ )
+keqaq_oxa(findloc(chraq_all,'na',dim=1),ieqaq_oxa) = 1d0/(10d0**-0.86d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
 
 
 
@@ -6772,6 +6787,8 @@ keqaq_s(findloc(chraq_all,'k',dim=1),ieqaq_so4) = &
 ! +1.000K+     +1.000NO3-          = K(NO3)
 keqaq_no3(findloc(chraq_all,'k',dim=1),ieqaq_no3) = & 
     & k_arrhenius(10d0**(-0.15d0),25d0+tempk_0,tc+tempk_0, 0d0,rg) ! from SIT.DAT (no enthalpy data)
+! K+ + OxaH- = KOxa- + H+ (K+ + Oxa= = KOxa-  plus OxaH- = Oxa= + H+ )
+keqaq_oxa(findloc(chraq_all,'k',dim=1),ieqaq_oxa) = 1d0/(10d0**-0.80d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
 
 
 ! keqaq_s = 0d0
@@ -9515,1347 +9532,12 @@ endsubroutine precalc_aqs_v2
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-subroutine calc_pH_v7_2( &
-    & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    & ,print_cb,print_loc,z &! input 
-    & ,prox,ph_error,so4f,ph_iter &! output
-    & ) 
-! solving charge balance:
-! [H+] + ZX[Xz+] - ZY[YZ-] - [HCO3-] - 2[CO32-] - [OH-] - [H3SiO4-] - 2[H2SiO42-] = 0
-! [H+] + ZX[Xz+] - ZY[YZ-] - k1kco2pCO2/[H+] - 2k2k1kco2pCO2/[H+]^2 - kw/[H+] - [Si]/([H+]/k1si + 1 + k2si/k1si/[H+])
-!       - 2[Si]/([H+]^2/k2si + [H+]k1si/k2si + 1) = 0
-! [H+]^3 + (ZX[Xz+] - ZY[YZ-])[H+]^2 - (k1kco2pCO2+kw)[H+] - 2k2k1kco2pCO2  = 0
-! NetCat is defined as (ZX[Xz+] - ZY[YZ-])
-! [H+]^3 + NetCat[H+]^2 - (k1kco2pCO2+kw)[H+] - 2k2k1kco2pCO2  = 0
-implicit none
-integer,intent(in)::nz
-real(kind=8),intent(in)::kw
-real(kind=8) kco2,k1,k2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3,k1al,k2al,k3al,k4al &
-    & ,k1fe2,k1fe2co3,k1fe2hco3,k1fe3,k2fe3,k3fe3,k4fe3,k1naco3,k1nahco3,k1so4,k1kso4,k1naso4  &
-    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,so4th,knh3,k1nh3,k1no3
-real(kind=8),dimension(nz)::nax,mgx,cax,so4x,pco2x,six,alx,fe2x,fe3x,kx,no3x,pnh3x
-real(kind=8),dimension(nz)::naf,kf,mgf,caf,fe2f,fe3f,alf,sif,no3f
-real(kind=8),dimension(nz)::dnaf_dpro,dkf_dpro,dmgf_dpro,dcaf_dpro,dfe2f_dpro,dfe3f_dpro,dalf_dpro,dsif_dpro,dno3f_dpro
-real(kind=8),dimension(nz)::dnaf_dso4f,dkf_dso4f,dmgf_dso4f,dcaf_dso4f,dfe2f_dso4f,dfe3f_dso4f,dalf_dso4f,dsif_dso4f &
-    & ,dno3f_dso4f
-real(kind=8),dimension(nz),intent(in)::z
-real(kind=8),dimension(nz),intent(inout)::prox,so4f
-logical,intent(out)::ph_error
-
-real(kind=8),dimension(nz)::df1,f1,f2,df2,df21,df12
-real(kind=8) error,tol,dconc
-integer iter,iz
-
-integer,intent(in)::nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst
-character(5),dimension(nsp_aq),intent(in)::chraq
-character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas),intent(in)::chrgas
-character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx
-real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
-real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx
-real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
-real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
-
-integer,intent(out)::ph_iter
-
-real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,maqf_loc
-real(kind=8),dimension(nsp_aq_all,nz)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
-real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
-real(kind=8),dimension(nsp_aq_all,nz)::df1dmaq,df2dmaq
-real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas,df2dmgas
-
-real(kind=8),dimension(nz)::f1_dum,f2_dum,df1_dum,df2_dum,df12_dum,df21_dum
-
-real(kind=8)::ph_add_order = 2d0
-logical print_res 
-real(kind=8) diff_max
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
-data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
-
-integer ieqaq_co3,ieqaq_hco3
-data ieqaq_co3,ieqaq_hco3/1,2/
-
-integer ieqaq_so4,ieqaq_so42
-data ieqaq_so4,ieqaq_so42/1,2/
-
-integer ieqaq_no3,ieqaq_no32
-data ieqaq_no3,ieqaq_no32/1,2/
-
-logical,intent(in)::print_cb
-character(500),intent(in)::print_loc
-logical so4_error
-
-real(kind=8),allocatable::amx(:,:),ymx(:)
-integer,allocatable::ipiv(:)
-integer info,nmx
-
-! external DGESV
-#ifdef timing
-real(kind=8) :: t1, t2
-#endif 
-
-print_res = print_cb
-
-error = 1d4
-tol = 1d-6
-dconc = 1d-14
-
-prox = 1d0 
-iter = 0
-
-
-kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
-k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
-k2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)
-k1si = keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h1)
-k2si = keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h2)
-k1mg = keqaq_h(findloc(chraq_all,'mg',dim=1),ieqaq_h1)
-k1mgco3 = keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_co3)
-k1mghco3  = keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_hco3)
-k1ca = keqaq_h(findloc(chraq_all,'ca',dim=1),ieqaq_h1)
-k1caco3 = keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_co3)
-k1cahco3 = keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_hco3)
-k1al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h1)
-k2al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h2)
-k3al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h3)
-k4al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h4)
-k1fe2 = keqaq_h(findloc(chraq_all,'fe2',dim=1),ieqaq_h1)
-k1fe2co3 = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_co3)
-k1fe2hco3  = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_hco3)
-k1fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h1)
-k2fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h2)
-k3fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3)
-k4fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4)
-k1naco3 = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_co3)
-k1nahco3  = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_hco3)
-
-k1so4 = keqaq_h(findloc(chraq_all,'so4',dim=1),ieqaq_h1)
-k1naso4 = keqaq_s(findloc(chraq_all,'na',dim=1),ieqaq_so4)
-k1kso4 = keqaq_s(findloc(chraq_all,'k',dim=1),ieqaq_so4)
-k1caso4 = keqaq_s(findloc(chraq_all,'ca',dim=1),ieqaq_so4)
-k1mgso4 = keqaq_s(findloc(chraq_all,'mg',dim=1),ieqaq_so4)
-k1fe2so4 = keqaq_s(findloc(chraq_all,'fe2',dim=1),ieqaq_so4)
-k1also4 = keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so4)
-k1fe3so4 = keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so4)
-k1also42 = keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so42)
-k1fe3so42 = keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so42)
-
-knh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h0)
-k1nh3 = keqgas_h(findloc(chrgas_all,'pnh3',dim=1),ieqgas_h1)
-
-k1no3 = keqaq_h(findloc(chraq_all,'no3',dim=1),ieqaq_h1)
-
-nax = 0d0
-so4x = 0d0
-kx = 0d0
-no3x = 0d0
-if (any(chraq=='na')) then 
-    nax = maqx(findloc(chraq,'na',dim=1),:)
-elseif (any(chraq_cnst=='na')) then 
-    nax = maqc(findloc(chraq_cnst,'na',dim=1),:)
-endif 
-if (any(chraq=='k')) then 
-    kx = maqx(findloc(chraq,'k',dim=1),:)
-elseif (any(chraq_cnst=='k')) then 
-    kx = maqc(findloc(chraq_cnst,'k',dim=1),:)
-endif 
-if (any(chraq=='so4')) then 
-    so4x = maqx(findloc(chraq,'so4',dim=1),:)
-elseif (any(chraq_cnst=='so4')) then 
-    so4x = maqc(findloc(chraq_cnst,'so4',dim=1),:)
-endif 
-if (any(chraq=='no3')) then 
-    no3x = maqx(findloc(chraq,'no3',dim=1),:)
-elseif (any(chraq_cnst=='no3')) then 
-    no3x = maqc(findloc(chraq_cnst,'no3',dim=1),:)
-endif 
-
-
-six =0d0
-cax =0d0
-mgx =0d0
-fe2x =0d0
-alx =0d0
-fe3x =0d0
-pco2x =0d0
-pnh3x =0d0
-
-if (any(chraq=='si')) then 
-    six = maqx(findloc(chraq,'si',dim=1),:)
-elseif (any(chraq_cnst=='si')) then 
-    six = maqc(findloc(chraq_cnst,'si',dim=1),:)
-endif 
-if (any(chraq=='ca')) then 
-    cax = maqx(findloc(chraq,'ca',dim=1),:)
-elseif (any(chraq_cnst=='ca')) then 
-    cax = maqc(findloc(chraq_cnst,'ca',dim=1),:)
-endif 
-if (any(chraq=='mg')) then 
-    mgx = maqx(findloc(chraq,'mg',dim=1),:)
-elseif (any(chraq_cnst=='mg')) then 
-    mgx = maqc(findloc(chraq_cnst,'mg',dim=1),:)
-endif 
-if (any(chraq=='fe2')) then 
-    fe2x = maqx(findloc(chraq,'fe2',dim=1),:)
-elseif (any(chraq_cnst=='fe2')) then 
-    fe2x = maqc(findloc(chraq_cnst,'fe2',dim=1),:)
-endif 
-if (any(chraq=='al')) then 
-    alx = maqx(findloc(chraq,'al',dim=1),:)
-elseif (any(chraq_cnst=='al')) then 
-    alx = maqc(findloc(chraq_cnst,'al',dim=1),:)
-endif 
-if (any(chraq=='fe3')) then 
-    fe3x = maqx(findloc(chraq,'fe3',dim=1),:)
-elseif (any(chraq_cnst=='fe3')) then 
-    fe3x = maqc(findloc(chraq_cnst,'fe3',dim=1),:)
-endif 
-if (any(chrgas=='pco2')) then 
-    pco2x = mgasx(findloc(chrgas,'pco2',dim=1),:)
-elseif (any(chrgas_cnst=='pco2')) then 
-    pco2x = mgasc(findloc(chrgas_cnst,'pco2',dim=1),:)
-endif 
-if (any(chrgas=='pnh3')) then 
-    pnh3x = mgasx(findloc(chrgas,'pnh3',dim=1),:)
-elseif (any(chrgas_cnst=='pnh3')) then 
-    pnh3x = mgasc(findloc(chrgas_cnst,'pnh3',dim=1),:)
-endif 
-
-if (any(isnan(maqx)) .or. any(isnan(maqc))) then 
-    print*,'nan in input aqueosu species'
-    stop
-endif 
-
-200 continue
-
-
-#ifdef debug
-call get_maqgasx_all( &
-    & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
-    & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
-    & ,maqx,mgasx,maqc,mgasc &
-    & ,maqx_loc,mgasx_loc  &! output
-    & )
-! print *
-! print * , 'na',maxval(abs(nax - maqx_loc(findloc(chraq_all,'na',dim=1),:)))
-! print * , 'k',maxval(abs(kx - maqx_loc(findloc(chraq_all,'k',dim=1),:)))
-! print * , 'so4',maxval(abs(so4x - maqx_loc(findloc(chraq_all,'so4',dim=1),:)))
-! print * , 'no3',maxval(abs(no3x - maqx_loc(findloc(chraq_all,'no3',dim=1),:)))
-! print * , 'si',maxval(abs(six - maqx_loc(findloc(chraq_all,'si',dim=1),:)))
-! print * , 'ca',maxval(abs(cax - maqx_loc(findloc(chraq_all,'ca',dim=1),:)))
-! print * , 'mg',maxval(abs(mgx - maqx_loc(findloc(chraq_all,'mg',dim=1),:)))
-! print * , 'fe2',maxval(abs(fe2x - maqx_loc(findloc(chraq_all,'fe2',dim=1),:)))
-! print * , 'al',maxval(abs(alx - maqx_loc(findloc(chraq_all,'al',dim=1),:)))
-! print * , 'fe3',maxval(abs(fe3x - maqx_loc(findloc(chraq_all,'fe3',dim=1),:)))
-! print * , 'pco2',maxval(abs(pco2x - mgasx_loc(findloc(chrgas_all,'pco2',dim=1),:)))
-! print * , 'pnh3',maxval(abs(pnh3x - mgasx_loc(findloc(chrgas_all,'pnh3',dim=1),:)))
-! print *
-#endif 
-
-so4th = maqth_all(findloc(chraq_all,'so4',dim=1))
-
-so4f  = so4x 
-
-nmx = 2*nz
-! if (all(so4x==0d0)) then 
-if (all(so4x<=so4th)) then 
-    nmx = nz
-#ifdef debug
-    print *, 'v7_2 so4f is assumed to be constant'
-#endif 
-endif  
-
-allocate(amx(nmx,nmx),ymx(nmx),ipiv(nmx))
-
-ph_error = .false.
-
-#ifdef debug
-    print *, 'v7_2 nmx = :',nmx
-#endif 
-! print*,'calc_pH'
-#ifdef timing
-call cpu_time( t1 )
-#endif 
-do while (error > tol)
-    ! free SO42- (for simplicity only consider XSO4 complex where X is a cation)
-    
-    kf = kx/(1d0+k1kso4*so4f)
-    dkf_dso4f = kx*(-1d0)/(1d0+k1kso4*so4f)**2d0*(k1kso4)
-    dkf_dpro = 0d0
-    
-    naf = nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)
-    dnaf_dpro = nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)**2d0 &
-        & *(k1naco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1nahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
-    dnaf_dso4f = nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)**2d0 &
-        & *(k1naso4)
-        
-    caf = cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)
-    dcaf_dpro = cax*(-1d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)**2d0 &
-        & *(k1ca*(-1d0)/prox**2d0+k1caco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1cahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
-    dcaf_dso4f = cax*(-1d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)**2d0 &
-        & *(k1caso4)
-        
-    mgf = mgx/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)
-    dmgf_dpro = mgx*(-1d0)/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)**2d0 &
-        & *(k1mg*(-1d0)/prox**2d0+k1mgco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1mghco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
-    dmgf_dso4f = mgx*(-1d0)/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)**2d0 &
-        & *(k1mgso4)
-        
-    fe2f = fe2x/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)
-    dfe2f_dpro = fe2x*(-1d0) &
-        & /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)**2d0 &
-        & *(k1fe2*(-1d0)/prox**2d0+k1fe2co3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1fe2hco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
-    dfe2f_dso4f = fe2x*(-1d0) &
-        & /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)**2d0 &
-        & *(k1fe2so4)
-        
-    sif = six/(1d0+k1si/prox+k2si/prox**2d0)
-    ! dsif_dpro = six*(-1d0)/(k1si*(-1d0)/prox**2d0+k2si*(-2d0)/prox**3d0)
-    dsif_dpro = six*(-1d0)/(1d0+k1si/prox+k2si/prox**2d0)**2d0*(k1si*(-1d0)/prox**2d0+k2si*(-2d0)/prox**3d0)
-    dsif_dso4f = 0d0
-    
-    alf = alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)
-    dalf_dpro = alx*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)**2d0 &
-        & *(k1al*(-1d0)/prox**2d0+k2al*(-2d0)/prox**3d0+k3al*(-3d0)/prox**4d0+k4al*(-4d0)/prox**5d0)
-    dalf_dso4f = alx*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)**2d0 &
-        & *(k1also4)
-    
-    fe3f = fe3x/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)
-    dfe3f_dpro = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
-        & *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0)
-    dfe3f_dso4f = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
-        & *(k1fe3so4)
-        
-    no3f = no3x/(1d0 + k1no3*prox)
-    dno3f_dpro = no3x*(-1d0)/(1d0 + k1no3*prox)**2d0 * k1no3
-    dno3f_dso4f = 0d0
-    
-    
-#ifdef debug
-    call get_maqf_all( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-        & ,mgasx_loc,maqx_loc,prox,so4f &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-        & ,maqf_loc  &! output
-        & )
-    diff_max = 0d0
-    diff_max = max(diff_max,maxval(abs(naf - maqf_loc(findloc(chraq_all,'na',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(kf - maqf_loc(findloc(chraq_all,'k',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(so4f - maqf_loc(findloc(chraq_all,'so4',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(no3f - maqf_loc(findloc(chraq_all,'no3',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(sif - maqf_loc(findloc(chraq_all,'si',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(caf - maqf_loc(findloc(chraq_all,'ca',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(mgf - maqf_loc(findloc(chraq_all,'mg',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(fe2f - maqf_loc(findloc(chraq_all,'fe2',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(alf - maqf_loc(findloc(chraq_all,'al',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(fe3f - maqf_loc(findloc(chraq_all,'fe3',dim=1),:))))
-    
-    if (diff_max > 0d0) then 
-        print *
-        print * , 'na',maxval(abs(naf - maqf_loc(findloc(chraq_all,'na',dim=1),:)))
-        print * , 'k',maxval(abs(kf - maqf_loc(findloc(chraq_all,'k',dim=1),:)))
-        print * , 'so4',maxval(abs(so4f - maqf_loc(findloc(chraq_all,'so4',dim=1),:)))
-        print * , 'no3',maxval(abs(no3f - maqf_loc(findloc(chraq_all,'no3',dim=1),:)))
-        print * , 'si',maxval(abs(sif - maqf_loc(findloc(chraq_all,'si',dim=1),:)))
-        print * , 'ca',maxval(abs(caf - maqf_loc(findloc(chraq_all,'ca',dim=1),:)))
-        print * , 'mg',maxval(abs(mgf - maqf_loc(findloc(chraq_all,'mg',dim=1),:)))
-        print * , 'fe2',maxval(abs(fe2f - maqf_loc(findloc(chraq_all,'fe2',dim=1),:)))
-        print * , 'al',maxval(abs(alf - maqf_loc(findloc(chraq_all,'al',dim=1),:)))
-        print * , 'fe3',maxval(abs(fe3f - maqf_loc(findloc(chraq_all,'fe3',dim=1),:)))
-        print *
-        ! print * , 'na'
-        ! print *, naf 
-        ! print *, maqf_loc(findloc(chraq_all,'na',dim=1),:)
-        pause
-    endif 
-    
-    diff_max = 0d0
-    diff_max = max(diff_max,maxval(abs(dnaf_dpro - dmaqf_dpro(findloc(chraq_all,'na',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(dkf_dpro - dmaqf_dpro(findloc(chraq_all,'k',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs( - dmaqf_dpro(findloc(chraq_all,'so4',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(dno3f_dpro - dmaqf_dpro(findloc(chraq_all,'no3',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(dsif_dpro - dmaqf_dpro(findloc(chraq_all,'si',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(dcaf_dpro - dmaqf_dpro(findloc(chraq_all,'ca',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(dmgf_dpro - dmaqf_dpro(findloc(chraq_all,'mg',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(dfe2f_dpro - dmaqf_dpro(findloc(chraq_all,'fe2',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(dalf_dpro - dmaqf_dpro(findloc(chraq_all,'al',dim=1),:))))
-    diff_max = max(diff_max,maxval(abs(dfe3f_dpro - dmaqf_dpro(findloc(chraq_all,'fe3',dim=1),:))))
-    
-    if (diff_max > 0d0) then 
-        print *
-        print * , 'na',maxval(abs(dnaf_dpro - dmaqf_dpro(findloc(chraq_all,'na',dim=1),:)))
-        print * , 'k',maxval(abs(dkf_dpro - dmaqf_dpro(findloc(chraq_all,'k',dim=1),:)))
-        print * , 'so4',maxval(abs( - dmaqf_dpro(findloc(chraq_all,'so4',dim=1),:)))
-        print * , 'no3',maxval(abs(dno3f_dpro - dmaqf_dpro(findloc(chraq_all,'no3',dim=1),:)))
-        print * , 'ca',maxval(abs(dcaf_dpro - dmaqf_dpro(findloc(chraq_all,'ca',dim=1),:)))
-        print * , 'si',maxval(abs(dsif_dpro - dmaqf_dpro(findloc(chraq_all,'si',dim=1),:)))
-        print * , 'mg',maxval(abs(dmgf_dpro - dmaqf_dpro(findloc(chraq_all,'mg',dim=1),:)))
-        print * , 'fe2',maxval(abs(dfe2f_dpro - dmaqf_dpro(findloc(chraq_all,'fe2',dim=1),:)))
-        print * , 'al',maxval(abs(dalf_dpro - dmaqf_dpro(findloc(chraq_all,'al',dim=1),:)))
-        print * , 'fe3',maxval(abs(dfe3f_dpro - dmaqf_dpro(findloc(chraq_all,'fe3',dim=1),:)))
-        print *
-        ! print * , 'si'
-        ! print *, dsif_dpro 
-        ! print *, dmaqf_dpro(findloc(chraq_all,'si',dim=1),:)
-        pause
-    endif 
-#endif 
-    
-    f1 = prox**3d0 - (k1*kco2*pco2x+kw)*prox - 2d0*k2*k1*kco2*pco2x  - no3f*prox**2d0 + pnh3x*knh3/k1nh3*prox**3d0 &
-        ! so4
-        & -2d0*so4f*prox**2d0 &
-        & -1d0*so4f*prox**3d0*k1so4 &
-        ! k
-        & + kf*prox**2d0 &
-        & - kf*prox**2d0*k1kso4*so4f &
-        ! na
-        & + naf*prox**2d0 &
-        & -1d0*naf*k1naco3*k1*k2*kco2*pco2x  &
-        & -1d0*naf*prox**2d0*k1naso4*so4f  &
-        ! si 
-        & - sif*k1si*prox &
-        & - 2d0*sif*k2si &
-        ! mg
-        & + 2d0*mgf*prox**2d0 &
-        & + mgf*k1mg*prox &
-        & + mgf*k1mghco3*k1*k2*kco2*pco2x*prox  &
-        ! ca
-        & + 2d0*caf*prox**2d0 &
-        & + caf*k1ca*prox &
-        & + caf*k1cahco3*k1*k2*kco2*pco2x*prox &
-        ! al
-        & + 3d0*alf*prox**2d0 &
-        & + 2d0*alf*k1al*prox &
-        & + alf*k2al &
-        & - alf*k4al/prox**2d0 &
-        & + alf*k1also4*so4f*prox**2d0 &
-        ! fe2
-        & + 2d0*fe2f*prox**2d0 &
-        & + fe2f*k1fe2*prox &
-        & + fe2f*k1fe2hco3*k1*k2*kco2*pco2x*prox &
-        ! fe3
-        & + 3d0*fe3f*prox**2d0 &
-        & + 2d0*fe3f*k1fe3*prox &
-        & + fe3f*k2fe3 &
-        & - fe3f*k4fe3/prox**2d0 &
-        & + fe3f*k1fe3so4*so4f*prox**2d0 
-        
-    df1 = 3d0*prox**2d0 - (k1*kco2*pco2x+kw)*1d0 - no3f*prox*2d0 + pnh3x*knh3/k1nh3*3d0*prox**2d0 &
-        ! so4
-        & -2d0*so4f*prox*2d0 &
-        & -1d0*so4f*3d0*prox**2d0*k1so4 &
-        ! k
-        & + dkf_dpro*prox**2d0 &
-        & + kf*prox*2d0 &
-        & - dkf_dpro*prox**2d0*k1kso4*so4f &
-        & - kf*prox*2d0*k1kso4*so4f &
-        ! na
-        & + dnaf_dpro*prox**2d0 &
-        & + naf*prox*2d0 &
-        & -1d0*dnaf_dpro*k1naco3*k1*k2*kco2*pco2x  &
-        & -1d0*dnaf_dpro*prox**2d0*k1naso4*so4f  &
-        & -1d0*naf*prox*2d0*k1naso4*so4f  &
-        ! si 
-        & - dsif_dpro*k1si*prox &
-        & - sif*k1si &
-        & - 2d0*dsif_dpro*k2si &
-        ! mg
-        & + 2d0*dmgf_dpro*prox**2d0 &
-        & + 2d0*mgf*prox*2d0 &
-        & + dmgf_dpro*k1mg*prox &
-        & + mgf*k1mg &
-        & + dmgf_dpro*k1mghco3*k1*k2*kco2*pco2x*prox  &
-        & + mgf*k1mghco3*k1*k2*kco2*pco2x  &
-        ! ca
-        & + 2d0*dcaf_dpro*prox**2d0 &
-        & + 2d0*caf*prox*2d0 &
-        & + dcaf_dpro*k1ca*prox &
-        & + caf*k1ca &
-        & + dcaf_dpro*k1cahco3*k1*k2*kco2*pco2x*prox &
-        & + caf*k1cahco3*k1*k2*kco2*pco2x &
-        ! al
-        & + 3d0*dalf_dpro*prox**2d0 &
-        & + 3d0*alf*prox*2d0 &
-        & + 2d0*dalf_dpro*k1al*prox &
-        & + 2d0*alf*k1al &
-        & + dalf_dpro*k2al &
-        & - dalf_dpro*k4al/prox**2d0 &
-        & - alf*k4al*(-2d0)/prox**3d0 &
-        & + dalf_dpro*k1also4*so4f*prox**2d0 &
-        & + alf*k1also4*so4f*prox*2d0 &
-        ! fe2
-        & + 2d0*dfe2f_dpro*prox**2d0 &
-        & + 2d0*fe2f*prox*2d0 &
-        & + dfe2f_dpro*k1fe2*prox &
-        & + fe2f*k1fe2 &
-        & + dfe2f_dpro*k1fe2hco3*k1*k2*kco2*pco2x*prox &
-        & + fe2f*k1fe2hco3*k1*k2*kco2*pco2x &
-        ! fe3
-        & + 3d0*dfe3f_dpro*prox**2d0 &
-        & + 3d0*fe3f*prox*2d0 &
-        & + 2d0*dfe3f_dpro*k1fe3*prox &
-        & + 2d0*fe3f*k1fe3 &
-        & + dfe3f_dpro*k2fe3 &
-        & - dfe3f_dpro*k4fe3/prox**2d0 &
-        & - fe3f*k4fe3*(-2d0)/prox**3d0 &
-        & + dfe3f_dpro*k1fe3so4*so4f*prox**2d0 &
-        & + fe3f*k1fe3so4*so4f*prox*2d0 
-    
-    df12 =   &
-        ! so4
-        & -2d0*1d0*prox**2d0 &
-        & -1d0*1d0*prox**3d0*k1so4 &
-        ! k
-        & + dkf_dso4f*prox**2d0 &
-        & - dkf_dso4f*prox**2d0*k1kso4*so4f &
-        & - kf*prox**2d0*k1kso4*1d0 &
-        ! na
-        & + dnaf_dso4f*prox**2d0 &
-        & -1d0*dnaf_dso4f*k1naco3*k1*k2*kco2*pco2x  &
-        & -1d0*dnaf_dso4f*prox**2d0*k1naso4*so4f  &
-        & -1d0*naf*prox**2d0*k1naso4*1d0  &
-        ! si 
-        & - dsif_dso4f*k1si*prox &
-        & - 2d0*dsif_dso4f*k2si &
-        ! mg
-        & + 2d0*dmgf_dso4f*prox**2d0 &
-        & + dmgf_dso4f*k1mg*prox &
-        & + dmgf_dso4f*k1mghco3*k1*k2*kco2*pco2x*prox  &
-        ! ca
-        & + 2d0*dcaf_dso4f*prox**2d0 &
-        & + dcaf_dso4f*k1ca*prox &
-        & + dcaf_dso4f*k1cahco3*k1*k2*kco2*pco2x*prox &
-        ! al
-        & + 3d0*dalf_dso4f*prox**2d0 &
-        & + 2d0*dalf_dso4f*k1al*prox &
-        & + dalf_dso4f*k2al &
-        & - dalf_dso4f*k4al/prox**2d0 &
-        & + dalf_dso4f*k1also4*so4f*prox**2d0 &
-        & + alf*k1also4*1d0*prox**2d0 &
-        ! fe2
-        & + 2d0*dfe2f_dso4f*prox**2d0 &
-        & + dfe2f_dso4f*k1fe2*prox &
-        & + dfe2f_dso4f*k1fe2hco3*k1*k2*kco2*pco2x*prox &
-        ! fe3
-        & + 3d0*dfe3f_dso4f*prox**2d0 &
-        & + 2d0*dfe3f_dso4f*k1fe3*prox &
-        & + dfe3f_dso4f*k2fe3 &
-        & - dfe3f_dso4f*k4fe3/prox**2d0 &
-        & + dfe3f_dso4f*k1fe3so4*so4f*prox**2d0 &
-        & + fe3f*k1fe3so4*1d0*prox**2d0 
-        
-        
-#ifdef debug
-    call calc_charge( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-        & ,mgasx_loc,maqf_loc &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-        & ,z,prox,so4f &
-        & ,print_loc,print_res,ph_add_order &
-        & ,df1_dum,df12_dum,df1dmaq,df1dmgas &!output
-        & ,f1_dum &! output
-        & )
-    diff_max = 0d0
-    diff_max = max(diff_max,maxval(abs(f1-f1_dum)))
-    diff_max = max(diff_max,maxval(abs((df1-df1_dum)/df1)))
-    diff_max = max(diff_max,maxval(abs((df12-df12_dum)/df12)))
-    if (diff_max > 1d-10) then 
-        print *
-        print * , 'f1',maxval(abs(f1-f1_dum))
-        print * , 'df1',maxval(abs((df1-df1_dum)/df1))
-        print * , 'df12',maxval(abs((df12-df12_dum)/df12))
-        print *
-        pause
-    endif 
-#endif 
-        
-    
-    f2 = prox**2d0*so4x - prox**2d0*so4f*( 1d0+k1so4*prox &
-        & +k1kso4*kf &
-        & +k1naso4*naf &
-        & +k1caso4*caf &
-        & +k1mgso4*mgf &
-        & +k1fe2so4*fe2f &
-        & +k1also4*alf &
-        & +k1fe3so4*fe3f &
-        & )
-        
-    df2 =  - prox**2d0*1d0*( 1d0+k1so4*prox &
-        & +k1kso4*kf &
-        & +k1naso4*naf &
-        & +k1caso4*caf &
-        & +k1mgso4*mgf &
-        & +k1fe2so4*fe2f &
-        & +k1also4*alf &
-        & +k1fe3so4*fe3f &
-        & ) &
-        & - prox**2d0*so4f*(  &
-        & +k1kso4*dkf_dso4f &
-        & +k1naso4*dnaf_dso4f &
-        & +k1caso4*dcaf_dso4f &
-        & +k1mgso4*dmgf_dso4f &
-        & +k1fe2so4*dfe2f_dso4f &
-        & +k1also4*dalf_dso4f &
-        & +k1fe3so4*dfe3f_dso4f &
-        & )
-        
-    df21 = 2d0*prox*so4x- prox**2d0*so4f*( k1so4*1d0 &
-        & +k1kso4*dkf_dpro &
-        & +k1naso4*dnaf_dpro &
-        & +k1caso4*dcaf_dpro &
-        & +k1mgso4*dmgf_dpro &
-        & +k1fe2so4*dfe2f_dpro &
-        & +k1also4*dalf_dpro &
-        & +k1fe3so4*dfe3f_dpro &
-        & ) &
-        & -2d0*prox*so4f*( 1d0+k1so4*prox &
-        & +k1kso4*kf &
-        & +k1naso4*naf &
-        & +k1caso4*caf &
-        & +k1mgso4*mgf &
-        & +k1fe2so4*fe2f &
-        & +k1also4*alf &
-        & +k1fe3so4*fe3f &
-        & )
-        
-        
-#ifdef debug 
-    call calc_so4_balance( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,keqaq_h,keqaq_s  &
-        & ,maqf_loc &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-        & ,prox,so4f,so4x &
-        & ,ph_add_order &
-        & ,df2_dum,df21_dum,df2dmaq,df2dmgas &! output
-        & ,f2_dum &! output
-        & )
-    diff_max = 0d0
-    diff_max = max(diff_max,maxval(abs(f2-f2_dum)))
-    diff_max = max(diff_max,maxval(abs(df2-df2_dum)/df2))
-    diff_max = max(diff_max,maxval(abs((df21-df21_dum)/df21)))
-    if (diff_max > 1d-10) then 
-        print *
-        print * , 'f2',maxval(abs(f2-f2_dum))
-        print * , 'df2',maxval(abs(df2-df2_dum)/df2)
-        print * , 'df21',maxval(abs((df21-df21_dum)/df21))
-        print *
-        print *,df21
-        print *,df21_dum
-        print *
-        print *,'so4x', prox**2d0*so4x 
-        print * ,'so4f',- prox**2d0*so4f* 1d0 
-        print * ,'mgso4',- prox**2d0*so4f* k1mgso4*mgf 
-        print * ,'naso4',- prox**2d0*so4f* k1naso4*naf
-        print * ,'caso4',- prox**2d0*so4f* k1caso4*caf   
-        print * ,'also4',- prox**2d0*so4f* k1also4*alf 
-        print * ,'fe2so4',- prox**2d0*so4f* k1fe2so4*fe2f
-        print * ,'fe3so4',- prox**2d0*so4f* k1fe3so4*fe3f 
-        print *,'hso4',- prox**2d0*so4f* k1so4*prox 
-        print * ,'kso4',- prox**2d0*so4f* k1kso4*kf 
-        pause
-        
-    endif 
-#endif 
-        
-! #ifdef debug 
-    ! print *, 'v7_2 '
-    ! print * , iter
-    ! print *, 'f1',f1
-    ! print *
-    ! print *, 'df1',df1
-    ! print *
-    ! print *, 'df12',df12
-    ! print *
-    ! print *, 'f2',f2
-    ! print *
-    ! print *, 'df2',df2
-    ! print *
-    ! print *, 'df21',df21
-    ! print *
-    ! print *, 'prox',prox
-    ! print *
-    ! print *, 'so4f',so4f
-    ! print *
-! #endif 
-        
-        
-    df1 = df1*prox
-    df21 = df21*prox
-    df2 = df2*so4f
-    df12 = df12*so4f
-    
-    if (any(isnan(f1)).or.any(isnan(f2)).or.any(isnan(df1)).or.any(isnan(df2)) &
-        & .or.any(isnan(df12)).or.any(isnan(df21))) then 
-        print*,'found nan during the course of ph calc'
-        print *,any(isnan(f1)),any(isnan(f2)),any(isnan(df1)),any(isnan(df2)) &
-            & ,any(isnan(df12)),any(isnan(df21))
-        print *,prox
-        ph_error = .true.
-        exit
-        ! pause 
-    endif 
-    
-    
-    if (nmx/=nz) then 
-        amx = 0d0
-        ymx = 0d0
-        
-        ymx(1:nz) = f1
-        ymx(nz+1:nmx) = f2
-        
-        do iz=1,nz
-            amx(iz,iz)=df1(iz)
-            amx(nz+iz,nz+iz)=df2(iz)
-            amx(iz,nz+iz)=df12(iz)
-            amx(nz+iz,iz)=df21(iz)
-        enddo 
-        ymx = -ymx
-        
-        call DGESV(nmx,int(1),amx,nmx,ipiv,ymx,nmx,info) 
-        
-        prox = prox*exp( ymx(1:nz) )
-        so4f = so4f*exp( ymx(nz+1:nmx) )
-        
-        error = maxval(abs(exp( ymx )-1d0))
-        if (isnan(error)) then 
-            error = 1d4
-            ph_error = .true.
-            exit 
-        endif 
-    else 
-        prox = prox*exp( -f1/df1 )
-        error = maxval(abs(exp( -f1/df1 )-1d0))
-        if (isnan(error)) error = 1d4
-    endif 
-    
-    iter = iter + 1
-    
-    if (iter > 3000) then 
-        print *,'iteration exceeds 3000'
-        ph_error = .true.
-        return
-    endif 
-enddo 
-#ifdef timing 
-call cpu_time( t2 )
-print *, "cpu time:", t2-t1, "seconds [v7_2] per ph & SO4f soultion."
-#endif 
-
-ph_iter = iter
-
-if (any(isnan(prox)) .or. any(prox<=0d0)) then     
-    print *, (-log10(prox(iz)),iz=1,nz,nz/5)
-    print*,'ph is nan or <= 0'
-    ph_error = .true.
-    ! stop
-endif 
-    
-kf = kx/(1d0+k1kso4*so4f)
-
-naf = nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)
-    
-caf = cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)
-    
-mgf = mgx/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)
-    
-fe2f = fe2x/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)
-    
-sif = six/(1d0+k1si/prox+k2si/prox**2d0)
-
-alf = alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)
-
-fe3f = fe3x/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)
-
-no3f = no3x/(1d0 + k1no3*prox)
-
-#ifdef debug
-call get_maqf_all( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-    & ,mgasx_loc,maqx_loc,prox,so4f &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-    & ,maqf_loc  &! output
-    & )
-    
-! print *
-! print*,'k',maxval(abs(kf-maqf_loc(findloc(chraq_all,'k',dim=1),:)))
-! print*,'na',maxval(abs(naf-maqf_loc(findloc(chraq_all,'na',dim=1),:)))
-! print*,'ca',maxval(abs(caf-maqf_loc(findloc(chraq_all,'ca',dim=1),:)))
-! print*,'mg',maxval(abs(mgf-maqf_loc(findloc(chraq_all,'mg',dim=1),:)))
-! print*,'fe2',maxval(abs(fe2f-maqf_loc(findloc(chraq_all,'fe2',dim=1),:)))
-! print*,'si',maxval(abs(sif-maqf_loc(findloc(chraq_all,'si',dim=1),:)))
-! print*,'al',maxval(abs(alf-maqf_loc(findloc(chraq_all,'al',dim=1),:)))
-! print*,'fe3',maxval(abs(fe3f-maqf_loc(findloc(chraq_all,'fe3',dim=1),:)))
-! print*,'no3',maxval(abs(no3f-maqf_loc(findloc(chraq_all,'no3',dim=1),:)))
-! print *
-#endif 
-       
-if (print_cb) then 
-    open(88,file = trim(adjustl(print_loc)),status='replace')
-    write(88,*) ' z ',' h+ ',' oh- ' &
-        & ,' no3- ', ' hno3 ' &
-        & ,' nh4+ ',' na+ ',' naco3- ', ' nahco3 ', ' naso4- ', ' k+ ',' kso4- ' &
-        & ,' so42- ', ' hso4- ', 'hco3- ', ' co32- ' &
-        & ,' h4sio4 ',' h3sio4- ',' h2sio42- ' &
-        & ,' mg2+ ', ' mg(oh)+ ', ' mgco3 ', 'mghco3+ ', 'mgso4 ' &
-        & , ' ca2+ ', ' ca(oh)+ ', ' caco3 ', ' cahco3+ ', ' caso4 ' &
-        & ,' al3+ ', ' al(oh)2+ ', ' al(oh)2+ ', ' al(oh)3 ', ' al(oh)4- ' , ' also4+ ' &
-        & , ' fe22+ ', ' fe2(oh)+ ', ' fe2co3 ', ' fe2hco3+ ', ' fe2so4 ' &
-        & ,' fe3+ ', ' fe3(oh)2+ ', ' fe3(oh)2+ ', ' fe3(oh)3 ', ' fe3(oh)4- ', ' fe3so4+ ' &
-        & , ' total_charge ' 
-    do iz=1,nz
-        write(88,*) z(iz) &
-        & ,prox(iz) &
-        & ,kw/prox(iz) &
-        & ,no3f(iz) &
-        & ,no3f(iz)*k1no3*prox(iz) &
-        & ,pnh3x(iz)*knh3/k1nh3*prox(iz) &
-        & ,naf(iz) &
-        & ,naf(iz)*k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
-        & ,naf(iz)*k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)     &
-        & ,naf(iz)*k1naso4*so4f(iz)     &
-        & ,kf(iz) &
-        & ,kf(iz)*k1kso4*so4f(iz) &
-        & ,so4f(iz) &
-        & ,so4f(iz)*k1so4*prox(iz) &
-        & ,k1*kco2*pco2x(iz)/prox(iz) &
-        & ,k2*k1*kco2*pco2x(iz)/prox(iz)**2d0 &
-        & ,sif(iz) &
-        & ,sif(iz)*k1si/prox(iz) &
-        & ,sif(iz)*k2si/prox(iz)**2d0 &
-        & ,mgf(iz) &
-        & ,mgf(iz)*k1mg/prox(iz)  &
-        & ,mgf(iz)*k1mgco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0  &
-        & ,mgf(iz)*k1mghco3*k1*k2*kco2*pco2x(iz)/prox(iz)  &
-        & ,mgf(iz)*k1mgso4*so4f(iz)  &
-        & ,caf(iz) &
-        & ,caf(iz)*k1ca/prox(iz) &
-        & ,caf(iz)*k1caco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
-        & ,caf(iz)*k1cahco3*k1*k2*kco2*pco2x(iz)/prox(iz) &
-        & ,caf(iz)*k1caso4*so4f(iz) &
-        & ,alf(iz) &
-        & ,alf(iz)*k1al/prox(iz) &
-        & ,alf(iz)*k2al/prox(iz)**2d0 &
-        & ,alf(iz)*k3al/prox(iz)**3d0 &
-        & ,alf(iz)*k4al/prox(iz)**4d0 &
-        & ,alf(iz)*k1also4*so4f(iz) &
-        & ,fe2f(iz) &
-        & ,fe2f(iz)*k1fe2/prox(iz) &
-        & ,fe2f(iz)*k1fe2co3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
-        & ,fe2f(iz)*k1fe2hco3*k1*k2*kco2*pco2x(iz)/prox(iz) &
-        & ,fe2f(iz)*k1fe2so4*so4f(iz) &
-        & ,fe3f(iz) &
-        & ,fe3f(iz)*k1fe3/prox(iz) &
-        & ,fe3f(iz)*k2fe3/prox(iz)**2d0 &
-        & ,fe3f(iz)*k3fe3/prox(iz)**3d0 &
-        & ,fe3f(iz)*k4fe3/prox(iz)**4d0 &
-        & ,fe3f(iz)*k1fe3so4*so4f(iz) &
-        ! charge balance 
-        & ,1d0*prox(iz) &
-        & +(-1d0)*kw/prox(iz) &
-        & +(-1d0)*no3f(iz) &
-        & +(0d0)*no3f(iz)*k1no3*prox(iz) &
-        & +(1d0)*pnh3x(iz)*knh3/k1nh3*prox(iz) &
-        & +(1d0)*naf(iz) &
-        & +(-1d0)*naf(iz)*k1naco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
-        & +(0d0)*naf(iz)*k1nahco3*k1*k2*kco2*pco2x(iz)/prox(iz)      &
-        & +(-1d0)*naf(iz)*k1naso4*so4f(iz)     &
-        & +(1d0)*kf(iz) &
-        & +(-1d0)*kf(iz)*k1kso4*so4f(iz) &
-        & +(-2d0)*so4f(iz) &
-        & +(-1d0)*so4f(iz)*k1so4*prox(iz) &
-        & +(-1d0)*k1*kco2*pco2x(iz)/prox(iz) &
-        & +(-2d0)*k2*k1*kco2*pco2x(iz)/prox(iz)**2d0 &
-        & +(0d0)*sif(iz) &
-        & +(-1d0)*sif(iz)*k1si/prox(iz) &
-        & +(-2d0)*sif(iz)*k2si/prox(iz)**2d0 &
-        & +(2d0)*mgf(iz) &
-        & +(1d0)*mgf(iz)*k1mg/prox(iz)  &
-        & +(0d0)*mgf(iz)*k1mgco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0  &
-        & +(1d0)*mgf(iz)*k1mghco3*k1*k2*kco2*pco2x(iz)/prox(iz)  &
-        & +(0d0)*mgf(iz)*k1mgso4*so4f(iz)  &
-        & +(2d0)*caf(iz) &
-        & +(1d0)*caf(iz)*k1ca/prox(iz) &
-        & +(0d0)*caf(iz)*k1caco3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
-        & +(1d0)*caf(iz)*k1cahco3*k1*k2*kco2*pco2x(iz)/prox(iz) &
-        & +(0d0)*caf(iz)*k1caso4*so4f(iz) &
-        & +(3d0)*alf(iz) &
-        & +(2d0)*alf(iz)*k1al/prox(iz) &
-        & +(1d0)*alf(iz)*k2al/prox(iz)**2d0 &
-        & +(0d0)*alf(iz)*k3al/prox(iz)**3d0 &
-        & +(-1d0)*alf(iz)*k4al/prox(iz)**4d0 &
-        & +(1d0)*alf(iz)*k1also4*so4f(iz) &
-        & +(2d0)*fe2f(iz) &
-        & +(1d0)*fe2f(iz)*k1fe2/prox(iz) &
-        & +(0d0)*fe2f(iz)*k1fe2co3*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
-        & +(1d0)*fe2f(iz)*k1fe2hco3*k1*k2*kco2*pco2x(iz)/prox(iz) &
-        & +(0d0)*fe2f(iz)*k1fe2so4*so4f(iz) &
-        & +(3d0)*fe3f(iz) &
-        & +(2d0)*fe3f(iz)*k1fe3/prox(iz) &
-        & +(1d0)*fe3f(iz)*k2fe3/prox(iz)**2d0 &
-        & +(0d0)*fe3f(iz)*k3fe3/prox(iz)**3d0 &
-        & +(-1d0)*fe3f(iz)*k4fe3/prox(iz)**4d0 &
-        & +(1d0)*fe3f(iz)*k1fe3so4*so4f(iz) 
-    enddo 
-    close(88)
-endif 
-            
-
-endsubroutine calc_pH_v7_2
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine calc_pH_v7_3( &
-    & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    & ,print_cb,print_loc,z &! input 
-    & ,dprodmaq_all,dprodmgas_all,dso4fdmaq_all,dso4fdmgas_all &! output
-    & ,prox,ph_error,so4f,ph_iter &! output
-    & ) 
-! solving charge balance & so4 species balance
-implicit none
-integer,intent(in)::nz
-real(kind=8),intent(in)::kw
-real(kind=8) so4th
-real(kind=8),dimension(nz)::so4x
-real(kind=8),dimension(nz),intent(in)::z
-real(kind=8),dimension(nz),intent(inout)::prox,so4f
-logical,intent(out)::ph_error
-
-real(kind=8),dimension(nz)::df1,f1,f2,df2,df21,df12
-real(kind=8) error,tol,dconc,ph_add_order 
-integer iter,iz,ispa,ispg
-
-integer,intent(in)::nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst
-character(5),dimension(nsp_aq),intent(in)::chraq
-character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas),intent(in)::chrgas
-character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx
-real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
-real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx
-real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
-real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
-
-real(kind=8),dimension(nsp_aq_all)::base_charge
-real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,maqf_loc
-real(kind=8),dimension(nsp_aq_all,nz)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
-real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
-real(kind=8),dimension(nsp_aq_all,nz)::df1dmaq,df2dmaq
-real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas,df2dmgas
-
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dprodmaq_all,dso4fdmaq_all
-real(kind=8),dimension(nsp_gas_all,nz),intent(out)::dprodmgas_all,dso4fdmgas_all
-
-real(kind=8),dimension(nsp_aq_all,nz)::dmaq,maqtmp_loc
-real(kind=8),dimension(nsp_gas_all,nz)::dmgas,mgastmp_loc
-real(kind=8),dimension(nz)::df1_dum,f1_dum,f2_dum,df2_dum,df21_dum,df12_dum
-real(kind=8),dimension(nsp_aq_all,nz)::df1dmaq_dum,df2dmaq_dum
-real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas_dum,df2dmgas_dum
-
-integer,intent(out)::ph_iter
-
-logical,intent(in)::print_cb
-character(500),intent(in)::print_loc
-logical so4_error,print_res
-
-real(kind=8),allocatable::amx(:,:),ymx(:)
-integer,allocatable::ipiv(:)
-integer info,nmx
-
-
-error = 1d4
-tol = 1d-6
-dconc = 1d-9
-ph_add_order = 2d0
-
-! prox = 1d0 
-iter = 0
-
-if (any(isnan(maqx)) .or. any(isnan(maqc))) then 
-    print*,'nan in input aqueosu species'
-    stop
-endif 
-
-call get_maqgasx_all( &
-    & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
-    & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
-    & ,maqx,mgasx,maqc,mgasc &
-    & ,maqx_loc,mgasx_loc  &! output
-    & )
-    
-call get_base_charge( &
-    & nsp_aq_all & 
-    & ,chraq_all & 
-    & ,base_charge &! output 
-    & )
-
-so4x = maqx_loc(findloc(chraq_all,'so4',dim=1),:)
-
-so4th = maqth_all(findloc(chraq_all,'so4',dim=1))
-
-! so4f  = so4x 
-
-nmx = 2*nz
-! if (all(so4x==0d0)) then 
-if (all(so4x<=so4th)) then 
-    nmx = nz
-endif  
-
-if (allocated(amx)) deallocate(amx)
-if (allocated(ymx)) deallocate(ymx)
-if (allocated(ipiv)) deallocate(ipiv)
-allocate(amx(nmx,nmx),ymx(nmx),ipiv(nmx))
-
-ph_error = .false.
-
-print_res = .false.
-
-! print*,'calc_pH'
-if (.not. print_cb) then
-    ! obtaining ph and so4f from scratch
-  
-    so4f  = so4x 
-    prox = 1d0 
-    do while (error > tol)
-        ! free SO42- (for simplicity only consider XSO4 complex where X is a cation)
-        
-        call get_maqf_all( &
-            & nz,nsp_aq_all,nsp_gas_all &
-            & ,chraq_all,chrgas_all &
-            & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-            & ,mgasx_loc,maqx_loc,prox,so4f &
-            & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-            & ,maqf_loc  &! output
-            & )
-        
-        ! call calc_charge( &
-            ! & nz,nsp_aq_all,nsp_gas_all &
-            ! & ,chraq_all,chrgas_all &
-            ! & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-            ! & ,mgasx_loc,maqf_loc &
-            ! & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-            ! & ,z,prox,so4f &
-            ! & ,print_loc,print_res,ph_add_order &
-            ! & ,df1,df12,df1dmaq,df1dmgas &!output
-            ! & ,f1 &! output
-            ! & )
-        ! f1 = f1*prox**2d0
-        ! df1 = 2d0*prox*f1 + df1*prox**2d0
-        ! df12 = df12*prox**2d0
-        
-        ! call calc_so4_balance( &
-            ! & nz,nsp_aq_all,nsp_gas_all &
-            ! & ,chraq_all,chrgas_all &
-            ! & ,keqaq_h,keqaq_s  &
-            ! & ,maqf_loc &
-            ! & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-            ! & ,prox,so4f,so4x &
-            ! & ,ph_add_order &
-            ! & ,df2,df21,df2dmaq,df2dmgas &! output
-            ! & ,f2 &! output
-            ! & )
-        ! f2 = f2*prox**2d0
-        ! df2 = df2*prox**2d0
-        ! df21 = f2*2d0*prox + df21*prox**2d0
-        
-        call calc_charge_so4_balance( &
-            & nz,nsp_aq_all,nsp_gas_all &
-            & ,chraq_all,chrgas_all &
-            & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-            & ,base_charge &
-            & ,mgasx_loc,maqf_loc &
-            & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-            & ,z,prox,so4f,so4x &
-            & ,print_loc,print_res,ph_add_order &
-            & ,f1,df1,df12,df1dmaq,df1dmgas &!output
-            & ,f2,df2,df21,df2dmaq,df2dmgas &!output
-            & )
-        
-        df1 = df1*prox
-        df21 = df21*prox
-        df2 = df2*so4f
-        df12 = df12*so4f
-        
-        if (any(isnan(f1)).or.any(isnan(f2)).or.any(isnan(df1)).or.any(isnan(df2)) &
-            & .or.any(isnan(df12)).or.any(isnan(df21))) then 
-            print*,'found nan during the course of ph calc'
-            print *,any(isnan(f1)),any(isnan(f2)),any(isnan(df1)),any(isnan(df2)) &
-                & ,any(isnan(df12)),any(isnan(df21))
-            print *,prox
-            ph_error = .true.
-            exit
-            ! pause 
-        endif 
-        
-        
-        if (nmx/=nz) then 
-            amx = 0d0
-            ymx = 0d0
-            
-            ymx(1:nz) = f1(:)
-            ymx(nz+1:nmx) = f2(:)
-            
-            do iz=1,nz
-                amx(iz,iz)=df1(iz)
-                amx(nz+iz,nz+iz)=df2(iz)
-                amx(iz,nz+iz)=df12(iz)
-                amx(nz+iz,iz)=df21(iz)
-            enddo 
-            ymx = -ymx
-            
-            call DGESV(nmx,int(1),amx,nmx,ipiv,ymx,nmx,info) 
-            
-            prox = prox*exp( ymx(1:nz) )
-            so4f = so4f*exp( ymx(nz+1:nmx) )
-            
-            error = maxval(abs(exp( ymx )-1d0))
-            if (isnan(error) .or. info/=0) then 
-                error = 1d4
-                ph_error = .true.
-                exit 
-            endif 
-        else 
-            prox = prox*exp( -f1/df1 )
-            error = maxval(abs(exp( -f1/df1 )-1d0))
-            if (isnan(error)) error = 1d4
-        endif 
-        
-        iter = iter + 1
-        
-        if (iter > 3000) then 
-            print *,'iteration exceeds 3000'
-            ph_error = .true.
-            return
-        endif 
-    enddo  
-endif 
-
-ph_iter = iter
-
-if (any(isnan(prox)) .or. any(prox<=0d0)) then     
-    print *, (-log10(prox(iz)),iz=1,nz,nz/5)
-    print*,'ph is nan or <= zero'
-    ph_error = .true.
-    ! stop
-endif 
-
-call get_maqf_all( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-    & ,mgasx_loc,maqx_loc,prox,so4f &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-    & ,maqf_loc  &! output
-    & )
-
-if (print_cb) print_res = .true.
-
-call calc_charge( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-    & ,mgasx_loc,maqf_loc &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-    & ,z,prox,so4f &
-    & ,print_loc,print_res,ph_add_order &
-    & ,df1,df12,df1dmaq,df1dmgas &!output
-    & ,f1 &! output
-    & )
-
-    
-call calc_so4_balance( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,keqaq_h,keqaq_s  &
-    & ,maqf_loc &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-    & ,prox,so4f,so4x &
-    & ,ph_add_order &
-    & ,df2,df21,df2dmaq,df2dmgas &! output
-    & ,f2 &! output
-    & )    
-
-! call calc_charge_so4_balance( &
-    ! & nz,nsp_aq_all,nsp_gas_all &
-    ! & ,chraq_all,chrgas_all &
-    ! & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-    ! & ,base_charge &
-    ! & ,mgasx_loc,maqf_loc &
-    ! & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-    ! & ,z,prox,so4f,so4x &
-    ! & ,print_loc,print_res,ph_add_order &
-    ! & ,f1,df1,df12,df1dmaq,df1dmgas &!output
-    ! & ,f2,df2,df21,df2dmaq,df2dmgas &!output
-    ! & )    
-    
-do ispa=1,nsp_aq_all
-    dmaq = 0d0
-    dmaq(ispa,:) = dconc!*maqx_loc(ispa,:)
-    maqtmp_loc = maqx_loc+dmaq
-    call get_maqf_all( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-        & ,mgasx_loc,maqtmp_loc,prox,so4f &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-        & ,maqf_loc  &! output
-        & )
-        
-    call calc_charge( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-        & ,mgasx_loc,maqf_loc &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-        & ,z,prox,so4f &
-        & ,print_loc,print_res,ph_add_order &
-        & ,df1_dum,df12_dum,df1dmaq_dum,df1dmgas_dum &!output
-        & ,f1_dum &! output
-        & )
-    
-    call calc_so4_balance( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,keqaq_h,keqaq_s  &
-        & ,maqf_loc &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-        & ,prox,so4f,so4x &
-        & ,ph_add_order &
-        & ,df2_dum,df21_dum,df2dmaq_dum,df2dmgas_dum &! output
-        & ,f2_dum &! output
-        & )   
-    dprodmaq_all(ispa,:) = -f1_dum/df1_dum/dconc!/maqx_loc(ispa,:) 
-    dso4fdmaq_all(ispa,:) = -f2_dum/df2_dum/dconc!/maqx_loc(ispa,:) 
-enddo 
-    
-do ispg=1,nsp_gas_all
-    dmgas = 0d0
-    dmgas(ispg,:) = dconc!*mgasx_loc(ispg,:)
-    mgastmp_loc = mgasx_loc+dmgas
-    call get_maqf_all( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-        & ,mgastmp_loc,maqx_loc,prox,so4f &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-        & ,maqf_loc  &! output
-        & )
-        
-    call calc_charge( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-        & ,mgastmp_loc,maqf_loc &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-        & ,z,prox,so4f &
-        & ,print_loc,print_res,ph_add_order &
-        & ,df1_dum,df12_dum,df1dmaq_dum,df1dmgas_dum &!output
-        & ,f1_dum &! output
-        & )
-    
-    call calc_so4_balance( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,keqaq_h,keqaq_s  &
-        & ,maqf_loc &
-        & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-        & ,prox,so4f,so4x &
-        & ,ph_add_order &
-        & ,df2_dum,df21_dum,df2dmaq_dum,df2dmgas_dum &! output
-        & ,f2_dum &! output
-        & )   
-    dprodmgas_all(ispg,:) = -f1_dum/df1_dum/dconc!/mgasx_loc(ispg,:)  
-    dso4fdmgas_all(ispg,:) = -f2_dum/df2_dum/dconc !/mgasx_loc(ispg,:)
-enddo 
-! 
-! solving two equations analytically:
-! df1/dph * dph/dmsp + df1/dso4f * dso4f/dmsp + df1/dmsp = 0 
-! df2/dph * dph/dmsp + df2/dso4f * dso4f/dmsp + df2/dmsp = 0 
-! using the variables in this subroutine and defining x = dph/dmsp and y = dso4f/dmsp
-! df1 * x + df12 * y + df1dmsp = 0
-! df21 * x + df2 * y + df2dmsp = 0
-! (df1*df2 - df21*df12)*x = - (df1dmsp*df2 - df2dmsp*df12)
-! 
-do ispa = 1, nsp_aq_all
-    dprodmaq_all(ispa,:) = - (df2*df1dmaq(ispa,:) - df12*df2dmaq(ispa,:))/(df2*df1 - df12*df21)   
-    dso4fdmaq_all(ispa,:) = - ( df21*df1dmaq(ispa,:) - df1*df2dmaq(ispa,:) )/(df21*df12 - df1*df2 ) 
-enddo 
-
-do ispg = 1, nsp_gas_all
-    dprodmgas_all(ispg,:) = - (df2*df1dmgas(ispg,:) - df12*df2dmgas(ispg,:) )/(df2*df1 -df12*df21)
-    dso4fdmgas_all(ispg,:) = - ( df21*df1dmgas(ispg,:) - df1*df2dmgas(ispg,:) )/(df21*df12 - df1*df2 )  
-    ! dso4fdmgas_all(ispg,:) = - df1dmgas(ispg,:)/df12
-    ! if (chrgas_all(ispg)=='pco2') then 
-        ! print *,'df1dmgas(ispg,:)/df1'
-        ! print *,df1dmgas(ispg,:)/df1
-        ! print * 
-        ! print *,'df2dmgas(ispg,:)/df21'
-        ! print *,df2dmgas(ispg,:)/df21
-        ! print * 
-        ! print *,'dprodmgas_all(ispg,:)'
-        ! print *,dprodmgas_all(ispg,:)
-        ! print *  
-        ! print *, '------------'  
-        ! print *  
-        ! print *,'df2dmgas(ispg,:)/df2'
-        ! print *,df2dmgas(ispg,:)/df2
-        ! print * 
-        ! print *,'df1dmgas(ispg,:)/df12'
-        ! print *,df1dmgas(ispg,:)/df12
-        ! print * 
-        ! print *,'dso4fdmgas_all(ispg,:)'
-        ! print *,dso4fdmgas_all(ispg,:)
-        ! print * 
-    ! endif 
-enddo 
-
-endsubroutine calc_pH_v7_3
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
 subroutine calc_pH_v7_4( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input
     & ,poro,sat &! input  
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+    & ,keqaq_oxa &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
@@ -10896,6 +9578,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_oxa
 real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
 
 real(kind=8),dimension(nsp_aq_all)::base_charge
@@ -10922,7 +9605,8 @@ real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz)::dmaqft_dmgas_loc
 
 integer iso4,iph,iph2,iph3
 integer :: nph = 3000
-integer :: nph2 = 1000
+! integer :: nph2 = 1000
+integer :: nph2 = 100
 integer :: nph3 = 15
 
 integer,intent(out)::ph_iter
@@ -10942,6 +9626,9 @@ real(kind=8),parameter :: corr = exp(threshold)
 real(kind=8) ph_tmp,ph_fact,err1,err2,slp,slplog,ph_tmp_min,ph_tmp_max
 real(kind=8) ph_max,ph_min 
 
+real(kind=8) f1_min_save,ph_f1min_save
+real(kind=8),parameter :: ph_init_min = 1d-20
+real(kind=8),parameter :: ph_init_max = 1d4 
 
 ! bisec_chk_ON = .false.
 bisec_chk_ON = .true.
@@ -10997,7 +9684,7 @@ call get_maqt_all( &
 ! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
     & ,mgasx_loc,maqx_loc,prox &
     & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
     & ,maqft_loc  &! output
@@ -11044,7 +9731,7 @@ if (.not. print_cb) then
         call calc_charge_balance( &
             & nz,nsp_aq_all,nsp_gas_all &
             & ,chraq_all,chrgas_all &
-            & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+            & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
             & ,base_charge &
             & ,mgasx_loc,maqf_loc &
             & ,z,prox &
@@ -11167,18 +9854,35 @@ if (.not. print_cb) then
         prox_save_newton = prox
         do iz=1,nz
             if (error_save(iz)<tol) cycle
-            print *, 'not converged @ ',iz
             
             first_chk_done = .false.
             ! check to where a root likely exists
-            ph_min = -1d0
-            ph_max = 15d0
+            ph_min = -2d0
+            ph_max = 16d0
+            ! if (error_save(iz)<1d-5) then
+                ! ph_min = -log10(prox_save_newton(iz))-2d0
+                ! ph_max = -log10(prox_save_newton(iz))+2d0                
+            ! endif 
             prox_tmp1 = prox
-            prox_tmp2 = prox 
+            prox_tmp2 = prox
+            
+            print *, 'not converged @ ',iz,ph_min,ph_max,error_save(iz)
+            print *, maqf_loc(findloc(chraq_all,'ca',dim=1),iz) &
+                & ,maqf_loc(findloc(chraq_all,'no3',dim=1),iz) &
+                & ,maqf_loc(findloc(chraq_all,'oxa',dim=1),iz) 
+
+            f1_min_save = 1d100
+            ph_f1min_save = 1d100
+            
             do iph3 = 1,nph3
-                ph_tmp_min = -1d100
+                ph_tmp_min = 1d-100
                 ph_tmp_max = 1d100
+                ! ph_tmp_min = ph_init_min
+                ! ph_tmp_max = ph_init_max
+                ph_tmp_min = 10d0**-ph_max
+                ph_tmp_max = 10d0**-ph_min
                 
+                ! print *,'start from alkaline pH'
                 do iph2=1,nph2 ! start from alkaline pH
                     ph_tmp = ph_max + (ph_min - ph_max) &
                         & * (real(iph2,kind=8)-1d0)/(real(nph2,kind=8)-1d0) 
@@ -11192,7 +9896,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox_tmp1,iz &
@@ -11204,7 +9908,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox_tmp2,iz &
@@ -11216,6 +9920,15 @@ if (.not. print_cb) then
                     err1 = dabs(dexp(-f1_tmp1(iz)/df1_tmp1(iz)/prox_tmp1(iz))-1d0)
                     err2 = dabs(dexp(-f1_tmp2(iz)/df1_tmp2(iz)/prox_tmp2(iz))-1d0)
                     
+                    if (isnan(err1)) then
+                        print *,'err1 is nan',f1_tmp1(iz),df1_tmp1(iz),prox_tmp1(iz)
+                        stop
+                    endif 
+                    if (isnan(err2)) then 
+                        print *,'err2 is nan',f1_tmp2(iz),df1_tmp2(iz),prox_tmp2(iz)
+                        stop
+                    endif 
+                    
                     slp = ( err1 - err2) / (2d0*dconc)
                     slplog = ( err1 - err2) / (-dlog10(prox_tmp1(iz)) - (-dlog10(prox_tmp1(iz)))  )
                     
@@ -11224,7 +9937,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox,iz &
@@ -11232,13 +9945,24 @@ if (.not. print_cb) then
                         & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
                         & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
                         & )
+                        
+                    if (isnan(f1_dum(iz))) then 
+                        print *,'f1_dum(iz) is nan',f1_dum(iz),ph_tmp
+                        stop
+                    endif 
                     
                     ! print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_min)
                     
                     if (slp <= 0d0 .and. f1_dum(iz) <= 0d0) ph_tmp_min = max(ph_tmp_min,ph_tmp)
+                    
+                    if (abs(f1_dum(iz)) < f1_min_save) then
+                        f1_min_save = abs(f1_dum(iz))
+                        ph_f1min_save = ph_tmp
+                    endif 
                 
                 enddo 
                 
+                ! print *,'start from acidic pH'
                 do iph2=nph2,1,-1 ! start from acidic pH
                     ph_tmp = ph_max + (ph_min - ph_max) &
                         & * (real(iph2,kind=8)-1d0)/(real(nph2,kind=8)-1d0) 
@@ -11252,7 +9976,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox_tmp1,iz &
@@ -11264,7 +9988,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox_tmp2,iz &
@@ -11276,15 +10000,26 @@ if (.not. print_cb) then
                     err1 = dabs(dexp(-f1_tmp1(iz)/df1_tmp1(iz)/prox_tmp1(iz))-1d0)
                     err2 = dabs(dexp(-f1_tmp2(iz)/df1_tmp2(iz)/prox_tmp2(iz))-1d0)
                     
+                    if (isnan(err1)) then
+                        print *,'err1 is nan',f1_tmp1(iz),df1_tmp1(iz),prox_tmp1(iz)
+                        stop
+                    endif 
+                    if (isnan(err2)) then 
+                        print *,'err2 is nan',f1_tmp2(iz),df1_tmp2(iz),prox_tmp2(iz)
+                        stop
+                    endif 
+                    
                     slp = ( err1 - err2) / (2d0*dconc)
                     slplog = ( err1 - err2) / (-dlog10(prox_tmp1(iz)) - (-dlog10(prox_tmp1(iz)))  )
                     
                     prox(iz) = ph_tmp
 
+                    print_res = .true.
+                    print_res = .false.
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox,iz &
@@ -11292,16 +10027,43 @@ if (.not. print_cb) then
                         & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
                         & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
                         & )
+                    print_res = .false.
+                    
+                    if (isnan(f1_dum(iz))) then 
+                        print *,'f1_dum(iz) is nan',f1_dum(iz),ph_tmp
+                        stop
+                    endif 
                         
                     ! print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_max)
                     
                     if (slp >= 0d0 .and. f1_dum(iz) >= 0d0) ph_tmp_max = min(ph_tmp_max,ph_tmp)
+                    
+                    ! if (abs(f1_dum(iz)) < f1_min_save) then
+                        ! f1_min_save = abs(f1_dum(iz))
+                        ! ph_f1min_save = ph_tmp
+                    ! endif 
                 
                 enddo 
                 ph_max = -log10(ph_tmp_min)
                 ph_min = -log10(ph_tmp_max)
                 error = abs( 10d0**-ph_min -  10d0**-ph_max)/10d0**-ph_max
                 
+                ! if (iph3 /= nph3) then 
+                    ! if ( abs((ph_tmp_min - ph_init_min)/ph_init_min) < 1d-6 &
+                        ! & .and. abs((ph_tmp_max - ph_init_max)/ph_init_max) > 1d-6  &
+                        ! & ) then
+                        ! ph_tmp_min = ph_tmp_max * 1d-4
+                        ! error =1d4
+                    ! endif 
+                    
+                    ! if ( abs((ph_tmp_min - ph_init_min)/ph_init_min) > 1d-6 &
+                        ! & .and. abs((ph_tmp_max - ph_init_max)/ph_init_max) < 1d-6  &
+                        ! & ) then
+                        ! ph_tmp_max = ph_tmp_min * 1d4
+                        ! error =1d4
+                    ! endif 
+                ! endif 
+                    
                 print*, iph3, 'a root likely between'& 
                     & , ph_min , 'and', ph_max, '>>> error=', error 
                 
@@ -11310,12 +10072,22 @@ if (.not. print_cb) then
                     stop
                 endif 
                 
+                ! prox(iz) = prox_save_newton(iz)
+                
                 if (error < tol*1d-6) then 
                     print *, ' *** root found *** ',iz
                     prox(iz) = 10d0**(-0.5d0*(ph_max + ph_min))
                     first_chk_done = .true.
                     exit
                 endif 
+                
+                ! if (iph3 == nph3) then
+                    ! print *,' *** too large error *** '
+                    ! ph_tmp = ph_f1min_save
+                    ! print *,' ... so adopt where error can be minimum? pH = ',-log10(ph_tmp)
+                    ! prox(iz) = ph_tmp
+                ! endif 
+                
             enddo
             ! pause
             cycle
@@ -11339,7 +10111,7 @@ if (.not. print_cb) then
                 call calc_charge_balance_point( &
                     & nz,nsp_aq_all,nsp_gas_all &
                     & ,chraq_all,chrgas_all &
-                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
                     & ,z,prox_tmp1,iz &
@@ -11351,7 +10123,7 @@ if (.not. print_cb) then
                 call calc_charge_balance_point( &
                     & nz,nsp_aq_all,nsp_gas_all &
                     & ,chraq_all,chrgas_all &
-                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
                     & ,z,prox_tmp2,iz &
@@ -11387,7 +10159,7 @@ if (.not. print_cb) then
                 call calc_charge_balance_point( &
                     & nz,nsp_aq_all,nsp_gas_all &
                     & ,chraq_all,chrgas_all &
-                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
                     & ,z,prox,iz &
@@ -11396,7 +10168,7 @@ if (.not. print_cb) then
                     & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
                     & )
 
-                print *, iph, -log10(ph_tmp),dabs(dexp(-f1_dum(iz)/df1_dum(iz)/prox(iz))-1d0),dabs(f1_dum(iz))
+                ! print *, iph, -log10(ph_tmp),dabs(dexp(-f1_dum(iz)/df1_dum(iz)/prox(iz))-1d0),dabs(f1_dum(iz))
 
                 if ( dabs(dexp(-f1_dum(iz)/df1_dum(iz)/prox(iz))-1d0) < tol ) then 
                     first_chk_done = .true.
@@ -11418,7 +10190,7 @@ if (.not. print_cb) then
                 call calc_charge_balance_point( &
                     & nz,nsp_aq_all,nsp_gas_all &
                     & ,chraq_all,chrgas_all &
-                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
                     & ,z,prox,iz &
@@ -11465,7 +10237,7 @@ if (.not. print_cb) then
             call calc_charge_balance( &
                 & nz,nsp_aq_all,nsp_gas_all &
                 & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
                 & ,z,prox_min &
@@ -11477,7 +10249,7 @@ if (.not. print_cb) then
             call calc_charge_balance( &
                 & nz,nsp_aq_all,nsp_gas_all &
                 & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
                 & ,z,prox_max &
@@ -11489,7 +10261,7 @@ if (.not. print_cb) then
             call calc_charge_balance( &
                 & nz,nsp_aq_all,nsp_gas_all &
                 & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
                 & ,z,prox &
@@ -11583,7 +10355,7 @@ if (mod_ph_order) ph_add_order = a_order/(1d0+EXP(-2d0*k_order*(-log10(prox)-ph_
 call calc_charge_balance( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
     & ,z,prox &
@@ -11599,11 +10371,12 @@ df1dmaqf_tmp = 0d0
 df1dmgas_tmp = 0d0
 d2f1dmaqf_tmp = 0d0
 d2f1dmgas_tmp = 0d0 
+print_res = .false.
 do iz=1,nz
     call calc_charge_balance_point( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
-        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
         & ,base_charge &
         & ,mgasx_loc,maqf_loc &
         & ,z,prox,iz &
@@ -11669,364 +10442,10 @@ endsubroutine calc_pH_v7_4
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-subroutine calc_charge_so4_balance( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-    & ,base_charge &
-    & ,mgasx_loc,maqf_loc &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-    & ,z,prox,so4f,so4x &
-    & ,print_loc,print_res,ph_add_order &
-    & ,f1,df1,df12,df1dmaq,df1dmgas &!output
-    & ,f2,df2,df21,df2dmaq,df2dmgas &!output
-    & )
-implicit none
-
-integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),intent(in)::kw,ph_add_order
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s
-real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
-real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
-real(kind=8),dimension(nz),intent(in)::z,prox,so4f,so4x
-real(kind=8),dimension(nz),intent(out)::f1,df1,df12,f2,df2,df21
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df1dmaq,df2dmaq
-real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df1dmgas,df2dmgas
-
-logical,intent(in)::print_res
-character(500),intent(in)::print_loc
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3
-
-real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,ss_add
-real(kind=8),dimension(nz)::pco2x,pnh3x
-real(kind=8),dimension(nz)::f1_chk
-
-character(1) chrint
-
-
-if (print_res) open(88,file = trim(adjustl(print_loc)),status='replace')
-
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
-
-kco2 = keqgas_h(ipco2,ieqgas_h0)
-k1 = keqgas_h(ipco2,ieqgas_h1)
-k2 = keqgas_h(ipco2,ieqgas_h2)
-
-pco2x = mgasx_loc(ipco2,:)
-
-
-knh3 = keqgas_h(ipnh3,ieqgas_h0)
-k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
-
-pnh3x = mgasx_loc(ipnh3,:)
-
-ss_add = ph_add_order
-
-f1 = 0d0
-df1 = 0d0
-df12 = 0d0
-df1dmaq = 0d0
-df1dmgas = 0d0
-
-f1 = f1 + prox**(ss_add+1d0) - kw*prox**(ss_add-1d0)
-df1 = df1 + (ss_add+1d0)*prox**ss_add - kw*(ss_add-1d0)*prox**(ss_add-2d0)
-if (print_res) write(88,'(3A11)', advance='no') 'z','h', 'oh'
-
-! adding charges coming from aq species in eq with gases
-! pCO2
-f1 = f1  -  k1*kco2*pco2x*prox**(ss_add-1d0)  -  2d0*k2*k1*kco2*pco2x*prox**(ss_add-2d0)
-df1 = df1  -  k1*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0)  -  2d0*k2*k1*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0)
-df1dmgas(ipco2,:) = df1dmgas(ipco2,:) -  k1*kco2*1d0*prox**(ss_add-1d0)  -  2d0*k2*k1*kco2*1d0*prox**(ss_add-2d0)
-if (print_res) write(88,'(2A11)', advance='no') 'hco3','co3'
-! pNH3
-f1 = f1  +  pnh3x*knh3/k1nh3*prox**(ss_add+1d0)
-df1 = df1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*prox**ss_add
-df1dmgas(ipnh3,:) = df1dmgas(ipnh3,:)  +  1d0*knh3/k1nh3*prox**(ss_add+1d0)
-if (print_res) write(88,'(A11)', advance='no') 'nh4'
-
-!### SO4 mass balance ###
-f2 = 0d0
-df2 = 0d0
-df21 = 0d0
-df2dmaq = 0d0
-df2dmgas = 0d0
-
-f2 = so4x*prox**ss_add - so4f*prox**ss_add
-df2 = - 1d0*prox**ss_add
-df21 = so4x*ss_add*prox**(ss_add-1d0) - so4f*ss_add*prox**(ss_add-1d0)
-df2dmaq(findloc(chraq_all,'so4',dim=1),:) =  1d0*prox**ss_add 
-!### SO4 mass balance ###
-
-do ispa = 1, nsp_aq_all
-    
-    f1 = f1 + base_charge(ispa)*maqf_loc(ispa,:)*prox**(ss_add)
-    df1 = df1 + ( &
-        & + base_charge(ispa)*dmaqf_dpro(ispa,:)*prox**(ss_add)  &
-        & + base_charge(ispa)*maqf_loc(ispa,:)*(ss_add)*prox**(ss_add-1d0)  &
-        & )
-    df12 = df12 + base_charge(ispa)*dmaqf_dso4f(ispa,:)*prox**(ss_add) 
-    df1dmaq(ispa,:) = df1dmaq(ispa,:) + base_charge(ispa)*dmaqf_dmaq(ispa,:)*prox**(ss_add) 
-    df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + base_charge(ispa)*dmaqf_dpco2(ispa,:) *prox**(ss_add)
-    if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))
-    
-    ! annions
-    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
-        
-        ! account for speces associated with H+
-        do ispa_h = 1,4
-            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                rspa_h = real(ispa_h,kind=8)
-                f1 = f1 + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
-                df1 = df1 + ( & 
-                    & + (base_charge(ispa) + rspa_h) &
-                    &        *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0) &
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dpro(ispa,:)*prox**(rspa_h+ss_add) &
-                    & )
-                df12 = df12 + (& 
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dso4f(ispa,:)*prox**(rspa_h+ss_add) &
-                    & )
-                df1dmaq(ispa,:) = df1dmaq(ispa,:) + (& 
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dmaq(ispa,:)*prox**(rspa_h+ss_add) &
-                    & )
-                df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + (& 
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dpco2(ispa,:)*prox**(rspa_h+ss_add) &
-                    & )
-                if (print_res) then 
-                    write(chrint,'(I1)') ispa_h
-                    write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
-                endif 
-                
-                ! ### SO4 mass balance
-                ! account for SO4 association with H+
-                if ( trim(adjustl(chraq_all(ispa)))=='so4') then 
-                    f2 = f2 - keqaq_h(ispa,ispa_h)*so4f*prox**(rspa_h+ss_add)
-                    df2 = df2 - keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add)
-                    df21 = df21 - keqaq_h(ispa,ispa_h)*so4f*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0)
-                endif 
-                !### SO4 mass balance ###
-                
-            endif 
-        enddo 
-    ! cations
-    else 
-        ! account for hydrolysis speces
-        do ispa_h = 1,4
-            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                rspa_h = real(ispa_h,kind=8)
-                f1 = f1 + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
-                df1 = df1 + ( &
-                    & + (base_charge(ispa) - rspa_h) &
-                    &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*prox**(ss_add-rspa_h-1d0) &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dpro(ispa,:)*prox**(ss_add-rspa_h) &
-                    & )
-                df12 = df12 + ( &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dso4f(ispa,:)*prox**(ss_add-rspa_h) &
-                    & )
-                df1dmaq(ispa,:) = df1dmaq(ispa,:) + ( &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dmaq(ispa,:)*prox**(ss_add-rspa_h) &
-                    & )
-                df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dpco2(ispa,:)*prox**(ss_add-rspa_h) &
-                    & )
-                if (print_res) then 
-                    write(chrint,'(I1)') ispa_h
-                    write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
-                endif 
-            endif 
-        enddo 
-        ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
-        do ispa_c = 1,2
-            if ( keqaq_c(ispa,ispa_c) > 0d0) then 
-                if (ispa_c == 1) then ! with CO3--
-                    f1 = f1 + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0)
-                    df1 = df1 + ( & 
-                        & + (base_charge(ispa)-2d0) &
-                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0) &
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*dmaqf_dpro(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
-                        & )
-                    df12 = df12 + ( & 
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*dmaqf_dso4f(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
-                        & )
-                    df1dmaq(ispa,:) = df1dmaq(ispa,:) + ( & 
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*dmaqf_dmaq(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
-                        & )
-                    df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*dmaqf_dpco2(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-2d0) &
-                        & )
-                    if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(co3)'
-                elseif (ispa_c == 2) then ! with HCO3-
-                    f1 = f1 + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0)
-                    df1 = df1 + ( & 
-                        & + (base_charge(ispa)-1d0) &
-                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0) &
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*dmaqf_dpro(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
-                        & )
-                    df12 = df12 + ( & 
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*dmaqf_dso4f(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
-                        & )
-                    df1dmaq(ispa,:) = df1dmaq(ispa,:) + ( & 
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*dmaqf_dmaq(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
-                        & )
-                    df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*dmaqf_dpco2(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-1d0) &
-                        & )
-                    if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(hco3)'
-                endif 
-            endif 
-        enddo 
-        ! account for complexation with free SO4
-        do ispa_s = 1,2
-            if ( keqaq_s(ispa,ispa_s) > 0d0) then 
-                rspa_s = real(ispa_s,kind=8)
-                f1 = f1 + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add
-                df1 = df1 + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*dmaqf_dpro(ispa,:)*so4f**rspa_s*prox**ss_add & 
-                    & + (base_charge(ispa)-2d0*rspa_s) &
-                    &       *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*ss_add*prox**(ss_add-1d0) & 
-                    & )
-                df12 = df12 + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s) &
-                    &       *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*dmaqf_dso4f(ispa,:)*so4f**rspa_s*prox**ss_add & 
-                    & )
-                df1dmaq(ispa,:) = df1dmaq(ispa,:) + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*dmaqf_dmaq(ispa,:)*so4f**rspa_s*prox**ss_add & 
-                    & )
-                df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*dmaqf_dpco2(ispa,:)*so4f**rspa_s*prox**ss_add & 
-                    & )
-                if (print_res) then 
-                    write(chrint,'(I1)') ispa_s
-                    write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(so4)'//trim(adjustl(chrint))
-                endif 
-                ! ### SO4 mass balance
-                ! account for complexation with free SO4
-                f2 = f2 - rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add
-                df2 = df2 - ( &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dso4f(ispa,:)*so4f**rspa_s*prox**ss_add &
-                    & )
-                df21 = df21 - ( &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dpro(ispa,:)*so4f**rspa_s*prox**ss_add &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*ss_add*prox**(ss_add-1d0) &
-                    & )
-                df2dmaq(ispa,:) = df2dmaq(ispa,:) - ( &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dmaq(ispa,:)*so4f**rspa_s*prox**ss_add &
-                    & )
-                df2dmgas(ipco2,:) = df2dmgas(ipco2,:) - ( &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dpco2(ispa,:)*so4f**rspa_s*prox**ss_add &
-                    & )
-                !### SO4 mass balance ###
-                    
-            endif 
-        enddo 
-        ! currently NO3 complexation with cations are ignored
-    endif 
-enddo     
-
-if (print_res) write(88,'(A11)') 'tot_charge'
-
-f1_chk = 0d0
-ss_add = 0d0
-if (print_res) then
-    do iz = 1, nz
-        f1_chk(iz) = f1_chk(iz) + prox(iz)**(ss_add+1d0) - kw*prox(iz)**(ss_add-1d0)
-        write(88,'(3E11.3)', advance='no') z(iz),prox(iz), kw/prox(iz)
-
-        ! adding charges coming from aq species in eq with gases
-        ! pCO2
-        f1_chk(iz) = f1_chk(iz)  -  k1*kco2*pco2x(iz)*prox(iz)**(ss_add-1d0)  -  2d0*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add-2d0)
-        write(88,'(2E11.3)', advance='no')    k1*kco2*pco2x(iz)/prox(iz),  k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
-        ! pNH3
-        f1_chk(iz) = f1_chk(iz)  +  pnh3x(iz)*knh3/k1nh3*prox(iz)**(ss_add+1d0)
-        write(88,'(E11.3)', advance='no')    pnh3x(iz)*knh3/k1nh3*prox(iz)
-
-        do ispa = 1, nsp_aq_all
-            
-            f1_chk(iz) = f1_chk(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*prox(iz)**(ss_add)
-            write(88,'(E11.3)', advance='no') maqf_loc(ispa,iz) 
-            
-            ! annions
-            if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
-                
-                ! account for speces associated with H+
-                do ispa_h = 1,4
-                    if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                        rspa_h = real(ispa_h,kind=8)
-                        f1_chk(iz) = f1_chk(iz) &
-                            & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add)
-                        write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
-                    endif 
-                enddo 
-            ! cations
-            else 
-                ! account for hydrolysis speces
-                do ispa_h = 1,4
-                    if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                        rspa_h = real(ispa_h,kind=8)
-                        f1_chk(iz) = f1_chk(iz) &
-                            & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add-rspa_h)
-                        write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
-                    endif 
-                enddo 
-                ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
-                do ispa_c = 1,2
-                    if ( keqaq_c(ispa,ispa_c) > 0d0) then 
-                        if (ispa_c == 1) then ! with CO3--
-                            f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-2d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add-2d0)
-                            write(88,'(E11.3)', advance='no') &
-                                & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0
-                        elseif (ispa_c == 2) then ! with HCO3-
-                            f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-1d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add-1d0)
-                            write(88,'(E11.3)', advance='no') &
-                                & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)
-                        endif 
-                    endif 
-                enddo 
-                ! account for complexation with free SO4
-                do ispa_s = 1,2
-                    if ( keqaq_s(ispa,ispa_s) > 0d0) then 
-                        rspa_s = real(ispa_s,kind=8)
-                        f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add
-                        write(88,'(E11.3)', advance='no') keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s
-                    endif 
-                enddo 
-                ! currently NO3 complexation with cations is ignored
-            endif 
-        enddo     
-        write(88,'(E11.3)') f1_chk(iz)
-    enddo 
-endif 
-
-if (print_res) close(88)
-
-endsubroutine calc_charge_so4_balance
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
 subroutine calc_charge_balance( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
     & ,z,prox &
@@ -12042,7 +10461,7 @@ character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),intent(in)::kw
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
@@ -12057,11 +10476,11 @@ character(500),intent(in)::print_loc
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 
-integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3,iso4,ispa_no3,ino3,ispa_nh3
+integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh3,ispa_oxa
 
-real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3
-real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f
-real(kind=8),dimension(nz)::f1_chk,ss_add
+real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3
+real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf
+real(kind=8),dimension(nz)::f1_chk,ss_add,back
 
 character(1) chrint
 
@@ -12072,6 +10491,7 @@ ipco2 = findloc(chrgas_all,'pco2',dim=1)
 ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
 iso4 = findloc(chraq_all,'so4',dim=1)
 ino3 = findloc(chraq_all,'no3',dim=1)
+ioxa = findloc(chraq_all,'oxa',dim=1)
 
 kco2 = keqgas_h(ipco2,ieqgas_h0)
 k1 = keqgas_h(ipco2,ieqgas_h1)
@@ -12087,6 +10507,7 @@ pnh3x = mgasx_loc(ipnh3,:)
 
 so4f = maqf_loc(iso4,:)
 no3f = maqf_loc(ino3,:)
+oxaf = maqf_loc(ioxa,:)
 
 ss_add = ph_add_order
 
@@ -12098,10 +10519,15 @@ df1dmgas = 0d0
 d2f1dmaqf = 0d0
 d2f1dmgas = 0d0
 
-f1 = f1 + prox**(ss_add+1d0) - kw*prox**(ss_add-1d0)
-df1 = df1 + (ss_add+1d0)*prox**ss_add - kw*(ss_add-1d0)*prox**(ss_add-2d0)
+back = 1d0
+back = 0d0
+
+f1 = f1 + prox**(ss_add+1d0) - kw*prox**(ss_add-1d0) + back*prox**(ss_add)- back*prox**(ss_add)
+df1 = df1 + (ss_add+1d0)*prox**ss_add - kw*(ss_add-1d0)*prox**(ss_add-2d0) &
+    & + ss_add*back*prox**(ss_add-1d0)- ss_add*back*prox**(ss_add-1d0)
 d2f1 = d2f1 + (ss_add+1d0)*ss_add*prox**(ss_add-1d0) &
-    & - kw*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0)
+    & - kw*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0) &
+    & + ss_add*(ss_add-1d0)*back*prox**(ss_add-2d0)- ss_add*(ss_add-1d0)*back*prox**(ss_add-2d0)
 if (print_res) write(88,'(3A11)', advance='no') 'z','h', 'oh'
 
 ! adding charges coming from aq species in eq with gases
@@ -12164,10 +10590,14 @@ do ispa = 1, nsp_aq_all
     enddo 
     
     ! anions
-    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
+    if ( &
+        & trim(adjustl(chraq_all(ispa)))=='no3' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
+        ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & ) then 
         
         ! account for speces associated with H+
-        do ispa_h = 1,4
+        do ispa_h = 1,2
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                 rspa_h = real(ispa_h,kind=8)
                 f1 = f1 + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
@@ -12188,7 +10618,55 @@ do ispa = 1, nsp_aq_all
                 endif 
                 
             endif 
-        enddo 
+        enddo
+    ! oxalic acid
+    elseif ( &
+        & trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & ) then
+        do ispa_h = 1,2
+            if (ispa_h==1) then  ! OxaH- = Oxa= + H+ 
+                if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                    rspa_h = real(ispa_h,kind=8)
+                    f1 = f1 + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
+                    df1 = df1 + ( &
+                        & + (base_charge(ispa) - rspa_h) &
+                        &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*prox**(ss_add-rspa_h-1d0) &
+                        & )
+                    d2f1 = d2f1 + ( &
+                        & + (base_charge(ispa) - rspa_h) &
+                        &   *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*(ss_add-rspa_h-1d0)*prox**(ss_add-rspa_h-2d0) &
+                        & )
+                    df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( &
+                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
+                        & )
+                    if (print_res) then 
+                        write(chrint,'(I1)') ispa_h
+                        write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
+                    endif 
+                endif 
+            elseif (ispa_h==2) then  ! OxaH- + H+ = OxaH2  
+                if ( keqaq_h(ispa,ispa_h) > 0d0) then  
+                    rspa_h = real(ispa_h-1,kind=8)
+                    f1 = f1 + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
+                    df1 = df1 + ( & 
+                        & + (base_charge(ispa) + rspa_h) &
+                        &        *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0) &
+                        & )
+                    d2f1 = d2f1 + ( & 
+                        & + (base_charge(ispa) + rspa_h) &
+                        &   *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*(rspa_h+ss_add-1d0)*prox**(rspa_h+ss_add-2d0) &
+                        & )
+                    df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + (& 
+                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
+                        & )
+                    if (print_res) then 
+                        write(chrint,'(I1)') ispa_h-1
+                        write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
+                    endif 
+                    
+                endif 
+            endif 
+        enddo
     ! cations
     else 
         ! account for hydrolysis speces
@@ -12270,7 +10748,8 @@ do ispa = 1, nsp_aq_all
                     & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s*prox**ss_add & 
                     & )
                 df1dmaqf(iso4,:) = df1dmaqf(iso4,:) + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*1d0**rspa_s*prox**ss_add & 
+                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s) &
+                    & *maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add & 
                     & )
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_s
@@ -12296,11 +10775,54 @@ do ispa = 1, nsp_aq_all
                     & + (base_charge(ispa)-1d0*rspa_no3)*keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3*prox**ss_add & 
                     & )
                 df1dmaqf(ino3,:) = df1dmaqf(ino3,:) + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_no3)*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*1d0**rspa_no3*prox**ss_add & 
+                    & + (base_charge(ispa)-1d0*rspa_no3)*keqaq_no3(ispa,ispa_no3) &
+                    &   *maqf_loc(ispa,:)*rspa_no3*no3f**(rspa_no3-1d0)*prox**ss_add & 
                     & )
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_no3
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(no3)'//trim(adjustl(chrint))
+                endif 
+                    
+            endif 
+        enddo 
+        ! accounting for complexation with HOxa-
+        do ispa_oxa = 1,2
+            rspa_oxa   = real(ispa_oxa,kind=8)
+            rspa_oxa_2 = real(ispa_oxa,kind=8) * 2d0
+            rspa_oxa_3 = real(ispa_oxa,kind=8)
+            if (trim(adjustl(chraq_all(ispa)))=='al') then
+                rspa_oxa   = real(ispa_oxa,kind=8) + 1d0
+                rspa_oxa_2 = real(ispa_oxa,kind=8) + 2d0
+                rspa_oxa_3 = 1d0
+            endif 
+            if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
+                f1 = f1 + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    ! & *maqf_loc(ispa,:)*oxaf**rspa_oxa*prox**ss_add
+                    & *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*prox**(ss_add-rspa_oxa)
+                df1 = df1 + ( & 
+                    & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    ! &   *maqf_loc(ispa,:)*oxaf**rspa_oxa*ss_add*prox**(ss_add-1d0) & 
+                    &   *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(ss_add-rspa_oxa)*prox**(ss_add-rspa_oxa-1d0) & 
+                    & )
+                d2f1 = d2f1 + ( & 
+                    & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    ! &   *maqf_loc(ispa,:)*oxaf**rspa_oxa*ss_add*(ss_add-1d0)*prox**(ss_add-2d0) & 
+                    &   *maqf_loc(ispa,:)*oxaf**rspa_oxa_3 &
+                    &   *(ss_add-rspa_oxa)*(ss_add-rspa_oxa-1d0)*prox**(ss_add-rspa_oxa-2d0) & 
+                    & )
+                df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( & 
+                    ! & + (base_charge(ispa)-2d0*rspa_oxa)*keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa*prox**ss_add & 
+                    & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    &   *1d0*oxaf**rspa_oxa_3*prox**(ss_add-rspa_oxa) & 
+                    & )
+                df1dmaqf(ioxa,:) = df1dmaqf(ioxa,:) + ( & 
+                    ! & + (base_charge(ispa)-2d0*rspa_oxa)*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*1d0**rspa_oxa*prox**ss_add & 
+                    & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    &   *maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)*prox**(ss_add-rspa_oxa) & 
+                    & )
+                if (print_res) then 
+                    write(chrint,'(I1)') ispa_oxa
+                    write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oxa)'//trim(adjustl(chrint))
                 endif 
                     
             endif 
@@ -12344,15 +10866,42 @@ if (print_res) then
             enddo 
             
             ! annions
-            if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
+            if ( &
+                & trim(adjustl(chraq_all(ispa)))=='no3' &
+                & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
+                ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
+                & ) then 
                 
                 ! account for speces associated with H+
-                do ispa_h = 1,4
+                do ispa_h = 1,2
                     if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                         rspa_h = real(ispa_h,kind=8)
                         f1_chk(iz) = f1_chk(iz) &
                             & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
                         write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                    endif 
+                enddo 
+            ! oxalic acid 
+            elseif ( &
+                & trim(adjustl(chraq_all(ispa)))=='oxa' &
+                & ) then 
+                do ispa_h = 1,2
+                    if (ispa_h==1) then 
+                        if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                            rspa_h = real(ispa_h,kind=8)
+                            f1_chk(iz) = f1_chk(iz) &
+                                & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h) &
+                                &       *maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
+                            write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                        endif 
+                    elseif (ispa_h==2)then
+                        if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                            rspa_h = real(ispa_h-1,kind=8)
+                            f1_chk(iz) = f1_chk(iz) &
+                                & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h) &
+                                &       *maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
+                            write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                        endif 
                     endif 
                 enddo 
             ! cations
@@ -12400,6 +10949,23 @@ if (print_res) then
                         write(88,'(E11.3)', advance='no') keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3
                     endif 
                 enddo 
+                ! account for complexation with Hoxa-
+                do ispa_oxa = 1,2
+                    rspa_oxa   = real(ispa_oxa,kind=8)
+                    rspa_oxa_2 = real(ispa_oxa,kind=8) * 2d0
+                    rspa_oxa_3 = real(ispa_oxa,kind=8)
+                    if (trim(adjustl(chraq_all(ispa)))=='al') then
+                        rspa_oxa   = real(ispa_oxa,kind=8) + 1d0
+                        rspa_oxa_2 = real(ispa_oxa,kind=8) + 2d0
+                        rspa_oxa_3 = 1d0
+                    endif 
+                    if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
+                        f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)-rspa_oxa_2) &
+                            & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
+                        write(88,'(E11.3)', advance='no') &
+                            & keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3/prox(iz)**rspa_oxa
+                    endif 
+                enddo 
             endif 
         enddo     
         write(88,'(E11.3)') f1_chk(iz)
@@ -12418,7 +10984,7 @@ endsubroutine calc_charge_balance
 subroutine calc_charge_balance_point( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
+    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
     & ,z,prox,iz &
@@ -12434,7 +11000,7 @@ character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),intent(in)::kw
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
@@ -12449,11 +11015,11 @@ character(500),intent(in)::print_loc
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 
-integer ispa,ispa_h,ispa_c,ispa_s,ipco2,ipnh3,iso4,ispa_no3,ino3,ispa_nh3
+integer ispa,ispa_h,ispa_c,ispa_s,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh3,ispa_oxa
 
-real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3
-real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f
-real(kind=8),dimension(nz)::f1_chk,ss_add
+real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3
+real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf
+real(kind=8),dimension(nz)::f1_chk,ss_add,back
 
 character(1) chrint
 
@@ -12461,6 +11027,7 @@ ipco2 = findloc(chrgas_all,'pco2',dim=1)
 ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
 iso4 = findloc(chraq_all,'so4',dim=1)
 ino3 = findloc(chraq_all,'no3',dim=1)
+ioxa = findloc(chraq_all,'oxa',dim=1)
 
 kco2 = keqgas_h(ipco2,ieqgas_h0)
 k1 = keqgas_h(ipco2,ieqgas_h1)
@@ -12476,6 +11043,7 @@ pnh3x = mgasx_loc(ipnh3,:)
 
 so4f = maqf_loc(iso4,:)
 no3f = maqf_loc(ino3,:)
+oxaf = maqf_loc(ioxa,:)
 
 ss_add = ph_add_order
 
@@ -12487,12 +11055,19 @@ df1dmgas = 0d0
 d2f1dmaqf = 0d0
 d2f1dmgas = 0d0
 
+back = 1d0
+back = 0d0
 
-f1(iz) = f1(iz) + prox(iz)**(ss_add(iz)+1d0) - kw*prox(iz)**(ss_add(iz)-1d0)
+f1(iz) = f1(iz) + prox(iz)**(ss_add(iz)+1d0) - kw*prox(iz)**(ss_add(iz)-1d0) &
+    & + back(iz)*prox(iz)**(ss_add(iz))- back(iz)*prox(iz)**(ss_add(iz))
 df1(iz) = df1(iz) + (ss_add(iz)+1d0)*prox(iz)**(ss_add(iz)) &
-    & - kw*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
+    & - kw*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0) &
+    & + ss_add(iz)*back(iz)*prox(iz)**(ss_add(iz)-1d0) &
+    & - ss_add(iz)*back(iz)*prox(iz)**(ss_add(iz)-1d0)
 d2f1(iz) = d2f1(iz) + (ss_add(iz)+1d0)*(ss_add(iz))*prox(iz)**(ss_add(iz)-1d0) &
-    & - kw*(ss_add(iz)-1d0)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
+    & - kw*(ss_add(iz)-1d0)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0) &
+    & + ss_add(iz)*(ss_add(iz)-1d0)*back(iz)*prox(iz)**(ss_add(iz)-2d0) &
+    & - ss_add(iz)*(ss_add(iz)-1d0)*back(iz)*prox(iz)**(ss_add(iz)-2d0)
 
 ! adding charges coming from aq species in eq with gases
 ! pCO2
@@ -12512,12 +11087,18 @@ df1(iz) = df1(iz)  +  pnh3x(iz)*knh3/k1nh3*(ss_add(iz)+1d0)*prox(iz)**(ss_add(iz
 d2f1(iz) = d2f1(iz)  +  pnh3x(iz)*knh3/k1nh3*(ss_add(iz)+1d0)*(ss_add(iz))*prox(iz)**(ss_add(iz)-1d0)
 df1dmgas(ipnh3,iz) = df1dmgas(ipnh3,iz)  +  1d0*knh3/k1nh3*prox(iz)**(ss_add(iz)+1d0)
 
+if (print_res) write(*,fmt='(a,L)', advance='no') 'after gas',f1(iz)>0d0
+
 do ispa = 1, nsp_aq_all
     
     f1(iz) = f1(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz))
     df1(iz) = df1(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*(ss_add(iz))*prox(iz)**(ss_add(iz)-1d0)
     d2f1(iz) = d2f1(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*(ss_add(iz))*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
     df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) + base_charge(ispa)*1d0*prox(iz)**(ss_add(iz))
+    
+    if (print_res .and. f1(iz)<0d0) then 
+        write(*,fmt='(1x,a,1x,a)', advance='no') 'base-aq',chraq_all(ispa)
+    endif 
     
     ! account for speces associated with NH4+ (both anions and cations)
     do ispa_nh3 = 1,2
@@ -12543,11 +11124,19 @@ do ispa = 1, nsp_aq_all
         endif 
     enddo 
     
+    if (print_res .and. f1(iz)<0d0) then 
+        write(*,fmt='(1x,a,1x,a)', advance='no') 'nh4-aq',chraq_all(ispa)
+    endif 
+    
     ! annions
-    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
+    if ( &
+        & trim(adjustl(chraq_all(ispa)))=='no3' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
+        ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & ) then 
         
         ! account for speces associated with H+
-        do ispa_h = 1,4
+        do ispa_h = 1,2
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                 rspa_h = real(ispa_h,kind=8)
                 f1(iz) = f1(iz) &
@@ -12562,6 +11151,47 @@ do ispa = 1, nsp_aq_all
                     & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(rspa_h+ss_add(iz))
             endif 
         enddo 
+        if (print_res .and. f1(iz)<0d0) then 
+            write(*,fmt='(1x,a,1x,a)', advance='no') 'h-aq',chraq_all(ispa)
+        endif 
+    ! oxalic acid 
+    elseif ( &
+        & trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & ) then 
+        do ispa_h = 1,2
+            if (ispa_h==1) then 
+                if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                    rspa_h = real(ispa_h,kind=8)
+                    f1(iz) = f1(iz) &
+                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
+                    df1(iz) = df1(iz) &
+                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
+                        & * prox(iz)**(ss_add(iz)-rspa_h-1d0)
+                    d2f1(iz) = d2f1(iz) &
+                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
+                        & * (ss_add(iz)-rspa_h-1d0)* prox(iz)**(ss_add(iz)-rspa_h-2d0)
+                    df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
+                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(ss_add(iz)-rspa_h)
+                endif 
+            elseif(ispa_h==2)then
+                if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                    rspa_h = real(ispa_h-1,kind=8)
+                    f1(iz) = f1(iz) &
+                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
+                    df1(iz) = df1(iz) &
+                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
+                        & * prox(iz)**(rspa_h+ss_add(iz)-1d0)
+                    d2f1(iz) = d2f1(iz) &
+                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
+                        & * (rspa_h+ss_add(iz)-1d0)*prox(iz)**(rspa_h+ss_add(iz)-2d0)
+                    df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
+                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(rspa_h+ss_add(iz))
+                endif 
+            endif
+        enddo 
+        if (print_res .and. f1(iz)<0d0) then 
+            write(*,fmt='(1x,a,1x,a)', advance='no') 'h-aq',chraq_all(ispa)
+        endif 
     ! cations
     else 
         ! account for hydrolysis speces
@@ -12580,6 +11210,9 @@ do ispa = 1, nsp_aq_all
                     & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(ss_add(iz)-rspa_h)
             endif 
         enddo 
+        if (print_res .and. f1(iz)<0d0) then 
+            write(*,fmt='(1x,a,1x,a)', advance='no') 'h-aq',chraq_all(ispa)
+        endif 
         ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
         do ispa_c = 1,2
             if ( keqaq_c(ispa,ispa_c) > 0d0) then 
@@ -12610,6 +11243,9 @@ do ispa = 1, nsp_aq_all
                 endif 
             endif 
         enddo 
+        if (print_res .and. f1(iz)<0d0) then 
+            write(*,fmt='(1x,a,1x,a)', advance='no') 'co2-aq',chraq_all(ispa)
+        endif 
         ! account for complexation with free SO4
         do ispa_s = 1,2
             if ( keqaq_s(ispa,ispa_s) > 0d0) then 
@@ -12627,6 +11263,9 @@ do ispa = 1, nsp_aq_all
                     & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*rspa_s*so4f(iz)**(rspa_s-1d0)*prox(iz)**ss_add(iz)
             endif 
         enddo 
+        if (print_res .and. f1(iz)<0d0) then 
+            write(*,fmt='(1x,a,1x,a)', advance='no') 'so4-aq',chraq_all(ispa)
+        endif 
         ! account for complexation with free NO3
         do ispa_no3 = 1,2
             if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
@@ -12644,3378 +11283,53 @@ do ispa = 1, nsp_aq_all
                     & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*rspa_no3*no3f(iz)**(rspa_no3-1d0)*prox(iz)**ss_add(iz)
             endif 
         enddo 
+        if (print_res .and. f1(iz)<0d0) then 
+            write(*,fmt='(1x,a,1x,a)', advance='no') 'no3-aq',chraq_all(ispa)
+        endif 
+        ! account for complexation with HOxa-
+        do ispa_oxa = 1,2
+            rspa_oxa   = real(ispa_oxa,kind=8)
+            rspa_oxa_2 = real(ispa_oxa,kind=8) * 2d0
+            rspa_oxa_3 = real(ispa_oxa,kind=8)
+            if (trim(adjustl(chraq_all(ispa)))=='al') then
+                rspa_oxa   = real(ispa_oxa,kind=8) + 1d0
+                rspa_oxa_2 = real(ispa_oxa,kind=8) + 2d0
+                rspa_oxa_3 = 1d0
+            endif 
+                
+            if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
+                f1(iz) = f1(iz)  + (base_charge(ispa)-rspa_oxa_2) &
+                    & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
+                df1(iz) = df1(iz)  + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    & *maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*(ss_add(iz)-rspa_oxa)*prox(iz)**(ss_add(iz)-rspa_oxa-1d0)
+                d2f1(iz) = d2f1(iz)  + (base_charge(ispa)-rspa_oxa_2) &
+                    & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*(ss_add(iz)-rspa_oxa) &
+                    & *(ss_add(iz)-rspa_oxa-1d0)*prox(iz)**(ss_add(iz)-rspa_oxa-2d0)
+                df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz)  + (base_charge(ispa)-rspa_oxa_2) &
+                    & *keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
+                df1dmaqf(ioxa,iz) = df1dmaqf(ioxa,iz)  + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    & *maqf_loc(ispa,iz)*rspa_oxa_3*oxaf(iz)**(rspa_oxa_3-1d0)*prox(iz)**(ss_add(iz)-rspa_oxa)
+            endif  
+        enddo 
+        if (print_res .and. f1(iz)<0d0) then 
+            write(*,fmt='(1x,a,1x,a)', advance='no') 'oxa-aq',chraq_all(ispa)
+        endif 
+    endif 
+    
+    ! if (print_res) then 
+        ! if (ispa==nsp_aq_all) then
+            ! write(*,fmt='(a,a,L)') 'after aq',chraq_all(ispa),f1(iz)>0d0
+        ! else
+            ! write(*,fmt='(a,a,L)', advance='no') 'after aq',chraq_all(ispa),f1(iz)>0d0
+        ! endif 
+    ! endif 
+    if (print_res .and. ispa==nsp_aq_all) then 
+        write(*,fmt='(1x,a,1x,a,1x,L)') 'end-aq',chraq_all(ispa),f1(iz)>0d0
     endif 
 enddo
 
 
 endsubroutine calc_charge_balance_point
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine calc_charge( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s  &
-    & ,mgasx_loc,maqf_loc &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-    & ,z,prox,so4f &
-    & ,print_loc,print_res,ph_add_order &
-    & ,df1,df12,df1dmaq,df1dmgas &!output
-    & ,f1 &! output
-    & )
-implicit none
-
-integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),intent(in)::kw,ph_add_order
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s
-real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
-real(kind=8),dimension(nz),intent(in)::z,prox,so4f
-real(kind=8),dimension(nz),intent(out)::f1,df1,df12
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df1dmaq
-real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df1dmgas
-
-logical,intent(in)::print_res
-character(500),intent(in)::print_loc
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3
-
-real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,ss_add
-real(kind=8),dimension(nz)::pco2x,pnh3x
-real(kind=8),dimension(nz)::f1_chk
-real(kind=8),dimension(nsp_aq_all)::base_charge
-
-character(1) chrint
-
-
-if (print_res) open(88,file = trim(adjustl(print_loc)),status='replace')
-
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
-
-kco2 = keqgas_h(ipco2,ieqgas_h0)
-k1 = keqgas_h(ipco2,ieqgas_h1)
-k2 = keqgas_h(ipco2,ieqgas_h2)
-
-pco2x = mgasx_loc(ipco2,:)
-
-
-knh3 = keqgas_h(ipnh3,ieqgas_h0)
-k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
-
-pnh3x = mgasx_loc(ipnh3,:)
-
-ss_add = ph_add_order
-
-base_charge = 0d0
-
-do ispa = 1, nsp_aq_all
-    selectcase(trim(adjustl(chraq_all(ispa))))
-        case('so4')
-            base_charge(ispa) = -2d0
-        case('no3')
-            base_charge(ispa) = -1d0
-        case('si')
-            base_charge(ispa) = 0d0
-        case('na','k')
-            base_charge(ispa) = 1d0
-        case('fe2','mg','ca')
-            base_charge(ispa) = 2d0
-        case('fe3','al')
-            base_charge(ispa) = 3d0
-        case default 
-            print*,'error in charge assignment'
-            stop
-    endselect 
-enddo
-
-f1 = 0d0
-df1 = 0d0
-df12 = 0d0
-df1dmaq = 0d0
-df1dmgas = 0d0
-
-f1 = f1 + prox**(ss_add+1d0) - kw*prox**(ss_add-1d0)
-df1 = df1 + (ss_add+1d0)*prox**ss_add - kw*(ss_add-1d0)*prox**(ss_add-2d0)
-if (print_res) write(88,'(3A11)', advance='no') 'z','h', 'oh'
-
-! adding charges coming from aq species in eq with gases
-! pCO2
-f1 = f1  -  k1*kco2*pco2x*prox**(ss_add-1d0)  -  2d0*k2*k1*kco2*pco2x*prox**(ss_add-2d0)
-df1 = df1  -  k1*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0)  -  2d0*k2*k1*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0)
-df1dmgas(ipco2,:) = df1dmgas(ipco2,:) -  k1*kco2*1d0*prox**(ss_add-1d0)  -  2d0*k2*k1*kco2*1d0*prox**(ss_add-2d0)
-if (print_res) write(88,'(2A11)', advance='no') 'hco3','co3'
-! pNH3
-f1 = f1  +  pnh3x*knh3/k1nh3*prox**(ss_add+1d0)
-df1 = df1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*prox**ss_add
-df1dmgas(ipnh3,:) = df1dmgas(ipnh3,:)  +  1d0*knh3/k1nh3*prox**(ss_add+1d0)
-if (print_res) write(88,'(A11)', advance='no') 'nh4'
-
-do ispa = 1, nsp_aq_all
-    
-    f1 = f1 + base_charge(ispa)*maqf_loc(ispa,:)*prox**(ss_add)
-    df1 = df1 + ( &
-        & + base_charge(ispa)*dmaqf_dpro(ispa,:)*prox**(ss_add)  &
-        & + base_charge(ispa)*maqf_loc(ispa,:)*(ss_add)*prox**(ss_add-1d0)  &
-        & )
-    df12 = df12 + base_charge(ispa)*dmaqf_dso4f(ispa,:)*prox**(ss_add) 
-    df1dmaq(ispa,:) = df1dmaq(ispa,:) + base_charge(ispa)*dmaqf_dmaq(ispa,:)*prox**(ss_add) 
-    df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + base_charge(ispa)*dmaqf_dpco2(ispa,:) *prox**(ss_add)
-    if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))
-    
-    ! annions
-    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
-        
-        ! account for speces associated with H+
-        do ispa_h = 1,4
-            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                rspa_h = real(ispa_h,kind=8)
-                f1 = f1 + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
-                df1 = df1 + ( & 
-                    & + (base_charge(ispa) + rspa_h) &
-                    &        *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0) &
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dpro(ispa,:)*prox**(rspa_h+ss_add) &
-                    & )
-                df12 = df12 + (& 
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dso4f(ispa,:)*prox**(rspa_h+ss_add) &
-                    & )
-                df1dmaq(ispa,:) = df1dmaq(ispa,:) + (& 
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dmaq(ispa,:)*prox**(rspa_h+ss_add) &
-                    & )
-                df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + (& 
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dpco2(ispa,:)*prox**(rspa_h+ss_add) &
-                    & )
-                if (print_res) then 
-                    write(chrint,'(I1)') ispa_h
-                    write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
-                endif 
-            endif 
-        enddo 
-    ! cations
-    else 
-        ! account for hydrolysis speces
-        do ispa_h = 1,4
-            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                rspa_h = real(ispa_h,kind=8)
-                f1 = f1 + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
-                df1 = df1 + ( &
-                    & + (base_charge(ispa) - rspa_h) &
-                    &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*prox**(ss_add-rspa_h-1d0) &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dpro(ispa,:)*prox**(ss_add-rspa_h) &
-                    & )
-                df12 = df12 + ( &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dso4f(ispa,:)*prox**(ss_add-rspa_h) &
-                    & )
-                df1dmaq(ispa,:) = df1dmaq(ispa,:) + ( &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dmaq(ispa,:)*prox**(ss_add-rspa_h) &
-                    & )
-                df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*dmaqf_dpco2(ispa,:)*prox**(ss_add-rspa_h) &
-                    & )
-                if (print_res) then 
-                    write(chrint,'(I1)') ispa_h
-                    write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
-                endif 
-            endif 
-        enddo 
-        ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
-        do ispa_c = 1,2
-            if ( keqaq_c(ispa,ispa_c) > 0d0) then 
-                if (ispa_c == 1) then ! with CO3--
-                    f1 = f1 + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0)
-                    df1 = df1 + ( & 
-                        & + (base_charge(ispa)-2d0) &
-                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0) &
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*dmaqf_dpro(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
-                        & )
-                    df12 = df12 + ( & 
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*dmaqf_dso4f(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
-                        & )
-                    df1dmaq(ispa,:) = df1dmaq(ispa,:) + ( & 
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*dmaqf_dmaq(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
-                        & )
-                    df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*dmaqf_dpco2(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-2d0) &
-                        & )
-                    if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(co3)'
-                elseif (ispa_c == 2) then ! with HCO3-
-                    f1 = f1 + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0)
-                    df1 = df1 + ( & 
-                        & + (base_charge(ispa)-1d0) &
-                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0) &
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*dmaqf_dpro(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
-                        & )
-                    df12 = df12 + ( & 
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*dmaqf_dso4f(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
-                        & )
-                    df1dmaq(ispa,:) = df1dmaq(ispa,:) + ( & 
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*dmaqf_dmaq(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
-                        & )
-                    df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*dmaqf_dpco2(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-1d0) &
-                        & )
-                    if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(hco3)'
-                endif 
-            endif 
-        enddo 
-        ! account for complexation with free SO4
-        do ispa_s = 1,2
-            if ( keqaq_s(ispa,ispa_s) > 0d0) then 
-                rspa_s = real(ispa_s,kind=8)
-                f1 = f1 + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add
-                df1 = df1 + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*dmaqf_dpro(ispa,:)*so4f**rspa_s*prox**ss_add & 
-                    & + (base_charge(ispa)-2d0*rspa_s) &
-                    &       *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*ss_add*prox**(ss_add-1d0) & 
-                    & )
-                df12 = df12 + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s) &
-                    &       *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*dmaqf_dso4f(ispa,:)*so4f**rspa_s*prox**ss_add & 
-                    & )
-                df1dmaq(ispa,:) = df1dmaq(ispa,:) + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*dmaqf_dmaq(ispa,:)*so4f**rspa_s*prox**ss_add & 
-                    & )
-                df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*dmaqf_dpco2(ispa,:)*so4f**rspa_s*prox**ss_add & 
-                    & )
-                if (print_res) then 
-                    write(chrint,'(I1)') ispa_s
-                    write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(so4)'//trim(adjustl(chrint))
-                endif 
-            endif 
-        enddo 
-        ! currently NO3 complexation with cations are ignored
-    endif 
-enddo     
-
-if (print_res) write(88,'(A11)') 'tot_charge'
-
-f1_chk = 0d0
-ss_add = 0d0
-if (print_res) then
-    if (any(isnan(prox)) .or. any(prox <= 0d0)) then 
-        print *, 'H+ conc is nan or <=0'
-        print *, prox
-        stop
-    endif 
-    do iz = 1, nz
-        f1_chk(iz) = f1_chk(iz) + prox(iz)**(ss_add+1d0) - kw*prox(iz)**(ss_add-1d0)
-        write(88,'(3E11.3)', advance='no') z(iz),prox(iz), kw/prox(iz)
-
-        ! adding charges coming from aq species in eq with gases
-        ! pCO2
-        f1_chk(iz) = f1_chk(iz)  -  k1*kco2*pco2x(iz)*prox(iz)**(ss_add-1d0)  -  2d0*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add-2d0)
-        write(88,'(2E11.3)', advance='no')    k1*kco2*pco2x(iz)/prox(iz),  k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
-        ! pNH3
-        f1_chk(iz) = f1_chk(iz)  +  pnh3x(iz)*knh3/k1nh3*prox(iz)**(ss_add+1d0)
-        write(88,'(E11.3)', advance='no')    pnh3x(iz)*knh3/k1nh3*prox(iz)
-
-        do ispa = 1, nsp_aq_all
-            
-            f1_chk(iz) = f1_chk(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*prox(iz)**(ss_add)
-            write(88,'(E11.3)', advance='no') maqf_loc(ispa,iz) 
-            
-            ! annions
-            if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
-                
-                ! account for speces associated with H+
-                do ispa_h = 1,4
-                    if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                        rspa_h = real(ispa_h,kind=8)
-                        f1_chk(iz) = f1_chk(iz) &
-                            & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add)
-                        write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
-                    endif 
-                enddo 
-            ! cations
-            else 
-                ! account for hydrolysis speces
-                do ispa_h = 1,4
-                    if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                        rspa_h = real(ispa_h,kind=8)
-                        f1_chk(iz) = f1_chk(iz) &
-                            & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add-rspa_h)
-                        write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
-                    endif 
-                enddo 
-                ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
-                do ispa_c = 1,2
-                    if ( keqaq_c(ispa,ispa_c) > 0d0) then 
-                        if (ispa_c == 1) then ! with CO3--
-                            f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-2d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add-2d0)
-                            write(88,'(E11.3)', advance='no') &
-                                & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0
-                        elseif (ispa_c == 2) then ! with HCO3-
-                            f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-1d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add-1d0)
-                            write(88,'(E11.3)', advance='no') &
-                                & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)
-                        endif 
-                    endif 
-                enddo 
-                ! account for complexation with free SO4
-                do ispa_s = 1,2
-                    if ( keqaq_s(ispa,ispa_s) > 0d0) then 
-                        rspa_s = real(ispa_s,kind=8)
-                        f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add
-                        write(88,'(E11.3)', advance='no') keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s
-                    endif 
-                enddo 
-                ! currently NO3 complexation with cations is ignored
-            endif 
-        enddo     
-        write(88,'(E11.3)') f1_chk(iz)
-    enddo 
-endif 
-
-if (print_res) close(88)
-
-endsubroutine calc_charge
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine calc_so4_balance( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,keqaq_h,keqaq_s  &
-    & ,maqf_loc &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &
-    & ,prox,so4f,so4x &
-    & ,ph_add_order &
-    & ,df2,df21,df2dmaq,df2dmgas &! output
-    & ,f2 &! output
-    & )
-! f2 = prox**2d0*so4x - prox**2d0*so4f*( 1d0+k1so4*prox &
-    ! & +k1kso4*kf &
-    ! & +k1naso4*naf &
-    ! & +k1caso4*caf &
-    ! & +k1mgso4*mgf &
-    ! & +k1fe2so4*fe2f &
-    ! & +k1also4*alf &
-    ! & +k1fe3so4*fe3f &
-    ! & )
-implicit none
-
-integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),intent(in)::ph_add_order
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
-real(kind=8),dimension(nz),intent(in)::prox,so4f,so4x
-real(kind=8),dimension(nz),intent(out)::f2,df2,df21
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df2dmaq
-real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df2dmgas
-
-integer ispa,ispa_h,ispa_s,ipco2
-real(kind=8) rspa_h,rspa_s,ss_add
-
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-
-ss_add = ph_add_order
-
-f2 = 0d0
-df2 = 0d0
-df21 = 0d0
-df2dmaq = 0d0
-df2dmgas = 0d0
-
-f2 = so4x*prox**ss_add - so4f*prox**ss_add
-! print *,'so4x',so4x*prox**ss_add
-! print *,'so4f',- so4f*prox**ss_add
-df2 = - 1d0*prox**ss_add
-df21 = so4x*ss_add*prox**(ss_add-1d0) - so4f*ss_add*prox**(ss_add-1d0)
-df2dmaq(findloc(chraq_all,'so4',dim=1),:) =  1d0*prox**ss_add 
-
-f2 = 1d0
-df2 = 0d0 
-df21 = 0d0
-
-do ispa = 1, nsp_aq_all
-    
-    selectcase(trim(adjustl(chraq_all(ispa))))
-        ! annions
-        case('so4')  
-        
-            ! account for SO4 association with H+
-            do ispa_h = 1,4
-                if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                    rspa_h = real(ispa_h,kind=8)
-                    f2 = f2 + keqaq_h(ispa,ispa_h)*prox**(rspa_h)
-                    ! print *,chraq_all(ispa),- keqaq_h(ispa,ispa_h)*so4f*prox**(rspa_h+ss_add)
-                    ! df2 = df2 + keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h)
-                    ! df21 = df21 - keqaq_h(ispa,ispa_h)*so4f*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0)
-                    df21 = df21 + keqaq_h(ispa,ispa_h)*rspa_h*prox**(rspa_h-1d0)
-                endif 
-            enddo 
-        
-        case('no3')
-            ! do nothing because it is not associated with so4
-        
-        ! cations
-        case('k','na','si','mg','ca','fe2','fe3','al')  
-            ! account for complexation with free SO4
-            do ispa_s = 1,2
-                if ( keqaq_s(ispa,ispa_s) > 0d0) then
-                    rspa_s = real(ispa_s,kind=8)
-                    f2 = f2 + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**(rspa_s-1d0)
-                    ! print *,chraq_all(ispa),- rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add
-                    ! df2 = df2 - ( &
-                        ! & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add &
-                        ! & + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dso4f(ispa,:)*so4f**rspa_s*prox**ss_add &
-                        ! & )
-                    df2 = df2 + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dso4f(ispa,:)*so4f**(rspa_s-1d0)
-                    ! df21 = df21 - ( &
-                        ! & + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dpro(ispa,:)*so4f**rspa_s*prox**ss_add &
-                        ! & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*ss_add*prox**(ss_add-1d0) &
-                        ! & )
-                    df21 = df21 + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dpro(ispa,:)*so4f**(rspa_s-1d0)
-                    df2dmaq(ispa,:) = df2dmaq(ispa,:) - ( &
-                        & + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dmaq(ispa,:)*so4f**rspa_s*prox**ss_add &
-                        & )
-                    df2dmgas(ipco2,:) = df2dmgas(ipco2,:) - ( &
-                        & + rspa_s*keqaq_s(ispa,ispa_s)*dmaqf_dpco2(ispa,:)*so4f**rspa_s*prox**ss_add &
-                        & )
-                endif 
-            enddo 
-        
-        case default
-            
-            print*,'** error: you should not come here @ calc_so4_balance'
-            stop
-        
-    endselect
-enddo     
-
-df2 = - 1d0*prox**ss_add*f2 - so4f*prox**ss_add*df2
-df21 = so4x*ss_add*prox**(ss_add-1d0) - so4f*ss_add*prox**(ss_add-1d0)*f2 - so4f*prox**ss_add*df21
-f2 = so4x*prox**ss_add - so4f*prox**ss_add*f2
-
-endsubroutine calc_so4_balance
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine calc_so4_balance_v2( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,keqaq_h,keqaq_s  &
-    & ,maqf_loc &
-    & ,prox,so4f,so4x &
-    & ,ph_add_order &
-    & ,df2,df2dmaq,df2dmgas &! output
-    & ,f2 &! output
-    & )
-! f2 = prox**2d0*so4x - prox**2d0*so4f*( 1d0+k1so4*prox &
-    ! & +k1kso4*kf &
-    ! & +k1naso4*naf &
-    ! & +k1caso4*caf &
-    ! & +k1mgso4*mgf &
-    ! & +k1fe2so4*fe2f &
-    ! & +k1also4*alf &
-    ! & +k1fe3so4*fe3f &
-    ! & )
-implicit none
-
-integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),intent(in)::ph_add_order
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
-real(kind=8),dimension(nz),intent(in)::prox,so4f,so4x
-real(kind=8),dimension(nz),intent(out)::f2,df2
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df2dmaq
-real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df2dmgas
-
-integer ispa,ispa_h,ispa_s,iso4
-real(kind=8) rspa_h,rspa_s,ss_add
-
-iso4 = findloc(chraq_all,'so4',dim=1)
-
-ss_add = ph_add_order
-
-f2 = 0d0
-df2 = 0d0
-df2dmaq = 0d0
-df2dmgas = 0d0
-
-f2 = -so4x*prox**ss_add + so4f*prox**ss_add
-! print *,'so4x',so4x*prox**ss_add
-! print *,'so4f',- so4f*prox**ss_add
-df2 = -so4x*ss_add*prox**(ss_add-1d0) + so4f*ss_add*prox**(ss_add-1d0)
-df2dmaq(iso4,:) = 1d0*prox**ss_add
-
-
-do ispa = 1, nsp_aq_all
-    
-    selectcase(trim(adjustl(chraq_all(ispa))))
-        ! annions
-        case('so4')  
-        
-            ! account for SO4 association with H+
-            do ispa_h = 1,4
-                if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                    rspa_h = real(ispa_h,kind=8)
-                    f2 = f2 + keqaq_h(ispa,ispa_h)*so4f*prox**(rspa_h+ss_add)
-                    df2 = df2 + keqaq_h(ispa,ispa_h)*so4f*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0)
-                    df2dmaq(iso4,:) = df2dmaq(iso4,:) + keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) 
-                endif 
-            enddo 
-        
-        case('no3')
-            ! do nothing because it is not associated with so4
-        
-        ! cations
-        case('k','na','si','mg','ca','fe2','fe3','al')  
-            ! account for complexation with free SO4
-            do ispa_s = 1,2
-                if ( keqaq_s(ispa,ispa_s) > 0d0) then
-                    rspa_s = real(ispa_s,kind=8)
-                    f2 = f2 + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**(rspa_s)*prox**ss_add
-                    df2 = df2 + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**(rspa_s)*ss_add*prox**(ss_add-1d0)
-                    df2dmaq(ispa,:) = df2dmaq(ispa,:) - ( &
-                        & + rspa_s*keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s*prox**ss_add &
-                        & )
-                    df2dmgas(iso4,:) = df2dmgas(iso4,:) - ( &
-                        & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add &
-                        & )
-                endif 
-            enddo 
-        
-        case default
-            
-            print*,'** error: you should not come here @ calc_so4_balance_v2'
-            stop
-        
-    endselect
-enddo     
-
-
-endsubroutine calc_so4_balance_v2
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine calc_omega_dev_v2( &
-    & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &!input
-    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,mgasth_all,keqaq_s,so4f,staq_all &! input
-    & ,prox,mineral,sp_name &! input 
-    & ,omega,domega_dmsp,omega_error &! output
-    & )
-implicit none
-integer,intent(in)::nz
-real(kind=8):: keqfo,keqab,keqan,keqcc,k1,k2,kco2,k1si,k2si,k1mg,k1mgco3,k1mghco3,k1ca,k1caco3,k1cahco3 &
-    & ,k1al,k2al,k3al,k4al,keqka,keqgb,keqct,k1fe2,k1fe2co3,k1fe2hco3,keqfa,k1fe3,k2fe3,k3fe3,k4fe3,keqgt &
-    & ,keqcabd,keqdp,keqhb,keqkfs,keqamsi,keqg1,keqg2,keqg3,po2th,k1naco3,k1nahco3,k1so4,k1kso4,k1naso4  &
-    & ,k1caso4,k1mgso4,k1fe2so4,k1also4,k1also42,k1fe3so4,k1fe3so42,mo2g1,mo2g2,mo2g3,keq_tmp,ss_x
-real(kind=8),dimension(nz),intent(in):: prox,so4f
-real(kind=8),dimension(nz):: pco2x,cax,mgx,six,nax,alx,po2x,fe2x,fe3x,kx,so4x
-real(kind=8),dimension(nz):: caf,mgf,sif,naf,alf,fe2f,fe3f,kf
-real(kind=8),dimension(nz):: dcaf_dpro,dmgf_dpro,dsif_dpro,dnaf_dpro,dalf_dpro,dfe2f_dpro,dfe3f_dpro,dkf_dpro
-real(kind=8),dimension(nz):: dcaf_dpco2,dmgf_dpco2,dsif_dpco2,dnaf_dpco2,dalf_dpco2,dfe2f_dpco2,dfe3f_dpco2,dkf_dpco2
-real(kind=8),dimension(nz):: dcaf_dca,dmgf_dmg,dsif_dsi,dnaf_dna,dalf_dal,dfe2f_dfe2,dfe3f_dfe3,dkf_dk,dso4f_dso4,dso4f_dpro &
-    & ,dso4f_dpco2,dkf_dso4f,dnaf_dso4f,dcaf_dso4f,dmgf_dso4f,dalf_dso4f,dfe2f_dso4f,dfe3f_dso4f,dsif_dso4f
-real(kind=8),dimension(nz),intent(out):: domega_dmsp
-real(kind=8),dimension(nz),intent(out):: omega
-logical,intent(out)::omega_error
-character(5),intent(in):: mineral,sp_name
-
-integer,intent(in)::nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst
-character(5),dimension(nsp_aq),intent(in)::chraq
-character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas),intent(in)::chrgas
-character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
-real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx
-real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
-real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx
-real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
-real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s
-real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all
-real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
-data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
-
-integer ieqaq_co3,ieqaq_hco3
-data ieqaq_co3,ieqaq_hco3/1,2/
-
-integer ieqaq_so4,ieqaq_so42
-data ieqaq_so4,ieqaq_so42/1,2/
-
-! real(kind=8)::thon = 1d0
-real(kind=8)::thon = -1d100
-
-kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
-k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
-k2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)
-keqab = keqsld_all(findloc(chrsld_all,'ab',dim=1))
-keqfo = keqsld_all(findloc(chrsld_all,'fo',dim=1))
-keqan = keqsld_all(findloc(chrsld_all,'an',dim=1))
-keqcc = keqsld_all(findloc(chrsld_all,'cc',dim=1))
-k1si = keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h1)
-k2si = keqaq_h(findloc(chraq_all,'si',dim=1),ieqaq_h2)
-k1mg = keqaq_h(findloc(chraq_all,'mg',dim=1),ieqaq_h1)
-k1mgco3 = keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_co3)
-k1mghco3  = keqaq_c(findloc(chraq_all,'mg',dim=1),ieqaq_hco3)
-k1ca = keqaq_h(findloc(chraq_all,'ca',dim=1),ieqaq_h1)
-k1caco3 = keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_co3)
-k1cahco3 = keqaq_c(findloc(chraq_all,'ca',dim=1),ieqaq_hco3)
-k1al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h1)
-k2al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h2)
-k3al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h3)
-k4al= keqaq_h(findloc(chraq_all,'al',dim=1),ieqaq_h4)
-keqka = keqsld_all(findloc(chrsld_all,'ka',dim=1))
-keqgb =  keqsld_all(findloc(chrsld_all,'gb',dim=1))
-keqct =  keqsld_all(findloc(chrsld_all,'ct',dim=1))
-k1fe2 = keqaq_h(findloc(chraq_all,'fe2',dim=1),ieqaq_h1)
-k1fe2co3 = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_co3)
-k1fe2hco3  = keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_hco3)
-keqfa = keqsld_all(findloc(chrsld_all,'fa',dim=1))
-k1fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h1)
-k2fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h2)
-k3fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h3)
-k4fe3= keqaq_h(findloc(chraq_all,'fe3',dim=1),ieqaq_h4)
-keqgt = keqsld_all(findloc(chrsld_all,'gt',dim=1))
-keqcabd = keqsld_all(findloc(chrsld_all,'cabd',dim=1))
-keqdp = keqsld_all(findloc(chrsld_all,'dp',dim=1))
-keqhb = keqsld_all(findloc(chrsld_all,'hb',dim=1))
-keqkfs = keqsld_all(findloc(chrsld_all,'kfs',dim=1))
-keqamsi = keqsld_all(findloc(chrsld_all,'amsi',dim=1))
-keqg1 = keqsld_all(findloc(chrsld_all,'g1',dim=1))
-keqg2 = keqsld_all(findloc(chrsld_all,'g2',dim=1))
-keqg3 = keqsld_all(findloc(chrsld_all,'g3',dim=1))
-k1naco3 = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_co3)
-k1nahco3 = keqaq_c(findloc(chraq_all,'na',dim=1),ieqaq_hco3)
-
-k1so4 = keqaq_h(findloc(chraq_all,'so4',dim=1),ieqaq_h1)
-k1naso4 = keqaq_s(findloc(chraq_all,'na',dim=1),ieqaq_so4)
-k1kso4 = keqaq_s(findloc(chraq_all,'k',dim=1),ieqaq_so4)
-k1caso4 = keqaq_s(findloc(chraq_all,'ca',dim=1),ieqaq_so4)
-k1mgso4 = keqaq_s(findloc(chraq_all,'mg',dim=1),ieqaq_so4)
-k1fe2so4 = keqaq_s(findloc(chraq_all,'fe2',dim=1),ieqaq_so4)
-k1also4 = keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so4)
-k1fe3so4 = keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so4)
-k1also42 = keqaq_s(findloc(chraq_all,'al',dim=1),ieqaq_so42)
-k1fe3so42 = keqaq_s(findloc(chraq_all,'fe3',dim=1),ieqaq_so42)
-
-mo2g1 = keqsld_all(findloc(chrsld_all,'g1',dim=1))
-mo2g2 = keqsld_all(findloc(chrsld_all,'g2',dim=1))
-mo2g3 = keqsld_all(findloc(chrsld_all,'g3',dim=1))
-
-po2th = mgasth_all(findloc(chrgas_all,'po2',dim=1))
-
-
-nax = 0d0
-kx = 0d0
-
-if (any(chraq=='na')) then 
-    nax = maqx(findloc(chraq,'na',dim=1),:)
-elseif (any(chraq_cnst=='na')) then 
-    nax = maqc(findloc(chraq_cnst,'na',dim=1),:)
-endif 
-if (any(chraq=='k')) then 
-    kx = maqx(findloc(chraq,'k',dim=1),:)
-elseif (any(chraq_cnst=='k')) then 
-    kx = maqc(findloc(chraq_cnst,'k',dim=1),:)
-endif 
-
-six =0d0
-cax =0d0
-mgx =0d0
-fe2x =0d0
-fe3x =0d0
-alx =0d0
-pco2x =0d0
-so4x = 0d0
-
-if (any(chraq=='si')) then 
-    six = maqx(findloc(chraq,'si',dim=1),:)
-elseif (any(chraq_cnst=='si')) then 
-    six = maqc(findloc(chraq_cnst,'si',dim=1),:)
-endif 
-if (any(chraq=='ca')) then 
-    cax = maqx(findloc(chraq,'ca',dim=1),:)
-elseif (any(chraq_cnst=='ca')) then 
-    cax = maqc(findloc(chraq_cnst,'ca',dim=1),:)
-endif 
-if (any(chraq=='mg')) then 
-    mgx = maqx(findloc(chraq,'mg',dim=1),:)
-elseif (any(chraq_cnst=='mg')) then 
-    mgx = maqc(findloc(chraq_cnst,'mg',dim=1),:)
-endif 
-if (any(chraq=='fe2')) then 
-    fe2x = maqx(findloc(chraq,'fe2',dim=1),:)
-elseif (any(chraq_cnst=='fe2')) then 
-    fe2x = maqc(findloc(chraq_cnst,'fe2',dim=1),:)
-endif 
-if (any(chraq=='al')) then 
-    alx = maqx(findloc(chraq,'al',dim=1),:)
-elseif (any(chraq_cnst=='al')) then 
-    alx = maqc(findloc(chraq_cnst,'al',dim=1),:)
-endif 
-if (any(chraq=='fe3')) then 
-    fe3x = maqx(findloc(chraq,'fe3',dim=1),:)
-elseif (any(chraq_cnst=='fe3')) then 
-    fe3x = maqc(findloc(chraq_cnst,'fe3',dim=1),:)
-endif 
-if (any(chraq=='so4')) then 
-    so4x = maqx(findloc(chraq,'so4',dim=1),:)
-elseif (any(chraq_cnst=='so4')) then 
-    so4x = maqc(findloc(chraq_cnst,'so4',dim=1),:)
-endif 
-if (any(chrgas=='pco2')) then 
-    pco2x = mgasx(findloc(chrgas,'pco2',dim=1),:)
-elseif (any(chrgas_cnst=='pco2')) then 
-    pco2x = mgasc(findloc(chrgas_cnst,'pco2',dim=1),:)
-endif 
-if (any(chrgas=='po2')) then 
-    po2x = mgasx(findloc(chrgas,'po2',dim=1),:)
-elseif (any(chrgas_cnst=='po2')) then 
-    po2x = mgasc(findloc(chrgas_cnst,'po2',dim=1),:)
-endif 
-
-
-    
-kf = kx/(1d0+k1kso4*so4f)
-dkf_dk = 1d0/(1d0+k1kso4*so4f)
-dkf_dpro = 0d0
-dkf_dpco2 = 0d0
-dkf_dso4f = kx*(-1d0)/(1d0+k1kso4*so4f)**2d0 *k1kso4
-
-naf = nax/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)
-dnaf_dna = 1d0/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)
-dnaf_dpro = nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)**2d0 &
-    & *(k1naco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1nahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
-dnaf_dpco2 = nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)**2d0 &
-    & *(k1naco3*k1*k2*kco2*1d0/prox**2d0+k1nahco3*k1*k2*kco2*1d0/prox)
-dnaf_dso4f = nax*(-1d0)/(1d0+k1naco3*k1*k2*kco2*pco2x/prox**2d0+k1nahco3*k1*k2*kco2*pco2x/prox+k1naso4*so4f)**2d0 &
-    & * k1naso4
-    
-caf = cax/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)
-dcaf_dca = 1d0/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)
-dcaf_dpro = cax*(-1d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)**2d0 &
-    & *(k1ca*(-1d0)/prox**2d0+k1caco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1cahco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
-dcaf_dpco2 = cax*(-1d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)**2d0 &
-    & *(k1caco3*k1*k2*kco2*1d0/prox**2d0+k1cahco3*k1*k2*kco2*1d0/prox)
-dcaf_dso4f = cax*(-1d0)/(1d0+k1ca/prox+k1caco3*k1*k2*kco2*pco2x/prox**2d0+k1cahco3*k1*k2*kco2*pco2x/prox+k1caso4*so4f)**2d0 &
-    & * k1caso4
-    
-mgf = mgx/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)
-dmgf_dmg = 1d0/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)
-dmgf_dpro = mgx*(-1d0)/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)**2d0 &
-    & *(k1mg*(-1d0)/prox**2d0+k1mgco3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1mghco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
-dmgf_dpco2 = mgx*(-1d0)/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)**2d0 &
-    & *(k1mgco3*k1*k2*kco2*1d0/prox**2d0+k1mghco3*k1*k2*kco2*1d0/prox)
-dmgf_dso4f = mgx*(-1d0)/(1d0+k1mg/prox+k1mgco3*k1*k2*kco2*pco2x/prox**2d0+k1mghco3*k1*k2*kco2*pco2x/prox+k1mgso4*so4f)**2d0 &
-    & * k1mgso4
-    
-fe2f = fe2x/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)
-dfe2f_dfe2 = 1d0/(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)
-dfe2f_dpro = fe2x*(-1d0) &
-    & /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)**2d0 &
-    & *(k1fe2*(-1d0)/prox**2d0+k1fe2co3*k1*k2*kco2*pco2x*(-2d0)/prox**3d0+k1fe2hco3*k1*k2*kco2*pco2x*(-1d0)/prox**2d0)
-dfe2f_dpco2 = fe2x*(-1d0) &
-    & /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)**2d0 &
-    & *(k1fe2co3*k1*k2*kco2*1d0/prox**2d0+k1fe2hco3*k1*k2*kco2*1d0/prox)
-dfe2f_dso4f = fe2x*(-1d0) &
-    & /(1d0+k1fe2/prox+k1fe2co3*k1*k2*kco2*pco2x/prox**2d0+k1fe2hco3*k1*k2*kco2*pco2x/prox+k1fe2so4*so4f)**2d0 &
-    & * k1fe2so4
-    
-sif = six/(1d0+k1si/prox+k2si/prox**2d0)
-dsif_dsi = 1d0/(1d0+k1si/prox+k2si/prox**2d0)
-dsif_dpro = six*(-1d0)/(k1si*(-1d0)/prox**2d0+k2si*(-2d0)/prox**3d0)
-dsif_dpco2 = 0d0
-dsif_dso4f = 0d0
-
-alf = alx/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)
-dalf_dal = 1d0/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)
-dalf_dpro = alx*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)**2d0 &
-    & *(k1al*(-1d0)/prox**2d0+k2al*(-2d0)/prox**3d0+k3al*(-3d0)/prox**4d0+k4al*(-4d0)/prox**5d0)
-dalf_dpco2 = 0d0
-dalf_dso4f = alx*(-1d0)/(1d0+k1al/prox+k2al/prox**2d0+k3al/prox**3d0+k4al/prox**4d0+k1also4*so4f)**2d0 & 
-    & * k1also4
-
-fe3f = fe3x/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)
-dfe3f_dfe3 = 1d0/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)
-dfe3f_dpro = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
-    & *(k1fe3*(-1d0)/prox**2d0+k2fe3*(-2d0)/prox**3d0+k3fe3*(-3d0)/prox**4d0+k4fe3*(-4d0)/prox**5d0)
-dfe3f_dpco2 = 0d0
-dfe3f_dso4f = fe3x*(-1d0)/(1d0+k1fe3/prox+k2fe3/prox**2d0+k3fe3/prox**3d0+k4fe3/prox**4d0+k1fe3so4*so4f)**2d0 &
-    & * k1fe3so4
-
-dso4f_dso4 = 1d0/( 1d0+k1so4/prox &
-        & +k1kso4*kf &
-        & +k1naso4*naf &
-        & +k1caso4*caf &
-        & +k1mgso4*mgf &
-        & +k1fe2so4*fe2f &
-        & +k1also4*alf &
-        & +k1fe3so4*fe3f &
-        & )
-
-dso4f_dpro = so4x*(-1d0)/( 1d0+k1so4/prox &
-        & +k1kso4*kf &
-        & +k1naso4*naf &
-        & +k1caso4*caf &
-        & +k1mgso4*mgf &
-        & +k1fe2so4*fe2f &
-        & +k1also4*alf &
-        & +k1fe3so4*fe3f &
-        & )**2d0 &
-        & * (k1so4*(-1d0)/prox**2d0 &
-        & )
-! dso4f_dpro = 0d0
-dso4f_dpco2 = 0d0
-
-select case(trim(adjustl(mineral)))
-    case('fo')
-    ! Fo + 4H+ = 2Mg2+ + SiO2(aq) + 2H2O 
-        omega = ( & 
-            & mgf**2d0 &
-            & *sif &
-            & /prox**4d0 &
-            & /keqfo &
-            & )
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & mgf*2d0*dmgf_dpro &
-                    & *sif &
-                    & /prox**4d0 &
-                    & /keqfo &
-                    !
-                    & +mgf**2d0 &
-                    & *dsif_dpro &
-                    & /prox**4d0 &
-                    & /keqfo &
-                    !
-                    & +mgf**2d0 &
-                    & *sif &
-                    & *(-4d0)/prox**5d0 &
-                    & /keqfo &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & mgf*2d0*dmgf_dso4f &
-                    & *sif &
-                    & /prox**4d0 &
-                    & /keqfo &
-                    !
-                    & +mgf**2d0 &
-                    & *dsif_dso4f &
-                    & /prox**4d0 &
-                    & /keqfo &
-                    & )
-            case('mg')
-                domega_dmsp = ( & 
-                    & mgf*2d0*dmgf_dmg &
-                    & *sif &
-                    & /prox**4d0 &
-                    & /keqfo &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & mgf**2d0 &
-                    & *dsif_dsi &
-                    & /prox**4d0 &
-                    & /keqfo &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & mgf*2d0*dmgf_dpco2 &
-                    & *sif &
-                    & /prox**4d0 &
-                    & /keqfo &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-    case('fa')
-    ! Fa + 4H+ = 2Fe2+ + SiO2(aq) + 2H2O 
-        omega = ( & 
-            & fe2f**2d0 &
-            & *sif &
-            & /prox**4d0 &
-            & /keqfa &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & fe2f*2d0*dfe2f_dpro &
-                    & *sif &
-                    & /prox**4d0 &
-                    & /keqfa &
-                    !
-                    & +fe2f**2d0 &
-                    & *dsif_dpro &
-                    & /prox**4d0 &
-                    & /keqfa &
-                    !
-                    & +fe2f**2d0 &
-                    & *sif &
-                    & *(-4d0)/prox**5d0 &
-                    & /keqfa &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & fe2f*2d0*dfe2f_dso4f &
-                    & *sif &
-                    & /prox**4d0 &
-                    & /keqfa &
-                    !
-                    & +fe2f**2d0 &
-                    & *dsif_dso4f &
-                    & /prox**4d0 &
-                    & /keqfa &
-                    & )
-            case('fe2')
-                domega_dmsp = ( & 
-                    & fe2f*2d0*dfe2f_dfe2 &
-                    & *sif &
-                    & /prox**4d0 &
-                    & /keqfa &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & fe2f**2d0 &
-                    & *1d0*dsif_dsi &
-                    & /prox**4d0 &
-                    & /keqfa &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & fe2f*2d0*dfe2f_dpco2 &
-                    & *sif &
-                    & /prox**4d0 &
-                    & /keqfa &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-    case('ab')
-    ! NaAlSi3O8 + 4 H+ = Na+ + Al3+ + 3SiO2 + 2H2O
-        omega = ( & 
-            & naf & 
-            & *alf &
-            & *sif**3d0 &
-            & /prox**4d0 &
-            & /keqab &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & 1d0*dnaf_dpro & 
-                    & *alf &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqab &
-                    
-                    & +naf & 
-                    & *1d0*dalf_dpro &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqab &
-                    
-                    & +naf & 
-                    & *alf &
-                    & *3d0*sif**2d0*dsif_dpro &
-                    & /prox**4d0 &
-                    & /keqab &
-                    
-                    & +naf & 
-                    & *alf &
-                    & *sif**3d0 &
-                    & *(-4d0)/prox**5d0 &
-                    & /keqab &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & 1d0*dnaf_dso4f & 
-                    & *alf &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqab &
-                    
-                    & +naf & 
-                    & *1d0*dalf_dso4f &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqab &
-                    
-                    & +naf & 
-                    & *alf &
-                    & *3d0*sif**2d0*dsif_dso4f &
-                    & /prox**4d0 &
-                    & /keqab &
-                    & )
-            case('na')
-                domega_dmsp = ( & 
-                    & 1d0*dnaf_dna & 
-                    & *alf &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqab &
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & naf & 
-                    & *1d0*dalf_dal &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqab &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & naf & 
-                    & *alf &
-                    & *3d0*sif**2d0*dsif_dsi &
-                    & /prox**4d0 &
-                    & /keqab &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & 1d0*dnaf_dpco2 & 
-                    & *alf &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqab &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('kfs')
-    ! K-feldspar  + 4 H+  = 2 H2O  + K+  + Al+++  + 3 SiO2(aq)
-        omega = ( & 
-            & kf &
-            & *alf &
-            & *sif**3d0 &
-            & /prox**4d0 &
-            & /keqkfs   &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & 1d0*dkf_dpro &
-                    & *alf &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    ! 
-                    & +kf &
-                    & *1d0*dalf_dpro &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    ! 
-                    & +kf &
-                    & *alf &
-                    & *3d0*sif**2d0*dsif_dpro &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    !
-                    & +kf &
-                    & *alf &
-                    & *sif**3d0 &
-                    & *(-4d0)/prox**5d0 &
-                    & /keqkfs   &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & 1d0*dkf_dso4f &
-                    & *alf &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    ! 
-                    & +kf &
-                    & *1d0*dalf_dso4f &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    ! 
-                    & +kf &
-                    & *alf &
-                    & *3d0*sif**2d0*dsif_dso4f &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    & )
-            case('k')
-                domega_dmsp = ( & 
-                    & 1d0*dkf_dk &
-                    & *alf &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & kf &
-                    & *1d0*dalf_dal &
-                    & *sif**3d0 &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & kf &
-                    & *alf &
-                    & *3d0*sif**2d0*dsif_dsi &
-                    & /prox**4d0 &
-                    & /keqkfs   &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('an')
-    ! CaAl2Si2O8 + 8H+ = Ca2+ + 2 Al3+ + 2SiO2 + 4H2O
-        omega = ( & 
-            & caf &
-            & *alf**2d0 &
-            & *sif**2d0 &
-            & /prox**8d0 &
-            & /keqan &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dpro &
-                    & *alf**2d0 &
-                    & *sif**2d0 &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & + &
-                    & caf &
-                    & *alf*2d0*dalf_dpro &
-                    & *sif**2d0 &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & + &
-                    & caf &
-                    & *alf**2d0 &
-                    & *sif*2d0*dsif_dpro &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & + &
-                    & caf &
-                    & *alf**2d0 &
-                    & *sif**2d0 &
-                    & *(-8d0)/prox**9d0 &
-                    & /keqan &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dso4f &
-                    & *alf**2d0 &
-                    & *sif**2d0 &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & + &
-                    & caf &
-                    & *alf*2d0*dalf_dso4f &
-                    & *sif**2d0 &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & + &
-                    & caf &
-                    & *alf**2d0 &
-                    & *sif*2d0*dsif_dso4f &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dpco2 &
-                    & *alf**2d0 &
-                    & *sif**2d0 &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dca &
-                    & *alf**2d0 &
-                    & *sif**2d0 &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & caf &
-                    & *alf*2d0*dalf_dal &
-                    & *sif**2d0 &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & caf &
-                    & *alf**2d0 &
-                    & *sif*2d0*dsif_dsi &
-                    & /prox**8d0 &
-                    & /keqan &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('la','by','olg','and')
-        ! CaxNa(1-x)Al(1+x)Si(3-x)O8 + (4x + 4) = xCa+2 + (1-x)Na+ + (1+x)Al+++ + (3-x)SiO2(aq) 
-        keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
-        ss_x = staq_all(findloc(chrsld_all,mineral,dim=1), findloc(chraq_all,'ca',dim=1) )
-        omega = ( & 
-            & caf**ss_x &
-            & *naf**(1d0-ss_x) &
-            & *alf**(1d0+ss_x) &
-            & *sif**(3d0-ss_x) &
-            & /prox**(4d0 + 4d0*ss_x) &
-            & /keq_tmp &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & ss_x*caf**(ss_x-1d0)*dcaf_dpro &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *(1d0-ss_x)*naf**(1d0-ss_x-1d0)*dnaf_dpro &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *(1d0+ss_x)*alf**(1d0+ss_x-1d0)*dalf_dpro &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *(3d0-ss_x)*sif**(3d0-ss_x-1d0)*dsif_dpro &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & *(-1d0*(4d0 + 4d0*ss_x))/prox**(4d0 + 4d0*ss_x+1d0) &
-                    & /keq_tmp &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & ss_x*caf**(ss_x-1d0)*dcaf_dso4f &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *(1d0-ss_x)*naf**(1d0-ss_x-1d0)*dnaf_dso4f &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *(1d0+ss_x)*alf**(1d0+ss_x-1d0)*dalf_dso4f &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *(3d0-ss_x)*sif**(3d0-ss_x-1d0)*dsif_dso4f &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & ss_x*caf**(ss_x-1d0)*dcaf_dpco2 &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *(1d0-ss_x)*naf**(1d0-ss_x-1d0)*dnaf_dpco2 &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *(1d0+ss_x)*alf**(1d0+ss_x-1d0)*dalf_dpco2 &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & + &
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *(3d0-ss_x)*sif**(3d0-ss_x-1d0)*dsif_dpco2 &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & ss_x*caf**(ss_x-1d0)*dcaf_dca &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & )
-            case('na')
-                domega_dmsp = ( & 
-                    & caf**ss_x &
-                    & *(1d0-ss_x)*naf**(1d0-ss_x-1d0)*dnaf_dna &
-                    & *alf**(1d0+ss_x) &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *(1d0+ss_x)*alf**(1d0+ss_x-1d0)*dalf_dal &
-                    & *sif**(3d0-ss_x) &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & caf**ss_x &
-                    & *naf**(1d0-ss_x) &
-                    & *alf**(1d0+ss_x) &
-                    & *(3d0-ss_x)*sif**(3d0-ss_x-1d0)*dsif_dsi &
-                    & /prox**(4d0 + 4d0*ss_x) &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('cc')
-        omega = ( &
-            & caf &
-            & *k1*k2*kco2*pco2x/(prox**2d0) &
-            & /keqcc &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dpro &
-                    & *k1*k2*kco2*pco2x/(prox**2d0) &
-                    & /keqcc &
-                    & + &
-                    & caf &
-                    & *k1*k2*kco2*pco2x*(-2d0)/(prox**3d0) &
-                    & /keqcc &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dso4f &
-                    & *k1*k2*kco2*pco2x/(prox**2d0) &
-                    & /keqcc &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dpco2 &
-                    & *k1*k2*kco2*pco2x/(prox**2d0) &
-                    & /keqcc &
-                    & + &
-                    & caf &
-                    & *k1*k2*kco2*1d0/(prox**2d0) &
-                    & /keqcc &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dca &
-                    & *k1*k2*kco2*pco2x/(prox**2d0) &
-                    & /keqcc &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('arg')
-        keq_tmp = keqsld_all(findloc(chrsld_all,'arg',dim=1))
-        omega = ( &
-            & caf &
-            & *k1*k2*kco2*pco2x/(prox**2d0) &
-            & /keq_tmp &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dpro &
-                    & *k1*k2*kco2*pco2x/(prox**2d0) &
-                    & /keq_tmp &
-                    & + &
-                    & caf &
-                    & *k1*k2*kco2*pco2x*(-2d0)/(prox**3d0) &
-                    & /keq_tmp &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dso4f &
-                    & *k1*k2*kco2*pco2x/(prox**2d0) &
-                    & /keq_tmp &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dpco2 &
-                    & *k1*k2*kco2*pco2x/(prox**2d0) &
-                    & /keq_tmp &
-                    & + &
-                    & caf &
-                    & *k1*k2*kco2*1d0/(prox**2d0) &
-                    & /keq_tmp &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & 1d0*dcaf_dca &
-                    & *k1*k2*kco2*pco2x/(prox**2d0) &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('dlm')
-        keq_tmp = keqsld_all(findloc(chrsld_all,'dlm',dim=1))
-        omega = ( &
-            & caf*mgf &
-            & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-            & /keq_tmp &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & dcaf_dpro*mgf &
-                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf*dmgf_dpro &
-                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf*mgf &
-                    & *2d0*(k1*k2*kco2*pco2x/(prox**2d0))*k1*k2*kco2*pco2x*(-2d0)/(prox**3d0) &
-                    & /keq_tmp &
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & dcaf_dso4f*mgf &
-                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf*dmgf_dso4f &
-                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-                    & /keq_tmp &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & dcaf_dpco2*mgf &
-                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf*dmgf_dpco2 &
-                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf*mgf &
-                    & *2d0*(k1*k2*kco2*pco2x/(prox**2d0))*k1*k2*kco2*1d0/(prox**2d0) &
-                    & /keq_tmp &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & dcaf_dca*mgf &
-                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-                    & /keq_tmp &
-                    & )
-            case('mg')
-                domega_dmsp = ( & 
-                    & caf*dmgf_dmg &
-                    & *(k1*k2*kco2*pco2x/(prox**2d0))**2d0 &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('ka')
-    ! Al2Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 2 Al+3 
-        omega = ( &
-            & alf**2d0 &
-            & *sif**2d0 &
-            & /prox**6d0 &
-            & /keqka &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                ! ph dependences of al and si are from an case
-                domega_dmsp = ( & 
-                    & alf*2d0*dalf_dpro &
-                    & *sif**2d0 &
-                    & /prox**6d0 &
-                    & /keqka &
-                    & + &
-                    & alf**2d0 &
-                    & *sif*2d0*dsif_dpro &
-                    & /prox**6d0 &
-                    & /keqka &
-                    & + &
-                    & alf**2d0 &
-                    & *sif**2d0 &
-                    & *(-6d0)/prox**7d0 &
-                    & /keqka &
-                    ! 
-                    & )
-            case('so4f')
-                ! ph dependences of al and si are from an case
-                domega_dmsp = ( & 
-                    & alf*2d0*dalf_dso4f &
-                    & *sif**2d0 &
-                    & /prox**6d0 &
-                    & /keqka &
-                    & + &
-                    & alf**2d0 &
-                    & *sif*2d0*dsif_dso4f &
-                    & /prox**6d0 &
-                    & /keqka &
-                    ! 
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & alf*2d0*dalf_dal &
-                    & *sif**2d0 &
-                    & /prox**6d0 &
-                    & /keqka &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & alf**2d0 &
-                    & *sif*2d0*dsif_dsi &
-                    & /prox**6d0 &
-                    & /keqka &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('gb')
-    ! Al(OH)3 + 3 H+ = Al+3 + 3 H2O 
-        omega = ( &
-            & alf &
-            & /prox**3d0 &
-            & /keqgb &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                ! ph dependence of al is from an case
-                domega_dmsp = ( & 
-                    & 1d0*dalf_dpro &
-                    & /prox**3d0 &
-                    & /keqgb &
-                    & + &
-                    & alf &
-                    & *(-3d0)/prox**4d0 &
-                    & /keqgb &
-                    ! 
-                    & )
-            case('so4f')
-                ! ph dependence of al is from an case
-                domega_dmsp = ( & 
-                    & 1d0*dalf_dso4f &
-                    & /prox**3d0 &
-                    & /keqgb &
-                    ! 
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & 1d0*dalf_dal &
-                    & /prox**3d0 &
-                    & /keqgb &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-    case('amsi')
-    ! SiO2 + 2 H2O = H4SiO4
-        omega = ( &
-            & sif &
-            & /keqamsi &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & 1d0*dsif_dpro &
-                    & /keqamsi &
-                    ! 
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & 1d0*dsif_dso4f &
-                    & /keqamsi &
-                    ! 
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & 1d0*dsif_dsi &
-                    & /keqamsi &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-    case('qtz')
-    !  SiO2 + 2H2O = H4SiO4
-        keq_tmp = keqsld_all(findloc(chrsld_all,'qtz',dim=1))
-        omega = ( &
-            & sif &
-            & /keq_tmp &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & 1d0*dsif_dpro &
-                    & /keq_tmp &
-                    ! 
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & 1d0*dsif_dso4f &
-                    & /keq_tmp &
-                    ! 
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & 1d0*dsif_dsi &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('gt')
-    !  Fe(OH)3 + 3 H+ = Fe+3 + 2 H2O
-        omega = (&
-            & fe3f &
-            & /prox**3d0 &
-            & /keqgt &
-            & )
-            
-        ! copied and pasted from gb case with replacing al and gb with fe3 and gt respectively
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & dfe3f_dpro &
-                    & /prox**3d0 &
-                    & /keqgt &
-                    & + &
-                    & fe3f &
-                    & *(-3d0)/prox**4d0 &
-                    & /keqgt &
-                    ! 
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & dfe3f_dso4f &
-                    & /prox**3d0 &
-                    & /keqgt &
-                    ! 
-                    & )
-            case('fe3')
-                domega_dmsp = ( & 
-                    & dfe3f_dfe3 &
-                    & /prox**3d0 &
-                    & /keqgt &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('hm')
-    !  Fe2O3 + 6H+ = 2Fe+3 + 3H2O
-        keq_tmp = keqsld_all(findloc(chrsld_all,'hm',dim=1))
-        omega = (&
-            & fe3f**2d0 &
-            & /prox**6d0 &
-            & /keq_tmp &
-            & )
-            
-        ! copied and pasted from gb case with replacing al and gb with fe3 and gt respectively
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( & 
-                    & 2d0*fe3f*dfe3f_dpro &
-                    & /prox**6d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe3f**2d0 &
-                    & *(-6d0)/prox**7d0 &
-                    & /keq_tmp &
-                    ! 
-                    & )
-            case('so4f')
-                domega_dmsp = ( & 
-                    & 2d0*fe3f*dfe3f_dso4f &
-                    & /prox**6d0 &
-                    & /keq_tmp &
-                    ! 
-                    & )
-            case('fe3')
-                domega_dmsp = ( & 
-                    & 2d0*fe3f*dfe3f_dfe3 &
-                    & /prox**6d0 &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('ct')
-    ! Mg3Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 3 Mg+2
-        omega = ( &
-            & mgf**3d0 &
-            & *sif**2d0  &
-            & /prox**6d0 &
-            & /keqct &
-            & )
-            
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                ! ph dependence of mg and si are from above
-                domega_dmsp = ( & 
-                    & 3d0*mgf**2d0*dmgf_dpro &
-                    & *sif**2d0  &
-                    & /prox**6d0 &
-                    & /keqct &
-                    & + &
-                    & mgf**3d0 &
-                    & *sif*2d0*dsif_dpro  &
-                    & /prox**6d0 &
-                    & /keqct &
-                    & + &
-                    & mgf**3d0 &
-                    & *sif**2d0  &
-                    & *(-6d0)/prox**7d0 &
-                    & /keqct &
-                    & )
-            case('so4f')
-                ! ph dependence of mg and si are from above
-                domega_dmsp = ( & 
-                    & 3d0*mgf**2d0*dmgf_dso4f &
-                    & *sif**2d0  &
-                    & /prox**6d0 &
-                    & /keqct &
-                    & + &
-                    & mgf**3d0 &
-                    & *sif*2d0*dsif_dso4f  &
-                    & /prox**6d0 &
-                    & /keqct &
-                    & )
-            case('pco2')
-                ! pco2 dependence of mg is from fo case
-                domega_dmsp = ( & 
-                    & 3d0*mgf**2d0*dmgf_dpco2 &
-                    & *sif**2d0  &
-                    & /prox**6d0 &
-                    & /keqct &
-                    & )
-            case('mg')
-                domega_dmsp = ( & 
-                    & 3d0*mgf**2d0*dmgf_dmg &
-                    & *sif**2d0  &
-                    & /prox**6d0 &
-                    & /keqct &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & mgf**3d0 &
-                    & *sif*2d0*dsif_dsi  &
-                    & /prox**6d0 &
-                    & /keqct &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('cabd')
-    ! Beidellit-Ca  + 7.32 H+  = 4.66 H2O  + 2.33 Al+++  + 3.67 SiO2(aq)  + .165 Ca++
-        omega = ( &
-            & caf**(1d0/6d0) &
-            & *alf**(7d0/3d0) &
-            & *sif**(11d0/3d0) &
-            & /prox**(22d0/3d0) &
-            & /keqcabd &
-            & )
-            
-        ! dependences from an case
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &
-                    & (1d0/6d0)*caf**(1d0/6d0-1d0)*dcaf_dpro &
-                    & *alf**(7d0/3d0) &
-                    & *sif**(11d0/3d0) &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & + &
-                    & caf**(1d0/6d0) &
-                    & *(7d0/3d0)*alf**(7d0/3d0-1d0)*dalf_dpro &
-                    & *sif**(11d0/3d0) &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & + &
-                    & caf**(1d0/6d0) &
-                    & *alf**(7d0/3d0) &
-                    & *(11d0/3d0)*sif**(11d0/3d0-1d0)*dsif_dpro &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & + &
-                    & caf**(1d0/6d0) &
-                    & *alf**(7d0/3d0) &
-                    & *sif**(11d0/3d0) &
-                    & *(-22d0/3d0)/prox**(22d0/3d0+1d0) &
-                    & /keqcabd &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &
-                    & (1d0/6d0)*caf**(1d0/6d0-1d0)*dcaf_dso4f &
-                    & *alf**(7d0/3d0) &
-                    & *sif**(11d0/3d0) &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & + &
-                    & caf**(1d0/6d0) &
-                    & *(7d0/3d0)*alf**(7d0/3d0-1d0)*dalf_dso4f &
-                    & *sif**(11d0/3d0) &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & + &
-                    & caf**(1d0/6d0) &
-                    & *alf**(7d0/3d0) &
-                    & *(11d0/3d0)*sif**(11d0/3d0-1d0)*dsif_dso4f &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & (1d0/6d0)*caf**(1d0/6d0-1d0)*dcaf_dpco2 &
-                    & *alf**(7d0/3d0) &
-                    & *sif**(11d0/3d0) &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & (1d0/6d0)*caf**(1d0/6d0-1d0)*dcaf_dca &
-                    & *alf**(7d0/3d0) &
-                    & *sif**(11d0/3d0) &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & caf**(1d0/6d0) &
-                    & *(7d0/3d0)*alf**(7d0/3d0-1d0)*dalf_dal &
-                    & *sif**(11d0/3d0) &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & caf**(1d0/6d0) &
-                    & *alf**(7d0/3d0) &
-                    & *(11d0/3d0)*sif**(11d0/3d0-1d0)*dsif_dsi &
-                    & /prox**(22d0/3d0) &
-                    & /keqcabd &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('ill')
-    ! Illite  + 8 H+  = 5 H2O  + .6 K+  + .25 Mg++  + 2.3 Al+++  + 3.5 SiO2(aq)
-        keq_tmp = keqsld_all(findloc(chrsld_all,'ill',dim=1))
-        omega = (  &
-            & kf**(0.6d0) &
-            & *mgf**(0.25d0) &
-            & *alf**(2.3d0)  &
-            & *sif**(3.5d0)   &
-            & /prox**(8d0)    &
-            & /keq_tmp      &
-            & )
-            
-        ! dependences from an case
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &
-                    & 0.6d0*kf**(0.6d0-1d0)*dkf_dpro &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *0.25d0*mgf**(0.25d0-1d0)*dmgf_dpro &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *2.3d0*alf**(2.3d0-1d0)*dalf_dpro  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *3.5d0*sif**(3.5d0-1d0)*dsif_dpro   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & *(-8d0)/prox**(9d0)    &
-                    & /keq_tmp      &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &
-                    & 0.6d0*kf**(0.6d0-1d0)*dkf_dso4f &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *0.25d0*mgf**(0.25d0-1d0)*dmgf_dso4f &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *2.3d0*alf**(2.3d0-1d0)*dalf_dso4f  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *3.5d0*sif**(3.5d0-1d0)*dsif_dso4f   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & 0.6d0*kf**(0.6d0-1d0)*dkf_dpco2 &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *0.25d0*mgf**(0.25d0-1d0)*dmgf_dpco2 &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *2.3d0*alf**(2.3d0-1d0)*dalf_dpco2  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & + &
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *3.5d0*sif**(3.5d0-1d0)*dsif_dpco2   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & )
-            case('k')
-                domega_dmsp = ( & 
-                    & 0.6d0*kf**(0.6d0-1d0)*dkf_dk &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & )
-            case('mg')
-                domega_dmsp = ( & 
-                    & kf**(0.6d0) &
-                    & *0.25d0*mgf**(0.25d0-1d0)*dmgf_dmg &
-                    & *alf**(2.3d0)  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *2.3d0*alf**(2.3d0-1d0)*dalf_dal  &
-                    & *sif**(3.5d0)   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & kf**(0.6d0) &
-                    & *mgf**(0.25d0) &
-                    & *alf**(2.3d0)  &
-                    & *3.5d0*sif**(3.5d0-1d0)*dsif_dsi   &
-                    & /prox**(8d0)    &
-                    & /keq_tmp      &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('anl')
-    ! NaAlSi2O6*H2O  + 5 H2O  = Na+  + Al(OH)4-  + 2 Si(OH)4(aq)
-        keq_tmp = keqsld_all(findloc(chrsld_all,'anl',dim=1))
-        omega = (  &
-            & naf &
-            & *alf*k4al/prox**4d0  &
-            & *sif**2d0   &
-            & /keq_tmp      &
-            & )
-            
-        ! dependences from an case
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &
-                    & dnaf_dpro &
-                    & *alf*k4al/prox**4d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *dalf_dpro*k4al/prox**4d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *alf*k4al*(-4d0)/prox**5d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *alf*k4al/prox**4d0  &
-                    & *2d0*sif*dsif_dpro   &
-                    & /keq_tmp      &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &
-                    & dnaf_dso4f &
-                    & *alf*k4al/prox**4d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *dalf_dso4f*k4al/prox**4d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *alf*k4al/prox**4d0  &
-                    & *2d0*sif*dsif_dso4f   &
-                    & /keq_tmp      &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & dnaf_dpco2 &
-                    & *alf*k4al/prox**4d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *dalf_dpco2*k4al/prox**4d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *alf*k4al/prox**4d0  &
-                    & *2d0*sif*dsif_dpco2   &
-                    & /keq_tmp      &
-                    & )
-            case('na')
-                domega_dmsp = ( & 
-                    & dnaf_dna &
-                    & *alf*k4al/prox**4d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & naf &
-                    & *dalf_dal*k4al/prox**4d0  &
-                    & *sif**2d0   &
-                    & /keq_tmp      &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & naf &
-                    & *alf*k4al/prox**4d0  &
-                    & *2d0*sif*dsif_dsi   &
-                    & /keq_tmp      &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('nph')
-    ! Nepheline  + 4 H+  = 2 H2O  + SiO2(aq)  + Al+++  + Na+
-        keq_tmp = keqsld_all(findloc(chrsld_all,'nph',dim=1))
-        omega = (  &
-            & naf &
-            & *alf  &
-            & *sif   &
-            & /prox**4d0  &
-            & /keq_tmp      &
-            & )
-            
-        ! dependences from an case
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &
-                    & dnaf_dpro &
-                    & *alf  &
-                    & *sif   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *dalf_dpro  &
-                    & *sif   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *alf  &
-                    & *dsif_dpro   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *alf  &
-                    & *sif   &
-                    & *(-4d0)/prox**5d0 &
-                    & /keq_tmp      &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &
-                    & dnaf_dso4f &
-                    & *alf  &
-                    & *sif   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *dalf_dso4f  &
-                    & *sif   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *alf  &
-                    & *dsif_dso4f   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & dnaf_dpco2 &
-                    & *alf  &
-                    & *sif   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *dalf_dpco2  &
-                    & *sif   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & + &
-                    & naf &
-                    & *alf  &
-                    & *dsif_dpco2   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & )
-            case('na')
-                domega_dmsp = ( & 
-                    & dnaf_dna &
-                    & *alf  &
-                    & *sif   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & )
-            case('al')
-                domega_dmsp = ( & 
-                    & naf &
-                    & *dalf_dal  &
-                    & *sif   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & naf &
-                    & *alf  &
-                    & *dsif_dsi   &
-                    & /prox**4d0 &
-                    & /keq_tmp      &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('dp')
-    ! Diopside  + 4 H+  = Ca++  + 2 H2O  + Mg++  + 2 SiO2(aq)
-        omega = ( &
-            & caf &
-            & *mgf &
-            & *sif**2d0 &
-            & /prox**4d0 &
-            & /keqdp &
-            & )
-            
-        ! dependences from an case
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &   
-                    & dcaf_dpro &
-                    & *mgf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & + &
-                    & caf &
-                    & *dmgf_dpro &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & + &
-                    & caf &
-                    & *mgf &
-                    & *sif*2d0*dsif_dpro &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & + &
-                    & caf &
-                    & *mgf &
-                    & *sif**2d0 &
-                    & *(-4d0)/prox**5d0 &
-                    & /keqdp &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &   
-                    & dcaf_dso4f &
-                    & *mgf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & + &
-                    & caf &
-                    & *dmgf_dso4f &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & + &
-                    & caf &
-                    & *mgf &
-                    & *sif*2d0*dsif_dso4f &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & dcaf_dpco2 &
-                    & *mgf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & + &
-                    & caf &
-                    & *dmgf_dpco2 &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & )
-            case('mg')
-                domega_dmsp = ( & 
-                    & caf &
-                    & *dmgf_dmg &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & dcaf_dca &
-                    & *mgf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & caf &
-                    & *mgf &
-                    & *sif*2d0*dsif_dsi &
-                    & /prox**4d0 &
-                    & /keqdp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('hb')
-    ! Hedenbergite  + 4 H+  = 2 H2O  + 2 SiO2(aq)  + Fe++  + Ca++
-        omega = ( &
-            & caf &
-            & *fe2f &
-            & *sif**2d0 &
-            & /prox**4d0 &
-            & /keqhb &
-            & )
-            
-        ! copied and pasted from dp case with replacing mg and dp by fe2 and hb
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &   
-                    & dcaf_dpro &
-                    & *fe2f &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & + &
-                    & caf &
-                    & *dfe2f_dpro &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & + &
-                    & caf &
-                    & *fe2f &
-                    & *sif*2d0*dsif_dpro &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & + &
-                    & caf &
-                    & *fe2f &
-                    & *sif**2d0 &
-                    & *(-4d0)/prox**5d0 &
-                    & /keqhb &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &   
-                    & dcaf_dso4f &
-                    & *fe2f &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & + &
-                    & caf &
-                    & *dfe2f_dso4f &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & + &
-                    & caf &
-                    & *fe2f &
-                    & *sif*2d0*dsif_dso4f &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & dcaf_dpco2 &
-                    & *fe2f &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & + &
-                    & caf &
-                    & *dfe2f_dpco2 &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & )
-            case('fe2')
-                domega_dmsp = ( & 
-                    & caf &
-                    & *dfe2f_dfe2 &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & dcaf_dca &
-                    & *fe2f &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & caf &
-                    & *fe2f &
-                    & *sif*2d0*dsif_dsi &
-                    & /prox**4d0 &
-                    & /keqhb &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('cpx')
-        ! FexMg(1-x)CaSi2O6  + 4 H+  = 2 H2O  + 2 SiO2(aq)  + xFe++  +  (1-x)Mg++  + Ca++
-        keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
-        ss_x = staq_all(findloc(chrsld_all,mineral,dim=1), findloc(chraq_all,'ca',dim=1) )
-        omega = ( &
-            & fe2f**ss_x &
-            & *mgf**(1d0-ss_x) &
-            & *caf &
-            & *sif**2d0 &
-            & /prox**4d0 &
-            & /keq_tmp &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &   
-                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dpro &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dpro &
-                    & *caf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *dcaf_dpro &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *2d0*sif*dsif_dpro &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *sif**2d0 &
-                    & *(-4d0)/prox**5d0 &
-                    & /keq_tmp &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &   
-                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dso4f &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dso4f &
-                    & *caf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *dcaf_dso4f &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *2d0*sif*dsif_dso4f &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dpco2 &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dpco2 &
-                    & *caf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *dcaf_dpco2 &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *2d0*sif*dsif_dpco2 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & )
-            case('fe2')
-                domega_dmsp = ( & 
-                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dfe2 &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & )
-            case('mg')
-                domega_dmsp = ( & 
-                    & fe2f**ss_x &
-                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dmg &
-                    & *caf &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *dcaf_dca &
-                    & *sif**2d0 &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *caf &
-                    & *2d0*sif*dsif_dsi &
-                    & /prox**4d0 &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('opx','en','fer')
-        ! FexMg(1-x)SiO3  + 2 H+  = H2O  +  SiO2(aq)  + xFe++  +  (1-x)Mg++  
-        keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
-        ss_x = staq_all(findloc(chrsld_all,mineral,dim=1), findloc(chraq_all,'ca',dim=1) )
-        omega = ( &
-            & fe2f**ss_x &
-            & *mgf**(1d0-ss_x) &
-            & *sif &
-            & /prox**2d0 &
-            & /keq_tmp &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &   
-                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dpro &
-                    & *mgf**(1d0-ss_x) &
-                    & *sif &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dpro &
-                    & *sif &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *dsif_dpro &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *sif &
-                    & *(-2d0)/prox**3d0 &
-                    & /keq_tmp &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &   
-                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dso4f &
-                    & *mgf**(1d0-ss_x) &
-                    & *sif &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dso4f &
-                    & *sif &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *dsif_dso4f &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dpco2 &
-                    & *mgf**(1d0-ss_x) &
-                    & *sif &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dpco2 &
-                    & *sif &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & + &
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *dsif_dpco2 &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & )
-            case('fe2')
-                domega_dmsp = ( & 
-                    & ss_x*fe2f**(ss_x-1d0)*dfe2f_dfe2 &
-                    & *mgf**(1d0-ss_x) &
-                    & *sif &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & )
-            case('mg')
-                domega_dmsp = ( & 
-                    & fe2f**ss_x &
-                    & *(1d0-ss_x)*mgf**(1d0-ss_x-1d0)*dmgf_dmg &
-                    & *sif &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & fe2f**ss_x &
-                    & *mgf**(1d0-ss_x) &
-                    & *dsif_dsi &
-                    & /prox**2d0 &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('tm')
-    ! Tremolite  + 14 H+  = 8 H2O  + 8 SiO2(aq)  + 2 Ca++  + 5 Mg++
-        keq_tmp = keqsld_all(findloc(chrsld_all,'tm',dim=1))
-        omega = ( &
-            & caf**2d0 &
-            & *mgf**5d0 &
-            & *sif**8d0 &
-            & /prox**14d0 &
-            & /keq_tmp &
-            & )
-            
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &   
-                    & 2d0*caf*dcaf_dpro &
-                    & *mgf**5d0 &
-                    & *sif**8d0 &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf**2d0 &
-                    & *5d0*mgf**4d0*dmgf_dpro &
-                    & *sif**8d0 &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf**2d0 &
-                    & *mgf**5d0 &
-                    & *8d0*sif**7d0*dsif_dpro &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf**2d0 &
-                    & *mgf**5d0 &
-                    & *sif**8d0 &
-                    & *(-14d0)/prox**15d0 &
-                    & /keq_tmp &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &   
-                    & 2d0*caf*dcaf_dso4f &
-                    & *mgf**5d0 &
-                    & *sif**8d0 &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf**2d0 &
-                    & *5d0*mgf**4d0*dmgf_dso4f &
-                    & *sif**8d0 &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf**2d0 &
-                    & *mgf**5d0 &
-                    & *8d0*sif**7d0*dsif_dso4f &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & 2d0*caf*dcaf_dpco2 &
-                    & *mgf**5d0 &
-                    & *sif**8d0 &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & + &
-                    & caf**2d0 &
-                    & *5d0*mgf**4d0*dmgf_dpco2 &
-                    & *sif**8d0 &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & )
-            case('mg')
-                domega_dmsp = ( & 
-                    & caf**2d0 &
-                    & *5d0*mgf**4d0*dmgf_dmg &
-                    & *sif**8d0 &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & 2d0*caf*dcaf_dca &
-                    & *mgf**5d0 &
-                    & *sif**8d0 &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & )
-            case('si')
-                domega_dmsp = ( & 
-                    & caf**2d0 &
-                    & *mgf**5d0 &
-                    & *8d0*sif**7d0*dsif_dsi &
-                    & /prox**14d0 &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('gps')
-    ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O
-        keq_tmp = keqsld_all(findloc(chrsld_all,'gps',dim=1))
-        omega = ( &
-            & caf &
-            & *so4f &
-            & /keq_tmp &
-            & )
-            
-        ! copied and pasted from dp case with replacing mg and dp by fe2 and hb
-        select case(trim(adjustl(sp_name)))
-            case('pro')
-                domega_dmsp = ( &   
-                    & dcaf_dpro &
-                    & *so4f &
-                    & /keq_tmp &
-                    & + &
-                    & caf &
-                    & *dso4f_dpro &
-                    & /keq_tmp &
-                    & )
-            case('so4f')
-                domega_dmsp = ( &   
-                    & dcaf_dso4f &
-                    & *so4f &
-                    & /keq_tmp &
-                    & + &
-                    & caf &
-                    & *1d0 &
-                    & /keq_tmp &
-                    & )
-            case('pco2')
-                domega_dmsp = ( & 
-                    & dcaf_dpco2 &
-                    & *so4f &
-                    & /keq_tmp &
-                    & + &
-                    & caf &
-                    & *dso4f_dpco2 &
-                    & /keq_tmp &
-                    & )
-            case('ca')
-                domega_dmsp = ( & 
-                    & dcaf_dca &
-                    & *so4f &
-                    & /keq_tmp &
-                    & )
-            case('so4')
-                domega_dmsp = ( & 
-                    & caf &
-                    & *dso4f_dso4 &
-                    & /keq_tmp &
-                    & )
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        
-    case('py')
-    ! omega is defined so that kpy*poro*hr*mvpy*1d-6*mpyx*(1d0-omega_py) = kpy*poro*hr*mvpy*1d-6*mpyx*po2x**0.5d0
-    ! i.e., 1.0 - omega_py = po2x**0.5 
-        ! omega = 1d0 - po2x**0.5d0
-        omega = 1d0 - po2x**0.5d0*merge(0d0,1d0,po2x<po2th*thon)
-        ! omega = merge(1d0,1d0 - po2x**0.5d0,po2x<po2th.or. isnan(po2x**0.5d0) .or. isnan(po2x**(-0.5d0)))
-        ! omega = 0d0
-        
-        select case(trim(adjustl(sp_name)))
-            case('po2')
-                domega_dmsp = ( &
-                    & - 0.5d0/po2x**(0.5d0)*merge(0d0,1d0,po2x<po2th*thon) &
-                    & )
-                ! domega_dmsp = merge(0d0,-0.5d0*po2x**(-0.5d0),po2x<po2th.or. isnan(po2x**0.5d0) .or. isnan(po2x**(-0.5d0)))
-                ! print *,omega
-                ! print *
-                ! print *,domega_dmsp
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-    case('om')
-    ! omega is defined so that kpy*poro*hr*mvpy*1d-6*mpyx*(1d0-omega_py) = kpy*poro*hr*mvpy*1d-6*mpyx*po2x**0.5d0
-    ! i.e., 1.0 - omega_py = po2x**0.5 
-        ! omega = 1d0 - po2x**0.5d0
-        omega = 1d0 
-        domega_dmsp = 0d0
-        ! omega = 0d0
-        
-    case('omb')
-    ! omega is defined so that kpy*poro*hr*mvpy*1d-6*mpyx*(1d0-omega_py) = kpy*poro*hr*mvpy*1d-6*mpyx*po2x**0.5d0
-    ! i.e., 1.0 - omega_py = po2x**0.5 
-        ! omega = 1d0 - po2x**0.5d0
-        omega = 1d0 
-        domega_dmsp = 0d0
-        ! omega = 0d0
-        
-        
-    case('g1')
-    ! omega is defined so that kg1*poro*hr*mvg1*1d-6*mg1x*(1d0-omega_g1) = kg1*poro*hr*mvg1*1d-6*mg1x*po2x/(po2x+mo2)
-    ! i.e., 1.0 - omega_g1 = po2x/(po2x+mo2) 
-        ! omega = 1d0 
-        ! domega_dmsp = 0d0
-        ! print *,mineral,sp_name
-        omega = 1d0 - po2x/(po2x+mo2g1)&
-            & *merge(0d0,1d0,po2x < po2th*thon)
-        
-        ! omega = 1d0 - po2x/(po2x + keqg1)
-        
-        select case(trim(adjustl(sp_name)))
-            case('po2')
-                domega_dmsp = ( &
-                    & - 1d0/(po2x + mo2g1) &
-                    & - po2x*(-1d0)/(po2x + mo2g1)**2d0 &
-                    & ) &
-                    & *merge(0d0,1d0,po2x < po2th*thon)
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        ! print*, omega
-        
-        
-    case('g2')
-    ! omega is defined so that kg2*poro*hr*mvg2*1d-6*mg2x*(1d0-omega_g2) = kg2*poro*hr*mvg2*1d-6*mg2x*po2x/(po2x+mo2)
-    ! i.e., 1.0 - omega_g2 = po2x/(po2x+mo2) 
-        omega = 1d0 - po2x/(po2x+mo2g2)&
-            & *merge(0d0,1d0,po2x < po2th*thon)
-        ! print *,mineral,sp_name
-        
-        
-        ! omega = 1d0 
-        ! domega_dmsp = 0d0
-        
-        ! omega = 1d0 - po2x/(po2x + keqg2)
-        
-        select case(trim(adjustl(sp_name)))
-            case('po2')
-                domega_dmsp = ( &
-                    & - 1d0/(po2x + mo2g2) &
-                    & - po2x*(-1d0)/(po2x + mo2g2)**2d0 &
-                    & ) &
-                    & *merge(0d0,1d0,po2x < po2th*thon)
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        ! print*, omega
-        
-        
-    case('g3')
-    ! omega is defined so that kg3*poro*hr*mvg3*1d-6*mg3x*(1d0-omega_g3) = kg3*poro*hr*mvg3*1d-6*mg3x*po2x/(po2x+mo2)
-    ! i.e., 1.0 - omega_g3 = po2x/(po2x+mo2) 
-        omega = 1d0 - po2x/(po2x+mo2g3) &
-            & *merge(0d0,1d0,po2x < po2th*thon)
-        ! print *,mineral,sp_name
-        ! omega = 1d0 
-        ! domega_dmsp = 0d0
-        
-        ! omega = 1d0 - po2x/(po2x + keqg3)
-        
-        select case(trim(adjustl(sp_name)))
-            case('po2')
-                domega_dmsp = ( &
-                    & - 1d0/(po2x + mo2g3) &
-                    & - po2x*(-1d0)/(po2x + mo2g3)**2d0 &
-                    & ) &
-                    & *merge(0d0,1d0,po2x < po2th*thon)
-            case default 
-                domega_dmsp = 0d0
-        endselect 
-        
-        ! print*, omega
-        
-        
-    case default 
-        ! print *,'non-specified'
-        omega = 1d0
-        domega_dmsp = 0d0
-        ! print *,omega
-        
-endselect
-
-omega_error = .false.
-if (any(isnan(omega)) .or. any(isnan(domega_dmsp))) then 
-    print *,'nan in calc_omega_dev_v2',any(isnan(omega)),any(isnan(domega_dmsp)),mineral,sp_name
-    omega_error = .true.
-    ! stop
-endif 
-
-endsubroutine calc_omega_dev_v2
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine calc_omega_v4( &
-    & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst & 
-    & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &
-    & ,maqx,maqc,mgasx,mgasc,mgasth_all,prox,so4f &
-    & ,keqsld_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-    & ,staq_all,stgas_all &
-    & ,mineral &
-    & ,domega_dmaq_all,domega_dmgas_all,domega_dpro_loc,domega_dso4f_loc &! output
-    & ,omega,omega_error &! output
-    & )
-implicit none
-integer,intent(in)::nz
-real(kind=8):: k1,k2,kco2,po2th,mo2g1,mo2g2,mo2g3,keq_tmp,ss_x,ss_pro,ss_pco2,mo2_tmp
-real(kind=8),dimension(nz),intent(in):: prox,so4f
-real(kind=8),dimension(nz):: pco2x,po2x
-real(kind=8),dimension(nz),intent(out)::omega
-logical,intent(out)::omega_error
-character(5),intent(in):: mineral
-
-integer,intent(in)::nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst
-character(5),dimension(nsp_aq),intent(in)::chraq
-character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas),intent(in)::chrgas
-character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
-real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx
-real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
-real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx
-real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
-real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3
-real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all
-real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
-real(kind=8),dimension(nsp_sld_all,nsp_gas_all),intent(in)::stgas_all
-
-real(kind=8),dimension(nz),intent(out)::domega_dpro_loc,domega_dso4f_loc
-real(kind=8),dimension(nsp_gas_all,nz),intent(out)::domega_dmgas_all
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::domega_dmaq_all
-
-real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,maqf_loc
-real(kind=8),dimension(nsp_aq_all,nz)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
-real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
-data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
-
-integer ieqaq_co3,ieqaq_hco3
-data ieqaq_co3,ieqaq_hco3/1,2/
-
-integer ieqaq_so4,ieqaq_so42
-data ieqaq_so4,ieqaq_so42/1,2/
-
-integer ispa,ipco2,ipo2
-! real(kind=8)::thon = 1d0
-real(kind=8)::thon = -1d100
-
-mo2g1 = keqsld_all(findloc(chrsld_all,'g1',dim=1))
-mo2g2 = keqsld_all(findloc(chrsld_all,'g2',dim=1))
-mo2g3 = keqsld_all(findloc(chrsld_all,'g3',dim=1))
-
-po2th = mgasth_all(findloc(chrgas_all,'po2',dim=1))
-
-kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
-k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
-k2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)
-
-call get_maqgasx_all( &
-    & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
-    & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
-    & ,maqx,mgasx,maqc,mgasc &
-    & ,maqx_loc,mgasx_loc  &! output
-    & )
-
-call get_maqf_all( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-    & ,mgasx_loc,maqx_loc,prox,so4f &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-    & ,maqf_loc  &! output
-    & )
-
-
-pco2x = mgasx_loc(findloc(chrgas_all,'pco2',dim=1),:)
-po2x = mgasx_loc(findloc(chrgas_all,'po2',dim=1),:)
-
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-ipo2 = findloc(chrgas_all,'po2',dim=1)
-
-domega_dmaq_all =0d0
-domega_dmgas_all =0d0
-domega_dso4f_loc =0d0
-domega_dpro_loc =0d0
-
-select case(trim(adjustl(mineral)))
-
-    ! case default ! (almino)silicates & oxides
-    case ( &
-        & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
-        & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
-        & ,'agt','jd','wls','phsi','splt','casp','ksp','nasp','mgsp','fe2o','mgo','k2o','cao','na2o','al2o3' &
-        & ,'gbas','cbas','ep','clch','sdn','cdr','leu' &
-        & )  ! (almino)silicates & oxides
-        keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
-        omega = 1d0
-        ss_pro = 0d0
-        do ispa = 1,nsp_aq_all
-            if (staq_all(findloc(chrsld_all,mineral,dim=1),ispa) > 0d0) then 
-
-                omega = omega*maqf_loc(ispa,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
-                
-                ! derivatives are first given as d(log omega)/dc 
-                domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:) + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dmaq(ispa,:) &
-                    & )
-                domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:) + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dpco2(ispa,:) &
-                    & )
-                domega_dpro_loc = domega_dpro_loc + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dpro(ispa,:) &
-                    & )
-                domega_dso4f_loc = domega_dso4f_loc + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dso4f(ispa,:) &
-                    & )
-
-                selectcase(trim(adjustl(chraq_all(ispa)))) 
-                    case('na','k')
-                        ss_pro = ss_pro + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
-                    case('fe2','ca','mg')
-                        ss_pro = ss_pro + 2d0*staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
-                    case('fe3','al')
-                        ss_pro = ss_pro + 3d0*staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
-                endselect
-            endif 
-        enddo 
-        
-        if (ss_pro > 0d0) then 
-            omega = omega / prox**ss_pro
-
-            ! derivatives are first given as d(log omega)/dc 
-            domega_dpro_loc = domega_dpro_loc - ss_pro/prox 
-        endif 
-        
-        if (keq_tmp > 0d0) then 
-            omega = omega / keq_tmp
-        endif         
-        
-        ! derivatives are now d(omega)/dc ( = d(omega)/d(log omega) * d(log omega)/dc = omega * d(log omega)/dc)
-        do ispa=1,nsp_aq_all
-            domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:)*omega(:)
-        enddo 
-        domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:)*omega(:)
-        domega_dpro_loc = domega_dpro_loc*omega
-        domega_dso4f_loc = domega_dso4f_loc*omega
-        
-    case('cc','arg','dlm') ! carbonates
-        keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
-        ss_pco2 = stgas_all(findloc(chrsld_all,mineral,dim=1),findloc(chrgas_all,'pco2',dim=1))
-        omega = 1d0
-        
-        do ispa = 1,nsp_aq_all
-            if (staq_all(findloc(chrsld_all,mineral,dim=1),ispa) > 0d0) then 
-                omega = omega*maqf_loc(ispa,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
-                
-                ! derivatives are first given as d(log omega)/dc 
-                domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:) + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dmaq(ispa,:) &
-                    & )
-                domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:) + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dpco2(ispa,:) &
-                    & )
-                domega_dpro_loc = domega_dpro_loc + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dpro(ispa,:) &
-                    & )
-                domega_dso4f_loc = domega_dso4f_loc + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dso4f(ispa,:) &
-                    & )
-            endif 
-        enddo 
-        
-        if (ss_pco2 > 0d0) then
-            omega = omega*(k1*k2*kco2*pco2x/(prox**2d0))**ss_pco2
-            
-            ! derivatives are first given as d(log omega)/dc 
-            domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:) + ss_pco2/pco2x 
-            domega_dpro_loc = domega_dpro_loc - 2d0*ss_pco2/prox 
-        endif 
-        
-        if (keq_tmp > 0d0) then 
-            omega = omega / keq_tmp
-        endif     
-        
-        ! derivatives are now d(omega)/dc ( = d(omega)/d(log omega) * d(log omega)/dc = omega * d(log omega)/dc)
-        do ispa=1,nsp_aq_all
-            domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:)*omega(:)
-        enddo 
-        domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:)*omega(:)
-        domega_dpro_loc = domega_dpro_loc*omega
-        domega_dso4f_loc = domega_dso4f_loc*omega
-        
-    case('gps') ! sulfates
-    ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O
-        keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
-        omega = 1d0
-        
-        do ispa = 1,nsp_aq_all
-            if (staq_all(findloc(chrsld_all,mineral,dim=1),ispa) > 0d0) then 
-                omega = omega*maqf_loc(ispa,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
-                
-                ! derivatives are first given as d(log omega)/dc 
-                domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:) + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dmaq(ispa,:) &
-                    & )
-                domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:) + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dpco2(ispa,:) &
-                    & ) 
-                domega_dpro_loc = domega_dpro_loc + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dpro(ispa,:) &
-                    & )
-                domega_dso4f_loc = domega_dso4f_loc + ( &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*dmaqf_dso4f(ispa,:) &
-                    & )
-            endif 
-        enddo 
-        
-        if (keq_tmp > 0d0) then 
-            omega = omega / keq_tmp
-        endif     
-        
-        ! derivatives are now d(omega)/dc ( = d(omega)/d(log omega) * d(log omega)/dc = omega * d(log omega)/dc)
-        do ispa=1,nsp_aq_all
-            domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:)*omega(:)
-        enddo 
-        domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:)*omega(:)
-        domega_dpro_loc = domega_dpro_loc*omega
-        domega_dso4f_loc = domega_dso4f_loc*omega
-        
-    !!! other minerals that are assumed not to be controlled by distance from equilibrium i.e. omega
-    
-    case('py') ! sulfides (assumed to be totally controlled by kinetics)
-    ! omega is defined so that kpy*poro*hr*mvpy*1d-6*mpyx*(1d0-omega_py) = kpy*poro*hr*mvpy*1d-6*mpyx*po2x**0.5d0
-    ! i.e., 1.0 - omega_py = po2x**0.5 
-        ! omega = 1d0 - po2x**0.5d0
-        omega = 1d0 - po2x**0.5d0*merge(0d0,1d0,po2x<po2th*thon)
-        domega_dmgas_all(ipo2,:) = - 0.5d0*po2x**(-0.5d0)*merge(0d0,1d0,po2x<po2th*thon)
-        
-    case('om','omb')
-        omega = 1d0 ! these are not used  
-        
-    case('g1','g2','g3','amnt')
-    ! omega is defined so that kg1*poro*hr*mvg1*1d-6*mg1x*(1d0-omega_g1) = kg1*poro*hr*mvg1*1d-6*mg1x*po2x/(po2x+mo2)
-    ! i.e., 1.0 - omega_g1 = po2x/(po2x+mo2) 
-        if (trim(adjustl(mineral)) == 'g1') mo2_tmp = mo2g1
-        if (trim(adjustl(mineral)) == 'g2') mo2_tmp = mo2g2
-        if (trim(adjustl(mineral)) == 'g3') mo2_tmp = mo2g3
-        omega = 1d0 - po2x/(po2x+mo2_tmp)*merge(0d0,1d0,po2x < po2th*thon)
-        domega_dmgas_all(ipo2,:) = ( &
-            & - 1d0/(po2x+mo2_tmp)*merge(0d0,1d0,po2x < po2th*thon) &
-            & - po2x*(-1d0)/(po2x+mo2_tmp)**2d0*merge(0d0,1d0,po2x < po2th*thon) &
-            & )
-    
-    case('inrt') ! not reacting in any case
-        omega = 1d0
-        
-    case default 
-        ! this should not be selected
-        omega = 1d0
-        print *, '*** CAUTION: mineral (',mineral,') saturation state is not defined --- > pause'
-        pause
-        
-endselect
-
-omega_error = .false.
-if (any(isnan(omega))) then 
-    print *,'nan in calc_omega_v4',any(isnan(omega)),mineral
-    omega_error = .true.
-    ! stop
-endif 
-
-endsubroutine calc_omega_v4
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -16288,9 +11602,10 @@ integer ispa
 
 do ispa = 1, nsp_aq_all
     selectcase(trim(adjustl(chraq_all(ispa))))
+        ! case('so4','oxa')
         case('so4')
             base_charge(ispa) = -2d0
-        case('no3')
+        case('no3','oxa')
             base_charge(ispa) = -1d0
         case('si')
             base_charge(ispa) = 0d0
@@ -16439,126 +11754,10 @@ endsubroutine get_maqgasx_all
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-subroutine get_maqf_all( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-    & ,mgasx_loc,maqx_loc,prox,so4f &
-    & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-    & ,maqf_loc  &! output
-    & )
-implicit none
-integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqx_loc
-real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
-real(kind=8),dimension(nz),intent(in)::prox,so4f
-
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::maqf_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
-
-integer ispa,ispa_h,ispa_c,ispa_s,ispa_no3,ispg
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
-data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
-
-real(kind=8) kco2,k1,k2,k1no3,rspa_h,rspa_s
-real(kind=8),dimension(nz)::pco2x
-
-
-
-kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
-k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
-k2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)
-
-pco2x = mgasx_loc(findloc(chrgas_all,'pco2',dim=1),:)
-
-k1no3 = keqaq_h(findloc(chraq_all,'no3',dim=1),ieqaq_h1)
-
-maqf_loc = 0d0
-
-dmaqf_dpro = 0d0
-dmaqf_dso4f =0d0
-dmaqf_dmaq = 0d0
-dmaqf_dpco2 = 0d0
-
-do ispa = 1, nsp_aq_all
-    ! annions
-    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
-        selectcase(trim(adjustl(chraq_all(ispa))))
-            case('no3')
-                maqf_loc(ispa,:) = 1d0
-                if (k1no3 > 0d0) then ! currently NO3 complex with cations are ignored and thus no3f can be calculated analytically
-                    maqf_loc(ispa,:) = maqf_loc(ispa,:) + k1no3*prox
-                    dmaqf_dpro(ispa,:) = dmaqf_dpro(ispa,:) + k1no3
-                endif
-                dmaqf_dpro(ispa,:) = maqx_loc(ispa,:)*(-1d0)/maqf_loc(ispa,:)**2d0*dmaqf_dpro(ispa,:)
-                dmaqf_dmaq(ispa,:) = 1d0/maqf_loc(ispa,:)
-                maqf_loc(ispa,:) = maqx_loc(ispa,:)/maqf_loc(ispa,:)
-            case('so4') ! currently SO4 complex with cations are included so that so4f is numerically calculated with pH (or charge balance)
-                maqf_loc(ispa,:) = so4f(:)
-                dmaqf_dso4f(ispa,:) = 1d0
-        endselect
-    ! cations
-    else 
-        maqf_loc(ispa,:) = 1d0
-        ! account for hydrolysis speces
-        do ispa_h = 1,4
-            rspa_h = real(ispa_h,kind=8)
-            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                maqf_loc(ispa,:) = maqf_loc(ispa,:) + keqaq_h(ispa,ispa_h)/prox**rspa_h
-                dmaqf_dpro(ispa,:) = dmaqf_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*(-rspa_h)/prox**(1d0+rspa_h)
-            endif 
-        enddo 
-        ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
-        do ispa_c = 1,2
-            if ( keqaq_c(ispa,ispa_c) > 0d0) then 
-                if (ispa_c == 1) then ! with CO3--
-                    maqf_loc(ispa,:) = maqf_loc(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x/prox**2d0
-                    dmaqf_dpro(ispa,:) = dmaqf_dpro(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x*(-2d0)/prox**3d0
-                    dmaqf_dpco2(ispa,:) = dmaqf_dpco2(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*1d0/prox**2d0
-                elseif (ispa_c == 2) then ! with HCO3- ( CO32- + H+)
-                    maqf_loc(ispa,:) = maqf_loc(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x/prox
-                    dmaqf_dpro(ispa,:) = dmaqf_dpro(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x*(-1d0)/prox**2d0
-                    dmaqf_dpco2(ispa,:) = dmaqf_dpco2(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*1d0/prox
-                endif 
-            endif 
-        enddo 
-        ! account for complexation with free SO4
-        do ispa_s = 1,2
-            rspa_s = real(ispa_s,kind=8)
-            if ( keqaq_s(ispa,ispa_s) > 0d0) then 
-                maqf_loc(ispa,:) = maqf_loc(ispa,:) + keqaq_s(ispa,ispa_s)*so4f**rspa_s
-                dmaqf_dso4f(ispa,:) = dmaqf_dso4f(ispa,:) + keqaq_s(ispa,ispa_s)*rspa_s*so4f**(rspa_s-1d0)
-            endif 
-        enddo 
-        ! currently NO3 complexation with cations are ignored
-        dmaqf_dpro(ispa,:) = maqx_loc(ispa,:)*(-1d0)/maqf_loc(ispa,:)**2d0*dmaqf_dpro(ispa,:)
-        dmaqf_dso4f(ispa,:) = maqx_loc(ispa,:)*(-1d0)/maqf_loc(ispa,:)**2d0*dmaqf_dso4f(ispa,:)
-        dmaqf_dpco2(ispa,:) = maqx_loc(ispa,:)*(-1d0)/maqf_loc(ispa,:)**2d0*dmaqf_dpco2(ispa,:)
-        dmaqf_dmaq(ispa,:) = 1d0/maqf_loc(ispa,:)
-        maqf_loc(ispa,:) = maqx_loc(ispa,:)/maqf_loc(ispa,:)
-    endif 
-enddo     
-
-endsubroutine get_maqf_all
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
 subroutine get_maqt_all( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
     & ,mgasx_loc,maqf_loc,prox &
     & ,dmaqft_dpro,dmaqft_dmaqf,dmaqft_dmgas &! output
     & ,maqft_loc  &! output
@@ -16570,7 +11769,7 @@ character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nz),intent(in)::prox
@@ -16580,7 +11779,8 @@ real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dmaqft_dpro
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz),intent(out)::dmaqft_dmaqf
 real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz),intent(out)::dmaqft_dmgas
 
-integer ispa,ispa_h,ispa_c,ispa_s,ispa_no3,ispa_nh3,ispg,iso4,ipco2,ino3,ipnh3,ispa2
+integer ispa,ispa_h,ispa_c,ispa_s,ispa_no3,ispa_nh3,ispg,iso4,ipco2,ino3,ipnh3,ispa2 &
+    & ,ioxa,ispa_oxa
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
@@ -16588,11 +11788,12 @@ data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
 data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
 
-real(kind=8) kco2,k1,k2,k1no3,rspa_h,rspa_s,rspa_no3,rspa_nh3,knh3,k1nh3
-real(kind=8),dimension(nz)::pco2x,so4f,no3f,pnh3x
+real(kind=8) kco2,k1,k2,k1no3,rspa_h,rspa_s,rspa_no3,rspa_nh3,knh3,k1nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3
+real(kind=8),dimension(nz)::pco2x,so4f,no3f,pnh3x,oxaf
 
 iso4 = findloc(chraq_all,'so4',dim=1)
 ino3 = findloc(chraq_all,'no3',dim=1)
+ioxa = findloc(chraq_all,'oxa',dim=1)
 ipco2 = findloc(chrgas_all,'pco2',dim=1)
 ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
 
@@ -16606,6 +11807,7 @@ pnh3x = mgasx_loc(ipnh3,:)
 pco2x = mgasx_loc(ipco2,:)
 so4f = maqf_loc(iso4,:)
 no3f = maqf_loc(ino3,:)
+oxaf = maqf_loc(ioxa,:)
 
 maqft_loc = 0
 
@@ -16632,15 +11834,40 @@ do ispa = 1, nsp_aq_all
     enddo 
     
     ! annions
-    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
+    if ( &
+        & trim(adjustl(chraq_all(ispa)))=='no3' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
+        ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & ) then 
         ! maqft_loc(ispa,:) = 1d0
         ! account for hydrolysis speces
-        do ispa_h = 1,4
+        do ispa_h = 1,2
             rspa_h = real(ispa_h,kind=8)
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                 maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**rspa_h
                 dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_h(ispa,ispa_h)*1d0*prox**rspa_h
                 dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*rspa_h*prox**(rspa_h-1d0)
+            endif 
+        enddo 
+    ! oxalic acid 
+    elseif ( &
+        & trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & ) then 
+        do ispa_h = 1,2
+            if (ispa_h==1)then
+                rspa_h = real(ispa_h,kind=8)
+                if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)/prox**rspa_h
+                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_h(ispa,ispa_h)*1d0/prox**rspa_h
+                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(-rspa_h)/prox**(1d0+rspa_h)
+                endif 
+            elseif(ispa_h==2)then
+                rspa_h = real(ispa_h-1,kind=8)
+                if ( keqaq_h(ispa,ispa_h) > 0d0) then 
+                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**rspa_h
+                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_h(ispa,ispa_h)*1d0*prox**rspa_h
+                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*rspa_h*prox**(rspa_h-1d0)
+                endif 
             endif 
         enddo 
     ! cations
@@ -16711,6 +11938,36 @@ do ispa = 1, nsp_aq_all
                     & )
             endif 
         enddo 
+        ! account for complexation with HOxa-
+        do ispa_oxa = 1,2
+            rspa_oxa   = real(ispa_oxa,kind=8)
+            rspa_oxa_2 = real(ispa_oxa,kind=8)
+            rspa_oxa_3 = real(ispa_oxa,kind=8)
+            if (trim(adjustl(chraq_all(ispa)))=='al') then
+                rspa_oxa   = real(ispa_oxa,kind=8) + 1d0
+                rspa_oxa_2 = 1d0
+                rspa_oxa_3 = 1d0
+            endif 
+            if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3/prox**rspa_oxa
+                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa_3/prox**rspa_oxa
+                dmaqft_dmaqf(ispa,ioxa,:) = dmaqft_dmaqf(ispa,ioxa,:) &
+                    & + keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)/prox**rspa_oxa
+                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
+                    & + keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(-rspa_oxa)/prox**(rspa_oxa+1d0)
+                
+                maqft_loc(ioxa,:) = maqft_loc(ioxa,:) &
+                    & + rspa_oxa_2*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3/prox**rspa_oxa
+                dmaqft_dmaqf(ioxa,ioxa,:) = dmaqft_dmaqf(ioxa,ioxa,:) + ( &
+                    & + rspa_oxa_2*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)/prox**rspa_oxa &
+                    & )
+                dmaqft_dmaqf(ioxa,ispa,:) = dmaqft_dmaqf(ioxa,ispa,:) + ( &
+                    & + rspa_oxa_2*keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa_3/prox**rspa_oxa &
+                    & )
+                dmaqft_dpro(ioxa,:) = dmaqft_dpro(ioxa,:) &
+                    & + rspa_oxa_2*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(-rspa_oxa)/prox**(rspa_oxa+1d0)
+            endif 
+        enddo 
     endif 
     
     ! needs to devide total conc with primary conc. 
@@ -16733,658 +11990,6 @@ do ispa = 1, nsp_aq_all
 enddo     
 
 endsubroutine get_maqt_all
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine get_maqt_all_v2( &
-    & nz,nsp_aq_all,nsp_gas_all &
-    & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
-    & ,mgasx_loc,maqf_loc,prox &
-    & ,dmaqft_dpro,dmaqft_dmaqf,dmaqft_dmgas &! output
-    & ,maqft_loc  &! output
-    & )
-! calculating ratio of total dissolved species relative to maqf_loc
-implicit none
-integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
-real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
-real(kind=8),dimension(nz),intent(in)::prox
-
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::maqft_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dmaqft_dpro
-real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz),intent(out)::dmaqft_dmaqf
-real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz),intent(out)::dmaqft_dmgas
-
-integer ispa,ispa_h,ispa_c,ispa_s,ispa_no3,ispa_nh3,ispg,iso4,ipco2,ino3,ipnh3,ispa2
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
-data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
-
-real(kind=8) kco2,k1,k2,k1no3,rspa_h,rspa_s,rspa_no3,rspa_nh3,knh3,k1nh3
-real(kind=8),dimension(nz)::pco2x,so4f,no3f,pnh3x
-
-iso4 = findloc(chraq_all,'so4',dim=1)
-ino3 = findloc(chraq_all,'no3',dim=1)
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
-
-kco2 = keqgas_h(ipco2,ieqgas_h0)
-k1 = keqgas_h(ipco2,ieqgas_h1)
-k2 = keqgas_h(ipco2,ieqgas_h2)
-knh3 = keqgas_h(ipnh3,ieqgas_h0)
-k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
-
-pnh3x = mgasx_loc(ipnh3,:)
-pco2x = mgasx_loc(ipco2,:)
-so4f = maqf_loc(iso4,:)
-no3f = maqf_loc(ino3,:)
-
-maqft_loc = 1d0
-
-dmaqft_dpro = 0d0
-dmaqft_dmaqf = 0d0
-dmaqft_dmgas = 0d0
-
-do ispa = 1, nsp_aq_all
-    
-    ! complex with NH4
-    do ispa_nh3 = 1,2
-        rspa_nh3 = real(ispa_nh3,kind=8)
-        if ( keqaq_nh3(ispa,ispa_nh3) > 0d0) then 
-            maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_nh3(ispa,ispa_nh3)*(pnh3x*knh3/k1nh3*prox)**rspa_nh3
-            dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
-                & + keqaq_nh3(ispa,ispa_nh3)*(pnh3x*knh3/k1nh3)**rspa_nh3*rspa_nh3*prox**(rspa_nh3-1d0)
-            dmaqft_dmgas(ispa,ipnh3,:) = dmaqft_dmgas(ispa,ipnh3,:) &
-                & + keqaq_nh3(ispa,ispa_nh3)*(knh3/k1nh3*prox)**rspa_nh3*rspa_nh3*pnh3x**(rspa_nh3-1d0)
-        endif 
-    enddo 
-    
-    ! annions
-    if (trim(adjustl(chraq_all(ispa)))=='no3' .or. trim(adjustl(chraq_all(ispa)))=='so4') then 
-        ! maqft_loc(ispa,:) = 1d0
-        ! account for hydrolysis speces
-        do ispa_h = 1,4
-            rspa_h = real(ispa_h,kind=8)
-            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*prox**rspa_h
-                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*rspa_h*prox**(rspa_h-1d0)
-            endif 
-        enddo 
-    ! cations
-    else 
-        ! maqft_loc(ispa,:) = 1d0
-        ! account for hydrolysis speces
-        do ispa_h = 1,4
-            rspa_h = real(ispa_h,kind=8)
-            if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)/prox**rspa_h
-                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*(-rspa_h)/prox**(1d0+rspa_h)
-            endif 
-        enddo 
-        ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
-        do ispa_c = 1,2
-            if ( keqaq_c(ispa,ispa_c) > 0d0) then 
-                if (ispa_c == 1) then ! with CO3--
-                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x/prox**2d0
-                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
-                        & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x*(-2d0)/prox**3d0
-                    dmaqft_dmgas(ispa,ipco2,:) = dmaqft_dmgas(ispa,ipco2,:) &
-                        & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*1d0/prox**2d0
-                elseif (ispa_c == 2) then ! with HCO3- ( CO32- + H+)
-                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x/prox
-                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
-                        & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*pco2x*(-1d0)/prox**2d0
-                    dmaqft_dmgas(ispa,ipco2,:) = dmaqft_dmgas(ispa,ipco2,:) &
-                        & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*1d0/prox
-                endif 
-            endif 
-        enddo 
-        ! account for complexation with free SO4
-        do ispa_s = 1,2
-            rspa_s = real(ispa_s,kind=8)
-            if ( keqaq_s(ispa,ispa_s) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_s(ispa,ispa_s)*so4f**rspa_s
-                dmaqft_dmaqf(ispa,iso4,:) = dmaqft_dmaqf(ispa,iso4,:) &
-                    & + keqaq_s(ispa,ispa_s)*rspa_s*so4f**(rspa_s-1d0)
-                
-                maqft_loc(iso4,:) = maqft_loc(iso4,:) &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**(rspa_s-1d0)
-                dmaqft_dmaqf(iso4,iso4,:) = dmaqft_dmaqf(iso4,iso4,:) + ( &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*(rspa_s-1d0)*so4f**(rspa_s-2d0) &
-                    & )
-                dmaqft_dmaqf(iso4,ispa,:) = dmaqft_dmaqf(iso4,ispa,:) + ( &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*1d0*so4f**(rspa_s-1d0) &
-                    & )
-            endif 
-        enddo 
-        ! account for complexation with free NO3
-        do ispa_no3 = 1,2
-            rspa_no3 = real(ispa_no3,kind=8)
-            if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_no3(ispa,ispa_no3)*no3f**rspa_no3
-                dmaqft_dmaqf(ispa,ino3,:) = dmaqft_dmaqf(ispa,ino3,:) &
-                    & + keqaq_no3(ispa,ispa_no3)*(rspa_no3-1d0)*no3f**(rspa_no3-2d0)
-                
-                maqft_loc(ino3,:) = maqft_loc(ino3,:) &
-                    & + rspa_no3*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**(rspa_no3-1d0)
-                dmaqft_dmaqf(ino3,ino3,:) = dmaqft_dmaqf(ino3,ino3,:) + ( &
-                    & + rspa_no3*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*(rspa_no3-1d0)*no3f**(rspa_no3-2d0) &
-                    & )
-                dmaqft_dmaqf(ino3,ispa,:) = dmaqft_dmaqf(ino3,ispa,:) + ( &
-                    & + rspa_no3*keqaq_no3(ispa,ispa_no3)*1d0*no3f**(rspa_no3-1d0) &
-                    & )
-            endif 
-        enddo 
-    endif 
-    
-enddo     
-
-endsubroutine get_maqt_all_v2
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine get_maqads_all( &
-    & nz,nsp_aq_all,nsp_sld_all &
-    & ,chraq_all,chrsld_all &
-    & ,keqcec_all,keqiex_all &
-    & ,msldx_loc,maqf_loc,prox &
-    & ,dmaqfads_dpro,dmaqfads_dmaqf,dmaqfads_dmsld,msldf_loc &! output
-    & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
-    & ,maqfads_loc,maqfads_sld_loc  &! output
-    & )
-! calculating ratio of adsorbed species relative to maqf_loc
-! (1) First calculate exposed negatively-charged sites (S-O-) (mol/m3)
-! (2) Summing up occupied sites e.g. [S-O-Na] = K*[S-O-]*[Na] using K for S-O- + Na+ = S-O-Na
-! *** Make sure sum([S-O-X]) = K_CEC*msld where K_CEC is in units of charged mol per unit mol of mineral
-! *** this version only considered adsorption of mono or di-charged cations and involvement of no anions (complexes) 
-!     so that [S-O-] can be calculated analytically 
-implicit none
-integer,intent(in)::nz,nsp_aq_all,nsp_sld_all
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
-real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all
-real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::keqiex_all
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
-real(kind=8),dimension(nsp_sld_all,nz),intent(in)::msldx_loc
-real(kind=8),dimension(nz),intent(in)::prox
-
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::maqfads_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dmaqfads_dpro
-real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz),intent(out)::dmaqfads_dmaqf
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::dmaqfads_dmsld
-real(kind=8),dimension(nsp_sld_all,nz),intent(out)::msldf_loc
-
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::maqfads_sld_loc
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nsp_aq_all,nz),intent(out)::dmaqfads_sld_dmaqf
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::dmaqfads_sld_dmsld
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::dmaqfads_sld_dpro
-
-! local
-integer isps,ispa,ispa2
-
-real(kind=8),dimension(nsp_sld_all,nz)::dmsldf_dmsld,dmsldf_dpro  
-real(kind=8),dimension(nsp_sld_all,nsp_aq_all,nz)::dmsldf_dmaqf
-real(kind=8),dimension(nsp_aq_all)::base_charge 
-real(kind=8),dimension(nz)::f,f_chk
-real(kind=8),dimension(3,nz)::a,da_dpro,da_dmsld
-real(kind=8),dimension(3,nsp_aq_all,nz)::da_dmaqf
-real(kind=8) :: tol_dum = 1d-12
-
-call get_base_charge( &
-    & nsp_aq_all & 
-    & ,chraq_all & 
-    & ,base_charge &! output 
-    & )
-
-! (1) First getting negatively charged sites (S-O-) (defined as msldf_loc)
-! msld(isps,:)*keqcec_all(isps) = msldf_loc(isps,:) + base_charge(ispa) * keqiex_all(isps,ispa)* maqf_loc(ispa,:)*(msldf_loc(isps,:))**base_charge(ispa)
-! this can be solved analytically when considering only Na+, K+, Mg++, Ca++ 
-
-msldf_loc = 0d0
-dmsldf_dpro = 0d0
-dmsldf_dmsld = 0d0
-dmsldf_dmaqf = 0d0
-
-do isps = 1, nsp_sld_all
-    
-    if (keqcec_all(isps) == 0d0) cycle
-    
-    a = 0d0
-    da_dpro = 0d0
-    da_dmaqf = 0d0
-    da_dmsld = 0d0
-    
-    a(1,:) = - msldx_loc(isps,:)*keqcec_all(isps)
-    a(2,:) = 1d0
-    
-    da_dmsld(1,:) = - 1d0*keqcec_all(isps)
-    
-    do ispa=1,nsp_aq_all
-        selectcase(trim(adjustl(chraq_all(ispa))))
-            case('na','k')
-                a(2,:) = a(2,:) + base_charge(ispa)*keqiex_all(isps,ispa)* maqf_loc(ispa,:)
-                da_dmaqf(2,ispa,:) = da_dmaqf(2,ispa,:) &
-                    & + base_charge(ispa)*keqiex_all(isps,ispa)*1d0
-            case('mg','ca')
-                a(3,:) = a(3,:) + base_charge(ispa)*keqiex_all(isps,ispa)* maqf_loc(ispa,:)
-                da_dmaqf(3,ispa,:) = da_dmaqf(3,ispa,:) &
-                    & + base_charge(ispa)*keqiex_all(isps,ispa)*1d0
-            case default 
-                ! do nothing
-        endselect
-    enddo
-    
-    ! if (chrsld_all(isps)=='ka') print*, a
-    ! if ( any(a(3,:)==0d0) ) then 
-    if ( .false. ) then 
-        if ( any(a(2,:)==0d0) ) cycle 
-        msldf_loc(isps,:) = - a(1,:)/a(2,:) 
-        f_chk = a(3,:)*msldf_loc(isps,:)**2d0+a(2,:)*msldf_loc(isps,:)+a(1,:)
-        if (any(abs(f_chk/a(1,:))>tol_dum)) then 
-            print *, 'mass basalnce not satisfied: get_maqads_all, 1st-order',chrsld_all(isps)
-            print *,f_chk
-            print *,a(1,:)
-            print *,a(2,:)
-            print *,a(3,:)
-            stop
-        endif 
-        dmsldf_dpro(isps,:) = ( &
-            & - da_dpro(1,:)/a(2,:)  &
-            & - a(1,:)*(-1d0)/a(2,:)**2d0*da_dpro(2,:)  &
-            & )
-        dmsldf_dmsld(isps,:) = ( &
-            & - da_dmsld(1,:)/a(2,:)  &
-            & - a(1,:)*(-1d0)/a(2,:)**2d0*da_dmsld(2,:)  &
-            & )
-        do ispa=1,nsp_aq_all
-            dmsldf_dmaqf(isps,ispa,:) = ( &
-                & - da_dmaqf(1,ispa,:)/a(2,:)  &
-                & - a(1,:)*(-1d0)/a(2,:)**2d0*da_dmaqf(2,ispa,:)  &
-                & )
-        enddo 
-    else 
-        
-        ! a(1,:) = a(1,:)/a(3,:)
-        ! a(2,:) = a(2,:)/a(3,:)
-        ! a(3,:) = a(3,:)/a(3,:)
-        
-        ! msldf_loc(isps,:) = 0.5d0*( -a(2,:)/a(3,:) + ( (a(2,:)/a(3,:))**2d0-4d0*a(1,:)/a(3,:) )**0.5d0 )
-        msldf_loc(isps,:) = 2d0*a(1,:)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 )
-        f_chk = a(3,:)*msldf_loc(isps,:)**2d0+a(2,:)*msldf_loc(isps,:)+a(1,:)
-        if (any(abs(f_chk/a(1,:))>tol_dum)) then 
-            print *, 'mass basalnce not satisfied: get_maqads_all, 2nd-order',chrsld_all(isps)
-            print *,f_chk
-            print *,a(1,:)
-            print *,a(2,:)
-            print *,a(3,:)
-            stop
-        endif 
-        dmsldf_dpro(isps,:) = ( &
-            & + 2d0*da_dpro(1,:)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 ) &
-            & + 2d0*a(1,:)*(-1d0)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 )**2d0 &
-            &   * (-da_dpro(2,:) - 0.5d0*( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**(-0.5d0)   & 
-            &       * (2d0*a(2,:)*da_dpro(2,:) -4d0*da_dpro(1,:)*a(3,:) -4d0*a(1,:)*da_dpro(3,:) ) ) &
-            & )
-        dmsldf_dmsld(isps,:) = ( &
-            & + 2d0*da_dmsld(1,:)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 ) &
-            & + 2d0*a(1,:)*(-1d0)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 )**2d0 &
-            &   * (-da_dmsld(2,:) - 0.5d0*( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**(-0.5d0)   & 
-            &       * (2d0*a(2,:)*da_dmsld(2,:) -4d0*da_dmsld(1,:)*a(3,:) -4d0*a(1,:)*da_dmsld(3,:) ) ) &
-            & )
-        do ispa=1,nsp_aq_all
-            dmsldf_dmaqf(isps,ispa,:) = ( &
-                & + 2d0*da_dmaqf(1,ispa,:)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 ) &
-                & + 2d0*a(1,:)*(-1d0)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 )**2d0 &
-                &   * (-da_dmaqf(2,ispa,:) - 0.5d0*( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**(-0.5d0)   & 
-                &       * (2d0*a(2,:)*da_dmaqf(2,ispa,:) -4d0*da_dmaqf(1,ispa,:)*a(3,:) -4d0*a(1,:)*da_dmaqf(3,ispa,:) ) ) &
-                & )
-        enddo 
-    endif 
-enddo
-
-! (2) Then getting concs of adsorbed ion concs. relative to magf (defined here as maqfads_loc)
-! adsorbed species concs are keqiex_all(isps,ispa)*maqf_loc(ispa,:)* msldf_loc(isps,:)**base_charge(ispa)
-! so relative ratio to maqfads_loc(ispa,:) = sum( keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa) )
-
-maqfads_loc = 0d0
-dmaqfads_dpro = 0d0
-dmaqfads_dmaqf = 0d0
-dmaqfads_dmsld = 0d0
-
-maqfads_sld_loc = 0d0
-dmaqfads_sld_dpro = 0d0
-dmaqfads_sld_dmaqf = 0d0
-dmaqfads_sld_dmsld = 0d0
-
-do ispa=1,nsp_aq_all
-    selectcase(trim(adjustl(chraq_all(ispa))))
-        case('na','k','ca','mg')
-            do isps=1,nsp_sld_all
-                if (keqcec_all(isps) == 0d0) cycle
-                maqfads_loc(ispa,:) = maqfads_loc(ispa,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa) 
-                dmaqfads_dpro(ispa,:) = dmaqfads_dpro(ispa,:) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0)* dmsldf_dpro(isps,:)
-                do ispa2=1,nsp_aq_all
-                    dmaqfads_dmaqf(ispa,ispa2,:) = dmaqfads_dmaqf(ispa,ispa2,:) &
-                        & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                        &   *dmsldf_dmaqf(isps,ispa2,:) 
-                enddo 
-                
-                dmaqfads_dmsld(ispa,isps,:) = dmaqfads_dmsld(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dmsld(isps,:) 
-                    
-                    
-                    
-                maqfads_sld_loc(ispa,isps,:) = maqfads_sld_loc(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa)
-                dmaqfads_sld_dpro(ispa,isps,:) = dmaqfads_sld_dpro(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0)* dmsldf_dpro(isps,:) 
-                do ispa2=1,nsp_aq_all
-                    dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) = dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) &
-                        & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                        &   *dmsldf_dmaqf(isps,ispa2,:) 
-                enddo 
-                    
-                
-                dmaqfads_sld_dmsld(ispa,isps,:) = dmaqfads_sld_dmsld(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dmsld(isps,:) 
-            enddo
-            
-        case default
-            ! do nothing
-    endselect 
-enddo
-
-endsubroutine get_maqads_all
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine get_maqads_all_v2( &
-    & nz,nsp_aq_all,nsp_sld_all &
-    & ,chraq_all,chrsld_all &
-    & ,keqcec_all,keqiex_all &
-    & ,msldx_loc,maqf_loc,prox &
-    & ,dmaqfads_dpro,dmaqfads_dmaqf,dmaqfads_dmsld,msldf_loc &! output
-    & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
-    & ,maqfads_loc,maqfads_sld_loc  &! output
-    & )
-! calculating ratio of adsorbed species relative to maqf_loc
-! (1) First calculate exposed negatively-charged sites (S-O-) (mol/m3)
-! (2) Summing up occupied sites e.g. [S-O-Na] = K*[S-O-]*[Na] using K for S-O- + Na+ = S-O-Na
-! *** Make sure sum([S-O-X]) = K_CEC*msld where K_CEC is in units of charged mol per unit mol of mineral
-! *** this version only considered adsorption of mono or di-charged cations and involvement of no anions (complexes) 
-!     so that [S-O-] can be calculated analytically 
-implicit none
-integer,intent(in)::nz,nsp_aq_all,nsp_sld_all
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
-real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all
-real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::keqiex_all
-real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
-real(kind=8),dimension(nsp_sld_all,nz),intent(in)::msldx_loc
-real(kind=8),dimension(nz),intent(in)::prox
-
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::maqfads_loc
-real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dmaqfads_dpro
-real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz),intent(out)::dmaqfads_dmaqf
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::dmaqfads_dmsld
-real(kind=8),dimension(nsp_sld_all,nz),intent(out)::msldf_loc
-
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::maqfads_sld_loc
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nsp_aq_all,nz),intent(out)::dmaqfads_sld_dmaqf
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::dmaqfads_sld_dmsld
-real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::dmaqfads_sld_dpro
-
-! local
-integer isps,ispa,ispa2
-
-real(kind=8),dimension(nsp_sld_all,nz)::dmsldf_dmsld,dmsldf_dpro  
-real(kind=8),dimension(nsp_sld_all,nsp_aq_all,nz)::dmsldf_dmaqf
-real(kind=8),dimension(nsp_aq_all)::base_charge 
-real(kind=8),dimension(nz)::f,f_chk
-real(kind=8),dimension(3,nz)::a,da_dpro,da_dmsld
-real(kind=8),dimension(3,nsp_aq_all,nz)::da_dmaqf
-real(kind=8) :: tol_dum = 1d-6
-
-call get_base_charge( &
-    & nsp_aq_all & 
-    & ,chraq_all & 
-    & ,base_charge &! output 
-    & )
-
-! (1) First getting negatively charged sites occupied with H+ ([X-H]) (defined as msldf_loc)
-! CEC (eq/m3) = [X-H] + [X-Na] + [X-K] + 2[X2-Ca] + 2[X2-Mg]
-! where: 
-!       CEC (eq/m3) = msld(isps,:)*keqcec_all(isps)
-!       [X-Na]  (mol/m3) = K * [Na+] * [X-H] / [H+]
-!       [X-K]   (mol/m3) = K * [K+]  * [X-H] / [H+]
-!       [X2-Mg] (mol/m3) = 1/(2*CEC) * K * [Mg++] * [X-H]^2 / [H+]^2
-!       [X2-Ca] (mol/m3) = 1/(2*CEC) * K * [Ca++] * [X-H]^2 / [H+]^2
-! [X-H] ( or msldf_loc) can be solved analytically when considering only Na+, K+, Mg++, Ca++ 
-
-msldf_loc = 0d0
-dmsldf_dpro = 0d0
-dmsldf_dmsld = 0d0
-dmsldf_dmaqf = 0d0
-
-do isps = 1, nsp_sld_all
-    
-    if (keqcec_all(isps) == 0d0) cycle
-    
-    a = 0d0
-    da_dpro = 0d0
-    da_dmaqf = 0d0
-    da_dmsld = 0d0
-    
-    a(1,:) = - msldx_loc(isps,:)*keqcec_all(isps)
-    a(2,:) = 1d0
-    
-    da_dmsld(1,:) = - 1d0*keqcec_all(isps)
-    
-    do ispa=1,nsp_aq_all
-        selectcase(trim(adjustl(chraq_all(ispa))))
-            case('na','k')
-                a(2,:) = a(2,:) + keqiex_all(isps,ispa)* maqf_loc(ispa,:)/prox(:)**base_charge(ispa)
-                da_dmaqf(2,ispa,:) = da_dmaqf(2,ispa,:) + keqiex_all(isps,ispa)*1d0/prox(:)**base_charge(ispa)
-                da_dpro(2,:) = da_dpro(2,:) + keqiex_all(isps,ispa)*maqf_loc(ispa,:) &
-                    & *(-base_charge(ispa))/prox(:)**(base_charge(ispa)+1d0)
-            case('mg','ca')
-                a(3,:) = a(3,:) + keqiex_all(isps,ispa)* maqf_loc(ispa,:)/prox(:)**base_charge(ispa) &
-                    & /(msldx_loc(isps,:)*keqcec_all(isps))
-                da_dmaqf(3,ispa,:) = da_dmaqf(3,ispa,:) &
-                    & + keqiex_all(isps,ispa)*1d0/prox(:)**base_charge(ispa) &
-                    & /(msldx_loc(isps,:)*keqcec_all(isps))
-                da_dpro(3,:) = da_dpro(3,:) + keqiex_all(isps,ispa)*maqf_loc(ispa,:) &
-                    & *(-base_charge(ispa))/prox(:)**(base_charge(ispa)+1d0) &
-                    & /(msldx_loc(isps,:)*keqcec_all(isps))
-                da_dmsld(3,:) = da_dmsld(3,:) + keqiex_all(isps,ispa)* maqf_loc(ispa,:)/prox(:)**base_charge(ispa) &
-                    & /keqcec_all(isps)*(-1d0)/msldx_loc(isps,:)**2d0
-            case default 
-                ! do nothing
-        endselect
-    enddo
-    
-    msldf_loc(isps,:) = 2d0*a(1,:)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 )
-    f_chk = a(3,:)*msldf_loc(isps,:)**2d0+a(2,:)*msldf_loc(isps,:)+a(1,:)
-    if (any(abs(f_chk/a(1,:))>tol_dum)) then 
-        print *, 'mass basalnce not satisfied: get_maqads_all_v2 ',chrsld_all(isps)
-        print *,f_chk
-        print *,a(1,:)
-        print *,a(2,:)
-        print *,a(3,:)
-        stop
-    endif 
-    dmsldf_dpro(isps,:) = ( &
-        & + 2d0*da_dpro(1,:)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 ) &
-        & + 2d0*a(1,:)*(-1d0)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 )**2d0 &
-        &   * (-da_dpro(2,:) - 0.5d0*( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**(-0.5d0)   & 
-        &       * (2d0*a(2,:)*da_dpro(2,:) -4d0*da_dpro(1,:)*a(3,:) -4d0*a(1,:)*da_dpro(3,:) ) ) &
-        & )
-    dmsldf_dmsld(isps,:) = ( &
-        & + 2d0*da_dmsld(1,:)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 ) &
-        & + 2d0*a(1,:)*(-1d0)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 )**2d0 &
-        &   * (-da_dmsld(2,:) - 0.5d0*( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**(-0.5d0)   & 
-        &       * (2d0*a(2,:)*da_dmsld(2,:) -4d0*da_dmsld(1,:)*a(3,:) -4d0*a(1,:)*da_dmsld(3,:) ) ) &
-        & )
-    do ispa=1,nsp_aq_all
-        dmsldf_dmaqf(isps,ispa,:) = ( &
-            & + 2d0*da_dmaqf(1,ispa,:)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 ) &
-            & + 2d0*a(1,:)*(-1d0)/( -a(2,:) - ( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**0.5d0 )**2d0 &
-            &   * (-da_dmaqf(2,ispa,:) - 0.5d0*( a(2,:)**2d0-4d0*a(1,:)*a(3,:) )**(-0.5d0)   & 
-            &       * (2d0*a(2,:)*da_dmaqf(2,ispa,:) -4d0*da_dmaqf(1,ispa,:)*a(3,:) -4d0*a(1,:)*da_dmaqf(3,ispa,:) ) ) &
-            & )
-    enddo
-enddo
-
-! (2) Then getting concs of adsorbed ion concs. relative to magf (defined here as maqfads_loc)
-! adsorbed species concs are: 
-!       [X-Na]  (mol/m3) = K * [Na+] * [X-H] / [H+]
-!       [X-K]   (mol/m3) = K * [K+]  * [X-H] / [H+]
-!       [X2-Mg] (mol/m3) = 1/(2*CEC) * K * [Mg++] * [X-H]^2 / [H+]^2
-!       [X2-Ca] (mol/m3) = 1/(2*CEC) * K * [Ca++] * [X-H]^2 / [H+]^2
-! where 
-!       CEC (eq/m3) = msld(isps,:)*keqcec_all(isps)
-!       [X-H] = msldf_loc
-!       [Na+] = magf_loc(isp == 'na')
-!       [H+]  = prox    
-!       etc...    
-
-maqfads_loc = 0d0
-dmaqfads_dpro = 0d0
-dmaqfads_dmaqf = 0d0
-dmaqfads_dmsld = 0d0
-
-maqfads_sld_loc = 0d0
-dmaqfads_sld_dpro = 0d0
-dmaqfads_sld_dmaqf = 0d0
-dmaqfads_sld_dmsld = 0d0
-
-do ispa=1,nsp_aq_all
-    selectcase(trim(adjustl(chraq_all(ispa))))
-        case('na','k')
-            do isps=1,nsp_sld_all
-                if (keqcec_all(isps) == 0d0) cycle
-                maqfads_loc(ispa,:) = maqfads_loc(ispa,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa)/prox**base_charge(ispa) 
-                dmaqfads_dpro(ispa,:) = dmaqfads_dpro(ispa,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa) &
-                    &   *(-base_charge(ispa))/prox**(base_charge(ispa)+1d0) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dpro(isps,:)/prox**base_charge(ispa) 
-                do ispa2=1,nsp_aq_all
-                    dmaqfads_dmaqf(ispa,ispa2,:) = dmaqfads_dmaqf(ispa,ispa2,:) &
-                        & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                        &   *dmsldf_dmaqf(isps,ispa2,:)/prox**base_charge(ispa) 
-                enddo 
-                
-                dmaqfads_dmsld(ispa,isps,:) = dmaqfads_dmsld(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dmsld(isps,:)/prox**base_charge(ispa) 
-                    
-                    
-                    
-                maqfads_sld_loc(ispa,isps,:) = maqfads_sld_loc(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa)/prox**base_charge(ispa) 
-                dmaqfads_sld_dpro(ispa,isps,:) = dmaqfads_sld_dpro(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa) &
-                    &   *(-base_charge(ispa))/prox**(base_charge(ispa)+1d0) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dpro(isps,:)/prox**base_charge(ispa) 
-                do ispa2=1,nsp_aq_all
-                    dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) = dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) &
-                        & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                        &   *dmsldf_dmaqf(isps,ispa2,:)/prox**base_charge(ispa) 
-                enddo 
-                    
-                
-                dmaqfads_sld_dmsld(ispa,isps,:) = dmaqfads_sld_dmsld(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dmsld(isps,:)/prox**base_charge(ispa) 
-            enddo
-        case('ca','mg')
-            do isps=1,nsp_sld_all
-                if (keqcec_all(isps) == 0d0) cycle
-                maqfads_loc(ispa,:) = maqfads_loc(ispa,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa)/prox**base_charge(ispa) &
-                    & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0)
-                dmaqfads_dpro(ispa,:) = dmaqfads_dpro(ispa,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa) &
-                    &   *(-base_charge(ispa))/prox**(base_charge(ispa)+1d0) &
-                    & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dpro(isps,:)/prox**base_charge(ispa) &
-                    & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0)
-                do ispa2=1,nsp_aq_all
-                    dmaqfads_dmaqf(ispa,ispa2,:) = dmaqfads_dmaqf(ispa,ispa2,:) &
-                        & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                        &   *dmsldf_dmaqf(isps,ispa2,:)/prox**base_charge(ispa) &
-                        & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0)
-                enddo 
-                
-                dmaqfads_dmsld(ispa,isps,:) = dmaqfads_dmsld(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa)/prox**base_charge(ispa) &
-                    & /(base_charge(ispa)*keqcec_all(isps))**(base_charge(ispa)-1d0) & 
-                    & *(-1d0)*(base_charge(ispa)-1d0)/msldx_loc(isps,:)**(base_charge(ispa)) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dmsld(isps,:)/prox**base_charge(ispa) &
-                    & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0)
-                    
-                    
-                    
-                maqfads_sld_loc(ispa,isps,:) = maqfads_sld_loc(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa)/prox**base_charge(ispa) &
-                    & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0)
-                dmaqfads_sld_dpro(ispa,isps,:) = dmaqfads_sld_dpro(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa) &
-                    &   *(-base_charge(ispa))/prox**(base_charge(ispa)+1d0) &
-                    & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dpro(isps,:)/prox**base_charge(ispa) &
-                    & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0)
-                do ispa2=1,nsp_aq_all
-                    dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) = dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) &
-                        & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                        &   *dmsldf_dmaqf(isps,ispa2,:)/prox**base_charge(ispa) &
-                        & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0)
-                enddo 
-                    
-                
-                dmaqfads_sld_dmsld(ispa,isps,:) = dmaqfads_sld_dmsld(ispa,isps,:) &
-                    & + keqiex_all(isps,ispa)*msldf_loc(isps,:)**base_charge(ispa)/prox**base_charge(ispa) &
-                    & /(base_charge(ispa)*keqcec_all(isps))**(base_charge(ispa)-1d0) & 
-                    & *(-1d0)*(base_charge(ispa)-1d0)/msldx_loc(isps,:)**(base_charge(ispa)) &
-                    & + keqiex_all(isps,ispa)*base_charge(ispa)*msldf_loc(isps,:)**(base_charge(ispa)-1d0) &
-                    &   *dmsldf_dmsld(isps,:)/prox**base_charge(ispa) &
-                    & /(base_charge(ispa)* msldx_loc(isps,:)*keqcec_all(isps))**(base_charge(ispa)-1d0)
-            enddo
-            
-        case default
-            ! do nothing
-    endselect 
-enddo
-
-endsubroutine get_maqads_all_v2
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -20009,7 +14614,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     & ,stgas_ext,stgas_dext,staq_ext,stsld_ext,staq_dext,stsld_dext &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst &
     & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
-    & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3 &
+    & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
     & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
     & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
@@ -20108,6 +14713,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_oxa
 real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all,msldth_all,mv_all
 
 real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all
@@ -20342,6 +14948,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         & ,poro,sat &! input  
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+        & ,keqaq_oxa &! input
         & ,print_cb,print_loc,z &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
@@ -20397,7 +15004,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     ! call get_maqt_all_v2( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
-        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
+        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
         & ,mgasx_loc,maqx_loc,prox &
         & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
         & ,maqft_loc  &! output
@@ -22179,6 +16786,7 @@ call calc_pH_v7_4( &
     & ,poro,sat &! input  
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+    & ,keqaq_oxa &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
@@ -22203,6 +16811,7 @@ endif
     ! & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     ! & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     ! & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+    ! & ,keqaq_oxa &! input
     ! & ,print_cb,print_loc,z &! input 
     ! & ,dprodmaq_all,dprodmgas_all &! output
     ! & ,prox,ph_error,ph_iter &! output
@@ -22221,7 +16830,7 @@ call get_maqt_all( &
 ! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
     & ,mgasx_loc,maqx_loc,prox &
     & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
     & ,maqft_loc  &! output
@@ -26979,199 +21588,6 @@ do iz=1,nz-1
 enddo       
 
 endsubroutine calcupwindscheme
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine calc_khgas_all( &
-    & nz,nsp_aq_all,nsp_gas_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst &
-    & ,chraq_all,chrgas_all,chraq_cnst,chrgas_cnst,chraq,chrgas &
-    & ,maq,mgas,maqx,mgasx,maqc,mgasc &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3  &
-    & ,pro,prox,so4fprev,so4f &
-    & ,khgas,khgasx,dkhgas_dpro,dkhgas_dso4f,dkhgas_dmaq,dkhgas_dmgas &!output
-    & )
-implicit none
-
-! input 
-integer,intent(in)::nz,nsp_aq_all,nsp_gas_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst
-character(5),dimension(nsp_aq_all),intent(in)::chraq_all
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
-character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
-character(5),dimension(nsp_aq),intent(in)::chraq
-character(5),dimension(nsp_gas),intent(in)::chrgas
-real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx,maq
-real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
-real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx,mgas
-real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
-real(kind=8),dimension(nz),intent(in)::pro,prox,so4fprev,so4f
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3
-! output 
-real(kind=8),dimension(nsp_gas_all,nz),intent(out)::khgas,khgasx,dkhgas_dpro,dkhgas_dso4f
-real(kind=8),dimension(nsp_gas_all,nsp_gas_all,nz),intent(out)::dkhgas_dmgas
-real(kind=8),dimension(nsp_gas_all,nsp_aq_all,nz),intent(out)::dkhgas_dmaq
-
-! local 
-real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,maq_loc
-real(kind=8),dimension(nsp_aq_all,nz)::maqf_loc,maqf_loc_prev
-real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc,mgas_loc
-real(kind=8),dimension(nsp_aq_all,nz)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-integer ispg,ispa,ispa_c,ipco2,ipnh3,io2,in2o
-
-real(kind=8) kco2,k1,k2,knh3,k1nh3,kho,kn2o
-
-
-
-
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
-io2 = findloc(chrgas_all,'po2',dim=1)
-in2o = findloc(chrgas_all,'pn2o',dim=1)
-
-kco2 = keqgas_h(ipco2,ieqgas_h0)
-k1 = keqgas_h(ipco2,ieqgas_h1)
-k2 = keqgas_h(ipco2,ieqgas_h2)
-
-knh3 = keqgas_h(ipnh3,ieqgas_h0)
-k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
-
-kho = keqgas_h(io2,ieqgas_h0)
-
-kn2o = keqgas_h(in2o,ieqgas_h0)
-
-khgas = 0d0
-khgasx = 0d0
-
-dkhgas_dpro = 0d0
-dkhgas_dso4f = 0d0
-dkhgas_dmgas = 0d0
-dkhgas_dmaq = 0d0
-
-do ispg = 1, nsp_gas_all
-    select case (trim(adjustl(chrgas_all(ispg))))
-        case('pco2')
-            khgas(ispg,:) = kco2*(1d0+k1/pro + k1*k2/pro/pro) ! previous value; should not change through iterations 
-            khgasx(ispg,:) = kco2*(1d0+k1/prox + k1*k2/prox/prox)
-            
-            dkhgas_dpro(ispg,:) = kco2*(k1*(-1d0)/prox**2d0 + k1*k2*(-2d0)/prox**3d0)
-            
-            ! obtain previous data 
-            call get_maqgasx_all( &
-                & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
-                & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
-                & ,maq,mgas,maqc,mgasc &
-                & ,maq_loc,mgas_loc  &! output
-                & )
-            call get_maqf_all( &
-                & nz,nsp_aq_all,nsp_gas_all &
-                & ,chraq_all,chrgas_all &
-                & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-                & ,mgas_loc,maq_loc,pro,so4fprev &
-                & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-                & ,maqf_loc_prev  &! output
-                & )
-                
-                
-            call get_maqgasx_all( &
-                & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
-                & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
-                & ,maqx,mgasx,maqc,mgasc &
-                & ,maqx_loc,mgasx_loc  &! output
-                & )
-            ! getting free maq
-            call get_maqf_all( &
-                & nz,nsp_aq_all,nsp_gas_all &
-                & ,chraq_all,chrgas_all &
-                & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
-                & ,mgasx_loc,maqx_loc,prox,so4f &
-                & ,dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2 &! output
-                & ,maqf_loc  &! output
-                & )
-                
-            ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
-            do ispa = 1, nsp_aq_all
-                do ispa_c = 1,2
-                    if ( keqaq_c(ispa,ispa_c) > 0d0) then 
-                        if (ispa_c == 1) then ! with CO3--
-                            khgas(ispg,:) = khgas(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc_prev(ispa,:)*k1*k2*kco2*pro**(-2d0) &
-                                & )
-                            khgasx(ispg,:) = khgasx(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-2d0) &
-                                & )
-                            dkhgas_dpro(ispg,:) = dkhgas_dpro(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*(-2d0)*prox**(-3d0) &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
-                                & *dmaqf_dpro(ispa,:) &
-                                & )
-                            dkhgas_dso4f(ispg,:) = dkhgas_dso4f(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
-                                & *dmaqf_dso4f(ispa,:) &
-                                & )
-                            dkhgas_dmgas(ispg,ipco2,:) = dkhgas_dmgas(ispg,ipco2,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
-                                & *dmaqf_dpco2(ispa,:) &
-                                & )
-                            dkhgas_dmaq(ispg,ispa,:) = dkhgas_dmaq(ispg,ispa,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
-                                & *dmaqf_dmaq(ispa,:) &
-                                & )
-                        elseif (ispa_c == 2) then ! with HCO3-
-                            khgas(ispg,:) = khgas(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc_prev(ispa,:)*k1*k2*kco2*pro**(-1d0) & 
-                                & )
-                            khgasx(ispg,:) = khgasx(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-1d0) & 
-                                & )
-                            dkhgas_dpro(ispg,:) = dkhgas_dpro(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*(-1d0)*prox**(-2d0) & 
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
-                                & *dmaqf_dpro(ispa,:) &
-                                & )
-                            dkhgas_dso4f(ispg,:) = dkhgas_dso4f(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
-                                & *dmaqf_dso4f(ispa,:) &
-                                & )
-                            dkhgas_dmgas(ispg,ipco2,:) = dkhgas_dmgas(ispg,ipco2,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
-                                & *dmaqf_dpco2(ispa,:) &
-                                & )
-                            dkhgas_dmaq(ispg,ispa,:) = dkhgas_dmaq(ispg,ispa,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
-                                & *dmaqf_dmaq(ispa,:) &
-                                & )
-                        endif 
-                    endif 
-                enddo 
-            enddo 
-            
-        case('po2')
-            khgas(ispg,:) = kho ! previous value; should not change through iterations 
-            khgasx(ispg,:) = kho
-
-        case('pnh3')
-            khgas(ispg,:) = knh3*(1d0+pro/k1nh3) ! previous value; should not change through iterations 
-            khgasx(ispg,:) = knh3*(1d0+prox/k1nh3)
-
-            dkhgas_dpro(ispg,:) = knh3*(1d0/k1nh3)
-        case('pn2o')
-            khgas(ispg,:) = kn2o ! previous value; should not change through iterations 
-            khgasx(ispg,:) = kn2o
-    endselect 
-
-enddo 
-
-
-endsubroutine calc_khgas_all
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
