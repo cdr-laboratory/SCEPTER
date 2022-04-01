@@ -216,14 +216,14 @@ real(kind=8),parameter :: mvk2o = 40.38d0 ! cm3/mol; molar volume of dipotasium 
 real(kind=8),parameter :: mvcao = 16.764d0 ! cm3/mol; molar volume of calcium monoxide; Robie et al. 1978
 real(kind=8),parameter :: mvna2o = 25.88d0 ! cm3/mol; molar volume of disodium monoxide; Robie et al. 1978
 real(kind=8),parameter :: mval2o3 = 25.575d0 ! cm3/mol; molar volume of corundum; Robie et al. 1978
-real(kind=8),parameter :: mvgbas = ( &
-                                & fr_si_gbas*mvamsi + fr_al_gbas/2d0*mval2o3 + fr_na_gbas/2d0*mvna2o &
-                                & + fr_k_gbas/2d0*mvk2o + fr_ca_gbas*mvcao + fr_mg_gbas*mvmgo + fr_fe2_gbas*mvfe2o &
-                                & ) ! assuming simply mixing molar volume?
-real(kind=8),parameter :: mvcbas = ( &
-                                & fr_si_gbas*mvqtz + fr_al_cbas/2d0*mval2o3 + fr_na_cbas/2d0*mvna2o &
-                                & + fr_k_cbas/2d0*mvk2o + fr_ca_cbas*mvcao + fr_mg_cbas*mvmgo + fr_fe2_cbas*mvfe2o &
-                                & ) ! assuming simply mixing molar volume? 
+! real(kind=8),parameter :: mvgbas = ( &
+                                ! & fr_si_gbas*mvamsi + fr_al_gbas/2d0*mval2o3 + fr_na_gbas/2d0*mvna2o &
+                                ! & + fr_k_gbas/2d0*mvk2o + fr_ca_gbas*mvcao + fr_mg_gbas*mvmgo + fr_fe2_gbas*mvfe2o &
+                                ! & ) ! assuming simply mixing molar volume?
+! real(kind=8),parameter :: mvcbas = ( &
+                                ! & fr_si_gbas*mvqtz + fr_al_cbas/2d0*mval2o3 + fr_na_cbas/2d0*mvna2o &
+                                ! & + fr_k_cbas/2d0*mvk2o + fr_ca_cbas*mvcao + fr_mg_cbas*mvmgo + fr_fe2_cbas*mvfe2o &
+                                ! & ) ! assuming simply mixing molar volume? 
 real(kind=8),parameter :: mvep = 139.10d0 ! cm3/mol; molar volume of epidote; Ca2FeAl2Si3O12OH; Gottschalk 2004 originally from Holland and Powell 1998
 real(kind=8),parameter :: mvclch = 211.470d0 ! cm3/mol; molar volume of clinochlore; Mg5Al2Si3O10(OH)8; Roots 1994 Eur. J. Mineral.
 real(kind=8),parameter :: mvsdn = 109.05d0 ! cm3/mol; molar volume of sanidine; Robie et al. 1978
@@ -317,6 +317,17 @@ real(kind=8),parameter :: mwtclch = 555.79754d0 ! g/mol; molar weight of clinoch
 real(kind=8),parameter :: mwtsdn = 278.333d0 ! cm3/mol; molar weight of sanidine; Robie et al. 1978
 real(kind=8),parameter :: mwtcdr = 584.95d0 ! cm3/mol; from molar weight of cordierite Mg2Al4Si5O18 from http://www.webmineral.com/data/Cordierite.shtml#.YZtITrqIaUk
 real(kind=8),parameter :: mwtleu =  218.248d0 ! cm3/mol; molar volume of leucite KAlSi206; Robie et al. 1978
+ 
+ 
+real(kind=8),parameter :: mvgbas = ( &
+                                & fr_si_gbas*mwtamsi + fr_al_gbas/2d0*mwtal2o3 + fr_na_gbas/2d0*mwtna2o &
+                                & + fr_k_gbas/2d0*mwtk2o + fr_ca_gbas*mwtcao + fr_mg_gbas*mwtmgo + fr_fe2_gbas*mwtfe2o &
+                                & )/3.0d0  ! assuming 3.0 g/cm3 particle density
+real(kind=8),parameter :: mvcbas = ( &
+                                & fr_si_cbas*mwtamsi + fr_al_cbas/2d0*mwtal2o3 + fr_na_cbas/2d0*mwtna2o &
+                                & + fr_k_cbas/2d0*mwtk2o + fr_ca_cbas*mwtcao + fr_mg_cbas*mwtmgo + fr_fe2_cbas*mwtfe2o &
+                                & )/3.0d0 ! assuming 3.0 g/cm3 particle density
+ 
  
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 real(kind=8) :: rho_grain_calc,rho_grain_calcx != 2.7d0 ! g/cm3 as soil grain density 
@@ -563,7 +574,6 @@ integer,parameter::nsp_sld_2 = 0
 ! integer,parameter::nsp_sld_2 = 23
 integer,parameter::nsp_sld_2 = 22 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_fast = 4 ! minerals that react too fast and do not have so much meaning of tracking PSD 
 integer,parameter::nsp_sld_all = 67
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
@@ -582,7 +592,6 @@ integer,intent(in)::nsld_kinspc_in
 integer :: nsld_kinspc,nsld_kinspc_add
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2)::chrsld_2
-character(5),dimension(nsp_sld_fast)::chrsld_fast
 character(5),dimension(nsp_sld_all)::chrsld_all
 character(5),dimension(nsp_sld_all - nsp_sld)::chrsld_cnst
 character(5),dimension(nsp_aq),intent(in)::chraq
@@ -711,10 +720,10 @@ logical :: psd_lim_min = .true.
 logical :: psd_vol_consv = .false.
 logical :: psd_impfull = .false.
 ! logical :: psd_impfull = .true.
-! logical :: psd_loop = .false.
-logical :: psd_loop = .true.
-! logical :: psd_fast_skip = .false.
-logical :: psd_fast_skip = .true.
+logical :: psd_loop = .false.
+! logical :: psd_loop = .true.
+! logical :: psd_enable_skip = .false.
+logical :: psd_enable_skip = .true.
 real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old,mpsd_save_2
 real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th
 real(kind=8),dimension(nsp_sld,nps,nflx_psd,nz) :: flx_mpsd ! itflx,iadv,idif,irain,irxn,ires
@@ -725,6 +734,8 @@ real(kind=8),dimension(nsp_sld):: hrii
 integer nsld_sa
 character(5),dimension(:),allocatable::chrsld_sa
 real(kind=8) time_pbe,dt_pbe,dt_save
+integer nsld_nopsd
+character(5),dimension(:),allocatable::chrsld_nopsd ! minerals whose PSDs tracking is not conducted for some reasons (e.g., too fast; mostly precipitating etc.)
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod
@@ -896,8 +907,6 @@ chrsld_2(:) = '     '
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
     ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
 #endif 
-! fast reacting minerals
-chrsld_fast = (/'cc   ','dlm  ','arg  ','gps  '/)
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
@@ -2118,6 +2127,18 @@ call get_sa( &
 do isps = 1, nsp_sld
     hri(isps,:) = 1d0/hrii(isps)
 enddo
+
+
+call get_nopsd_num(nsld_nopsd)
+
+if (allocated(chrsld_nopsd)) deallocate(chrsld_nopsd)
+allocate(chrsld_nopsd(nsld_nopsd))
+
+call get_nopsd( &
+    & nsp_sld,chrsld,nsld_nopsd &! input
+    & ,chrsld_nopsd &! output
+    & )
+
 
 rough = 1d0
 ! from Navarre-Sitchler and Brantley (2007)
@@ -4046,7 +4067,7 @@ do while (it<nt)
             
                 if ( trim(adjustl(precstyle(isps))) == 'decay') cycle ! solid species not related to SA
                 
-                if (psd_fast_skip .and. any(chrsld_fast == chrsld(isps)) ) cycle
+                if (psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) cycle
             
                 DV(:) = flx_sld(isps, 4 + isps,:)*mv(isps)*1d-6*dt  
             
@@ -4235,7 +4256,7 @@ do while (it<nt)
                     ! if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA              
                     if ( &
                         & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
-                        & .or. ( psd_fast_skip .and. any(chrsld_fast == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
+                        & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
                         & ) then
                         flx_mpsd(isps,:,:,:) = 0d0
                         do iz=1,nz
@@ -4407,7 +4428,7 @@ do while (it<nt)
                     ! if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA               
                     if ( &
                         & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
-                        & .or. ( psd_fast_skip .and. any(chrsld_fast == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
+                        & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
                         & ) then           
                         flx_mpsd(isps,:,:,:) = 0d0
                         do iz=1,nz
@@ -6381,6 +6402,62 @@ close(50)
 
 
 endsubroutine get_sa
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_nopsd_num(nsld_nopsd_dum)
+implicit none
+
+integer,intent(out):: nsld_nopsd_dum
+
+character(500) file_name
+integer n_tmp
+
+file_name = './nopsd.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+nsld_nopsd_dum = n_tmp
+
+
+endsubroutine get_nopsd_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_nopsd( &
+    & nsp_sld,chrsld,nsld_nopsd &! input
+    & ,chrsld_nopsd_dum &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld,nsld_nopsd
+character(5),dimension(nsp_sld),intent(in)::chrsld
+character(5),dimension(nsld_nopsd),intent(out)::chrsld_nopsd_dum
+character(5) chr_tmp
+
+character(500) file_name
+integer i
+
+file_name = './nopsd.in'
+
+if (nsld_nopsd <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,nsld_nopsd
+    read(50,*) chr_tmp
+    chrsld_nopsd_dum(i) = chr_tmp
+enddo 
+close(50)
+
+
+endsubroutine get_nopsd
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
