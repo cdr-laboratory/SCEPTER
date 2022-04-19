@@ -381,13 +381,15 @@ real(kind=8) v(nz),qin
 real(kind=8),intent(in) :: p80 != 1d-6 ! m 
 
 ! real(kind=8) ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save,mvka_save,mvgb_save
-real(kind=8),dimension(nz):: pro,prox,poroprev,hrb,vprev,torgprev,toraprev,wprev,ssab
+real(kind=8),dimension(nz):: pro,prox,poroprev,hrb,vprev,torgprev,toraprev,wprev,ssab,int_ph
 real(kind=8),dimension(nz):: dummy,up,dwn,cnr,adf
 real(kind=8) :: rough_c0 != 10d0**(3.3d0)
 real(kind=8) :: rough_c1 != 0.33d0
 real(kind=8) :: c_disp,c0_disp,c1_disp,zdisp  ! dispersion coefficients 
 real(kind=8),dimension(nz) :: disp,dispprev  ! dispersion coefficients 
 real(kind=8),dimension(nz) :: cec  ! cation exchange capacity  
+real(kind=8),dimension(nz) :: bs  ! base saturation  
+real(kind=8),dimension(nz) :: proxads  ! H+ at exchange site  
 
 real(kind=8) kho,ucv,kco2,k1,kw,k2,khco2i,knh3,k1nh3,khnh3i,kn2o
 
@@ -497,7 +499,8 @@ logical ads_ON_tmp,dust_Off
 
 ! real(kind=8)::z_chk_ph = zsupp
 real(kind=8)::z_chk_ph = 0.5d0
-real(kind=8)::ph_lim = 8d0 
+real(kind=8)::ph_lim = 6.8d0 
+real(kind=8) ph_ave,z_ave
 
 #ifdef def_flx_save_alltime
 logical :: flx_save_alltime = .true.
@@ -613,7 +616,7 @@ real(kind=8),dimension(nsp_sld,nz)::msldx,msld,ksld,omega,msldsupp,nonprec,rxnsl
 real(kind=8),dimension(nsp_sld,5 + nrxn_ext + nsp_sld,nz)::flx_sld
 real(kind=8),dimension(nsp_sld,5 + nrxn_ext + nsp_sld)::int_flx_sld
 real(kind=8),dimension(nsp_aq)::maqi,maqth,daq
-real(kind=8),dimension(nsp_aq,nz)::maqx,maq,rxnaq,maqsupp,cecaq
+real(kind=8),dimension(nsp_aq,nz)::maqx,maq,rxnaq,maqsupp,cecaq,cecaqr
 real(kind=8),dimension(nsp_aq,5 + nrxn_ext + nsp_sld,nz)::flx_aq
 real(kind=8),dimension(nsp_aq,5 + nrxn_ext + nsp_sld)::int_flx_aq
 real(kind=8),dimension(nsp_gas)::mgasi,mgasth,dgasa,dgasg,dmgas,khgasi,dgasi
@@ -720,8 +723,8 @@ logical :: psd_lim_min = .true.
 logical :: psd_vol_consv = .false.
 logical :: psd_impfull = .false.
 ! logical :: psd_impfull = .true.
-logical :: psd_loop = .false.
-! logical :: psd_loop = .true.
+! logical :: psd_loop = .false.
+logical :: psd_loop = .true.
 ! logical :: psd_enable_skip = .false.
 logical :: psd_enable_skip = .true.
 real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old,mpsd_save_2
@@ -764,13 +767,14 @@ integer,dimension(nsp_aq)::iaqflx
 integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
 integer,dimension(6)::ico2flx
+integer iphint,iphint2
 integer,parameter::nsp_saveall = 1
 character(5),dimension(nsp_saveall)::chrsp_saveall
 #endif 
 
 integer,parameter::idust = 15
 integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx  &
-    & ,isa,iaqprof2,iaqprof3
+    & ,isa,iaqprof2,iaqprof3,iaqprof4
 
 logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
 real(kind=8),dimension(nz,nz,nsp_sld)::trans
@@ -834,15 +838,16 @@ isldprof3   = idust + nsp_sld + nsp_gas + nsp_aq + 3
 iaqprof     = idust + nsp_sld + nsp_gas + nsp_aq + 4
 iaqprof2    = idust + nsp_sld + nsp_gas + nsp_aq + 5
 iaqprof3    = idust + nsp_sld + nsp_gas + nsp_aq + 6
-igasprof    = idust + nsp_sld + nsp_gas + nsp_aq + 7
-isldsat     = idust + nsp_sld + nsp_gas + nsp_aq + 8
-ibsd        = idust + nsp_sld + nsp_gas + nsp_aq + 9
-irate       = idust + nsp_sld + nsp_gas + nsp_aq + 10
-ipsd        = idust + nsp_sld + nsp_gas + nsp_aq + 11
-ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 12
-ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 13
-ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 14
-isa         = idust + nsp_sld + nsp_gas + nsp_aq + 15
+iaqprof4    = idust + nsp_sld + nsp_gas + nsp_aq + 7
+igasprof    = idust + nsp_sld + nsp_gas + nsp_aq + 8
+isldsat     = idust + nsp_sld + nsp_gas + nsp_aq + 9
+ibsd        = idust + nsp_sld + nsp_gas + nsp_aq + 10
+irate       = idust + nsp_sld + nsp_gas + nsp_aq + 11
+ipsd        = idust + nsp_sld + nsp_gas + nsp_aq + 12
+ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 13
+ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 14
+ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 15
+isa         = idust + nsp_sld + nsp_gas + nsp_aq + 16
 
 ! species whose flux is saved all time
 ! chrsp_saveall = (/'pco2 '/)
@@ -881,7 +886,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'sdn  ','cdr  ','leu  ' &
     & ,'g1   ','g2   ','g3   ','amnt ' &
     & ,'inrt '/)
-chraq_all = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
+chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22','oxao2'/)
 
@@ -1872,6 +1877,10 @@ enddo
 do ico2 = 1, 6
     ico2flx(ico2) = idust + nsp_sld + nsp_aq + nsp_gas + ico2
 enddo 
+
+iphint  = idust + nsp_sld + nsp_aq + nsp_gas + 7
+iphint2 = idust + nsp_sld + nsp_aq + nsp_gas + 8
+
 #endif 
 
 ! print*,workdir
@@ -2101,6 +2110,16 @@ enddo
 beta = 1.00000000005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
 beta = 1.00005d0  ! a parameter to make a grid; closer to 1, grid space is more concentrated around the sediment-water interface (SWI)
 call makegrid(beta,nz,ztot,dz,z,regular_grid)
+    
+    
+open(iphint, file=trim(adjustl(flxdir))//'/'//'int_ph.txt', status='replace')
+write(iphint,*) 'time\depth',(z(iz),iz=1,nz)
+close(iphint)
+
+    
+open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', status='replace')
+write(iphint2,*) 'time\depth',(z(iz),iz=1,nz)
+close(iphint2)
 
 
 sat = min(1.0d0,(1d0-satup)*z/zsat + satup)
@@ -2903,6 +2922,8 @@ int_flx_gas = 0d0
 int_flx_sld = 0d0
 int_flx_co2sp = 0d0
 
+int_ph = 0d0
+
 !! @@@@@@@@@@@@@@@   start of time integration  @@@@@@@@@@@@@@@@@@@@@@
 
 do while (it<nt)
@@ -3247,12 +3268,17 @@ do while (it<nt)
     ! determine whether or not dust depending on pH 
     dust_off = .false.
     if (ph_limits_dust) then 
+        ph_ave = 0d0
+        z_ave  = 0d0
         do iz=1,nz
-            if (z(iz)<=z_chk_ph .and. -log10(pro(iz)) > ph_lim ) then 
-                dust_off = .true.
-                exit 
+            if (z(iz)<=z_chk_ph) then 
+                ph_ave = ph_ave + pro(iz)*dz(iz)
+                z_ave  = z_ave  +         dz(iz)
             endif 
         enddo 
+        ph_ave = -log10(ph_ave/z_ave)
+        
+        if (ph_ave > ph_lim) dust_off = .true.
     endif 
     
     ! if defined wave function is imposed on dust 
@@ -3750,7 +3776,7 @@ do while (it<nt)
         & ,dt,flgback,w &    
         ! output 
         & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,maqft &
-        & ,maqfads &
+        & ,maqfads,msldf_loc &
         & )
     
     
@@ -4959,14 +4985,45 @@ do while (it<nt)
     enddo 
     
     ! calculating cec
+    cec     = 0d0
+    proxads = 0d0
+    bs      = 0d0
+    do iz=1,nz
+        ucvsld1 = 1d0
+        if (msldunit == 'blk') ucvsld1 = 1d0 - poro(iz)
+        
+        do isps=1,nsp_sld_all    
+            if (keqcec_all(isps) == 0d0) cycle
+            
+            if (any(chrsld_all(isps) == chrsld)) then 
+                proxads(iz) = proxads(iz) + ( &
+                    & + keqcec_all(isps) &
+                    & * msldx(findloc(chrsld,chrsld_all(isps),dim=1),iz) &
+                    & * msldf_loc(isps,iz) &
+                    & )
+                    
+                cec(iz) = cec(iz) + ( &
+                    & + keqcec_all(isps) &
+                    & * msldx(findloc(chrsld,chrsld_all(isps),dim=1),iz) &
+                    & )
+            endif 
+            
+        enddo 
+        
+        proxads(iz)  =  proxads(iz) *1d5/ucvsld1/(rho_grain_z(iz)*1d6)
+        cec(iz)      =  cec(iz)     *1d5/ucvsld1/(rho_grain_z(iz)*1d6)
+        bs(iz)       =  proxads(iz)/cec(iz)
+        
+    enddo 
+    
     do iz=1,nz
         ucvsld1 = 1d0
         if (msldunit == 'blk') ucvsld1 = 1d0 - poro(iz)
         
         do ispa=1,nsp_aq
-            cecaq(ispa,iz) = maqx(ispa,iz)*maqfads(ispa,iz)*1d5/ucvsld1/(rho_grain_z(iz)*1d6) ! converting mol/m3 to mol/g then to cmol/kg
+            cecaq(ispa,iz)  = maqx(ispa,iz)*maqfads(ispa,iz)*1d5/ucvsld1/(rho_grain_z(iz)*1d6) ! converting mol/m3 to mol/g then to cmol/kg
+            cecaqr(ispa,iz) = cecaq(ispa,iz)*base_charge(ispa) / cec(iz) 
         enddo 
-        cec(iz) = sum( cecaq(:,iz)*base_charge(:) )
     enddo 
     
     ! calculating volume weighted average surface area 
@@ -5002,6 +5059,10 @@ do while (it<nt)
                     & ) *dt
             endif 
         enddo 
+    enddo 
+    
+    do iz=1,nz
+        int_ph(iz) = int_ph(iz) + sum(prox(1:iz)*dz(1:iz))/z(iz) * dt
     enddo 
 
     if (time > savetime) then 
@@ -5105,6 +5166,8 @@ do while (it<nt)
             & //'prof_aq(tot)-'//chr//'.txt', status='replace')
         open(iaqprof3,file=trim(adjustl(profdir))//'/' &
             & //'prof_aq(ads)-'//chr//'.txt', status='replace')
+        open(iaqprof4,file=trim(adjustl(profdir))//'/' &
+            & //'prof_aq(ads%cec)-'//chr//'.txt', status='replace')
         open(ibsd, file=trim(adjustl(profdir))//'/'  &
             & //'bsd-'//chr//'.txt', status='replace')
         open(irate, file=trim(adjustl(profdir))//'/'  &
@@ -5122,7 +5185,8 @@ do while (it<nt)
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(iaqprof,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'ph','time'
         write(iaqprof2,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'ph','time'
-        write(iaqprof3,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'cec','time'
+        write(iaqprof3,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
+        write(iaqprof4,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
         write(chrfmt,'(i0)') nsp_gas+2
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(igasprof,trim(adjustl(chrfmt))) 'z',(chrgas(isps),isps=1,nsp_gas),'time'
@@ -5148,7 +5212,8 @@ do while (it<nt)
             write(igasprof,*) z(iz),(mgasx(ispg,iz),ispg = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(ispa,iz),ispa = 1, nsp_aq),-log10(prox(iz)),time
             write(iaqprof2,*) z(iz),(maqx(ispa,iz)*maqft(ispa,iz),ispa = 1, nsp_aq),-log10(prox(iz)),time
-            write(iaqprof3,*) z(iz),(cecaq(ispa,iz),ispa = 1, nsp_aq) ,cec(iz),time
+            write(iaqprof3,*) z(iz),(cecaq(ispa,iz),ispa = 1, nsp_aq) ,proxads(iz),time
+            write(iaqprof4,*) z(iz),(cecaqr(ispa,iz)*1d2,ispa = 1, nsp_aq) ,bs(iz)*1d2,time
             write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  &
                 & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
             write(irate,*) z(iz), (rxnsld(isps,iz),isps=1,nsp_sld),(rxnext(irxn,iz),irxn=1,nrxn_ext), time 
@@ -5162,6 +5227,7 @@ do while (it<nt)
         close(iaqprof)
         close(iaqprof2)
         close(iaqprof3)
+        close(iaqprof4)
         close(igasprof)
         close(ibsd)
         close(irate)
@@ -5398,6 +5464,16 @@ do while (it<nt)
             write(ico2flx(ico2),*) time,(int_flx_co2sp(ico2,iflx)/time,iflx=1,nflx)
             close(ico2flx(ico2))
         enddo 
+        
+        
+        open(iphint, file=trim(adjustl(flxdir))//'/'//'int_ph.txt', action='write',status='old',position='append')
+        write(iphint,*) time,(-log10(int_ph(iz)/time),iz=1,nz)
+        close(iphint)
+        
+        open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
+        write(iphint2,*) time,(-log10(prox(iz)),iz=1,nz)
+        close(iphint2)
+        
 #endif 
         flx_recorded = .true.
         
@@ -5540,6 +5616,16 @@ do while (it<nt)
                 write(ico2flx(ico2),*) time,(int_flx_co2sp(ico2,iflx)/time,iflx=1,nflx)
                 close(ico2flx(ico2))
             enddo 
+            
+            
+            open(iphint, file=trim(adjustl(flxdir))//'/'//'int_ph.txt', action='write',status='old',position='append')
+            write(iphint,*) time,(-log10(int_ph(iz)/time),iz=1,nz)
+            close(iphint)
+        
+            open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
+            write(iphint2,*) time,(-log10(prox(iz)),iz=1,nz)
+            close(iphint2)
+            
             
         endif 
     endif 
@@ -12303,39 +12389,40 @@ do ispa=1,nsp_aq_all
                 if (cec_pH_depend(isps)) then
                     
                     maqfads_sld_loc(ispa,isps,:) = maqfads_sld_loc(ispa,isps,:) &
-                        & + keqcec_all(isps)*msldx_loc(isps,:)*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0/(prox**2d0) 
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:)*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0/(prox**2d0) 
                     dmaqfads_sld_dpro(ispa,isps,:) = dmaqfads_sld_dpro(ispa,isps,:) &
-                        & + keqcec_all(isps)*msldx_loc(isps,:)*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0*(-2d0)/(prox**3d0)  &
-                        & + keqcec_all(isps)*msldx_loc(isps,:) &
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:) &
+                        &   *keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0*(-2d0)/(prox**3d0)  &
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:) &
                         &   *keqiex_all(isps,ispa)*2d0*msldf_loc(isps,:)*dmsldf_dpro(isps,:)/(prox**2d0) 
                     do ispa2=1,nsp_aq_all
                         dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) = dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) &
-                        & + keqcec_all(isps)*msldx_loc(isps,:) &
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:) &
                         &   *keqiex_all(isps,ispa)*2d0*msldf_loc(isps,:)*dmsldf_dmaqf(isps,ispa2,:)/(prox**2d0) 
                     enddo 
                         
                     
                     dmaqfads_sld_dmsld(ispa,isps,:) = dmaqfads_sld_dmsld(ispa,isps,:) &
-                        & + keqcec_all(isps)*1d0*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0/(prox**2d0) &
-                        & + keqcec_all(isps)*msldx_loc(isps,:) &
+                        & + 0.5d0*keqcec_all(isps)*1d0*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0/(prox**2d0) &
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:) &
                         &   *keqiex_all(isps,ispa)*2d0*msldf_loc(isps,:)*dmsldf_dmsld(isps,:)/(prox**2d0) 
                 else
                         
                     maqfads_sld_loc(ispa,isps,:) = maqfads_sld_loc(ispa,isps,:) &
-                        & + keqcec_all(isps)*msldx_loc(isps,:)*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0*fact 
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:)*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0*fact 
                     dmaqfads_sld_dpro(ispa,isps,:) = dmaqfads_sld_dpro(ispa,isps,:) &
-                        & + keqcec_all(isps)*msldx_loc(isps,:) &
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:) &
                         &   *keqiex_all(isps,ispa)*2d0*msldf_loc(isps,:)*dmsldf_dpro(isps,:)*fact  
                     do ispa2=1,nsp_aq_all
                         dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) = dmaqfads_sld_dmaqf(ispa,isps,ispa2,:) &
-                        & + keqcec_all(isps)*msldx_loc(isps,:) &
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:) &
                         &   *keqiex_all(isps,ispa)*2d0*msldf_loc(isps,:)*dmsldf_dmaqf(isps,ispa2,:)*fact  
                     enddo 
                         
                     
                     dmaqfads_sld_dmsld(ispa,isps,:) = dmaqfads_sld_dmsld(ispa,isps,:) &
-                        & + keqcec_all(isps)*1d0*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0*fact  &
-                        & + keqcec_all(isps)*msldx_loc(isps,:) &
+                        & + 0.5d0*keqcec_all(isps)*1d0*keqiex_all(isps,ispa)*msldf_loc(isps,:)**2d0*fact  &
+                        & + 0.5d0*keqcec_all(isps)*msldx_loc(isps,:) &
                         &   *keqiex_all(isps,ispa)*2d0*msldf_loc(isps,:)*dmsldf_dmsld(isps,:)*fact  
                         
                 endif 
@@ -13988,7 +14075,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     & ,dt,flgback,w &    
     ! output 
     & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,maqft & 
-    & ,maqfads &
+    & ,maqfads,msldf_loc &
     & )
 ! this is an attempt to calculate mass balance based on specific primary variables for aq. species.  
 implicit none 
@@ -14079,6 +14166,7 @@ real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all,msldth_all,mv_all
 real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::keqiex_all
 logical,dimension(nsp_sld_all),intent(in)::cec_pH_depend
+real(kind=8),dimension(nsp_sld_all,nz),intent(out)::msldf_loc
 
 real(kind=8),dimension(nsp_aq_all,nz)::dprodmaq_all,dso4fdmaq_all
 real(kind=8),dimension(nsp_gas_all,nz)::dprodmgas_all,dso4fdmgas_all
@@ -14097,7 +14185,7 @@ real(kind=8),dimension(nsp_gas_all,nz)::khgas_all,khgasx_all,dkhgas_dpro_all,dkh
 real(kind=8),dimension(nsp_gas_all,nsp_aq_all,nz)::dkhgas_dmaq_all
 real(kind=8),dimension(nsp_gas_all,nsp_gas_all,nz)::dkhgas_dmgas_all
 
-real(kind=8),dimension(nsp_sld_all,nz)::msldx_loc,msldf_loc
+real(kind=8),dimension(nsp_sld_all,nz)::msldx_loc
 real(kind=8),dimension(nsp_aq_all,nz)::maqfads_loc,dmaqfads_dpro_loc
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz)::dmaqfads_dmaqf_loc
 real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz)::dmaqfads_dmsld_loc
