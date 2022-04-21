@@ -489,8 +489,8 @@ logical :: season = .false.
 ! logical :: disp_ON = .false.
 logical :: disp_ON = .true.
 
-logical :: ads_ON = .false.
-! logical :: ads_ON = .true.
+! logical :: ads_ON = .false.
+logical :: ads_ON = .true.
 
 logical :: ph_limits_dust = .false.
 ! logical :: ph_limits_dust = .true.
@@ -580,8 +580,8 @@ integer,parameter::nsp_sld_2 = 22 ! removing dolomite from secondary minerals
 integer,parameter::nsp_sld_all = 67
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
-integer,parameter::nsp_aq_ph = 11
-integer,parameter::nsp_aq_all = 11
+integer,parameter::nsp_aq_ph = 12
+integer,parameter::nsp_aq_all = 12
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 2
@@ -639,6 +639,7 @@ real(kind=8),dimension(nsp_aq_all,2)::keqaq_s
 real(kind=8),dimension(nsp_aq_all,2)::keqaq_no3
 real(kind=8),dimension(nsp_aq_all,2)::keqaq_nh3
 real(kind=8),dimension(nsp_aq_all,2)::keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2)::keqaq_cl
 real(kind=8),dimension(nsp_sld_all,nz)::ksld_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_gas_all)::stgas_all
@@ -886,7 +887,8 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'sdn  ','cdr  ','leu  ' &
     & ,'g1   ','g2   ','g3   ','amnt ' &
     & ,'inrt '/)
-chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
+chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
+    & ,'cl   '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22','oxao2'/)
 
@@ -913,7 +915,8 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
     ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
 #endif 
 ! below are species which are sensitive to pH 
-chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
+chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
+    & ,'cl   '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
@@ -2401,7 +2404,7 @@ do iph = 1,nph
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
-        & ,keqaq_oxa &! output
+        & ,keqaq_oxa,keqaq_cl &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
         & ,keqcec_all,keqiex_all &! output 
         & ) 
@@ -2429,7 +2432,7 @@ call coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
-    & ,keqaq_oxa &! output
+    & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ,keqcec_all,keqiex_all &! output 
     & ) 
@@ -2443,7 +2446,7 @@ call calc_pH_v7_4( &
     & ,poro,sat &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    & ,keqaq_oxa &! input
+    & ,keqaq_oxa,keqaq_cl &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,pro,ph_error,ph_iter &! output
@@ -2462,7 +2465,7 @@ call get_maqt_all( &
 ! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
     & ,mgasx_loc,maqx_loc,pro &
     & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
     & ,maqft_loc  &! output
@@ -2776,7 +2779,7 @@ if (read_data) then
         & ,poro,sat &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-        & ,keqaq_oxa &! input
+        & ,keqaq_oxa,keqaq_cl &! input
         & ,print_cb,print_loc,z &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
@@ -2795,7 +2798,7 @@ if (read_data) then
     ! call get_maqt_all_v2( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
-        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
         & ,mgasx_loc,maqx_loc,prox &
         & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
         & ,maqft_loc  &! output
@@ -2877,7 +2880,7 @@ call coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
-    & ,keqaq_oxa &! output
+    & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ,keqcec_all,keqiex_all &! output 
     & ) 
@@ -3146,7 +3149,7 @@ do while (it<nt)
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
-        & ,keqaq_oxa &! output
+        & ,keqaq_oxa,keqaq_cl &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
         & ,keqcec_all,keqiex_all &! output 
         & ) 
@@ -3486,10 +3489,7 @@ do while (it<nt)
                         psu_rain_list = (/ log10(p80), log10(p80),  log10(p80), log10(p80) /)
                         pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
                     else 
-                        ! psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
-                        psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
-                        ! psu_rain_list = (/ log10(0.1d-6), log10(0.1d-6),  log10(0.1d-6), log10(0.1d-6) /)
-                        ! psu_rain_list = (/ log10(0.01d-6), log10(0.01d-6),  log10(0.01d-6), log10(0.01d-6) /)
+                        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
                         pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
                     endif 
             
@@ -3765,7 +3765,7 @@ do while (it<nt)
         & ,stgas_ext,stgas_dext,staq_ext,stsld_ext,staq_dext,stsld_dext &
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst &
         & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
-        & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+        & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
         & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
         & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
@@ -5147,7 +5147,7 @@ do while (it<nt)
             & ,poro,sat &! input 
             & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
             & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-            & ,keqaq_oxa &! input
+            & ,keqaq_oxa,keqaq_cl &! input
             & ,print_cb,print_loc,z &! input 
             & ,dprodmaq_all,dprodmgas_all &! output
             & ,prox,ph_error,ph_iter &! output
@@ -6619,7 +6619,7 @@ subroutine coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
-    & ,keqaq_oxa &! output
+    & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
     & ,keqcec_all,keqiex_all &! output 
     & ) 
@@ -6649,6 +6649,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_s
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_no3
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_nh3
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_cl
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::ksld_all
 real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all,mwt_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
@@ -6690,6 +6691,9 @@ data ieqaq_nh3,ieqaq_nh32/1,2/
 integer ieqaq_oxa,ieqaq_oxa2
 data ieqaq_oxa,ieqaq_oxa2/1,2/
 
+integer ieqaq_cl,ieqaq_cl2
+data ieqaq_cl,ieqaq_cl2/1,2/
+
 integer isps,ispss,ispa
 
 ! real(kind=8)::thon = 1d0
@@ -6707,16 +6711,17 @@ chrss_cbas_sld = (/'qtz  ','al2o3','na2o ','k2o  ','mgo  ','cao  ','fe2o '/)
 ucv = 1.0d0/(rg2*(tempk_0+tc))
 
 ! Aq species diffusion from Li and Gregory 1974 except for Si which is based on Rebreanu et al. 2008
-daq_all(findloc(chraq_all,'fe2',dim=1))= k_arrhenius(1.7016d-2    , 15d0+tempk_0, tc+tempk_0, 19.615251d0, rg)
-daq_all(findloc(chraq_all,'fe3',dim=1))= k_arrhenius(1.5664d-2    , 15d0+tempk_0, tc+tempk_0, 14.33659d0 , rg)
-daq_all(findloc(chraq_all,'so4',dim=1))= k_arrhenius(2.54d-2      , 15d0+tempk_0, tc+tempk_0, 20.67364d0 , rg)
-daq_all(findloc(chraq_all,'no3',dim=1))= k_arrhenius(4.6770059d-2 , 15d0+tempk_0, tc+tempk_0, 18.00685d0 , rg)
-daq_all(findloc(chraq_all,'na',dim=1)) = k_arrhenius(3.19d-2      , 15d0+tempk_0, tc+tempk_0, 20.58566d0 , rg)
-daq_all(findloc(chraq_all,'k',dim=1))  = k_arrhenius(4.8022699d-2 , 15d0+tempk_0, tc+tempk_0, 18.71816d0 , rg)
-daq_all(findloc(chraq_all,'mg',dim=1)) = k_arrhenius(1.7218079d-2 , 15d0+tempk_0, tc+tempk_0, 18.51979d0 , rg)
-daq_all(findloc(chraq_all,'si',dim=1)) = k_arrhenius(2.682396d-2  , 15d0+tempk_0, tc+tempk_0, 22.71378d0 , rg)
-daq_all(findloc(chraq_all,'ca',dim=1)) = k_arrhenius(1.9023312d-2 , 15d0+tempk_0, tc+tempk_0, 20.219661d0, rg)
-daq_all(findloc(chraq_all,'al',dim=1)) = k_arrhenius(1.1656226d-2 , 15d0+tempk_0, tc+tempk_0, 21.27788d0 , rg)
+daq_all(findloc(chraq_all,'fe2',dim=1)) = k_arrhenius(1.7016d-2    , 15d0+tempk_0, tc+tempk_0, 19.615251d0, rg)
+daq_all(findloc(chraq_all,'fe3',dim=1)) = k_arrhenius(1.5664d-2    , 15d0+tempk_0, tc+tempk_0, 14.33659d0 , rg)
+daq_all(findloc(chraq_all,'so4',dim=1)) = k_arrhenius(2.54d-2      , 15d0+tempk_0, tc+tempk_0, 20.67364d0 , rg)
+daq_all(findloc(chraq_all,'no3',dim=1)) = k_arrhenius(4.6770059d-2 , 15d0+tempk_0, tc+tempk_0, 18.00685d0 , rg)
+daq_all(findloc(chraq_all,'na' ,dim=1)) = k_arrhenius(3.19d-2      , 15d0+tempk_0, tc+tempk_0, 20.58566d0 , rg)
+daq_all(findloc(chraq_all,'k'  ,dim=1)) = k_arrhenius(4.8022699d-2 , 15d0+tempk_0, tc+tempk_0, 18.71816d0 , rg)
+daq_all(findloc(chraq_all,'mg' ,dim=1)) = k_arrhenius(1.7218079d-2 , 15d0+tempk_0, tc+tempk_0, 18.51979d0 , rg)
+daq_all(findloc(chraq_all,'si' ,dim=1)) = k_arrhenius(2.682396d-2  , 15d0+tempk_0, tc+tempk_0, 22.71378d0 , rg)
+daq_all(findloc(chraq_all,'ca' ,dim=1)) = k_arrhenius(1.9023312d-2 , 15d0+tempk_0, tc+tempk_0, 20.219661d0, rg)
+daq_all(findloc(chraq_all,'al' ,dim=1)) = k_arrhenius(1.1656226d-2 , 15d0+tempk_0, tc+tempk_0, 21.27788d0 , rg)
+daq_all(findloc(chraq_all,'cl' ,dim=1)) = k_arrhenius(4.9363501d-2 , 15d0+tempk_0, tc+tempk_0, 18.948983d0, rg)
 
 ! organic acid 
 ! oxalic acid (value at 25 oC from Wen et al. 2008; activation just assumed)
@@ -6772,12 +6777,13 @@ keqgas_h(findloc(chrgas_all,'pn2o',dim=1),ieqgas_h0) = &
     & k_arrhenius(0.033928709d0, tempk_0+15.0d0, tempk_0+tc, -22.21661d0, rg) ! ! N2O solubility from Weiss & Price 1980 MC assuming 0 salinity
 
     
-keqaq_c = 0d0
-keqaq_h = 0d0
-keqaq_s = 0d0
-keqaq_no3 = 0d0
-keqaq_nh3 = 0d0
-keqaq_oxa = 0d0
+keqaq_c     = 0d0
+keqaq_h     = 0d0
+keqaq_s     = 0d0
+keqaq_no3   = 0d0
+keqaq_nh3   = 0d0
+keqaq_oxa   = 0d0
+keqaq_cl    = 0d0
 
 ! SO4-2 + H+ = HSO4- 
 ! keqaq_s(findloc(chraq_all,'so4',dim=1),ieqaq_so4) = &
@@ -6794,6 +6800,10 @@ keqaq_nh3(findloc(chraq_all,'so4',dim=1),ieqaq_nh3) = &
 keqaq_h(findloc(chraq_all,'no3',dim=1),ieqaq_h1) = 1d0/35.5d0 ! from Levanov et al. 2017 
 keqaq_h(findloc(chraq_all,'no3',dim=1),ieqaq_h1) = 1d0/(10d0**1.3d0) ! from Maggi et al. 2007 
 ! (temperature dependence is assumed to be 0) 
+
+! 1.0000 H+ + 1.0000 Cl-  =  HCl
+keqaq_h(findloc(chraq_all,'cl',dim=1),ieqaq_h1) =  &
+    & k_arrhenius(10d0**(-0.67d0),25d0+tempk_0,tc+tempk_0,0d0,rg) ! from LLNL.DAT saying 'Not possible to calculate enthalpy of reaction'
 
 ! Oxa= + H+ = OxaH-
 ! keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h1) = 1d0/(10d0**-4.266d0) ! from Lawrence et al., GCA, 2014
@@ -6857,6 +6867,9 @@ keqaq_s(findloc(chraq_all,'mg',dim=1),ieqaq_so4) = &
     & k_arrhenius(10d0**(2.37d0),25d0+tempk_0,tc+tempk_0, 4.550d0*cal2j,rg) ! from PHREEQC.DAT 
 ! Mg2+ + OxaH- = MgOxa + H+ (Mg2+ + Oxa= = MgOxa  plus OxaH- = Oxa= + H+ )
 keqaq_oxa(findloc(chraq_all,'mg',dim=1),ieqaq_oxa) = 1d0/(10d0**-3.43d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
+! 1.0000 Mg++ + 1.0000 Cl-  =  MgCl+
+keqaq_cl(findloc(chraq_all,'mg',dim=1),ieqaq_cl) =  &
+    & k_arrhenius(10d0**(-0.1349d0),25d0+tempk_0,tc+tempk_0,-0.58576d0,rg) ! from LLNL.DAT 
 
 
 ! Ca2+ + H2O = Ca(OH)+ + H+
@@ -6886,6 +6899,9 @@ keqaq_nh3(findloc(chraq_all,'ca',dim=1),ieqaq_nh3) = &
 ! keqaq_oxa(findloc(chraq_all,'ca',dim=1),ieqaq_oxa) = 1d0/(10d0**-3.19d0) ! from Prapaipong et al., GCA, 1999
 ! Ca2+ + OxaH- = CaOxa + H+ (Ca2+ + Oxa= = CaOxa  plus OxaH- = Oxa= + H+ )
 keqaq_oxa(findloc(chraq_all,'ca',dim=1),ieqaq_oxa) = 1d0/(10d0**-3.19d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
+! 1.0000 Cl- + 1.0000 Ca++  =  CaCl+
+keqaq_cl(findloc(chraq_all,'ca',dim=1),ieqaq_cl) =  &
+    & k_arrhenius(10d0**(-0.6956d0),25d0+tempk_0,tc+tempk_0,2.02087d0,rg) ! from LLNL.DAT 
 
     
 ! Fe2+ + H2O = Fe(OH)+ + H+
@@ -6901,6 +6917,9 @@ keqaq_c(findloc(chraq_all,'fe2',dim=1),ieqaq_hco3) = &
 ! Fe+2 + SO4-2 = FeSO4
 keqaq_s(findloc(chraq_all,'fe2',dim=1),ieqaq_so4) = &
     & k_arrhenius(10d0**(2.25d0),25d0+tempk_0,tc+tempk_0,3.230d0*cal2j,rg) ! from PHREEQC.DAT 
+! 1.0000 Fe++ + 1.0000 Cl-  =  FeCl+
+keqaq_cl(findloc(chraq_all,'fe2',dim=1),ieqaq_cl) =  &
+    & k_arrhenius(10d0**(-0.1605d0),25d0+tempk_0,tc+tempk_0,3.02503d0,rg) ! from LLNL.DAT 
 
 
 ! Fe3+ + H2O = Fe(OH)2+ + H+
@@ -6930,6 +6949,9 @@ keqaq_no3(findloc(chraq_all,'fe3',dim=1),ieqaq_no3) = &
 keqaq_oxa(findloc(chraq_all,'fe3',dim=1),ieqaq_oxa) = 1d0/(10d0**-9.15d0)*(10d0**-4.266d0) ! from Perez-Fodich and Derry GCA, 2019
 ! Fe+3 + 2 OxaH- = Fe(Oxa)2- + 2 H+ (Fe+3 + 2Oxa= = Fe(Oxa)2-  plus 2  {OxaH- = Oxa= + H+} )
 ! keqaq_oxa(findloc(chraq_all,'fe3',dim=1),ieqaq_oxa) = 1d0/(10d0**-15.45d0)*(10d0**(-4.266d0*2d0)) ! from Perez-Fodich and Derry, 2019
+! 1.0000 Fe+++ + 1.0000 Cl-  =  FeCl++
+keqaq_cl(findloc(chraq_all,'fe3',dim=1),ieqaq_cl) =  &
+    & k_arrhenius(10d0**(-0.8108d0),25d0+tempk_0,tc+tempk_0,36.6421d0,rg) ! from LLNL.DAT 
 
 
 
@@ -6950,6 +6972,9 @@ keqaq_no3(findloc(chraq_all,'na',dim=1),ieqaq_no3) = &
 ! keqaq_oxa(findloc(chraq_all,'na',dim=1),ieqaq_oxa) = 1d0/(10d0**-0.86d0) ! from Prapaipong et al., GCA, 1999
 ! Na+ + OxaH- = NaOxa- + H+ (Na+ + Oxa= = NaOxa-  plus OxaH- = Oxa= + H+ )
 keqaq_oxa(findloc(chraq_all,'na',dim=1),ieqaq_oxa) = 1d0/(10d0**-0.86d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
+! 1.0000 Na+ + 1.0000 Cl-  =  NaCl
+keqaq_cl(findloc(chraq_all,'na',dim=1),ieqaq_cl) =  &
+    & k_arrhenius(10d0**(-0.777d0),25d0+tempk_0,tc+tempk_0,5.21326d0,rg) ! from LLNL.DAT 
 
 
 
@@ -6961,6 +6986,9 @@ keqaq_no3(findloc(chraq_all,'k',dim=1),ieqaq_no3) = &
     & k_arrhenius(10d0**(-0.15d0),25d0+tempk_0,tc+tempk_0, 0d0,rg) ! from SIT.DAT (no enthalpy data)
 ! K+ + OxaH- = KOxa- + H+ (K+ + Oxa= = KOxa-  plus OxaH- = Oxa= + H+ )
 keqaq_oxa(findloc(chraq_all,'k',dim=1),ieqaq_oxa) = 1d0/(10d0**-0.80d0)*(10d0**-4.266d0) ! from Prapaipong et al., GCA, 1999
+! 1.0000 K+ + 1.0000 Cl-  =  KCl
+keqaq_cl(findloc(chraq_all,'k',dim=1),ieqaq_cl) =  &
+    & k_arrhenius(10d0**(-1.4946d0),25d0+tempk_0,tc+tempk_0,14.1963d0,rg) ! from LLNL.DAT 
 
 
 ! keqaq_s = 0d0
@@ -9709,7 +9737,7 @@ subroutine calc_pH_v7_4( &
     & ,poro,sat &! input  
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    & ,keqaq_oxa &! input
+    & ,keqaq_oxa,keqaq_cl &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
@@ -9751,6 +9779,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_cl
 real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
 
 real(kind=8),dimension(nsp_aq_all)::base_charge
@@ -9856,7 +9885,7 @@ call get_maqt_all( &
 ! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
     & ,mgasx_loc,maqx_loc,prox &
     & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
     & ,maqft_loc  &! output
@@ -9903,7 +9932,7 @@ if (.not. print_cb) then
         call calc_charge_balance( &
             & nz,nsp_aq_all,nsp_gas_all &
             & ,chraq_all,chrgas_all &
-            & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+            & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
             & ,base_charge &
             & ,mgasx_loc,maqf_loc &
             & ,z,prox &
@@ -10068,7 +10097,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox_tmp1,iz &
@@ -10080,7 +10109,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox_tmp2,iz &
@@ -10109,7 +10138,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox,iz &
@@ -10148,7 +10177,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox_tmp1,iz &
@@ -10160,7 +10189,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox_tmp2,iz &
@@ -10191,7 +10220,7 @@ if (.not. print_cb) then
                     call calc_charge_balance_point( &
                         & nz,nsp_aq_all,nsp_gas_all &
                         & ,chraq_all,chrgas_all &
-                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
                         & ,z,prox,iz &
@@ -10283,7 +10312,7 @@ if (.not. print_cb) then
                 call calc_charge_balance_point( &
                     & nz,nsp_aq_all,nsp_gas_all &
                     & ,chraq_all,chrgas_all &
-                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
                     & ,z,prox_tmp1,iz &
@@ -10295,7 +10324,7 @@ if (.not. print_cb) then
                 call calc_charge_balance_point( &
                     & nz,nsp_aq_all,nsp_gas_all &
                     & ,chraq_all,chrgas_all &
-                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
                     & ,z,prox_tmp2,iz &
@@ -10331,7 +10360,7 @@ if (.not. print_cb) then
                 call calc_charge_balance_point( &
                     & nz,nsp_aq_all,nsp_gas_all &
                     & ,chraq_all,chrgas_all &
-                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
                     & ,z,prox,iz &
@@ -10362,7 +10391,7 @@ if (.not. print_cb) then
                 call calc_charge_balance_point( &
                     & nz,nsp_aq_all,nsp_gas_all &
                     & ,chraq_all,chrgas_all &
-                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
                     & ,z,prox,iz &
@@ -10409,7 +10438,7 @@ if (.not. print_cb) then
             call calc_charge_balance( &
                 & nz,nsp_aq_all,nsp_gas_all &
                 & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
                 & ,z,prox_min &
@@ -10421,7 +10450,7 @@ if (.not. print_cb) then
             call calc_charge_balance( &
                 & nz,nsp_aq_all,nsp_gas_all &
                 & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
                 & ,z,prox_max &
@@ -10433,7 +10462,7 @@ if (.not. print_cb) then
             call calc_charge_balance( &
                 & nz,nsp_aq_all,nsp_gas_all &
                 & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
                 & ,z,prox &
@@ -10527,7 +10556,7 @@ if (mod_ph_order) ph_add_order = a_order/(1d0+EXP(-2d0*k_order*(-log10(prox)-ph_
 call calc_charge_balance( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
     & ,z,prox &
@@ -10548,7 +10577,7 @@ do iz=1,nz
     call calc_charge_balance_point( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
-        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
         & ,base_charge &
         & ,mgasx_loc,maqf_loc &
         & ,z,prox,iz &
@@ -10617,7 +10646,7 @@ endsubroutine calc_pH_v7_4
 subroutine calc_charge_balance( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
     & ,z,prox &
@@ -10633,7 +10662,7 @@ character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),intent(in)::kw
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
@@ -10648,10 +10677,12 @@ character(500),intent(in)::print_loc
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 
-integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh3,ispa_oxa
+integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh3,ispa_oxa,ispa_cl &
+    & ,icl
 
-real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3
-real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf
+real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3 &
+    & ,rspa_cl
+real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf,clf
 real(kind=8),dimension(nz)::f1_chk,ss_add,back
 
 character(1) chrint
@@ -10659,27 +10690,29 @@ character(1) chrint
 
 if (print_res) open(88,file = trim(adjustl(print_loc)),status='replace')
 
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
-iso4 = findloc(chraq_all,'so4',dim=1)
-ino3 = findloc(chraq_all,'no3',dim=1)
-ioxa = findloc(chraq_all,'oxa',dim=1)
+ipco2   = findloc(chrgas_all,'pco2',dim=1)
+ipnh3   = findloc(chrgas_all,'pnh3',dim=1)
+iso4    = findloc(chraq_all,'so4',dim=1)
+ino3    = findloc(chraq_all,'no3',dim=1)
+ioxa    = findloc(chraq_all,'oxa',dim=1)
+icl     = findloc(chraq_all,'cl',dim=1)
 
-kco2 = keqgas_h(ipco2,ieqgas_h0)
-k1 = keqgas_h(ipco2,ieqgas_h1)
-k2 = keqgas_h(ipco2,ieqgas_h2)
+kco2    = keqgas_h(ipco2,ieqgas_h0)
+k1      = keqgas_h(ipco2,ieqgas_h1)
+k2      = keqgas_h(ipco2,ieqgas_h2)
 
-pco2x = mgasx_loc(ipco2,:)
+pco2x   = mgasx_loc(ipco2,:)
 
 
-knh3 = keqgas_h(ipnh3,ieqgas_h0)
-k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
+knh3    = keqgas_h(ipnh3,ieqgas_h0)
+k1nh3   = keqgas_h(ipnh3,ieqgas_h1)
 
-pnh3x = mgasx_loc(ipnh3,:)
+pnh3x   = mgasx_loc(ipnh3,:)
 
-so4f = maqf_loc(iso4,:)
-no3f = maqf_loc(ino3,:)
-oxaf = maqf_loc(ioxa,:)
+so4f    = maqf_loc(iso4,:)
+no3f    = maqf_loc(ino3,:)
+oxaf    = maqf_loc(ioxa,:)
+clf     = maqf_loc(icl,:)
 
 ss_add = ph_add_order
 
@@ -10765,6 +10798,7 @@ do ispa = 1, nsp_aq_all
     if ( &
         & trim(adjustl(chraq_all(ispa)))=='no3' &
         & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         
@@ -10957,6 +10991,33 @@ do ispa = 1, nsp_aq_all
                     
             endif 
         enddo 
+        ! accounting for complexation with free Cl
+        do ispa_cl = 1,2
+            if ( keqaq_cl(ispa,ispa_cl) > 0d0) then 
+                rspa_cl = real(ispa_cl,kind=8)
+                f1 = f1 + (base_charge(ispa)-1d0*rspa_cl)*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*prox**ss_add
+                df1 = df1 + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl) &
+                    &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*ss_add*prox**(ss_add-1d0) & 
+                    & )
+                d2f1 = d2f1 + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl) &
+                    &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*ss_add*(ss_add-1d0)*prox**(ss_add-2d0) & 
+                    & )
+                df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)*keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl*prox**ss_add & 
+                    & )
+                df1dmaqf(icl,:) = df1dmaqf(icl,:) + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)*keqaq_cl(ispa,ispa_cl) &
+                    &   *maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0)*prox**ss_add & 
+                    & )
+                if (print_res) then 
+                    write(chrint,'(I1)') ispa_cl
+                    write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(cl)'//trim(adjustl(chrint))
+                endif 
+                    
+            endif 
+        enddo 
         ! accounting for complexation with HOxa-
         do ispa_oxa = 1,2
             rspa_oxa   = real(ispa_oxa,kind=8)
@@ -11041,6 +11102,7 @@ if (print_res) then
             if ( &
                 & trim(adjustl(chraq_all(ispa)))=='no3' &
                 & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
+                & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
                 ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
                 & ) then 
                 
@@ -11121,6 +11183,15 @@ if (print_res) then
                         write(88,'(E11.3)', advance='no') keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3
                     endif 
                 enddo 
+                ! account for complexation with free Cl
+                do ispa_cl = 1,2
+                    if ( keqaq_cl(ispa,ispa_cl) > 0d0) then 
+                        rspa_cl = real(ispa_cl,kind=8)
+                        f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
+                            & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
+                        write(88,'(E11.3)', advance='no') keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl
+                    endif 
+                enddo 
                 ! account for complexation with Hoxa-
                 do ispa_oxa = 1,2
                     rspa_oxa   = real(ispa_oxa,kind=8)
@@ -11156,7 +11227,7 @@ endsubroutine calc_charge_balance
 subroutine calc_charge_balance_point( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa  &
+    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
     & ,z,prox,iz &
@@ -11172,7 +11243,7 @@ character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),intent(in)::kw
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
@@ -11187,35 +11258,38 @@ character(500),intent(in)::print_loc
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 
-integer ispa,ispa_h,ispa_c,ispa_s,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh3,ispa_oxa
+integer ispa,ispa_h,ispa_c,ispa_s,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh3,ispa_oxa,icl,ispa_cl
 
-real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3
-real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf
+real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3 &
+    & ,rspa_cl
+real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf,clf
 real(kind=8),dimension(nz)::f1_chk,ss_add,back
 
 character(1) chrint
 
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
-iso4 = findloc(chraq_all,'so4',dim=1)
-ino3 = findloc(chraq_all,'no3',dim=1)
-ioxa = findloc(chraq_all,'oxa',dim=1)
+ipco2   = findloc(chrgas_all,'pco2',dim=1)
+ipnh3   = findloc(chrgas_all,'pnh3',dim=1)
+iso4    = findloc(chraq_all,'so4',dim=1)
+ino3    = findloc(chraq_all,'no3',dim=1)
+ioxa    = findloc(chraq_all,'oxa',dim=1)
+icl     = findloc(chraq_all,'cl',dim=1)
 
-kco2 = keqgas_h(ipco2,ieqgas_h0)
-k1 = keqgas_h(ipco2,ieqgas_h1)
-k2 = keqgas_h(ipco2,ieqgas_h2)
+kco2    = keqgas_h(ipco2,ieqgas_h0)
+k1      = keqgas_h(ipco2,ieqgas_h1)
+k2      = keqgas_h(ipco2,ieqgas_h2)
 
-pco2x = mgasx_loc(ipco2,:)
+pco2x   = mgasx_loc(ipco2,:)
 
 
-knh3 = keqgas_h(ipnh3,ieqgas_h0)
-k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
+knh3    = keqgas_h(ipnh3,ieqgas_h0)
+k1nh3   = keqgas_h(ipnh3,ieqgas_h1)
 
-pnh3x = mgasx_loc(ipnh3,:)
+pnh3x   = mgasx_loc(ipnh3,:)
 
-so4f = maqf_loc(iso4,:)
-no3f = maqf_loc(ino3,:)
-oxaf = maqf_loc(ioxa,:)
+so4f    = maqf_loc(iso4,:)
+no3f    = maqf_loc(ino3,:)
+oxaf    = maqf_loc(ioxa,:)
+clf     = maqf_loc(icl,:)
 
 ss_add = ph_add_order
 
@@ -11304,6 +11378,7 @@ do ispa = 1, nsp_aq_all
     if ( &
         & trim(adjustl(chraq_all(ispa)))=='no3' &
         & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         
@@ -11457,6 +11532,26 @@ do ispa = 1, nsp_aq_all
         enddo 
         if (print_res .and. f1(iz)<0d0) then 
             write(*,fmt='(1x,a,1x,a)', advance='no') 'no3-aq',chraq_all(ispa)
+        endif 
+        ! account for complexation with free Cl
+        do ispa_cl = 1,2
+            if ( keqaq_cl(ispa,ispa_cl) > 0d0) then 
+                rspa_cl = real(ispa_cl,kind=8)
+                f1(iz) = f1(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
+                    & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
+                df1(iz) = df1(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
+                    & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
+                d2f1(iz) = d2f1(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
+                    & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*ss_add(iz) &
+                    & *(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
+                df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
+                    & *keqaq_cl(ispa,ispa_cl)*1d0*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
+                df1dmaqf(icl,iz) = df1dmaqf(icl,iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
+                    & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*rspa_cl*clf(iz)**(rspa_cl-1d0)*prox(iz)**ss_add(iz)
+            endif 
+        enddo 
+        if (print_res .and. f1(iz)<0d0) then 
+            write(*,fmt='(1x,a,1x,a)', advance='no') 'cl-aq',chraq_all(ispa)
         endif 
         ! account for complexation with HOxa-
         do ispa_oxa = 1,2
@@ -11777,7 +11872,7 @@ do ispa = 1, nsp_aq_all
         ! case('so4','oxa')
         case('so4')
             base_charge(ispa) = -2d0
-        case('no3','oxa')
+        case('no3','oxa','cl')
             base_charge(ispa) = -1d0
         case('si')
             base_charge(ispa) = 0d0
@@ -11929,7 +12024,7 @@ endsubroutine get_maqgasx_all
 subroutine get_maqt_all( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
     & ,mgasx_loc,maqf_loc,prox &
     & ,dmaqft_dpro,dmaqft_dmaqf,dmaqft_dmgas &! output
     & ,maqft_loc  &! output
@@ -11941,7 +12036,7 @@ character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nz),intent(in)::prox
@@ -11952,7 +12047,7 @@ real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz),intent(out)::dmaqft_dmaqf
 real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz),intent(out)::dmaqft_dmgas
 
 integer ispa,ispa_h,ispa_c,ispa_s,ispa_no3,ispa_nh3,ispg,iso4,ipco2,ino3,ipnh3,ispa2 &
-    & ,ioxa,ispa_oxa
+    & ,ioxa,ispa_oxa,icl,ispa_cl
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
@@ -11960,26 +12055,29 @@ data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
 data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
 
-real(kind=8) kco2,k1,k2,k1no3,rspa_h,rspa_s,rspa_no3,rspa_nh3,knh3,k1nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3
-real(kind=8),dimension(nz)::pco2x,so4f,no3f,pnh3x,oxaf
+real(kind=8) kco2,k1,k2,k1no3,rspa_h,rspa_s,rspa_no3,rspa_nh3,knh3,k1nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3 &
+    & ,rspa_cl
+real(kind=8),dimension(nz)::pco2x,so4f,no3f,pnh3x,oxaf,clf
 
-iso4 = findloc(chraq_all,'so4',dim=1)
-ino3 = findloc(chraq_all,'no3',dim=1)
-ioxa = findloc(chraq_all,'oxa',dim=1)
-ipco2 = findloc(chrgas_all,'pco2',dim=1)
-ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
+iso4    = findloc(chraq_all,'so4',dim=1)
+ino3    = findloc(chraq_all,'no3',dim=1)
+ioxa    = findloc(chraq_all,'oxa',dim=1)
+icl     = findloc(chraq_all,'cl',dim=1)
+ipco2   = findloc(chrgas_all,'pco2',dim=1)
+ipnh3   = findloc(chrgas_all,'pnh3',dim=1)
 
-kco2 = keqgas_h(ipco2,ieqgas_h0)
-k1 = keqgas_h(ipco2,ieqgas_h1)
-k2 = keqgas_h(ipco2,ieqgas_h2)
-knh3 = keqgas_h(ipnh3,ieqgas_h0)
-k1nh3 = keqgas_h(ipnh3,ieqgas_h1)
+kco2    = keqgas_h(ipco2,ieqgas_h0)
+k1      = keqgas_h(ipco2,ieqgas_h1)
+k2      = keqgas_h(ipco2,ieqgas_h2)
+knh3    = keqgas_h(ipnh3,ieqgas_h0)
+k1nh3   = keqgas_h(ipnh3,ieqgas_h1)
 
-pnh3x = mgasx_loc(ipnh3,:)
-pco2x = mgasx_loc(ipco2,:)
-so4f = maqf_loc(iso4,:)
-no3f = maqf_loc(ino3,:)
-oxaf = maqf_loc(ioxa,:)
+pnh3x   = mgasx_loc(ipnh3,:)
+pco2x   = mgasx_loc(ipco2,:)
+so4f    = maqf_loc(iso4,:)
+no3f    = maqf_loc(ino3,:)
+oxaf    = maqf_loc(ioxa,:)
+clf     = maqf_loc(icl,:)
 
 maqft_loc = 0
 
@@ -12009,6 +12107,7 @@ do ispa = 1, nsp_aq_all
     if ( &
         & trim(adjustl(chraq_all(ispa)))=='no3' &
         & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         ! maqft_loc(ispa,:) = 1d0
@@ -12107,6 +12206,24 @@ do ispa = 1, nsp_aq_all
                     & )
                 dmaqft_dmaqf(ino3,ispa,:) = dmaqft_dmaqf(ino3,ispa,:) + ( &
                     & + rspa_no3*keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3 &
+                    & )
+            endif 
+        enddo 
+        ! account for complexation with free Cl
+        do ispa_cl = 1,2
+            rspa_cl = real(ispa_cl,kind=8)
+            if ( keqaq_cl(ispa,ispa_cl) > 0d0) then 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
+                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl
+                dmaqft_dmaqf(ispa,icl,:) = dmaqft_dmaqf(ispa,icl,:) &
+                    & + keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0)
+                
+                maqft_loc(icl,:) = maqft_loc(icl,:) + rspa_cl*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
+                dmaqft_dmaqf(icl,icl,:) = dmaqft_dmaqf(icl,icl,:) + ( &
+                    & + rspa_cl*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0) &
+                    & )
+                dmaqft_dmaqf(icl,ispa,:) = dmaqft_dmaqf(icl,ispa,:) + ( &
+                    & + rspa_cl*keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl &
                     & )
             endif 
         enddo 
@@ -13052,7 +13169,7 @@ subroutine calc_rxn_ext_dev_3( &
     & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
     & ,rg,tempk_0,tc &!input
     & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
-    & ,keqaq_no3,keqaq_nh3,keqaq_oxa  &! input 
+    & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
     & ,rxn_name,sp_name &! input 
     & ,rxn_ext,drxnext_dmsp,rxnext_error &! output
     & )
@@ -13082,7 +13199,7 @@ real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
-real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl
 real(kind=8),dimension(nrxn_ext_all,nz),intent(in)::krxn1_ext_all,krxn2_ext_all
 
 integer,intent(in)::nsp_sld,nsp_sld_cnst,nsp_sld_all
@@ -13191,7 +13308,7 @@ call get_maqt_all( &
 ! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
     & ,mgasx_loc,maqx_loc,prox &
     & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
     & ,maqft_loc  &! output
@@ -14064,7 +14181,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     & ,stgas_ext,stgas_dext,staq_ext,stsld_ext,staq_dext,stsld_dext &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst &
     & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
-    & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+    & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
     & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
     & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
@@ -14164,6 +14281,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_cl
 real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all,msldth_all,mv_all
 
 real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all
@@ -14399,7 +14517,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         & ,poro,sat &! input  
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-        & ,keqaq_oxa &! input
+        & ,keqaq_oxa,keqaq_cl &! input
         & ,print_cb,print_loc,z &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
@@ -14454,7 +14572,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     call get_maqt_all( &
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
-        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+        & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
         & ,mgasx_loc,maqx_loc,prox &
         & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
         & ,maqft_loc  &! output
@@ -14799,7 +14917,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
             & ,rg,tempk_0,tc &!input
             & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
-            & ,keqaq_no3,keqaq_nh3,keqaq_oxa  &! input 
+            & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
             & ,chrrxn_ext(irxn),'pro  ' &! input 
             & ,dummy,dummy2,rxnext_error &! output
             & )
@@ -14822,7 +14940,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
                 & ,rg,tempk_0,tc &!input
                 & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
-                & ,keqaq_no3,keqaq_nh3,keqaq_oxa  &! input 
+                & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
                 & ,chrrxn_ext(irxn),chrgas(ispg) &! input 
                 & ,dummy,dummy2,rxnext_error &! output
                 & )
@@ -14847,7 +14965,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
                 & ,rg,tempk_0,tc &!input
                 & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
-                & ,keqaq_no3,keqaq_nh3,keqaq_oxa  &! input 
+                & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
                 & ,chrrxn_ext(irxn),chraq(ispa) &! input 
                 & ,dummy,dummy2,rxnext_error &! output
                 & )
@@ -14872,7 +14990,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
                 & ,rg,tempk_0,tc &!input
                 & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
-                & ,keqaq_no3,keqaq_nh3,keqaq_oxa  &! input 
+                & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
                 & ,chrrxn_ext(irxn),chrsld(isps) &! input 
                 & ,dummy,dummy2,rxnext_error &! output
                 & )
@@ -16240,7 +16358,7 @@ call calc_pH_v7_4( &
     & ,poro,sat &! input  
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    & ,keqaq_oxa &! input
+    & ,keqaq_oxa,keqaq_cl &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
@@ -16284,7 +16402,7 @@ call get_maqt_all( &
 ! call get_maqt_all_v2( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
-    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
     & ,mgasx_loc,maqx_loc,prox &
     & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
     & ,maqft_loc  &! output
@@ -16434,7 +16552,7 @@ do irxn=1,nrxn_ext
         & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
         & ,rg,tempk_0,tc &!input
         & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
-        & ,keqaq_no3,keqaq_nh3,keqaq_oxa  &! input 
+        & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
         & ,chrrxn_ext(irxn),'pro  ' &! input 
         & ,dummy,dummy2,rxnext_error &! output
         & )
