@@ -489,8 +489,8 @@ logical :: season = .false.
 ! logical :: disp_ON = .false.
 logical :: disp_ON = .true.
 
-! logical :: ads_ON = .false.
-logical :: ads_ON = .true.
+logical :: ads_ON = .false.
+! logical :: ads_ON = .true.
 
 logical :: ph_limits_dust = .false.
 ! logical :: ph_limits_dust = .true.
@@ -3486,7 +3486,10 @@ do while (it<nt)
                         psu_rain_list = (/ log10(p80), log10(p80),  log10(p80), log10(p80) /)
                         pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
                     else 
-                        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+                        ! psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+                        psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
+                        ! psu_rain_list = (/ log10(0.1d-6), log10(0.1d-6),  log10(0.1d-6), log10(0.1d-6) /)
+                        ! psu_rain_list = (/ log10(0.01d-6), log10(0.01d-6),  log10(0.01d-6), log10(0.01d-6) /)
                         pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
                     endif 
             
