@@ -80,10 +80,10 @@ endif
 # SRC           = pysil_DEV_AQ_ADSH_NO3_fert_DEV.f90
 # OBJS          = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV.o
 # SRC           = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV.f90
-# OBJS          = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV_DEV.o
-# SRC           = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV_DEV.f90
-OBJS          = pysil.o 
-SRC           = pysil.f90  
+OBJS          = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV_DEV.o
+SRC           = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV_DEV.f90
+# OBJS          = pysil.o 
+# SRC           = pysil.f90  
 # OBJS          = pysil_DEV_AQ_ADSH_NO3.o
 # SRC           = pysil_DEV_AQ_ADSH_NO3.f90
 # OBJS          = pysil_DEV_AQ_ADSH.o
