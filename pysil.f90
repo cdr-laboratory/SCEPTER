@@ -233,6 +233,7 @@ real(kind=8),parameter :: mvleu =  88.39d0 ! cm3/mol; molar volume of leucite KA
 real(kind=8),parameter :: mvkcl =  74.555d0/1.984d0 ! cm3/mol; from KCl Molar mass 74.555 g·mol−1 and Density 1.984 g/cm3 from Wikipedea https://en.wikipedia.org/wiki/Potassium_chloride
 real(kind=8),parameter :: mvgac =  60.052d0/1.27d0 ! cm3/mol; from CH3COOH Molar mass 60.052 g·mol−1 and Density 1.27 g/cm3 from Wikipedea https://en.wikipedia.org/wiki/Acetic_acid
 real(kind=8),parameter :: mvmesmh =  213.25d0/0.56d0 ! cm3/mol; from MES monohydrate Molar mass 213.25 g·mol−1 and Density 0.56 g/cm3 from https://www.emdmillipore.com/US/en/product/2-Morpholinoethanesulfonic-acid-monohydrate,MDA_CHEM-106126
+real(kind=8),parameter :: mvims =  68.077d0/1.23d0 ! cm3/mol; from MES monohydrate Molar mass 68.077 g·mol−1 and Density 1.23 g/cm3 from https://en.wikipedia.org/wiki/Imidazole
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
@@ -324,7 +325,8 @@ real(kind=8),parameter :: mwtleu =  218.248d0 ! cm3/mol; molar volume of leucite
 real(kind=8),parameter :: mwtkcl =  74.555d0 ! g·mol−1; from KCl Molar mass 74.555 g·mol−1 and Density 1.984 g/cm3 from Wikipedea https://en.wikipedia.org/wiki/Potassium_chloride
 real(kind=8),parameter :: mwtgac =  60.052d0 ! g·mol−1; from CH3COOH Molar mass 60.052 g·mol−1 and Density 1.27 g/cm3 from Wikipedea https://en.wikipedia.org/wiki/Acetic_acid
 real(kind=8),parameter :: mwtmesmh =  213.25d0 ! g·mol−1; from MES monohydrate Molar mass 213.25 g·mol−1 and Density 0.56 g/cm3 from https://www.emdmillipore.com/US/en/product/2-Morpholinoethanesulfonic-acid-monohydrate,MDA_CHEM-106126
- 
+real(kind=8),parameter :: mwtims =  68.077d0 ! g/mol; from MES monohydrate Molar mass 68.077 g·mol−1 and Density 1.23 g/cm3 from https://en.wikipedia.org/wiki/Imidazole
+
  
 real(kind=8),parameter :: mvgbas = ( &
                                 & fr_si_gbas*mwtamsi + fr_al_gbas/2d0*mwtal2o3 + fr_na_gbas/2d0*mwtna2o &
@@ -584,11 +586,11 @@ integer,parameter::nsp_sld_2 = 0
 ! integer,parameter::nsp_sld_2 = 23
 integer,parameter::nsp_sld_2 = 22 ! removing dolomite from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 70
+integer,parameter::nsp_sld_all = 71
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
-integer,parameter::nsp_aq_ph = 14
-integer,parameter::nsp_aq_all = 14
+integer,parameter::nsp_aq_ph = 15
+integer,parameter::nsp_aq_all = 15
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 2
@@ -892,10 +894,10 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
     & ,'sdn  ','cdr  ','leu  ' &
-    & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh' &
+    & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ' &
     & ,'inrt '/)
 chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   ','ac   ','mes  '/)
+    & ,'cl   ','ac   ','mes  ','im   '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22','oxao2'/)
 
@@ -923,7 +925,7 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
 #endif 
 ! below are species which are sensitive to pH 
 chraq_ph   = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   ','ac   ','mes  '/)
+    & ,'cl   ','ac   ','mes  ','im   '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
@@ -973,13 +975,13 @@ mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mv
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
     & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu &
-    & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh  &
+    & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims  &
     & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
     & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu &
-    & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh &
+    & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims &
     & ,mwtinrt/)
 
 do isps = 1, nsp_sld 
@@ -1441,6 +1443,9 @@ staq_all(findloc(chrsld_all,'gac',dim=1), findloc(chraq_all,'ac',dim=1)) = 1d0
 ! MES monohydrate
 staq_all(findloc(chrsld_all,'mesmh',dim=1), findloc(chraq_all,'mes',dim=1)) = 1d0
 
+! Imidazole solid 
+staq_all(findloc(chrsld_all,'ims',dim=1), findloc(chraq_all,'im',dim=1)) = 1d0
+
 
 staq = 0d0
 stgas = 0d0
@@ -1723,7 +1728,7 @@ solmod = 1d0
 
 do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
-        case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh')
+        case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims')
             precstyle(isps) = 'decay'
         case('cc','arg') ! added to change solubility 
             precstyle(isps) = 'def'
@@ -6748,6 +6753,8 @@ daq_all(findloc(chraq_all,'oxa',dim=1)) = k_arrhenius(3.114735d-02, 25d0+tempk_0
 daq_all(findloc(chraq_all,'ac',dim=1)) = k_arrhenius(2.51198D-02 , 15d0+tempk_0, tc+tempk_0, 21.569542d0 , rg)
 ! MES taking random value for now
 daq_all(findloc(chraq_all,'mes',dim=1)) = k_arrhenius(2.0000D-02 , 15d0+tempk_0, tc+tempk_0, 20.000000d0 , rg)
+! Imidazole taking random value for now
+daq_all(findloc(chraq_all,'im',dim=1))  = k_arrhenius(2.0000D-02 , 15d0+tempk_0, tc+tempk_0, 20.000000d0 , rg)
 
 ! --------------------------------- gas diff
 
@@ -6844,6 +6851,10 @@ keqaq_h(findloc(chraq_all,'ac',dim=1),ieqaq_h1) =  &
 ! MESH- + H+ = MES  
 keqaq_h(findloc(chraq_all,'mes',dim=1),ieqaq_h1) =  &
     & k_arrhenius(10d0**(6.270d0),25d0+tempk_0,tc+tempk_0,-14.8d0,rg)  ! from Goldberg et al., 2002
+    
+! Imidazole-H- + H+ = Imidazole  
+keqaq_h(findloc(chraq_all,'im',dim=1),ieqaq_h1) =  &
+    & k_arrhenius(10d0**(6.993d0),25d0+tempk_0,tc+tempk_0,-36.64d0,rg)  ! from Goldberg et al., 2002
 
 ! ----------------
 
@@ -8440,7 +8451,7 @@ select case(trim(adjustl(mineral)))
         ! kin = kref
         dkin_dmsp = 0d0
         
-    case('kcl','gac','mesmh')
+    case('kcl','gac','mesmh','ims')
         kin = ( &
             & 1d0/0.01d0 &! just a value assumed; turnover time of 0.1 year for NH4NO3 
             & )
@@ -9015,7 +9026,7 @@ select case(trim(adjustl(mineral)))
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case('amnt')
         therm = 0.121d0 ! mo2 Michaelis for fertilizer
-    case('kcl','gac','mesmh')
+    case('kcl','gac','mesmh','ims')
         therm = 1d0 ! reacting in any case
     case('inrt')
         therm = 1d0 ! not reacting in any case
@@ -10846,6 +10857,7 @@ do ispa = 1, nsp_aq_all
         & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
         & .or. trim(adjustl(chraq_all(ispa)))=='ac' &
         & .or. trim(adjustl(chraq_all(ispa)))=='mes' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='im' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         
@@ -11152,6 +11164,7 @@ if (print_res) then
                 & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
                 & .or. trim(adjustl(chraq_all(ispa)))=='ac' &
                 & .or. trim(adjustl(chraq_all(ispa)))=='mes' &
+                & .or. trim(adjustl(chraq_all(ispa)))=='im' &
                 ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
                 & ) then 
                 
@@ -11430,6 +11443,7 @@ do ispa = 1, nsp_aq_all
         & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
         & .or. trim(adjustl(chraq_all(ispa)))=='ac' &
         & .or. trim(adjustl(chraq_all(ispa)))=='mes' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='im' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         
@@ -11881,7 +11895,7 @@ select case(trim(adjustl(mineral)))
             & - po2x*(-1d0)/(po2x+mo2_tmp)**2d0*merge(0d0,1d0,po2x < po2th*thon) &
             & )
     
-    case('kcl','gac','mesmh') ! reacting in any case
+    case('kcl','gac','mesmh','ims') ! reacting in any case
         omega = 0d0
     
     case('inrt') ! not reacting in any case
@@ -11926,7 +11940,7 @@ do ispa = 1, nsp_aq_all
         ! case('so4','oxa')
         case('so4')
             base_charge(ispa) = -2d0
-        case('no3','oxa','cl','ac','mes')
+        case('no3','oxa','cl','ac','mes','im')
             base_charge(ispa) = -1d0
         case('si')
             base_charge(ispa) = 0d0
@@ -12164,6 +12178,7 @@ do ispa = 1, nsp_aq_all
         & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
         & .or. trim(adjustl(chraq_all(ispa)))=='ac' &
         & .or. trim(adjustl(chraq_all(ispa)))=='mes' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='im' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         ! maqft_loc(ispa,:) = 1d0
