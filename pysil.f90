@@ -576,6 +576,7 @@ integer,parameter::nsp_sld_2 = 0
 #else
 ! integer,parameter::nsp_sld_2 = 23
 integer,parameter::nsp_sld_2 = 22 ! removing dolomite from secondary minerals
+! integer,parameter::nsp_sld_2 = 21 ! removing cc from secondary minerals
 #endif 
 integer,parameter::nsp_sld_all = 67
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
@@ -911,6 +912,10 @@ chrsld_2(:) = '     '
 ! version that removes dolomite from 2ndary minerals
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
     ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
+    
+! version that removes calcite dolomite from 2ndary minerals
+! chrsld_2 = (/'ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
+    ! ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
 #endif 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
@@ -2407,6 +2412,16 @@ do iph = 1,nph
         & ) 
     ! write(idust,chrfmt) -log10(pro(1)),log10(ksld_all(:,1))
     write(idust,chrfmt) -log10(pro(1)),ksld_all(:,1)/sec2yr
+enddo 
+close(idust)
+
+open (idust, file='./sld_data_chk.txt', status ='unknown',action='write')
+chrfmt = '(3(1x,a5))'
+write(idust,chrfmt) 'sld','mv','mwt'
+write(chrfmt,'(i0)') nsp_sld_all
+chrfmt = '(1x,a5,2(1x,E11.3))'
+do isps = 1,nsp_sld_all
+    write(idust,chrfmt) chrsld_all(isps),mv_all(isps),mwt_all(isps)
 enddo 
 close(idust)
 ! stop
