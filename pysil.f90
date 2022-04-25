@@ -104,6 +104,7 @@ real(kind=8),parameter :: n2c_g2 = 0.1d0
 real(kind=8),parameter :: n2c_g3 = 0.1d0
 
 real(kind=8),parameter :: oxa2c_g2 = 0.01d0 ! amount of oxlate (C2O4=) released 
+real(kind=8),parameter :: ac2c_g2 = 0.01d0 ! amount of acetate (CH3COO-) released 
 
 real(kind=8),parameter :: fr_an_ab = 0.0d0 ! Anorthite fraction for albite (Beerling et al., 2020); 0.0 - 0.1
 real(kind=8),parameter :: fr_an_olg = 0.2d0 ! Anorthite fraction for oligoclase (Beerling et al., 2020); 0.1 - 0.3
@@ -580,8 +581,8 @@ integer,parameter::nsp_sld_2 = 22 ! removing dolomite from secondary minerals
 integer,parameter::nsp_sld_all = 67
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
-integer,parameter::nsp_aq_ph = 12
-integer,parameter::nsp_aq_all = 12
+integer,parameter::nsp_aq_ph = 13
+integer,parameter::nsp_aq_all = 13
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 2
@@ -888,7 +889,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'g1   ','g2   ','g3   ','amnt ' &
     & ,'inrt '/)
 chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   '/)
+    & ,'cl   ','ac   '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22','oxao2'/)
 
@@ -915,8 +916,8 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
     ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
 #endif 
 ! below are species which are sensitive to pH 
-chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   '/)
+chraq_ph   = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
+    & ,'cl   ','ac   '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
@@ -1402,10 +1403,11 @@ stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
 stgas_all(findloc(chrsld_all,'g1',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g1
 
-stgas_all(findloc(chrsld_all,'g2',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0 - 2d0*oxa2c_g2
+stgas_all(findloc(chrsld_all,'g2',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0 - 2d0*oxa2c_g2 - 2d0*ac2c_g2
 stgas_all(findloc(chrsld_all,'g2',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
 stgas_all(findloc(chrsld_all,'g2',dim=1), findloc(chrgas_all,'pnh3',dim=1)) = n2c_g2
 staq_all(findloc(chrsld_all,'g2',dim=1), findloc(chraq_all,'oxa',dim=1)) = oxa2c_g2
+staq_all(findloc(chrsld_all,'g2',dim=1), findloc(chraq_all,'ac',dim=1)) = ac2c_g2
 
 stgas_all(findloc(chrsld_all,'g3',dim=1), findloc(chrgas_all,'pco2',dim=1)) = 1d0
 stgas_all(findloc(chrsld_all,'g3',dim=1), findloc(chrgas_all,'po2',dim=1)) = -1d0
@@ -6725,7 +6727,9 @@ daq_all(findloc(chraq_all,'cl' ,dim=1)) = k_arrhenius(4.9363501d-2 , 15d0+tempk_
 
 ! organic acid 
 ! oxalic acid (value at 25 oC from Wen et al. 2008; activation just assumed)
-daq_all(findloc(chraq_all,'oxa',dim=1)) = k_arrhenius(3.114735d-02, 25d0+tempk_0, tc+tempk_0, 20.00000d0 , rg)
+daq_all(findloc(chraq_all,'oxa',dim=1)) = k_arrhenius(3.114735d-02, 25d0+tempk_0, tc+tempk_0, 20.00000d0  , rg)
+! acetic acid (Schulz and Zabel, 2006)
+daq_all(findloc(chraq_all,'ac',dim=1)) = k_arrhenius(2.51198D-02 , 15d0+tempk_0, tc+tempk_0, 21.569542d0 , rg)
 
 ! --------------------------------- gas diff
 
@@ -6814,6 +6818,10 @@ keqaq_h(findloc(chraq_all,'cl',dim=1),ieqaq_h1) =  &
 keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h1) = (10d0**-4.266d0) ! from Lawrence et al., GCA, 2014
 !  OxaH- + H+ = OxaH2
 keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h2) = 1d0/(10d0**-1.25d0) ! from Lawrence et al., GCA, 2014
+
+! AcO- + H+ = AcOH  
+keqaq_h(findloc(chraq_all,'ac',dim=1),ieqaq_h1) =  &
+    & k_arrhenius(10d0**(4.756d0),25d0+tempk_0,tc+tempk_0,0.41d0,rg)  ! from Goldberg et al., 2002
 
 ! ----------------
 
@@ -10799,6 +10807,7 @@ do ispa = 1, nsp_aq_all
         & trim(adjustl(chraq_all(ispa)))=='no3' &
         & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
         & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='ac' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         
@@ -11103,6 +11112,7 @@ if (print_res) then
                 & trim(adjustl(chraq_all(ispa)))=='no3' &
                 & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
                 & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
+                & .or. trim(adjustl(chraq_all(ispa)))=='ac' &
                 ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
                 & ) then 
                 
@@ -11379,6 +11389,7 @@ do ispa = 1, nsp_aq_all
         & trim(adjustl(chraq_all(ispa)))=='no3' &
         & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
         & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='ac' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         
@@ -11872,7 +11883,7 @@ do ispa = 1, nsp_aq_all
         ! case('so4','oxa')
         case('so4')
             base_charge(ispa) = -2d0
-        case('no3','oxa','cl')
+        case('no3','oxa','cl','ac')
             base_charge(ispa) = -1d0
         case('si')
             base_charge(ispa) = 0d0
@@ -12108,6 +12119,7 @@ do ispa = 1, nsp_aq_all
         & trim(adjustl(chraq_all(ispa)))=='no3' &
         & .or. trim(adjustl(chraq_all(ispa)))=='so4' &
         & .or. trim(adjustl(chraq_all(ispa)))=='cl' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='ac' &
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         ! maqft_loc(ispa,:) = 1d0
