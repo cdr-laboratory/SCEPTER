@@ -506,8 +506,8 @@ logical :: disp_ON = .true.
 logical :: disp_FULL_ON = .false.
 ! logical :: disp_FULL_ON = .true.
 
-logical :: ads_ON = .false.
-! logical :: ads_ON = .true.
+! logical :: ads_ON = .false.
+logical :: ads_ON = .true.
 
 logical :: ph_limits_dust = .false.
 ! logical :: ph_limits_dust = .true.
@@ -6877,11 +6877,11 @@ keqaq_h(findloc(chraq_all,'ac',dim=1),ieqaq_h1) =  &
 keqaq_h(findloc(chraq_all,'mes',dim=1),ieqaq_h1) =  &
     & k_arrhenius(10d0**(6.270d0),25d0+tempk_0,tc+tempk_0,-14.8d0,rg)  ! from Goldberg et al., 2002
     
-! Imidazole-H- + H+ = Imidazole  
+! Imidazole + H+ = Imidazole+  
 keqaq_h(findloc(chraq_all,'im',dim=1),ieqaq_h1) =  &
     & k_arrhenius(10d0**(6.993d0),25d0+tempk_0,tc+tempk_0,-36.64d0,rg)  ! from Goldberg et al., 2002
     
-! TEA-H- + H+ = TEA  
+! TEA + H+ = TEA+  
 keqaq_h(findloc(chraq_all,'tea',dim=1),ieqaq_h1) =  &
     & k_arrhenius(10d0**(7.762d0),25d0+tempk_0,tc+tempk_0,-33.6d0,rg)  ! from Goldberg et al., 2002
 
@@ -11972,9 +11972,9 @@ do ispa = 1, nsp_aq_all
         ! case('so4','oxa')
         case('so4')
             base_charge(ispa) = -2d0
-        case('no3','oxa','cl','ac','mes','im','tea')
+        case('no3','oxa','cl','ac','mes')
             base_charge(ispa) = -1d0
-        case('si')
+        case('si','im','tea')
             base_charge(ispa) = 0d0
         case('na','k')
             base_charge(ispa) = 1d0
