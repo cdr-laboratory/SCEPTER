@@ -399,6 +399,7 @@ real(kind=8),dimension(nz):: dummy,up,dwn,cnr,adf
 real(kind=8) :: rough_c0 != 10d0**(3.3d0)
 real(kind=8) :: rough_c1 != 0.33d0
 real(kind=8) :: c_disp,c0_disp,c1_disp,zdisp  ! dispersion coefficients 
+real(kind=8),parameter :: disp_FULL = 1d0
 real(kind=8),dimension(nz) :: disp,dispprev  ! dispersion coefficients 
 real(kind=8),dimension(nz) :: cec  ! cation exchange capacity  
 real(kind=8),dimension(nz) :: bs  ! base saturation  
@@ -502,8 +503,11 @@ logical :: season = .false.
 ! logical :: disp_ON = .false.
 logical :: disp_ON = .true.
 
-! logical :: ads_ON = .false.
-logical :: ads_ON = .true.
+logical :: disp_FULL_ON = .false.
+! logical :: disp_FULL_ON = .true.
+
+logical :: ads_ON = .false.
+! logical :: ads_ON = .true.
 
 logical :: ph_limits_dust = .false.
 ! logical :: ph_limits_dust = .true.
@@ -2231,6 +2235,7 @@ if (disp_ON) then
     zdisp = ztot ! assuming dispersion scale = total depth 
 else 
     zdisp = 0d0
+    disp_FULL_ON = .false.
 endif
 ! parameterization by Schulz-Makuch 2005 
 ! for basalt 
@@ -2242,6 +2247,8 @@ c1_disp = 0.51d0
 c_disp = c0_disp*zdisp**c1_disp
 
 disp = c_disp * v
+
+if (disp_FULL_ON) disp = disp_FULL
 
 
 ! ------------ determine calculation scheme for advection (from IMP code)
@@ -2639,6 +2646,8 @@ if (read_data) then
         
     c_disp = c0_disp*zdisp**c1_disp
     disp = c_disp * v
+
+    if (disp_FULL_ON) disp = disp_FULL
     
     do isps = 1,nsp_sld_save
         if (any(chrsld == chrsld_save(isps))) then 
@@ -3173,6 +3182,8 @@ do while (it<nt)
         
         c_disp = c0_disp*zdisp**c1_disp
         disp = c_disp * v
+
+        if (disp_FULL_ON) disp = disp_FULL
         
     endif 
         
@@ -3964,6 +3975,8 @@ do while (it<nt)
         
         c_disp = c0_disp*zdisp**c1_disp
         disp = c_disp * v
+
+        if (disp_FULL_ON) disp = disp_FULL
         
 #ifndef calcw_full
         w(:) = w0 
@@ -8473,7 +8486,7 @@ select case(trim(adjustl(mineral)))
             & )
         ! adding temperature dependence in the form of Q10
         ! kref = 0.01d0/1d0
-        kref = 1d0/0.001d0
+        kref = 1d0/0.0001d0
         tc_ref = 15d0
         q10 = 1d0
         kin = k_q10(kref,tc,tc_ref,q10)
@@ -15599,9 +15612,9 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             
             if (iz==1) caq_tmp_n = caqi_tmp
                 
-            edif_tmp = 1d3*poro(iz)*sat(iz)*tora(iz)*d_tmp
-            edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*tora(min(iz+1,nz))*d_tmp
-            edif_tmp_n = 1d3*poro(max(iz-1,1))*sat(max(iz-1,1))*tora(max(iz-1,1))*d_tmp
+            edif_tmp = 1d3*poro(iz)*sat(iz)*( tora(iz)*d_tmp + disp(iz) )
+            edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*( tora(min(iz+1,nz))*d_tmp + disp(min(iz+1,nz)) )
+            edif_tmp_n = 1d3*poro(max(iz-1,1))*sat(max(iz-1,1))*( tora(max(iz-1,1))*d_tmp + disp(max(iz-1,1)) )
 
             amx3(row,row) = ( &
                 & + (poro(iz)*sat(iz)*1d3*1d0*maqft(ispa,iz))/merge(1d0,dt,dt_norm)  &
@@ -16773,9 +16786,9 @@ do iz = 1, nz
         
         if (iz==1) caq_tmp_n = caqi_tmp
             
-        edif_tmp = 1d3*poro(iz)*sat(iz)*tora(iz)*d_tmp
-        edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*tora(min(iz+1,nz))*d_tmp
-        edif_tmp_n = 1d3*poro(max(iz-1,1))*sat(max(iz-1,1))*tora(max(iz-1,1))*d_tmp
+        edif_tmp = 1d3*poro(iz)*sat(iz)* ( tora(iz)*d_tmp +  disp(iz) )
+        edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*( tora(min(iz+1,nz))*d_tmp + disp(min(iz+1,nz)) )
+        edif_tmp_n = 1d3*poro(max(iz-1,1))*sat(max(iz-1,1))*( tora(max(iz-1,1))*d_tmp + disp(max(iz-1,1))  )
         
         ! attempt to include adsorption 
         if (ads_ON) then 
