@@ -160,6 +160,7 @@ real(kind=8),parameter :: mvamal = 31.956d0 ! cm3/mol; assuming amorphous Al has
 real(kind=8),parameter :: mvgb = 31.956d0 ! cm3/mol; molar volume of Gibsite (Al(OH)3); Robie et al. 1978
 real(kind=8),parameter :: mvct = 108.5d0 ! cm3/mol; molar volume of Chrysotile (Mg3Si2O5(OH)4); Robie et al. 1978
 real(kind=8),parameter :: mvfa = 46.39d0 ! cm3/mol; molar volume of Fayalite (Fe2SiO4); Robie et al. 1978
+real(kind=8),parameter :: mvamfe3 = 20.82d0 ! cm3/mol; assuming amorphous Fe(OH)3 has molar volume of Goethite (FeO(OH)); Robie et al. 1978
 real(kind=8),parameter :: mvgt = 20.82d0 ! cm3/mol; molar volume of Goethite (FeO(OH)); Robie et al. 1978
 real(kind=8),parameter :: mvcabd = 129.77d0 ! cm3/mol; molar volume of Ca-beidellite (Ca(1/6)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
 real(kind=8),parameter :: mvkbd = 134.15d0 ! cm3/mol; molar volume of K-beidellite (K(1/3)Al(7/3)Si(11/3)O10(OH)2); Wolery and Jove-Colon 2004
@@ -249,6 +250,7 @@ real(kind=8),parameter :: mwtamal = 78.004d0 ! g/mol; assuming amorphous Al(OH)3
 real(kind=8),parameter :: mwtgb = 78.004d0 ! g/mol; formula weight of Gb; Robie et al. 1978
 real(kind=8),parameter :: mwtct = 277.113d0 ! g/mol; formula weight of Ct; Robie et al. 1978
 real(kind=8),parameter :: mwtfa = 203.778d0 ! g/mol; formula weight of Fa; Robie et al. 1978
+real(kind=8),parameter :: mwtamfe3 = 88.854d0 ! g/mol; assuming amorphous Fe(OH)3 has formula weight of Gt; Robie et al. 1978
 real(kind=8),parameter :: mwtgt = 88.854d0 ! g/mol; formula weight of Gt; Robie et al. 1978
 real(kind=8),parameter :: mwtcabd = 366.6252667d0 ! g/mol; formula weight of Cabd calculated from atmoic weight
 real(kind=8),parameter :: mwtkbd = 372.9783667d0 ! g/mol; formula weight of Kbd calculated from atmoic weight
@@ -577,10 +579,10 @@ integer,intent(in)::nsp_sld != 5
 integer,parameter::nsp_sld_2 = 0
 #else
 ! integer,parameter::nsp_sld_2 = 23
-integer,parameter::nsp_sld_2 = 23 ! removing dolomite from secondary minerals
+integer,parameter::nsp_sld_2 = 24 ! removing dolomite from secondary minerals
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 68
+integer,parameter::nsp_sld_all = 69
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 11
@@ -886,7 +888,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
-    & ,'sdn  ','cdr  ','leu  ','amal ' &
+    & ,'sdn  ','cdr  ','leu  ','amal ','amfe3' &
     & ,'g1   ','g2   ','g3   ','amnt ' &
     & ,'inrt '/)
 chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
@@ -913,7 +915,8 @@ chrsld_2(:) = '     '
     
 ! version that removes dolomite from 2ndary minerals
 chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3','amal '/) 
+    & ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3','amal '  &
+    & ,'amfe3' /) 
     
 ! version that removes all carbonates from 2ndary minerals
 ! chrsld_2 = (/'ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
@@ -969,13 +972,13 @@ endif
 mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mvkfs,mvom,mvomb,mvamsi &
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
-    & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu,mvamal &
+    & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu,mvamal,mvamfe3 &
     & ,mvg1,mvg2,mvg3,mvamnt  &
     & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
-    & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal &
+    & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal,mvamfe3 &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt &
     & ,mwtinrt/)
 
@@ -1222,6 +1225,8 @@ staq_all(findloc(chrsld_all,'ct',dim=1), findloc(chraq_all,'mg',dim=1)) = 3d0
 ! Fayalite; Fe2SiO4
 staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'fe2',dim=1)) = 2d0
+! Amorphous Fe(OH)3
+staq_all(findloc(chrsld_all,'amfe3',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
 ! Goethite; FeO(OH)
 staq_all(findloc(chrsld_all,'gt',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
 ! Hematite; Fe2O3
@@ -7785,7 +7790,7 @@ select case(trim(adjustl(mineral)))
             & ) 
         dkin_dmsp = 0d0
 
-    case('gt')
+    case('gt','amfe3')
         mh = 0d0
         moh = 0d0
         kinn_ref = 10d0**(-7.94d0)*sec2yr
@@ -8568,6 +8573,13 @@ select case(trim(adjustl(mineral)))
         ha = 22.36d0
         tc_ref = 25d0
         ! from minteq.v4 
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('amfe3')
+        ! Fe(OH)3 + 3 H+ = Fe+3 + 2 H2O
+        therm_ref = 10d0**(4.891d0)
+        ha = 0d0*cal2j
+        tc_ref = 25d0
+        ! from PHREEQC.DAT 
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('gt')
         ! Fe(OH)3 + 3 H+ = Fe+3 + 2 H2O
@@ -11634,7 +11646,7 @@ select case(trim(adjustl(mineral)))
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
         & ,'agt','jd','wls','phsi','splt','casp','ksp','nasp','mgsp','fe2o','mgo','k2o','cao','na2o','al2o3' &
-        & ,'gbas','cbas','ep','clch','sdn','cdr','leu','amal' &
+        & ,'gbas','cbas','ep','clch','sdn','cdr','leu','amal','amfe3' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
