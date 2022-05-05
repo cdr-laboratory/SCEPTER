@@ -746,7 +746,7 @@ integer nsld_nopsd
 character(5),dimension(:),allocatable::chrsld_nopsd ! minerals whose PSDs tracking is not conducted for some reasons (e.g., too fast; mostly precipitating etc.)
 
 character(10),dimension(nsp_sld)::precstyle
-real(kind=8),dimension(nsp_sld,nz)::solmod
+real(kind=8),dimension(nsp_sld,nz)::solmod,fkin
 
 logical,dimension(nsp_sld_all)::cec_pH_depend
 
@@ -1713,6 +1713,7 @@ precstyle = 'def'
 ! precstyle = 'emmanuel' ! enables solubility change by a const factor or as a function of radius, T and interfacial energy (as in Emmanuel and Ague, 2011, Chem Geol)
 
 solmod = 1d0
+fkin   = 1d0
 
 do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
@@ -1726,11 +1727,13 @@ do isps = 1, nsp_sld
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
             ! solmod(isps,:) = 0.05d0 ! assumed factor to be multiplied with omega
+            ! fkin(isps,:) = 0.01d0
         case default 
             precstyle(isps) = 'def'
             ! precstyle(isps) = '2/3'
             ! precstyle(isps) = '2/3noporo'
             ! precstyle(isps) = 'psd_full'
+            ! fkin(isps,:) = 0.01d0
     endselect
 enddo 
 
@@ -3794,7 +3797,7 @@ do while (it<nt)
         & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
         & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
         & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
-        & ,precstyle,solmod &! in 
+        & ,precstyle,solmod,fkin &! in 
         !  old inputs
         & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
@@ -14107,7 +14110,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
     & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
     & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
-    & ,precstyle,solmod &! input
+    & ,precstyle,solmod,fkin &! input
     !  old inputs
     & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
@@ -14324,7 +14327,7 @@ logical::ph_precalc = .true.
 logical,intent(in)::sld_enforce != .true.
 
 character(10),dimension(nsp_sld),intent(in):: precstyle 
-real(kind=8),dimension(nsp_sld,nz),intent(in):: solmod ! factor to modify solubility used only to implement rxn rate law as defined by Emmanuel and Ague, 2011
+real(kind=8),dimension(nsp_sld,nz),intent(in):: solmod,fkin ! factor to modify solubility used only to implement rxn rate law as defined by Emmanuel and Ague, 2011
 real(kind=8) msld_seed ,fact2
 ! real(kind=8):: fact_tol = 1d-3
 real(kind=8):: fact_tol = 1d-4
@@ -14632,8 +14635,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,chrsld(isps),'pro  ' &! input 
                 & ,kin,dkin_dmsp &! output
                 & ) 
-            ksld(isps,:) = kin
-            dksld_dpro(isps,:) = dkin_dmsp
+            ksld(isps,:) = kin              *fkin(isps,:)
+            dksld_dpro(isps,:) = dkin_dmsp  *fkin(isps,:)
             
             do ispa = 1,nsp_aq
                 if (any (chraq_ph == chraq(ispa)) .or. staq(isps,ispa)/=0d0 ) then 
@@ -14643,7 +14646,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         & ,chrsld(isps),chraq(ispa) &! input 
                         & ,kin,dkin_dmsp &! output
                         & ) 
-                    dksld_dmaq(isps,ispa,:) = dkin_dmsp + ( &
+                    dksld_dmaq(isps,ispa,:) = dkin_dmsp *fkin(isps,:) + ( &
                         & dksld_dpro(isps,:)*dprodmaq(ispa,:) &
                         & )
                 endif 
@@ -14657,7 +14660,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         & ,chrsld(isps),chrgas(ispg) &! input 
                         & ,kin,dkin_dmsp &! output
                         & ) 
-                    dksld_dmgas(isps,ispg,:) = dkin_dmsp + ( &
+                    dksld_dmgas(isps,ispg,:) = dkin_dmsp *fkin(isps,:) + ( &
                         & dksld_dpro(isps,:)*dprodmgas(ispg,:) &
                         & )
                 endif 
@@ -16381,7 +16384,7 @@ if (kin_iter) then
             & ,chrsld(isps),'pro  ' &! input 
             & ,kin,dkin_dmsp &! output
             & ) 
-        ksld(isps,:) = kin
+        ksld(isps,:) = kin * fkin(isps,:)
     enddo 
 
 endif 
