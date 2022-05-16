@@ -5170,7 +5170,7 @@ do while (it<nt)
         
         print_cb = .true. 
         print_loc = trim(adjustl(profdir))//'/' &
-            & //'chrge_balance-'//chr//'.txt'
+            & //'charge_balance-'//chr//'.txt'
 
             
         call calc_pH_v7_4( &
@@ -10722,6 +10722,7 @@ real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df1dmgas,d2f1dmgas
 
 logical,intent(in)::print_res
 character(500),intent(in)::print_loc
+character(500)::path_tmp,index_tmp
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
@@ -10734,8 +10735,11 @@ real(kind=8),dimension(nz)::f1_chk,ss_add,back
 
 character(1) chrint
 
+path_tmp = print_loc(:index(print_loc,'.txt')-5)
+index_tmp = print_loc(index(print_loc,'.txt')-4:)
 
 if (print_res) open(88,file = trim(adjustl(print_loc)),status='replace')
+if (print_res) open(99,file = trim(adjustl(path_tmp))//'(eq)'//trim(adjustl(index_tmp)),status='replace')
 
 ipco2 = findloc(chrgas_all,'pco2',dim=1)
 ipnh3 = findloc(chrgas_all,'pnh3',dim=1)
@@ -10779,6 +10783,7 @@ d2f1 = d2f1 + (ss_add+1d0)*ss_add*prox**(ss_add-1d0) &
     & - kw*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0) &
     & + ss_add*(ss_add-1d0)*back*prox**(ss_add-2d0)- ss_add*(ss_add-1d0)*back*prox**(ss_add-2d0)
 if (print_res) write(88,'(3A11)', advance='no') 'z','h', 'oh'
+if (print_res) write(99,'(3A11)', advance='no') 'z','h', 'oh'
 
 ! adding charges coming from aq species in eq with gases
 ! pCO2
@@ -10788,12 +10793,14 @@ d2f1 = d2f1  -  k1*kco2*pco2x*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0)  &
     & -  2d0*k2*k1*kco2*pco2x*(ss_add-2d0)*(ss_add-3d0)*prox**(ss_add-4d0)
 df1dmgas(ipco2,:) = df1dmgas(ipco2,:) -  k1*kco2*1d0*prox**(ss_add-1d0)  -  2d0*k2*k1*kco2*1d0*prox**(ss_add-2d0)
 if (print_res) write(88,'(2A11)', advance='no') 'hco3','co3'
+if (print_res) write(99,'(2A11)', advance='no') 'hco3','co3'
 ! pNH3
 f1 = f1  +  pnh3x*knh3/k1nh3*prox**(ss_add+1d0)
 df1 = df1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*prox**ss_add
 d2f1 = d2f1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*ss_add*prox**(ss_add-1d0)
 df1dmgas(ipnh3,:) = df1dmgas(ipnh3,:)  +  1d0*knh3/k1nh3*prox**(ss_add+1d0)
 if (print_res) write(88,'(A11)', advance='no') 'nh4'
+if (print_res) write(99,'(A11)', advance='no') 'nh4'
 
 do ispa = 1, nsp_aq_all
     
@@ -10806,6 +10813,7 @@ do ispa = 1, nsp_aq_all
         & )
     df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + base_charge(ispa)*1d0*prox**(ss_add) 
     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))
+    if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))
     
     ! account for speces associated with NH4+ (both anions and cations)
     do ispa_nh3 = 1,2
@@ -10834,6 +10842,7 @@ do ispa = 1, nsp_aq_all
             if (print_res) then 
                 write(chrint,'(I1)') ispa_nh3
                 write(88,'(A11)', advance='no') '(nh4)'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
+                write(99,'(A11)', advance='no') '(nh4)'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
             endif 
             
         endif 
@@ -10865,6 +10874,7 @@ do ispa = 1, nsp_aq_all
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_h
                     write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
+                    write(99,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
                 endif 
                 
             endif 
@@ -10892,6 +10902,7 @@ do ispa = 1, nsp_aq_all
                     if (print_res) then 
                         write(chrint,'(I1)') ispa_h
                         write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
+                        write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
                     endif 
                 endif 
             elseif (ispa_h==2) then  ! OxaH- + H+ = OxaH2  
@@ -10912,6 +10923,7 @@ do ispa = 1, nsp_aq_all
                     if (print_res) then 
                         write(chrint,'(I1)') ispa_h-1
                         write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
+                        write(99,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
                     endif 
                     
                 endif 
@@ -10938,6 +10950,7 @@ do ispa = 1, nsp_aq_all
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_h
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
+                    write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
                 endif 
             endif 
         enddo 
@@ -10961,6 +10974,7 @@ do ispa = 1, nsp_aq_all
                         & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-2d0) &
                         & )
                     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(co3)'
+                    if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(co3)'
                 elseif (ispa_c == 2) then ! with HCO3-
                     f1 = f1 + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0)
                     df1 = df1 + ( & 
@@ -10978,6 +10992,7 @@ do ispa = 1, nsp_aq_all
                         & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-1d0) &
                         & )
                     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(hco3)'
+                    if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(hco3)'
                 endif 
             endif 
         enddo 
@@ -11004,6 +11019,7 @@ do ispa = 1, nsp_aq_all
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_s
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(so4)'//trim(adjustl(chrint))
+                    write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(so4)'//trim(adjustl(chrint))
                 endif 
                     
             endif 
@@ -11031,6 +11047,7 @@ do ispa = 1, nsp_aq_all
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_no3
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(no3)'//trim(adjustl(chrint))
+                    write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(no3)'//trim(adjustl(chrint))
                 endif 
                     
             endif 
@@ -11073,6 +11090,7 @@ do ispa = 1, nsp_aq_all
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_oxa
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oxa)'//trim(adjustl(chrint))
+                    write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oxa)'//trim(adjustl(chrint))
                 endif 
                     
             endif 
@@ -11081,27 +11099,32 @@ do ispa = 1, nsp_aq_all
 enddo     
 
 if (print_res) write(88,'(A11)') 'tot_charge'
+if (print_res) write(99,'(A11)') 'tot_charge'
 
 f1_chk = 0d0
 ss_add = 0d0
 if (print_res) then
     do iz = 1, nz
         f1_chk(iz) = f1_chk(iz) + prox(iz)**(ss_add(iz)+1d0) - kw*prox(iz)**(ss_add(iz)-1d0)
-        write(88,'(3E11.3)', advance='no') z(iz),prox(iz), kw/prox(iz)
+        write(88,'(3E25.16)', advance='no') z(iz),prox(iz), kw/prox(iz)
+        write(99,'(3E25.16)', advance='no') z(iz),prox(iz), -kw/prox(iz)
 
         ! adding charges coming from aq species in eq with gases
         ! pCO2
         f1_chk(iz) = f1_chk(iz)  -  k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0) &
             & -  2d0*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
-        write(88,'(2E11.3)', advance='no')    k1*kco2*pco2x(iz)/prox(iz),  k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
+        write(88,'(2E25.16)', advance='no')    k1*kco2*pco2x(iz)/prox(iz),  k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
+        write(99,'(2E25.16)', advance='no')  - k1*kco2*pco2x(iz)/prox(iz), -2d0*k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
         ! pNH3
         f1_chk(iz) = f1_chk(iz)  +  pnh3x(iz)*knh3/k1nh3*prox(iz)**(ss_add(iz)+1d0)
-        write(88,'(E11.3)', advance='no')    pnh3x(iz)*knh3/k1nh3*prox(iz)
+        write(88,'(E25.16)', advance='no')    pnh3x(iz)*knh3/k1nh3*prox(iz)
+        write(99,'(E25.16)', advance='no')    pnh3x(iz)*knh3/k1nh3*prox(iz)
 
         do ispa = 1, nsp_aq_all
             
             f1_chk(iz) = f1_chk(iz) + base_charge(ispa)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz))
-            write(88,'(E11.3)', advance='no') maqf_loc(ispa,iz) 
+            write(88,'(E25.16)', advance='no') maqf_loc(ispa,iz) 
+            write(99,'(E25.16)', advance='no') base_charge(ispa)*maqf_loc(ispa,iz) 
             
             ! account for speces associated with NH4+ (both anions and cations)
             do ispa_nh3 = 1,2
@@ -11110,7 +11133,10 @@ if (print_res) then
                     f1_chk(iz) = f1_chk(iz) &
                         & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
                         & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz))
-                    write(88,'(E11.3)', advance='no') keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                    write(88,'(E25.16)', advance='no') keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**rspa_nh3
+                    write(99,'(E25.16)', advance='no') (base_charge(ispa) + rspa_nh3) &
+                        & *keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
                         & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**rspa_nh3
                 endif 
             enddo 
@@ -11128,7 +11154,9 @@ if (print_res) then
                         rspa_h = real(ispa_h,kind=8)
                         f1_chk(iz) = f1_chk(iz) &
                             & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
-                        write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                        write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                        write(99,'(E25.16)', advance='no') (base_charge(ispa) + rspa_h) &
+                            & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
                     endif 
                 enddo 
             ! oxalic acid 
@@ -11142,7 +11170,9 @@ if (print_res) then
                             f1_chk(iz) = f1_chk(iz) &
                                 & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h) &
                                 &       *maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
-                            write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                            write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                            write(99,'(E25.16)', advance='no') (base_charge(ispa) - rspa_h) &
+                                & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
                         endif 
                     elseif (ispa_h==2)then
                         if ( keqaq_h(ispa,ispa_h) > 0d0) then 
@@ -11150,7 +11180,9 @@ if (print_res) then
                             f1_chk(iz) = f1_chk(iz) &
                                 & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h) &
                                 &       *maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
-                            write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                            write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                            write(99,'(E25.16)', advance='no') (base_charge(ispa) + rspa_h) &
+                                & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
                         endif 
                     endif 
                 enddo 
@@ -11162,7 +11194,9 @@ if (print_res) then
                         rspa_h = real(ispa_h,kind=8)
                         f1_chk(iz) = f1_chk(iz) &
                             & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
-                        write(88,'(E11.3)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                        write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                        write(99,'(E25.16)', advance='no') (base_charge(ispa) - rspa_h) &
+                            & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
                     endif 
                 enddo 
                 ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
@@ -11171,13 +11205,17 @@ if (print_res) then
                         if (ispa_c == 1) then ! with CO3--
                             f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-2d0) &
                                 & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
-                            write(88,'(E11.3)', advance='no') &
+                            write(88,'(E25.16)', advance='no') &
                                 & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0
+                            write(99,'(E25.16)', advance='no') (base_charge(ispa)-2d0) &
+                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0
                         elseif (ispa_c == 2) then ! with HCO3-
                             f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-1d0) &
                                 & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
-                            write(88,'(E11.3)', advance='no') &
+                            write(88,'(E25.16)', advance='no') &
                                 & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)
+                            write(99,'(E25.16)', advance='no') (base_charge(ispa)-1d0) &
+                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)
                         endif 
                     endif 
                 enddo 
@@ -11187,7 +11225,9 @@ if (print_res) then
                         rspa_s = real(ispa_s,kind=8)
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)-2d0*rspa_s) &
                             & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
-                        write(88,'(E11.3)', advance='no') keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s
+                        write(88,'(E25.16)', advance='no') keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s
+                        write(99,'(E25.16)', advance='no') (base_charge(ispa)-2d0*rspa_s) &
+                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s
                     endif 
                 enddo 
                 ! account for complexation with free NO3
@@ -11196,7 +11236,9 @@ if (print_res) then
                         rspa_no3 = real(ispa_no3,kind=8)
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
                             & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
-                        write(88,'(E11.3)', advance='no') keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3
+                        write(88,'(E25.16)', advance='no') keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3
+                        write(99,'(E25.16)', advance='no') (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
+                            & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3
                     endif 
                 enddo 
                 ! account for complexation with Hoxa-
@@ -11212,17 +11254,21 @@ if (print_res) then
                     if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)-rspa_oxa_2) &
                             & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
-                        write(88,'(E11.3)', advance='no') &
+                        write(88,'(E25.16)', advance='no') &
                             & keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3/prox(iz)**rspa_oxa
+                        write(99,'(E25.16)', advance='no') (base_charge(ispa)-rspa_oxa_2) &
+                            & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3/prox(iz)**rspa_oxa
                     endif 
                 enddo 
             endif 
         enddo     
-        write(88,'(E11.3)') f1_chk(iz)
+        write(88,'(E25.16)') f1_chk(iz)
+        write(99,'(E25.16)') f1_chk(iz)
     enddo 
 endif 
 
 if (print_res) close(88)
+if (print_res) close(99)
 
 endsubroutine calc_charge_balance
 
