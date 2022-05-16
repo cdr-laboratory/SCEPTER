@@ -103,7 +103,11 @@ real(kind=8),parameter :: n2c_g1 = 0.1d0 ! N to C ratio for OM-G1; Could be rela
 real(kind=8),parameter :: n2c_g2 = 0.1d0
 real(kind=8),parameter :: n2c_g3 = 0.1d0
 
-real(kind=8),parameter :: oxa2c_g2 = 0.01d0 ! amount of oxlate (C2O4=) released 
+! real(kind=8),parameter :: oxa2c_g2 = 0.01d0 ! amount of oxlate (C2O4=) released (DEF)
+! real(kind=8),parameter :: oxa2c_g2 = 0.5d0 ! amount of oxlate (C2O4=) released  
+! real(kind=8),parameter :: oxa2c_g2 = 0.2d0 ! amount of oxlate (C2O4=) released 
+real(kind=8),parameter :: oxa2c_g2 = 0.1d0 ! amount of oxlate (C2O4=) released  
+! real(kind=8),parameter :: oxa2c_g2 = 0.0d0 ! amount of oxlate (C2O4=) released 
 
 real(kind=8),parameter :: fr_an_ab = 0.0d0 ! Anorthite fraction for albite (Beerling et al., 2020); 0.0 - 0.1
 real(kind=8),parameter :: fr_an_olg = 0.2d0 ! Anorthite fraction for oligoclase (Beerling et al., 2020); 0.1 - 0.3
@@ -493,8 +497,8 @@ logical :: season = .false.
 ! logical :: disp_ON = .false.
 logical :: disp_ON = .true.
 
-! logical :: ads_ON = .false.
-logical :: ads_ON = .true.
+logical :: ads_ON = .false.
+! logical :: ads_ON = .true.
 
 logical :: ph_limits_dust = .false.
 ! logical :: ph_limits_dust = .true.
@@ -2417,6 +2421,7 @@ do iph = 1,nph
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
+        & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
         & ,keqaq_oxa &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -2455,6 +2460,7 @@ call coefs_v2( &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
+    & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -2907,6 +2913,7 @@ call coefs_v2( &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
+    & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -3176,6 +3183,7 @@ do while (it<nt)
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
+        & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
         & ,keqaq_oxa &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -3517,7 +3525,14 @@ do while (it<nt)
                         psu_rain_list = (/ log10(p80), log10(p80),  log10(p80), log10(p80) /)
                         pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
                     else 
-                        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+                        ! psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+                        psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
+                        ! psu_rain_list = (/ log10(5d-6), log10(5d-6),  log10(5d-6), log10(5d-6) /)
+                        ! psu_rain_list = (/ log10(3d-6), log10(3d-6),  log10(3d-6), log10(3d-6) /)
+                        ! psu_rain_list = (/ log10(2d-6), log10(2d-6),  log10(2d-6), log10(2d-6) /)  ! 9 m2/g?
+                        ! psu_rain_list = (/ log10(1.9d-6), log10(1.9d-6),  log10(1.9d-6), log10(1.9d-6) /)
+                        ! psu_rain_list = (/ log10(1.8d-6), log10(1.8d-6),  log10(1.8d-6), log10(1.8d-6) /)  ! for 9.6 m2/g
+                        ! psu_rain_list = (/ log10(1.5d-6), log10(1.5d-6),  log10(1.5d-6), log10(1.5d-6) /)
                         ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
                         ! psu_rain_list = (/ log10(0.1d-6), log10(0.1d-6),  log10(0.1d-6), log10(0.1d-6) /)
                         ! psu_rain_list = (/ log10(0.01d-6), log10(0.01d-6),  log10(0.01d-6), log10(0.01d-6) /)
@@ -6649,6 +6664,7 @@ subroutine coefs_v2( &
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
+    & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -6688,16 +6704,21 @@ real(kind=8),dimension(nsp_sld_all),intent(out)::keqsld_all,keqcec_all
 real(kind=8),dimension(nrxn_ext_all,nz),intent(out)::krxn1_ext_all
 real(kind=8),dimension(nrxn_ext_all,nz),intent(out)::krxn2_ext_all
 
-integer,intent(in)::nsp_gas,nsp_gas_cnst
+integer,intent(in)::nsp_gas,nsp_gas_cnst,nsp_aq,nsp_aq_cnst
 character(5),dimension(nsp_gas),intent(in)::chrgas
 character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
+character(5),dimension(nsp_aq),intent(in)::chraq
+character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
 real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas
 real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
+real(kind=8),dimension(nsp_aq,nz),intent(in)::maq
+real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
 real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
 
 logical,dimension(nsp_sld_all),intent(in)::cec_pH_depend
 
 real(kind=8),dimension(nsp_gas_all,nz)::mgas_loc
+real(kind=8),dimension(nsp_aq_all,nz)::maqf_loc
 real(kind=8),dimension(nsp_aq_all)::base_charge
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
@@ -7149,11 +7170,18 @@ enddo
 ksld_all = 0d0 
 keqsld_all = 0d0
 
-call get_mgasx_all( &
-    & nz,nsp_gas_all,nsp_gas,nsp_gas_cnst &
-    & ,chrgas,chrgas_all,chrgas_cnst &
-    & ,mgas,mgasc &
-    & ,mgas_loc  &! output
+! call get_mgasx_all( &
+    ! & nz,nsp_gas_all,nsp_gas,nsp_gas_cnst &
+    ! & ,chrgas,chrgas_all,chrgas_cnst &
+    ! & ,mgas,mgasc &
+    ! & ,mgas_loc  &! output
+    ! & )
+
+call get_maqgasx_all( &
+    & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
+    & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
+    & ,maq,mgas,maqc,mgasc &
+    & ,maqf_loc,mgas_loc  &! output
     & )
 
 do isps = 1, nsp_sld_all
@@ -7163,6 +7191,7 @@ do isps = 1, nsp_sld_all
     call sld_kin( &
         & nz,rg,tc,sec2yr,tempk_0,pro,kw,kho,mv_tmp &! input
         & ,nsp_gas_all,chrgas_all,mgas_loc &! input
+        & ,nsp_aq_all,chraq_all,maqf_loc &! input
         & ,mineral,'xxxxx' &! input 
         & ,kin,dkin_dmsp &! output
         & ) 
@@ -7289,6 +7318,7 @@ endsubroutine coefs_v2
 subroutine sld_kin( &
     & nz,rg,tc,sec2yr,tempk_0,prox,kw,kho,mv_tmp &! input
     & ,nsp_gas_all,chrgas_all,mgas_loc &! input
+    & ,nsp_aq_all,chraq_all,maqf_loc &! input
     & ,mineral,dev_sp &! input 
     & ,kin,dkin_dmsp &! output
     & ) 
@@ -7304,11 +7334,13 @@ character(5),intent(in)::mineral,dev_sp
 real(kind=8),dimension(nz),intent(out)::kin,dkin_dmsp
 real(kind=8) mh,moh,kinn_ref,kinh_ref,kinoh_ref,ean,eah,eaoh,tc_ref
 
-integer,intent(in)::nsp_gas_all
+integer,intent(in)::nsp_gas_all,nsp_aq_all
 character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgas_loc
+real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 
-real(kind=8),dimension(nz) :: pco2
+real(kind=8),dimension(nz) :: pco2,alf
 real(kind=8) mco2,kinco2_ref,eaco2,q10,kref
 
 ! real(kind=8) k_arrhenius
@@ -8348,7 +8380,7 @@ select case(trim(adjustl(mineral)))
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
             & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
             & ) 
-        ! from Brantley et al. (2008)
+        ! ----- from Brantley et al. (2008)
         mh = 1.16d0
         moh = -0.16d0
         eah = 47.5d0
@@ -8359,16 +8391,39 @@ select case(trim(adjustl(mineral)))
             & kinh_ref *exp(-eah/(rg*(tc+tempk_0)))*prox**mh &
             & + kinoh_ref *exp(-eaoh/(rg*(tc+tempk_0)))*prox**moh &
             & ) 
+        ! ----- from Oelkers and Gislason (2001) & Gislason & Oelkers (2003)
+        alf = maqf_loc(findloc(chraq_all,'al',dim=1),:)
+        eah = 25.5d0 ! from Gislason and Oelkers (2003) (but for geometric surface based equation)
+        tc_ref = 25d0
+        mh = 0.35d0 ! OG01
+        ! mh = 1d0/3d0 ! GO03
+        kinh_ref = 10d0**(-11.64d0)*1d4*sec2yr ! units converted from mol/cm2/sec to mol/m2/yr (OG01)
+        ! kinh_ref = 10d0**(-5.6d0)*1d4/92d0*sec2yr ! units converted from mol/cm2/sec to mol/m2/yr (GO03); 92 is surface roughness
+        kin = (&
+            & k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg)*(prox**3d0/alf)**mh &
+            ! & kinh_ref*exp(-eah/(rg*(tc+tempk_0)))*(prox**3d0/alf)**mh &
+            & )
         select case(trim(adjustl(dev_sp)))
             case('pro')
                 dkin_dmsp = ( & 
                     & + mh*prox**(mh-1d0)*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
                     & + moh*prox**(moh-1d0)*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
                     & ) 
-                ! from Brantley et al. (2008)
+                ! ----- from Brantley et al. (2008)
                 dkin_dmsp = ( &
                     & kinh_ref *exp(-eah/(rg*(tc+tempk_0)))*prox**(mh-1d0)*mh &
                     & + kinoh_ref *exp(-eaoh/(rg*(tc+tempk_0)))*prox**(moh-1d0)*moh &
+                    & ) 
+                ! ----- from Oelkers and Gislason (2001)
+                dkin_dmsp = ( &
+                    & k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg)*prox**(3d0*mh-1d0)*3d0*mh *(1d0/alf)**mh &
+                    ! & kinh_ref*exp(-eah/(rg*(tc+tempk_0)))*prox**(3d0*mh-1d0)*3d0*mh *(1d0/alf)**mh &
+                    & ) 
+            case('al')
+                ! ----- from Oelkers and Gislason (2001)
+                dkin_dmsp = ( &
+                    & k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg)*prox**(3d0*mh)*(-mh) *(1d0/alf)**(mh+1d0) &
+                    ! & kinh_ref*exp(-eah/(rg*(tc+tempk_0)))*prox**(3d0*mh)*(-mh) *(1d0/alf)**(mh+1d0) &
                     & ) 
             case default 
                 dkin_dmsp = 0d0
@@ -14743,6 +14798,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             call sld_kin( &
                 & nz,rg,tc,sec2yr,tempk_0,prox,kw,kho,mv(isps) &! input
                 & ,nsp_gas_all,chrgas_all,mgasx_loc &! input
+                & ,nsp_aq_all,chraq_all,maqx_loc &! input
                 & ,chrsld(isps),'pro  ' &! input 
                 & ,kin,dkin_dmsp &! output
                 & ) 
@@ -14754,6 +14810,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     call sld_kin( &
                         & nz,rg,tc,sec2yr,tempk_0,prox,kw,kho,mv(isps) &! input
                         & ,nsp_gas_all,chrgas_all,mgasx_loc &! input
+                        & ,nsp_aq_all,chraq_all,maqx_loc &! input
                         & ,chrsld(isps),chraq(ispa) &! input 
                         & ,kin,dkin_dmsp &! output
                         & ) 
@@ -14768,6 +14825,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     call sld_kin( &
                         & nz,rg,tc,sec2yr,tempk_0,prox,kw,kho,mv(isps) &! input
                         & ,nsp_gas_all,chrgas_all,mgasx_loc &! input
+                        & ,nsp_aq_all,chraq_all,maqx_loc &! input
                         & ,chrsld(isps),chrgas(ispg) &! input 
                         & ,kin,dkin_dmsp &! output
                         & ) 
@@ -14812,7 +14870,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     ! print *
     ! print *,dksld_dmaq(findloc(chrsld,'ab',dim=1),findloc(chraq,'no3',dim=1),:)
     ! print *
-                   
+               
     ! *** sanity check *** 
     if (any(isnan(ksld)) .or. any(ksld>infinity)) then 
         print *,' *** found insanity in ksld: listing below -- '
@@ -16494,6 +16552,7 @@ if (kin_iter) then
         call sld_kin( &
             & nz,rg,tc,sec2yr,tempk_0,prox,kw,kho,mv(isps) &! input
             & ,nsp_gas_all,chrgas_all,mgasx_loc &! input
+            & ,nsp_aq_all,chraq_all,maqx_loc &! input
             & ,chrsld(isps),'pro  ' &! input 
             & ,kin,dkin_dmsp &! output
             & ) 
