@@ -103,10 +103,10 @@ real(kind=8),parameter :: n2c_g1 = 0.1d0 ! N to C ratio for OM-G1; Could be rela
 real(kind=8),parameter :: n2c_g2 = 0.1d0
 real(kind=8),parameter :: n2c_g3 = 0.1d0
 
-! real(kind=8),parameter :: oxa2c_g2 = 0.01d0 ! amount of oxlate (C2O4=) released (DEF)
+real(kind=8),parameter :: oxa2c_g2 = 0.01d0 ! amount of oxlate (C2O4=) released (DEF)
 ! real(kind=8),parameter :: oxa2c_g2 = 0.5d0 ! amount of oxlate (C2O4=) released  
 ! real(kind=8),parameter :: oxa2c_g2 = 0.2d0 ! amount of oxlate (C2O4=) released 
-real(kind=8),parameter :: oxa2c_g2 = 0.1d0 ! amount of oxlate (C2O4=) released  
+! real(kind=8),parameter :: oxa2c_g2 = 0.1d0 ! amount of oxlate (C2O4=) released  
 ! real(kind=8),parameter :: oxa2c_g2 = 0.0d0 ! amount of oxlate (C2O4=) released 
 
 real(kind=8),parameter :: fr_an_ab = 0.0d0 ! Anorthite fraction for albite (Beerling et al., 2020); 0.0 - 0.1
@@ -497,8 +497,8 @@ logical :: season = .false.
 ! logical :: disp_ON = .false.
 logical :: disp_ON = .true.
 
-logical :: ads_ON = .false.
-! logical :: ads_ON = .true.
+! logical :: ads_ON = .false.
+logical :: ads_ON = .true.
 
 logical :: ph_limits_dust = .false.
 ! logical :: ph_limits_dust = .true.
@@ -3525,8 +3525,8 @@ do while (it<nt)
                         psu_rain_list = (/ log10(p80), log10(p80),  log10(p80), log10(p80) /)
                         pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
                     else 
-                        ! psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
-                        psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
+                        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+                        ! psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
                         ! psu_rain_list = (/ log10(5d-6), log10(5d-6),  log10(5d-6), log10(5d-6) /)
                         ! psu_rain_list = (/ log10(3d-6), log10(3d-6),  log10(3d-6), log10(3d-6) /)
                         ! psu_rain_list = (/ log10(2d-6), log10(2d-6),  log10(2d-6), log10(2d-6) /)  ! 9 m2/g?
