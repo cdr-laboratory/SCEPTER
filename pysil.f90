@@ -512,6 +512,9 @@ logical :: ads_ON = .true.
 logical :: ph_limits_dust = .false.
 ! logical :: ph_limits_dust = .true.
 
+! logical :: aq_close = .false.
+logical :: aq_close = .true.
+
 logical ads_ON_tmp,dust_Off
 
 ! real(kind=8)::z_chk_ph = zsupp
@@ -3328,6 +3331,12 @@ do while (it<nt)
         if (ph_ave > ph_lim) dust_off = .true.
     endif 
     
+    ! when considering static system, dust is given only initial year  
+    dust_off = .false.
+    if (aq_close) then 
+        if (dust_step .and.  time > step_tau) dust_off = .true.
+    endif 
+    
     ! if defined wave function is imposed on dust 
     if (dust_wave) then 
         do isps = 1, nsp_sld
@@ -3349,98 +3358,101 @@ do while (it<nt)
     
     ! non continueous
     if (dust_step) then 
-    
+        
         dust_change = .false.
         
-        ! dust_norm_prev = dust_norm
+        if (.not. dust_off) then 
         
-        if (dt > step_tau) then 
-            dt = step_tau
-            ! go to 100
-        endif 
-        
-        if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
-            continue
-        elseif (step_tau + floor(time) < time  .and.  time + dt >= 1d0 + floor(time)) then 
-            dt = 1d0 + floor(time) - time + step_tau * tol_step_tau 
-            dust_change = .true.
-        elseif (0d0 + floor(time) <= time  .and.  time +dt <= step_tau + floor(time)) then 
-            if (dt > step_tau/10d0) then 
-                dt = step_tau/10d0
+            ! dust_norm_prev = dust_norm
+            
+            if (dt > step_tau) then 
+                dt = step_tau
+                ! go to 100
             endif 
-        elseif (0d0 + floor(time) <= time  .and.  time +dt > step_tau + floor(time)) then 
-            dt = step_tau + floor(time) - time + step_tau * tol_step_tau 
-            if (dt > step_tau/10d0) then 
-                dt = step_tau/10d0
-            endif 
-            ! checking again
-            if (0d0 + floor(time) <= time  .and.  time +dt > step_tau + floor(time)) then 
+            
+            if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
+                continue
+            elseif (step_tau + floor(time) < time  .and.  time + dt >= 1d0 + floor(time)) then 
+                dt = 1d0 + floor(time) - time + step_tau * tol_step_tau 
                 dust_change = .true.
-            endif  
-        endif 
-        
-        ! if (time < step_tau + floor(time)  .and. time + dt >= step_tau + floor(time) ) then 
-            ! if ( ( step_tau + floor(time) - time  ) > step_tau * tol_step_tau ) then 
-                ! dt = step_tau - ( time - floor(time) ) !+ step_tau * tol_step_tau 
-            ! endif 
-            ! if (dt > step_tau/10d0) then 
-                ! dt = step_tau/10d0
-            ! endif 
-        ! elseif (time >= step_tau + floor(time) .and. time + dt >= 1d0 + floor(time) ) then 
-            ! if ( ( 1d0 + floor(time) - time  ) > step_tau * tol_step_tau ) then 
-                ! dt = 1d0 + floor(time)  - time + step_tau * tol_step_tau 
-            ! endif
-        ! endif 
-        
-
-        ! an attempt to use fickian mixing when applying rock powder
-        ! when not applying the powder use the chosen mixing (can be fickian)
-        labs = .false.
-        turbo2 = .false.
-        nobio = .false.
-        till = .false.
-        fick = .false.   
-        ! if (time - floor(time) >= step_tau) then 
-        ! if (time - floor(time) > step_tau) then 
-        ! if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
-        if (step_tau + floor(time) < time  ) then 
-            ! print *, 'no dust time', time 
-            msldsupp = 0d0
-            dust_norm = 0d0
-            ! only implement fickian mixing 
-            fick = .true. 
-            zml = zsupp ! mixed layer depth is common to all solid sp. 
-        ! else 
-        ! elseif (0d0 + floor(time) <= time  .and.  time + dt <= step_tau + floor(time)) then 
-        elseif (0d0 + floor(time) <= time  .and.  time <= step_tau + floor(time)) then 
-            ! print *, 'dust time !!', time 
-            msldsupp = msldsupp/step_tau
-            dust_norm = 1d0/step_tau
-            ! only implement chosen mixing 
-            if (no_biot) nobio = .true.
-            if (biot_turbo2) turbo2 = .true.
-            if (biot_fick) fick = .true.
-            if (biot_labs) labs = .true.
-            if (biot_till) till = .true.
-            zml = zml_ref ! mixed layer depth is the value specified for dust  
-            ! OM is mixed in fickian
-            do isps = 1, nsp_sld
-                if ( rfrc_sld_plant(isps) > 0d0 ) then 
-                    fick(isps) = .true.
-                    nobio(isps) = .false.
-                    labs(isps) = .false.
-                    turbo2(isps) = .false.
-                    till(isps) = .false.
-                    zml(isps) = zsupp
+            elseif (0d0 + floor(time) <= time  .and.  time +dt <= step_tau + floor(time)) then 
+                if (dt > step_tau/10d0) then 
+                    dt = step_tau/10d0
                 endif 
-            enddo
-        else 
-            print *, 'Fatale error in dusting?',time,floor(time),dt,step_tau
-            stop
-        endif 
+            elseif (0d0 + floor(time) <= time  .and.  time +dt > step_tau + floor(time)) then 
+                dt = step_tau + floor(time) - time + step_tau * tol_step_tau 
+                if (dt > step_tau/10d0) then 
+                    dt = step_tau/10d0
+                endif 
+                ! checking again
+                if (0d0 + floor(time) <= time  .and.  time +dt > step_tau + floor(time)) then 
+                    dust_change = .true.
+                endif  
+            endif 
+            
+            ! if (time < step_tau + floor(time)  .and. time + dt >= step_tau + floor(time) ) then 
+                ! if ( ( step_tau + floor(time) - time  ) > step_tau * tol_step_tau ) then 
+                    ! dt = step_tau - ( time - floor(time) ) !+ step_tau * tol_step_tau 
+                ! endif 
+                ! if (dt > step_tau/10d0) then 
+                    ! dt = step_tau/10d0
+                ! endif 
+            ! elseif (time >= step_tau + floor(time) .and. time + dt >= 1d0 + floor(time) ) then 
+                ! if ( ( 1d0 + floor(time) - time  ) > step_tau * tol_step_tau ) then 
+                    ! dt = 1d0 + floor(time)  - time + step_tau * tol_step_tau 
+                ! endif
+            ! endif 
+            
+
+            ! an attempt to use fickian mixing when applying rock powder
+            ! when not applying the powder use the chosen mixing (can be fickian)
+            labs = .false.
+            turbo2 = .false.
+            nobio = .false.
+            till = .false.
+            fick = .false.   
+            ! if (time - floor(time) >= step_tau) then 
+            ! if (time - floor(time) > step_tau) then 
+            ! if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
+            if (step_tau + floor(time) < time  ) then 
+                ! print *, 'no dust time', time 
+                msldsupp = 0d0
+                dust_norm = 0d0
+                ! only implement fickian mixing 
+                fick = .true. 
+                zml = zsupp ! mixed layer depth is common to all solid sp. 
+            ! else 
+            ! elseif (0d0 + floor(time) <= time  .and.  time + dt <= step_tau + floor(time)) then 
+            elseif (0d0 + floor(time) <= time  .and.  time <= step_tau + floor(time)) then 
+                ! print *, 'dust time !!', time 
+                msldsupp = msldsupp/step_tau
+                dust_norm = 1d0/step_tau
+                ! only implement chosen mixing 
+                if (no_biot) nobio = .true.
+                if (biot_turbo2) turbo2 = .true.
+                if (biot_fick) fick = .true.
+                if (biot_labs) labs = .true.
+                if (biot_till) till = .true.
+                zml = zml_ref ! mixed layer depth is the value specified for dust  
+                ! OM is mixed in fickian
+                do isps = 1, nsp_sld
+                    if ( rfrc_sld_plant(isps) > 0d0 ) then 
+                        fick(isps) = .true.
+                        nobio(isps) = .false.
+                        labs(isps) = .false.
+                        turbo2(isps) = .false.
+                        till(isps) = .false.
+                        zml(isps) = zsupp
+                    endif 
+                enddo
+            else 
+                print *, 'Fatale error in dusting?',time,floor(time),dt,step_tau
+                stop
+            endif 
         
         ! not dusting if ph is too high
-        if (dust_off) then 
+        ! if (dust_off) then 
+        elseif (dust_off) then 
             labs = .false.
             turbo2 = .false.
             nobio = .false.
@@ -3818,7 +3830,7 @@ do while (it<nt)
         !  old inputs
         & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend &
+        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close &
         ! old inout
         & ,dt,flgback,w &    
         ! output 
@@ -6675,7 +6687,7 @@ integer,intent(in)::nz
 real(kind=8),intent(in)::rg,rg2,tc,sec2yr,tempk_0
 real(kind=8),dimension(nz),intent(in)::pro
 real(kind=8),dimension(nz)::oh,po2,kin,dkin_dmsp
-real(kind=8) kho,po2th,mv_tmp,therm,ss_x,ss_y,ss_z,ss_tmp,therm_tmp,mwt_tmp
+real(kind=8) kho,po2th,mv_tmp,therm,ss_x,ss_y,ss_z,ss_tmp,therm_tmp,mwt_tmp,visc
 real(kind=8),intent(out)::ucv,kw
 
 ! real(kind=8) k_arrhenius
@@ -6756,6 +6768,11 @@ chrss_cbas_sld = (/'qtz  ','al2o3','na2o ','k2o  ','mgo  ','cao  ','fe2o '/)
 
 ucv = 1.0d0/(rg2*(tempk_0+tc))
 
+! water viscosity (Pa.s) from Likhachev 2003
+visc = 0.000024152d0*EXP(4.7428d0/(tc+tempk_0-139.86d0)/rg)
+! converting Pa.s to centipoise
+visc = 1d3*visc
+
 ! Aq species diffusion from Li and Gregory 1974 except for Si which is based on Rebreanu et al. 2008
 daq_all(findloc(chraq_all,'fe2',dim=1)) = k_arrhenius(1.7016d-2    , 15d0+tempk_0, tc+tempk_0, 19.615251d0, rg)
 daq_all(findloc(chraq_all,'fe3',dim=1)) = k_arrhenius(1.5664d-2    , 15d0+tempk_0, tc+tempk_0, 14.33659d0 , rg)
@@ -6774,12 +6791,13 @@ daq_all(findloc(chraq_all,'cl' ,dim=1)) = k_arrhenius(4.9363501d-2 , 15d0+tempk_
 daq_all(findloc(chraq_all,'oxa',dim=1)) = k_arrhenius(3.114735d-02, 25d0+tempk_0, tc+tempk_0, 20.00000d0  , rg)
 ! acetic acid (Schulz and Zabel, 2006)
 daq_all(findloc(chraq_all,'ac',dim=1)) = k_arrhenius(2.51198D-02 , 15d0+tempk_0, tc+tempk_0, 21.569542d0 , rg)
-! MES taking random value for now
-daq_all(findloc(chraq_all,'mes',dim=1)) = k_arrhenius(2.0000D-02 , 15d0+tempk_0, tc+tempk_0, 20.000000d0 , rg)
-! Imidazole taking random value for now
-daq_all(findloc(chraq_all,'im',dim=1))  = k_arrhenius(2.0000D-02 , 15d0+tempk_0, tc+tempk_0, 20.000000d0 , rg)
-! TriEthanolAmine taking random value for now
-daq_all(findloc(chraq_all,'tea',dim=1))  = k_arrhenius(2.0000D-02 , 15d0+tempk_0, tc+tempk_0, 20.000000d0 , rg)
+! MES ( Othmer and Thakar (1953) equation and molecular volume from solid mes monohydrate )
+daq_all(findloc(chraq_all,'mes',dim=1))  &
+    & = 14d-5 /( visc**1.1d0 * (mv_all(findloc(chrsld_all,'mesmh',dim=1)))**0.6d0 ) * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
+! Imidazole ( Othmer and Thakar (1953) equation and molecular volume from La-Scalea et al. 2005 )
+daq_all(findloc(chraq_all,'im',dim=1))  = 14d-5 /( visc**1.1d0 * (75.3d0)**0.6d0 ) * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
+! TriEthanolAmine ( Othmer and Thakar (1953) equation and molecular volume from La-Scalea et al. 2005 )
+daq_all(findloc(chraq_all,'tea',dim=1)) = 14d-5 /( visc**1.1d0 * (177.3d0)**0.6d0 ) * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
 
 ! --------------------------------- gas diff
 
@@ -6869,21 +6887,42 @@ keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h1) = (10d0**-4.266d0) ! from Lawre
 !  OxaH- + H+ = OxaH2
 keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h2) = 1d0/(10d0**-1.25d0) ! from Lawrence et al., GCA, 2014
 
+! Sikora buffer (consts from Goldberg et al., 2002)
+
 ! AcO- + H+ = AcOH  
 keqaq_h(findloc(chraq_all,'ac',dim=1),ieqaq_h1) =  &
-    & k_arrhenius(10d0**(4.756d0),25d0+tempk_0,tc+tempk_0,0.41d0,rg)  ! from Goldberg et al., 2002
+    & k_arrhenius(10d0**(4.756d0),25d0+tempk_0,tc+tempk_0,0.41d0,rg)  
     
 ! MESH- + H+ = MES  
 keqaq_h(findloc(chraq_all,'mes',dim=1),ieqaq_h1) =  &
-    & k_arrhenius(10d0**(6.270d0),25d0+tempk_0,tc+tempk_0,-14.8d0,rg)  ! from Goldberg et al., 2002
+    & k_arrhenius(10d0**(6.270d0),25d0+tempk_0,tc+tempk_0,-14.8d0,rg)  
     
 ! Imidazole + H+ = Imidazole+  
 keqaq_h(findloc(chraq_all,'im',dim=1),ieqaq_h1) =  &
-    & k_arrhenius(10d0**(6.993d0),25d0+tempk_0,tc+tempk_0,-36.64d0,rg)  ! from Goldberg et al., 2002
+    & k_arrhenius(10d0**(6.993d0),25d0+tempk_0,tc+tempk_0,-36.64d0,rg) 
     
 ! TEA + H+ = TEA+  
 keqaq_h(findloc(chraq_all,'tea',dim=1),ieqaq_h1) =  &
-    & k_arrhenius(10d0**(7.762d0),25d0+tempk_0,tc+tempk_0,-33.6d0,rg)  ! from Goldberg et al., 2002
+    & k_arrhenius(10d0**(7.762d0),25d0+tempk_0,tc+tempk_0,-33.6d0,rg)  
+
+
+! Sikora buffer (consts at 25oC from Sikora 2006 with temperature dependence remaining from Goldberg)
+
+! AcO- + H+ = AcOH  
+keqaq_h(findloc(chraq_all,'ac',dim=1),ieqaq_h1) =  &
+    & k_arrhenius(10d0**(4.48d0),25d0+tempk_0,tc+tempk_0,0.41d0,rg)  
+    
+! MESH- + H+ = MES  
+keqaq_h(findloc(chraq_all,'mes',dim=1),ieqaq_h1) =  &
+    & k_arrhenius(10d0**(6.18d0),25d0+tempk_0,tc+tempk_0,-14.8d0,rg)  
+    
+! Imidazole + H+ = Imidazole+  
+keqaq_h(findloc(chraq_all,'im',dim=1),ieqaq_h1) =  &
+    & k_arrhenius(10d0**(7.10d0),25d0+tempk_0,tc+tempk_0,-36.64d0,rg) 
+    
+! TEA + H+ = TEA+  
+keqaq_h(findloc(chraq_all,'tea',dim=1),ieqaq_h1) =  &
+    & k_arrhenius(10d0**(8.09d0),25d0+tempk_0,tc+tempk_0,-33.6d0,rg)  
 
 ! ----------------
 
@@ -7088,7 +7127,22 @@ do isps = 1, nsp_sld_all
         case('inrt')
             ! keqcec_all(isps) = 3000d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
             ! keqcec_all(isps) = 300d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            keqcec_all(isps) = 16d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            keqcec_all(isps) = 512d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 256d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 128d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 64d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 48d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 32d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 16d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 10d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 8d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 6d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 4d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 1d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 0.5d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 0.1d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
+            ! keqcec_all(isps) = 0.d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
             ! keqcec_all(isps) = 80d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
             ! keqcec_all(isps) = 300d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
             ! keqcec_all(isps) = 160.2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
@@ -14294,7 +14348,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     !  old inputs
     & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend & 
+    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close & 
     ! old inout
     & ,dt,flgback,w &    
     ! output 
@@ -14507,6 +14561,9 @@ logical::ph_precalc = .true.
 ! logical::sld_enforce = .false.
 logical,intent(in)::sld_enforce != .true.
 
+! logical::aq_close = .false.
+logical,intent(in)::aq_close != .true.
+
 character(10),dimension(nsp_sld),intent(in):: precstyle 
 real(kind=8),dimension(nsp_sld,nz),intent(in):: solmod ! factor to modify solubility used only to implement rxn rate law as defined by Emmanuel and Ague, 2011
 real(kind=8) msld_seed ,fact2
@@ -14517,6 +14574,7 @@ real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 ! real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
 ! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
 real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
+real(kind=8):: flx_max_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
 
 real(kind=8):: sat_lim_prec = 1d50 ! maximum value of saturation state for minerals that can precipitate 
@@ -15610,7 +15668,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             rxn_tmp = sum(staq(:,ispa)*rxnsld(:,iz))
             drxndisp_tmp = sum(staq(:,ispa)*drxnsld_dmaq(:,ispa,iz))
             
-            if (iz==1) caq_tmp_n = caqi_tmp
+            if (iz==1 .and. (.not. aq_close) ) caq_tmp_n = caqi_tmp
                 
             edif_tmp = 1d3*poro(iz)*sat(iz)*( tora(iz)*d_tmp + disp(iz) )
             edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*( tora(min(iz+1,nz))*d_tmp + disp(min(iz+1,nz)) )
@@ -15621,12 +15679,14 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & + (poro(iz)*sat(iz)*1d3*maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz))/merge(1d0,dt,dt_norm)  &
                 & -(0.5d0*(edif_tmp +edif_tmp_p) &
                 &   *merge(0d0,-1d0*maqft(ispa,iz),iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
-                & -0.5d0*(edif_tmp +edif_tmp_n)*(1d0*maqft(ispa,iz))/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
+                & -0.5d0*(edif_tmp +edif_tmp_n) &
+                &   *merge(0d0,1d0*maqft(ispa,iz),iz==1 .and. aq_close)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
                 & *merge(dt,1d0,dt_norm) &
                 & -(0.5d0*(edif_tmp +edif_tmp_p) &
                 &   *merge(0d0,-maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz),iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
                 & -0.5d0*(edif_tmp +edif_tmp_n) &
-                &   *(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz))/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
+                &   *merge(0d0,maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz),iz==1 .and. aq_close)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) )) &
+                &       /dz(iz) &
                 & *merge(dt,1d0,dt_norm) &
                 & + poro(iz)*sat(iz)*1d3*v(iz)*(1d0*maqft(ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                 & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
@@ -15701,7 +15761,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     & -(0.5d0*(edif_tmp +edif_tmp_p) &
                     &   *merge(0d0,-maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz),iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
                     & -0.5d0*(edif_tmp +edif_tmp_n) & 
-                    &   *(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz))/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
+                    &   * merge(0d0,maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz),iz==1 .and. aq_close) &
+                    &   /( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
                     & *merge(dt,1d0,dt_norm) &
                     & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & - sum(staq(:,ispa)*drxnsld_dmaq(:,ispa2,iz))*merge(dt,1d0,dt_norm) &
@@ -15744,7 +15805,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     & -(0.5d0*(edif_tmp +edif_tmp_p) &
                     &   *merge(0d0,-maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz),iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
                     & -0.5d0*(edif_tmp +edif_tmp_n) &
-                    &   *(maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz))/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
+                    &   * merge(0d0,maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz),iz==1 .and. aq_close) &
+                    &   /( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
                     &   *merge(dt,1d0,dt_norm) &
                     & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & - sum(staq(:,ispa)*drxnsld_dmgas(:,ispg,iz))*merge(dt,1d0,dt_norm) &
@@ -16784,7 +16846,7 @@ do iz = 1, nz
         rxn_ext_tmp = sum(staq_ext(:,ispa)*rxnext(:,iz))
         rxn_tmp = sum(staq(:,ispa)*rxnsld(:,iz))
         
-        if (iz==1) caq_tmp_n = caqi_tmp
+        if (iz==1 .and. (.not.aq_close) ) caq_tmp_n = caqi_tmp
             
         edif_tmp = 1d3*poro(iz)*sat(iz)* ( tora(iz)*d_tmp +  disp(iz) )
         edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*( tora(min(iz+1,nz))*d_tmp + disp(min(iz+1,nz)) )
@@ -17162,6 +17224,8 @@ if (chkflx .and. dt > dt_th) then
         flx_max_max = max(flx_max_max,flx_max)
     enddo 
     
+    if (aq_close .and. flx_max_max < flx_max_max_tol) return
+    
     if (.not.sld_enforce) then 
         do isps = 1, nsp_sld
 
@@ -17171,13 +17235,17 @@ if (chkflx .and. dt > dt_th) then
             enddo 
             
             if (flx_max/flx_max_max > flx_max_tol .and.  abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > flx_tol ) then 
-                print *, 'too large error in mass balance of sld phases'
-                print *,'sp | flx that raised the flag | flx_max  | flx_tol'
-                print *,chrsld(isps),abs(sum(flx_sld(isps,ires,:)*dz)),flx_max,flx_tol
-                write(chrfmt,'(i0)') nflx
-                chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
                 print *
-                print *, trim(adjustl(chrsld(isps))), (sum(flx_sld(isps,iflx,:)*dz(:)),iflx=1,nflx)
+                print *, '*** too large error in mass balance of sld phases'
+                print *,'sp          = ',chrsld(isps)
+                print *,'flx_max_tol = ',  flx_max_tol
+                print *,'flx_max_max = ',  flx_max_max
+                print *,'flx_max     = ',  flx_max
+                print *
+                do iflx=1,nflx
+                    print *, chrflx(iflx)//'       = ', sum(flx_sld(isps,iflx,:)*dz(:))
+                enddo
+                print *
                 ! pause
                 flgback = .true.
                 return
@@ -17205,13 +17273,17 @@ if (chkflx .and. dt > dt_th) then
         enddo 
         
         if (flx_max/flx_max_max > flx_max_tol  .and. abs(sum(flx_aq(ispa,ires,:)*dz))/flx_max > flx_tol ) then 
-            print *, 'too large error in mass balance of aq phases'
-            print *,'sp | flx that raised the flag | flx_max  | flx_tol' 
-            print *,chraq(ispa),abs(sum(flx_aq(ispa,ires,:)*dz)),flx_max,flx_tol
-            write(chrfmt,'(i0)') nflx
-            chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
             print *
-            print *, trim(adjustl(chraq(ispa))), (sum(flx_aq(ispa,iflx,:)*dz(:)),iflx=1,nflx)
+            print *, '*** too large error in mass balance of aq phases'
+            print *,'sp          = ',chraq(ispa)
+            print *,'flx_max_tol = ',  flx_max_tol
+            print *,'flx_max_max = ',  flx_max_max
+            print *,'flx_max     = ',  flx_max
+            print *
+            do iflx=1,nflx
+                print *, chrflx(iflx)//'       = ', sum(flx_aq(ispa,iflx,:)*dz(:))
+            enddo
+            print *
             ! pause
             flgback = .true.
             return
@@ -17238,9 +17310,17 @@ if (chkflx .and. dt > dt_th) then
         enddo 
         
         if (flx_max/flx_max_max > flx_max_tol  .and. abs(sum(flx_gas(ispg,ires,:)*dz))/flx_max > flx_tol ) then 
-            print *, 'too large error in mass balance of gas phases'
-            print *,'sp | flx that raised the flag | flx_max  | flx_tol' 
-            print *,chrgas(ispg),abs(sum(flx_gas(ispg,ires,:)*dz)),flx_max,flx_tol
+            print *
+            print *, '*** too large error in mass balance of gas phases'
+            print *,'sp          = ',chrgas(ispg)
+            print *,'flx_max_tol = ',  flx_max_tol
+            print *,'flx_max_max = ',  flx_max_max
+            print *,'flx_max     = ',  flx_max
+            print *
+            do iflx=1,nflx
+                print *, chrflx(iflx)//'       = ', sum(flx_gas(ispg,iflx,:)*dz(:))
+            enddo
+            print *
             ! pause
             flgback = .true.
             return
