@@ -760,6 +760,10 @@ character(5),dimension(:),allocatable::chrsld_sa
 real(kind=8) time_pbe,dt_pbe,dt_save
 integer nsld_nopsd
 character(5),dimension(:),allocatable::chrsld_nopsd ! minerals whose PSDs tracking is not conducted for some reasons (e.g., too fast; mostly precipitating etc.)
+! attempting to calculate cec when not using default values 
+integer nsld_cec
+character(5),dimension(:),allocatable::chrsld_cec
+real(kind=8),dimension(nsp_sld_all):: mcec_all,mcec_all_def
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod
@@ -1772,6 +1776,23 @@ call get_base_charge( &
     & ,base_charge_all &! output 
     & )
 
+! detault cec
+mcec_all_def = 0d0
+do isps=1,nsp_sld_all
+    select case(trim(adjustl(chrsld_all(isps))))
+        case('ka')
+            mcec_all_def(isps) = 16.2d0 ! 16.2 cmol/kg (from Beerling et al. 2020)
+        case('inrt')
+            mcec_all_def(isps) = 0d0 
+        case('cabd','mgbd','kbd','nabd') 
+            mcec_all_def(isps) = 70d0 !  70 cmol/kg (from Parfitt et al. 1996)
+        case('g1','g2','g3')
+            mcec_all_def(isps) = 330d0 ! 330 cmol/kg (from Parfitt et al. 1996)
+        case default 
+            mcec_all_def(isps) = 0d0
+    endselect
+enddo 
+
 do ispa = 1, nsp_aq    
     if (any(chraq_all == chraq(ispa))) base_charge(ispa) = base_charge_all(findloc(chraq_all,chraq(ispa),dim=1))
 enddo 
@@ -2190,6 +2211,18 @@ do isps = 1, nsp_sld
     hri(isps,:) = 1d0/hrii(isps)
 enddo
 
+! getting user-defined cec
+
+call get_cec_num(nsld_cec)
+
+if (allocated(chrsld_cec)) deallocate(chrsld_cec)
+allocate(chrsld_cec(nsld_cec))
+
+call get_cec( &
+    & nsp_sld_all,chrsld_all,mcec_all_def,nsld_cec &! input
+    & ,mcec_all,chrsld_cec &! output
+    & )
+
 
 call get_nopsd_num(nsld_nopsd)
 
@@ -2442,7 +2475,7 @@ do iph = 1,nph
     pro = 10d0**(0d0 + (iph-1d0)/(nph-1d0)*(-14d0))
     
     call coefs_v2( &
-        & nz,rg,rg2,25d0,sec2yr,tempk_0,pro,cec_pH_depend &! input
+        & nz,rg,rg2,25d0,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -2470,7 +2503,7 @@ chrsld_kinspc = chrsld_kinspc_in
 kin_sld_spc = kin_sld_spc_in
     
 call coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -2920,7 +2953,7 @@ if (read_data) then
 endif
     
 call coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -3191,7 +3224,7 @@ do while (it<nt)
     endif 
         
     call coefs_v2( &
-        & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend &! input
+        & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -6555,6 +6588,70 @@ endsubroutine get_sa
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine get_cec_num(nsld_cec_dum)
+implicit none
+
+integer,intent(out):: nsld_cec_dum
+
+character(500) file_name
+integer n_tmp
+
+file_name = './cec.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+nsld_cec_dum = n_tmp
+
+
+endsubroutine get_cec_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_cec( &
+    & nsp_sld_all,chrsld_all,mcec_def,nsld_cec &! input
+    & ,mcec,chrsld_cec_dum &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld_all,nsld_cec
+character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
+character(5),dimension(nsld_cec),intent(out)::chrsld_cec_dum
+real(kind=8),dimension(nsp_sld_all),intent(in)::mcec_def
+real(kind=8),dimension(nsp_sld_all),intent(out)::mcec
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i
+
+file_name = './cec.in'
+! in default 
+mcec = mcec_def
+
+if (nsld_cec <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,nsld_cec
+    read(50,*) chr_tmp,val_tmp
+    chrsld_cec_dum(i) = chr_tmp
+    if (any(chrsld_all == chr_tmp)) then 
+        mcec(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp
+    endif 
+enddo 
+close(50)
+
+
+endsubroutine get_cec
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine get_nopsd_num(nsld_nopsd_dum)
 implicit none
 
@@ -6672,7 +6769,7 @@ endsubroutine makegrid
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -6709,7 +6806,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_nh3
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_oxa
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_cl
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::ksld_all
-real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all,mwt_all
+real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all,mwt_all,mcec_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(out)::keqiex_all
 real(kind=8),dimension(nsp_sld_all),intent(out)::keqsld_all,keqcec_all
@@ -6760,6 +6857,8 @@ character(5) mineral,ssaq,sssld,aqsp
 character(5),dimension(7):: chrss_gbas_aq,chrss_cbas_aq
 character(5),dimension(7):: chrss_gbas_sld,chrss_cbas_sld
 logical zero_cec
+
+real(kind=8),parameter::mcec_threshold = 0d0
 
 chrss_gbas_aq  = (/'si   ','al   ','na   ','k    ','mg   ','ca   ','fe2  '/)
 chrss_cbas_aq  = (/'si   ','al   ','na   ','k    ','mg   ','ca   ','fe2  '/)
@@ -7116,55 +7215,17 @@ do isps = 1, nsp_sld_all
     ! exchange capacity in (eq)mol / mineral mol 
     
     mwt_tmp = mwt_all(isps)
-    mineral = chrsld_all(isps)
     zero_cec = .false.
-    selectcase (trim(adjustl(mineral))) 
-        
-        case('ka')
-            keqcec_all(isps) = 16.2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-                & *mwt_tmp  ! mol/g converted to mol/mol using molar weigtht g/mol
-        
-        case('inrt')
-            ! keqcec_all(isps) = 3000d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 300d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            keqcec_all(isps) = 512d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 256d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 128d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 64d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 48d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 32d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 16d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 10d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 8d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 6d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 4d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 1d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 0.5d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 0.1d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 0.d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 80d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 300d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-            ! keqcec_all(isps) = 160.2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-                & *mwt_tmp  ! mol/g converted to mol/mol using molar weigtht g/mol
-        
-        case('cabd','mgbd','kbd','nabd')
-            keqcec_all(isps) = 70d-2/1d3 &! 70 cmol/kg (from Parfitt et al. 1996) converted mol/g
-            ! keqcec_all(isps) = 16.2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-                & *mwt_tmp  ! mol/g converted to mol/mol using molar weigtht g/mol
-                
-        case('g1','g2','g3')
-            ! keqcec_all(isps) = 221d-2/1d3 &! 221 cmol/kg (from Parfitt et al. 1996) converted mol/g
-            keqcec_all(isps) = 330d-2/1d3 &! 330 cmol/kg (from Parfitt et al. 1996) converted mol/g
-            ! keqcec_all(isps) = 16.2d-2/1d3 &! 16.2 cmol/kg (from Beerling et al. 2020) converted mol/g
-                & *mwt_tmp  ! mol/g converted to mol/mol using molar weigtht g/mol
-            
-        case default 
-            ! do nothing 
-            zero_cec = .true.
-            continue 
-            
-    endselect 
+    
+    if ( mcec_all(isps) >= mcec_threshold ) then 
+        keqcec_all(isps) = (    &
+            & mcec_all(isps)    &! cmol/kg
+            & *1d-2/1d3         &! mol/g
+            & *mwt_tmp          &! mol/mol with molar weight g/mol
+            & )
+    else 
+        zero_cec = .true.
+    endif 
     
     if (.not.zero_cec) then
         ! half exchange reaction (cf. Turner et al. GCA 1996 Sect 4.1) 
@@ -12508,12 +12569,11 @@ do isps = 1, nsp_sld_all
     
     if (keqcec_all(isps) == 0d0) cycle
     
-    select case(trim(adjustl(chrsld_all(isps))))
-        case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
-            ! do nothing 
-        case default 
-            cycle
-    endselect 
+    ! select case(trim(adjustl(chrsld_all(isps))))
+        ! case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
+        ! case default 
+            ! cycle
+    ! endselect 
     
     a = 0d0
     da_dpro = 0d0
@@ -12611,12 +12671,11 @@ do ispa=1,nsp_aq_all
                 
                 if (keqcec_all(isps) == 0d0) cycle
 
-                select case(trim(adjustl(chrsld_all(isps))))
-                    case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
-                        ! do nothing 
-                    case default 
-                        cycle
-                endselect 
+                ! select case(trim(adjustl(chrsld_all(isps))))
+                    ! case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
+                    ! case default 
+                        ! cycle
+                ! endselect 
                 
                 if (cec_pH_depend(isps)) then
                         
@@ -12657,12 +12716,11 @@ do ispa=1,nsp_aq_all
             do isps=1,nsp_sld_all
                 if (keqcec_all(isps) == 0d0) cycle
 
-                select case(trim(adjustl(chrsld_all(isps))))
-                    case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
-                        ! do nothing 
-                    case default 
-                        cycle
-                endselect 
+                ! select case(trim(adjustl(chrsld_all(isps))))
+                    ! case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt') 
+                    ! case default 
+                        ! cycle
+                ! endselect 
                 
                 if (cec_pH_depend(isps)) then
                     
