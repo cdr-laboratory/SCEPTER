@@ -585,6 +585,7 @@ integer,parameter::nsp_sld_2 = 0
 ! integer,parameter::nsp_sld_2 = 23
 integer,parameter::nsp_sld_2 = 24 ! removing dolomite from secondary minerals
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
+! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
 #endif 
 integer,parameter::nsp_sld_all = 69
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
@@ -925,6 +926,11 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
 ! version that removes all carbonates from 2ndary minerals
 ! chrsld_2 = (/'ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
     ! ,'qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
+    
+! version that removes all base-cation bearer from 2ndary minerals
+! chrsld_2 = (/'ka   ','gb   ','ct   ','gt   ','amsi ','hm   ','gps  '  &
+    ! & ,'qtz  ','al2o3','amal '  &
+    ! & ,'amfe3' /) 
 #endif 
 ! below are species which are sensitive to pH 
 chraq_ph = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  '/)
