@@ -7350,6 +7350,10 @@ do isps = 1, nsp_sld_all
                         ! X = 0.902 - 5.9 = -4.998
                         keqiex_all(isps,ispa) = 10d0**(-4.998d0)
                         ! the 'activity coefficient' term 10**(3.4 * f[X-H]) will be added when calculating f[X-H]
+                        ! according to PHREEQC.DAT log KK\Na = 0.7 and X = 0.7 - 5.9 = -5.2
+                        keqiex_all(isps,ispa) = 10d0**(-5.2d0)
+                        keqiex_all(isps,ispa) = 10d0**(-5.9d0) ! assuming Na
+                        keqiex_all(isps,ispa) = 10d0**(-6.9d0)
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.10d0)
                         keqiex_all(isps,ispa) = 10d0**(0.902d0)
@@ -13085,7 +13089,9 @@ real(kind=8) error
 ! logical :: low_lim_ON = .true.
 logical :: low_lim_ON = .false. 
 ! logical :: beta_ON = .true. 
-logical :: beta_ON = .false. 
+logical :: beta_ON = .false.  
+logical :: gamma_ON = .true. 
+! logical :: gamma_ON = .false. 
 
 ! (1) First getting fraction of negatively charged sites occupied with H+ (f[X-H]) (defined as msldf_loc)
 ! 1 = f[X-H]*beta + f[X-Na] + f[X-K] + f[X2-Ca] + f[X2-Mg] + f[X3-Mg]
@@ -13149,6 +13155,11 @@ do isps = 1, nsp_sld_all
         
         gamma = 10d0**(3.4d0*x)
         dgamma = 10d0**(3.4d0*x)*3.4d0*log(10d0)
+        
+        if (.not. gamma_ON) then
+            gamma = 10d0**(3.4d0*0.005d0)
+            dgamma = 0d0
+        endif 
         
         beta = 10d0**( -3.4d0*( 1d0 - x )  ) 
         dbeta = 10d0**( -3.4d0*( 1d0 - x )  ) *(3.4d0)*log(10d0)
@@ -13242,6 +13253,14 @@ do isps = 1, nsp_sld_all
         do ispa=1,nsp_aq_all
             dgamma_dmaqf(isps,ispa,:) = dgamma_dmsldf(isps,:) * dmsldf_dmaqf(isps,ispa,:)
         enddo
+        
+        if (.not. gamma_ON) then 
+            gamma_loc(isps,:) = 10d0**(3.4d0*0.005d0)
+            dgamma_dmsldf(isps,:) = 0d0
+            dgamma_dpro(isps,:) = 0d0
+            dgamma_dmsld(isps,:) = 0d0
+            dgamma_dmaqf(isps,:,:) = 0d0
+        endif 
         
         beta_loc(isps,:) = 10d0**(-3.4d0* (1d0 -  x ) )  
         
