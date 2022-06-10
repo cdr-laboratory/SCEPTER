@@ -7353,7 +7353,8 @@ do isps = 1, nsp_sld_all
                         ! according to PHREEQC.DAT log KK\Na = 0.7 and X = 0.7 - 5.9 = -5.2
                         keqiex_all(isps,ispa) = 10d0**(-5.2d0)
                         keqiex_all(isps,ispa) = 10d0**(-5.9d0) ! assuming Na
-                        keqiex_all(isps,ispa) = 10d0**(-6.9d0)
+                        keqiex_all(isps,ispa) = 10d0**(-6.9d0) ! assuming Na in seawater
+                        keqiex_all(isps,ispa) = 10d0**(-4.8d0) ! log KK\Na = 1.10 
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.10d0)
                         keqiex_all(isps,ispa) = 10d0**(0.902d0)
@@ -7378,6 +7379,7 @@ do isps = 1, nsp_sld_all
                         ! X = 0.307*2 - 5.9*2 = -11.186
                         keqiex_all(isps,ispa) = 10d0**(-11.186d0)
                         ! the 'activity coefficient' term 10**(2*3.4 * f[X-H]) will be added when calculating f[X-H]
+                        keqiex_all(isps,ispa) = 10d0**(-10.786d0)  ! log KMg\Na = 0.507 
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.014d0)
                         keqiex_all(isps,ispa) = 10d0**(0.614d0)
@@ -7402,6 +7404,7 @@ do isps = 1, nsp_sld_all
                         ! X = 0.465*2 - 5.9*2 = -10.87
                         keqiex_all(isps,ispa) = 10d0**(-10.87d0)
                         ! the 'activity coefficient' term 10**(2*3.4 * f[X-H]) will be added when calculating f[X-H]
+                        keqiex_all(isps,ispa) = 10d0**(-10.47d0) ! log KCa\Na = 0.665  
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.33d0)
                         keqiex_all(isps,ispa) = 10d0**(0.93d0)
@@ -13090,8 +13093,8 @@ real(kind=8) error
 logical :: low_lim_ON = .false. 
 ! logical :: beta_ON = .true. 
 logical :: beta_ON = .false.  
-logical :: gamma_ON = .true. 
-! logical :: gamma_ON = .false. 
+! logical :: gamma_ON = .true. 
+logical :: gamma_ON = .false. 
 
 ! (1) First getting fraction of negatively charged sites occupied with H+ (f[X-H]) (defined as msldf_loc)
 ! 1 = f[X-H]*beta + f[X-Na] + f[X-K] + f[X2-Ca] + f[X2-Mg] + f[X3-Mg]
