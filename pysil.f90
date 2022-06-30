@@ -521,8 +521,8 @@ logical :: ads_ON = .true.
 logical :: ph_limits_dust = .false.
 ! logical :: ph_limits_dust = .true.
 
-! logical :: aq_close = .false.
-logical :: aq_close = .true.
+logical :: aq_close = .false.
+! logical :: aq_close = .true.
 
 logical ads_ON_tmp,dust_Off
 
@@ -1794,8 +1794,8 @@ do isps = 1, nsp_sld
             precstyle(isps) = 'decay'
         case('cc','arg') ! added to change solubility 
             precstyle(isps) = 'def'
-            precstyle(isps) = 'emmanuel'
-            solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
+            ! precstyle(isps) = 'emmanuel'
+            ! solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
         case('casp','ksp','nasp','mgsp')
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
@@ -6937,6 +6937,7 @@ character(5),dimension(7):: chrss_gbas_sld,chrss_cbas_sld
 logical zero_cec
 
 real(kind=8),parameter::mcec_threshold = 0d0
+real(kind=8) keqiex_prona
 
 chrss_gbas_aq  = (/'si   ','al   ','na   ','k    ','mg   ','ca   ','fe2  '/)
 chrss_cbas_aq  = (/'si   ','al   ','na   ','k    ','mg   ','ca   ','fe2  '/)
@@ -7309,6 +7310,24 @@ do isps = 1, nsp_sld_all
         ! half exchange reaction (cf. Turner et al. GCA 1996 Sect 4.1) 
         ! Na+(aq) + X- = NaX 
         ! keqiex_all(findloc(chrsld_all,'ka',dim=1),findloc(chraq_all,'na',dim=1)) = 1d10
+        ! 
+        keqiex_prona = 5.9d0 ! log KH\Na default from Appelo 1994
+        ! keqiex_prona = 6.7d0 ! log KH\Na random test
+        keqiex_prona = 8.0d0 ! log KH\Na random test
+        keqiex_prona = 7.8d0 ! log KH\Na random test
+        keqiex_prona = 7.0d0 ! log KH\Na random test
+        ! keqiex_prona = 7.2d0 ! log KH\Na random test
+        ! keqiex_prona = 6.5d0 ! log KH\Na random test
+        ! keqiex_prona = 6.0d0 ! log KH\Na random test
+        keqiex_prona = 5.5d0 ! log KH\Na random test
+        ! keqiex_prona = keqiex_prona - keqiex_prona *0.5d0* mcec_all(isps)/100d0 ! assume log KH\Na decreases with CEC
+        if (mcec_all(isps) < 100d0) then
+            ! keqiex_prona = keqiex_prona + keqiex_prona *0.5d0* mcec_all(isps)/100d0 ! assume log KH\Na decreases with CEC
+            ! keqiex_prona = keqiex_prona + keqiex_prona *1.0d0* mcec_all(isps)/100d0 ! assume log KH\Na decreases with CEC
+            keqiex_prona = keqiex_prona + keqiex_prona *1.5d0* mcec_all(isps)/100d0 ! assume log KH\Na decreases with CEC
+            ! keqiex_prona = keqiex_prona + keqiex_prona *0.5d0* mcec_all(isps)/200d0 ! assume log KH\Na decreases with CEC
+        endif 
+        ! 
         do ispa=1,nsp_aq_all
             aqsp = chraq_all(ispa)
             selectcase(trim(adjustl(aqsp)))
@@ -7321,7 +7340,8 @@ do isps = 1, nsp_sld_all
                         ! [X-Na] = K * [Na+] * [X-H] / [H+]
                         keqiex_all(isps,ispa) = 10d0**(-5.883d0)
                         ! from log KH\Na = 5.883 in Appeolo (1994)
-                        keqiex_all(isps,ispa) = 10d0**(-5.9d0)
+                        ! keqiex_all(isps,ispa) = 10d0**(-5.9d0)
+                        keqiex_all(isps,ispa) = 10d0**(-keqiex_prona)
                         ! from log KH\Na = 5.9 - 3.4 * f[X-H] in Appeolo (1994)
                         ! log KNa\H = 3.4 * f[X-H] - 5.9 
                         ! the 'activity coefficient' term 10**(3.4 * f[X-H]) will be added when calculating f[X-H]
@@ -7355,6 +7375,9 @@ do isps = 1, nsp_sld_all
                         keqiex_all(isps,ispa) = 10d0**(-5.9d0) ! assuming Na
                         keqiex_all(isps,ispa) = 10d0**(-6.9d0) ! assuming Na in seawater
                         keqiex_all(isps,ispa) = 10d0**(-4.8d0) ! log KK\Na = 1.10 
+                        keqiex_all(isps,ispa) = 10d0**(1.1d0 - keqiex_prona)  ! log KK\Na = 1.10 
+                        ! keqiex_all(isps,ispa) = 10d0**(0.9d0 - keqiex_prona)  ! log KK\Na = 0.90 
+                        ! keqiex_all(isps,ispa) = 10d0**(0.7d0 - keqiex_prona)  ! log KK\Na = 0.70 From phreeqc.dat
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.10d0)
                         keqiex_all(isps,ispa) = 10d0**(0.902d0)
@@ -7380,6 +7403,7 @@ do isps = 1, nsp_sld_all
                         keqiex_all(isps,ispa) = 10d0**(-11.186d0)
                         ! the 'activity coefficient' term 10**(2*3.4 * f[X-H]) will be added when calculating f[X-H]
                         keqiex_all(isps,ispa) = 10d0**(-10.786d0)  ! log KMg\Na = 0.507 
+                        keqiex_all(isps,ispa) = 10d0**( (0.507d0 - keqiex_prona)*2d0)  ! log KMg\Na = 0.507 
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.014d0)
                         keqiex_all(isps,ispa) = 10d0**(0.614d0)
@@ -7405,6 +7429,8 @@ do isps = 1, nsp_sld_all
                         keqiex_all(isps,ispa) = 10d0**(-10.87d0)
                         ! the 'activity coefficient' term 10**(2*3.4 * f[X-H]) will be added when calculating f[X-H]
                         keqiex_all(isps,ispa) = 10d0**(-10.47d0) ! log KCa\Na = 0.665  
+                        keqiex_all(isps,ispa) = 10d0**( (0.665d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.665  
+                        ! keqiex_all(isps,ispa) = 10d0**( (0.4d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.4 From phreeqc.dat  
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.33d0)
                         keqiex_all(isps,ispa) = 10d0**(0.93d0)
@@ -7430,6 +7456,7 @@ do isps = 1, nsp_sld_all
                         ! X = 0.41 - 5.9*3 = -17.29
                         keqiex_all(isps,ispa) = 10d0**(-17.29d0)
                         ! the 'activity coefficient' term 10**(3*3.4 * f[X-H]) will be added when calculating f[X-H]
+                        keqiex_all(isps,ispa) = 10d0**( (0.41d0 - keqiex_prona)*3d0 )  ! log KAl\Na = 0.41  
                     else 
                         ! keqiex_all(isps,ispa) = 10d0**(1.569d0)
                         keqiex_all(isps,ispa) = 10d0**(0.41d0)
@@ -13082,6 +13109,7 @@ real(kind=8),dimension(nz)::a,da_dpro,da_dmsld,da
 real(kind=8),dimension(nz)::gamma,dgamma,beta,dbeta
 real(kind=8),dimension(nsp_aq_all,nz)::da_dmaqf
 real(kind=8),dimension(nsp_aq_all)::base_charge
+real(kind=8) c1_gamma,c0_gamma 
 real(kind=8) :: tol_dum = 1d-9
 real(kind=8) :: tol_dum_2 = 1d-8
 ! real(kind=8) :: tol_dum = 1d-12   ! when beta_ON = .true.
@@ -13093,8 +13121,8 @@ real(kind=8) error
 logical :: low_lim_ON = .false. 
 ! logical :: beta_ON = .true. 
 logical :: beta_ON = .false.  
-! logical :: gamma_ON = .true. 
-logical :: gamma_ON = .false. 
+logical :: gamma_ON = .true. 
+! logical :: gamma_ON = .false. 
 
 ! (1) First getting fraction of negatively charged sites occupied with H+ (f[X-H]) (defined as msldf_loc)
 ! 1 = f[X-H]*beta + f[X-Na] + f[X-K] + f[X2-Ca] + f[X2-Mg] + f[X3-Mg]
@@ -13120,6 +13148,12 @@ dgamma_dmsldf = 0d0
 dgamma_dpro = 0d0
 dgamma_dmsld = 0d0
 dgamma_dmaqf = 0d0
+
+c1_gamma = 3.4d0 ! between 3.1 to 3.7, average 3.4 from Appelo 1994
+! c1_gamma = 3.1d0
+! c1_gamma = 3.7d0
+! c1_gamma = 2.0d0
+c0_gamma = 0.005d0
 
 beta_loc = 0d0
 
@@ -13156,16 +13190,16 @@ do isps = 1, nsp_sld_all
         da_dmaqf = 0d0
         da_dmsld = 0d0
         
-        gamma = 10d0**(3.4d0*x)
-        dgamma = 10d0**(3.4d0*x)*3.4d0*log(10d0)
+        gamma = 10d0**(c1_gamma*x)
+        dgamma = 10d0**(c1_gamma*x)*c1_gamma*log(10d0)
         
         if (.not. gamma_ON) then
-            gamma = 10d0**(3.4d0*0.005d0)
+            gamma = 10d0**(c1_gamma*c0_gamma)
             dgamma = 0d0
         endif 
         
-        beta = 10d0**( -3.4d0*( 1d0 - x )  ) 
-        dbeta = 10d0**( -3.4d0*( 1d0 - x )  ) *(3.4d0)*log(10d0)
+        beta = 10d0**( -c1_gamma*( 1d0 - x )  ) 
+        dbeta = 10d0**( -c1_gamma*( 1d0 - x )  ) *(c1_gamma)*log(10d0)
         
         if (.not. beta_ON) then
             beta = 1d0
@@ -13248,8 +13282,8 @@ do isps = 1, nsp_sld_all
     
     
     if (cec_pH_depend(isps)) then 
-        gamma_loc(isps,:) = 10d0**(3.4d0*x)
-        dgamma_dmsldf(isps,:) = 10d0**(3.4d0*x)*3.4d0*log(10d0)
+        gamma_loc(isps,:) = 10d0**(c1_gamma*x)
+        dgamma_dmsldf(isps,:) = 10d0**(c1_gamma*x)*c1_gamma*log(10d0)
         dgamma_dpro(isps,:) = dgamma_dmsldf(isps,:) * dmsldf_dpro(isps,:)
         dgamma_dmsld(isps,:) = dgamma_dmsldf(isps,:) * dmsldf_dmsld(isps,:)
         
@@ -13258,14 +13292,14 @@ do isps = 1, nsp_sld_all
         enddo
         
         if (.not. gamma_ON) then 
-            gamma_loc(isps,:) = 10d0**(3.4d0*0.005d0)
+            gamma_loc(isps,:) = 10d0**(c1_gamma*c0_gamma)
             dgamma_dmsldf(isps,:) = 0d0
             dgamma_dpro(isps,:) = 0d0
             dgamma_dmsld(isps,:) = 0d0
             dgamma_dmaqf(isps,:,:) = 0d0
         endif 
         
-        beta_loc(isps,:) = 10d0**(-3.4d0* (1d0 -  x ) )  
+        beta_loc(isps,:) = 10d0**(-c1_gamma* (1d0 -  x ) )  
         
         if (.not. beta_ON) beta_loc(isps,:) = 1d0
     else
@@ -14886,8 +14920,8 @@ do isp=1,nsp_sld
             izdbl = iz
         elseif (dbl < z(iz) .and. z(iz) <=zml(isp)) then
             ! dbio(iz) =  0.15d-4   !  within mixed layer 150 cm2/kyr (Emerson, 1985) 
-            ! dbio(iz) =  2d-4   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
-            dbio(iz) =  3d-5   !  within mixed layer (Jarvis et al., 2010) 
+            dbio(iz) =  2d-4   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
+            ! dbio(iz) =  3d-5   !  within mixed layer (Jarvis et al., 2010) 
             ! dbio(iz) =  2d-4*exp(z(iz)/0.1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
             ! dbio(iz) =  2d-7*exp(z(iz)/1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
             ! dbio(iz) =  2d-10   !  just a small value 
@@ -14948,7 +14982,12 @@ do isp=1,nsp_sld
     ! probh = 0.01d0 ! strong mixing
     ! probh = 0.05d0 ! strong mixing
     probh = 0.1d0 ! strong mixing
-    ! probh = 0.5d0 ! strong mixing
+    probh = 0.5d0 ! strong mixing
+    ! probh = 1.0d0 ! strong mixing
+    ! probh = 1.5d0 ! strong mixing
+    ! probh = 2d0 ! strong mixing
+    ! probh = 5d0 ! strong mixing
+    probh = 10d0 ! strong mixing
     ! probh = 0.0005d0 ! just testing smaller mixing (used for tuning)
     ! probh = 0.0001d0 ! just testing smaller mixing for PSDs
     do iz=1,izml 
@@ -14964,6 +15003,8 @@ do isp=1,nsp_sld
     transtill = 0d0
     probh = 0.010d0
     probh = 0.10d0
+    probh = 1.00d0
+    probh = 10.0d0
     do iz=1,izml  ! when i = j, transition matrix contains probabilities with which particles are moved from other layers of sediment   
         ! transtill(iz,iz)=-probh*dz(iz)/dz(izml+1-iz) !*(iz - izml*0.5d0)**2d0/(izml**2d0*0.25d0)
         ! transtill(izml+1-iz,iz)=probh*dz(iz)/dz(izml+1-iz) ! *(iz - izml*0.5d0)**2d0/(izml**2d0*0.25d0)
