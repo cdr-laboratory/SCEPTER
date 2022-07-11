@@ -775,6 +775,7 @@ character(5),dimension(:),allocatable::chrsld_nopsd ! minerals whose PSDs tracki
 integer nsld_cec
 character(5),dimension(:),allocatable::chrsld_cec
 real(kind=8),dimension(nsp_sld_all):: mcec_all,mcec_all_def
+real(kind=8),dimension(nsp_sld_all):: logkhna_all,logkhna_all_def
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod,fkin
@@ -1836,6 +1837,15 @@ do isps=1,nsp_sld_all
     endselect
 enddo 
 
+! detault logKH\Na
+logkhna_all_def = 0d0
+do isps=1,nsp_sld_all
+    if (mcec_all_def(isps)>0d0) then 
+        logkhna_all_def(isps) = 5.9d0
+    endif 
+enddo
+
+
 do ispa = 1, nsp_aq    
     if (any(chraq_all == chraq(ispa))) base_charge(ispa) = base_charge_all(findloc(chraq_all,chraq(ispa),dim=1))
 enddo 
@@ -2262,10 +2272,9 @@ if (allocated(chrsld_cec)) deallocate(chrsld_cec)
 allocate(chrsld_cec(nsld_cec))
 
 call get_cec( &
-    & nsp_sld_all,chrsld_all,mcec_all_def,nsld_cec &! input
-    & ,mcec_all,chrsld_cec &! output
-    & )
-
+    & nsp_sld_all,chrsld_all,mcec_all_def,nsld_cec,logkhna_all_def &! input
+    & ,mcec_all,chrsld_cec,logkhna_all &! output
+    & ) 
 
 call get_nopsd_num(nsld_nopsd)
 
@@ -2518,7 +2527,7 @@ do iph = 1,nph
     pro = 10d0**(0d0 + (iph-1d0)/(nph-1d0)*(-14d0))
     
     call coefs_v2( &
-        & nz,rg,rg2,25d0,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
+        & nz,rg,rg2,25d0,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -2557,7 +2566,7 @@ chrsld_kinspc = chrsld_kinspc_in
 kin_sld_spc = kin_sld_spc_in
     
 call coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -3012,7 +3021,7 @@ if (read_data) then
 endif
     
 call coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -3284,7 +3293,7 @@ do while (it<nt)
     endif 
         
     call coefs_v2( &
-        & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
+        & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -6683,18 +6692,18 @@ endsubroutine get_cec_num
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_cec( &
-    & nsp_sld_all,chrsld_all,mcec_def,nsld_cec &! input
-    & ,mcec,chrsld_cec_dum &! output
+    & nsp_sld_all,chrsld_all,mcec_def,nsld_cec,logkhna_def &! input
+    & ,mcec,chrsld_cec_dum,logkhna  &! output
     & )
 implicit none
 
 integer,intent(in):: nsp_sld_all,nsld_cec
 character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
 character(5),dimension(nsld_cec),intent(out)::chrsld_cec_dum
-real(kind=8),dimension(nsp_sld_all),intent(in)::mcec_def
-real(kind=8),dimension(nsp_sld_all),intent(out)::mcec
+real(kind=8),dimension(nsp_sld_all),intent(in)::mcec_def,logkhna_def
+real(kind=8),dimension(nsp_sld_all),intent(out)::mcec,logkhna
 character(5) chr_tmp
-real(kind=8) val_tmp
+real(kind=8) val_tmp,val_tmp2
 
 character(500) file_name
 integer i
@@ -6702,16 +6711,18 @@ integer i
 file_name = './cec.in'
 ! in default 
 mcec = mcec_def
+logkhna = logkhna_def
 
 if (nsld_cec <= 0) return
 
 open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
 read(50,'()')
 do i =1,nsld_cec
-    read(50,*) chr_tmp,val_tmp
+    read(50,*) chr_tmp,val_tmp,val_tmp2
     chrsld_cec_dum(i) = chr_tmp
     if (any(chrsld_all == chr_tmp)) then 
         mcec(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp
+        logkhna(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp2
     endif 
 enddo 
 close(50)
@@ -6841,7 +6852,7 @@ endsubroutine makegrid
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -6879,7 +6890,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_nh3
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_oxa
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_cl
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::ksld_all
-real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all,mwt_all,mcec_all
+real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all,mwt_all,mcec_all,logkhna_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(out)::keqiex_all
 real(kind=8),dimension(nsp_sld_all),intent(out)::keqsld_all,keqcec_all
@@ -7327,6 +7338,9 @@ do isps = 1, nsp_sld_all
             keqiex_prona = keqiex_prona + keqiex_prona *1.5d0* mcec_all(isps)/100d0 ! assume log KH\Na decreases with CEC
             ! keqiex_prona = keqiex_prona + keqiex_prona *0.5d0* mcec_all(isps)/200d0 ! assume log KH\Na decreases with CEC
         endif 
+        
+        keqiex_prona = logkhna_all(isps)
+        
         ! 
         do ispa=1,nsp_aq_all
             aqsp = chraq_all(ispa)
@@ -14983,11 +14997,12 @@ do isp=1,nsp_sld
     ! probh = 0.05d0 ! strong mixing
     probh = 0.1d0 ! strong mixing
     probh = 0.5d0 ! strong mixing
-    ! probh = 1.0d0 ! strong mixing
+    probh = 1.0d0 ! strong mixing
     ! probh = 1.5d0 ! strong mixing
     ! probh = 2d0 ! strong mixing
     ! probh = 5d0 ! strong mixing
-    probh = 10d0 ! strong mixing
+    ! probh = 10d0 ! strong mixing
+    probh = 20d0 ! strong mixing
     ! probh = 0.0005d0 ! just testing smaller mixing (used for tuning)
     ! probh = 0.0001d0 ! just testing smaller mixing for PSDs
     do iz=1,izml 
