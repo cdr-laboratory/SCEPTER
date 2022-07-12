@@ -244,6 +244,7 @@ real(kind=8),parameter :: mvims =  68.077d0/1.23d0 ! cm3/mol; from MES monohydra
 real(kind=8),parameter :: mvteas = 149.190d0/1.124d0 ! cm3/mol; from MES monohydrate Molar mass 149.190 g·mol−1 and Density 1.124 g/cm3 from https://en.wikipedia.org/wiki/Triethanolamine
 real(kind=8),parameter :: mvnaoh = 39.9971d0/2.13d0 ! cm3/mol; from NaOH Molar mass 39.9971 g·mol−1 and Density 2.13 g/cm3 from https://en.wikipedia.org/wiki/Sodium_hydroxide
 real(kind=8),parameter :: mvnaglp = 216.036d0/1.5d0 ! cm3/mol; from sodium glycerophosphate Molar mass 216.036 g·mol−1 and assuming Density 1.5 g/cm3 
+real(kind=8),parameter :: mvcacl2 = 110.98d0/2.15d0 ! cm3/mol; from CaCl2 Molar mass 110.98 g·mol−1 and assuming Density 2.15 g/cm3 both from https://en.wikipedia.org/wiki/Calcium_chloride
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
@@ -341,6 +342,7 @@ real(kind=8),parameter :: mwtims =  68.077d0 ! g/mol; from Imidazole monohydrate
 real(kind=8),parameter :: mwtteas = 149.190d0 ! g/mol; from TEA Molar mass 149.190 g·mol−1 and Density 1.124 g/cm3 from https://en.wikipedia.org/wiki/Triethanolamine
 real(kind=8),parameter :: mwtnaoh = 39.9971d0 ! g/mol; from NaOH Molar mass 39.9971 g·mol−1 and Density 2.13 g/cm3 from https://en.wikipedia.org/wiki/Sodium_hydroxide
 real(kind=8),parameter :: mwtnaglp = 216.036d0 ! g/mol; from NaOH Molar mass 216.036 g·mol−1 from https://en.wikipedia.org/wiki/Sodium_glycerophosphate
+real(kind=8),parameter :: mwtcacl2 = 110.98d0 ! cm3/mol; from CaCl2 Molar mass 110.98 g·mol−1 from https://en.wikipedia.org/wiki/Calcium_chloride
 
  
 real(kind=8),parameter :: mvgbas = ( &
@@ -610,7 +612,7 @@ integer,parameter::nsp_sld_2 = 24 ! removing dolomite from secondary minerals
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 ! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 76
+integer,parameter::nsp_sld_all = 77
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 17
@@ -923,7 +925,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
     & ,'sdn  ','cdr  ','leu  ','amal ','amfe3' &
-    & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ','teas ','naoh ','naglp' &
+    & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ','teas ','naoh ','naglp','cacl2' &
     & ,'inrt '/)
 chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
     & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
@@ -1015,13 +1017,13 @@ mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mv
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
     & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu,mvamal,mvamfe3 &
-    & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh,mvnaglp  &
+    & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh,mvnaglp,mvcacl2  &
     & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
     & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal,mvamfe3 &
-    & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh,mwtnaglp &
+    & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh,mwtnaglp,mwtcacl2 &
     & ,mwtinrt/)
 
 do isps = 1, nsp_sld 
@@ -1500,6 +1502,10 @@ staq_all(findloc(chrsld_all,'naoh',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'naglp',dim=1), findloc(chraq_all,'na',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'naglp',dim=1), findloc(chraq_all,'glp',dim=1)) = 1d0
 
+! CaCl2 solid
+staq_all(findloc(chrsld_all,'cacl2',dim=1), findloc(chraq_all,'cl',dim=1)) = 2d0
+staq_all(findloc(chrsld_all,'cacl2',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
+
 
 staq = 0d0
 stgas = 0d0
@@ -1797,7 +1803,7 @@ fkin   = 1d0
 
 do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
-        case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp')
+        case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2')
             precstyle(isps) = 'decay'
         case('cc','arg') ! added to change solubility 
             precstyle(isps) = 'def'
@@ -8843,7 +8849,7 @@ select case(trim(adjustl(mineral)))
         ! kin = kref
         dkin_dmsp = 0d0
         
-    case('kcl','gac','mesmh','ims','teas','naoh','naglp')
+    case('kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2')
         kin = ( &
             & 1d0/0.01d0 &! just a value assumed; turnover time of 0.1 year for NH4NO3 
             & )
@@ -9432,7 +9438,7 @@ select case(trim(adjustl(mineral)))
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case('amnt')
         therm = 0.121d0 ! mo2 Michaelis for fertilizer
-    case('kcl','gac','mesmh','ims','teas','naoh','naglp')
+    case('kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2')
         therm = 1d0 ! reacting in any case
     case('inrt')
         therm = 1d0 ! not reacting in any case
@@ -10732,7 +10738,15 @@ if (.not. print_cb) then
                 
                 if (ph_min > ph_max) then 
                     print *, 'ph_min > ph_max detected: something is wrong in bracketing root'
-                    stop
+                    ! stop
+                    if (error >= tol) then 
+                        stop
+                    else
+                        print *, ' error is small so do not care the above message'
+                        prox(iz) = 10d0**(-0.5d0*(ph_max + ph_min))
+                        first_chk_done = .true.
+                        exit
+                    endif 
                 endif 
                 
                 ! prox(iz) = prox_save_newton(iz)
@@ -12356,7 +12370,7 @@ select case(trim(adjustl(mineral)))
             & - po2x*(-1d0)/(po2x+mo2_tmp)**2d0*merge(0d0,1d0,po2x < po2th*thon) &
             & )
     
-    case('kcl','gac','mesmh','ims','teas','naoh','naglp') ! reacting in any case
+    case('kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2') ! reacting in any case
         omega = 0d0
     
     case('inrt') ! not reacting in any case
