@@ -243,6 +243,7 @@ real(kind=8),parameter :: mvmesmh =  213.25d0/0.56d0 ! cm3/mol; from MES monohyd
 real(kind=8),parameter :: mvims =  68.077d0/1.23d0 ! cm3/mol; from MES monohydrate Molar mass 68.077 g·mol−1 and Density 1.23 g/cm3 from https://en.wikipedia.org/wiki/Imidazole
 real(kind=8),parameter :: mvteas = 149.190d0/1.124d0 ! cm3/mol; from MES monohydrate Molar mass 149.190 g·mol−1 and Density 1.124 g/cm3 from https://en.wikipedia.org/wiki/Triethanolamine
 real(kind=8),parameter :: mvnaoh = 39.9971d0/2.13d0 ! cm3/mol; from NaOH Molar mass 39.9971 g·mol−1 and Density 2.13 g/cm3 from https://en.wikipedia.org/wiki/Sodium_hydroxide
+real(kind=8),parameter :: mvnaglp = 216.036d0/1.5d0 ! cm3/mol; from sodium glycerophosphate Molar mass 216.036 g·mol−1 and assuming Density 1.5 g/cm3 
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
@@ -339,6 +340,7 @@ real(kind=8),parameter :: mwtmesmh =  213.25d0 ! g·mol−1; from MES monohydrat
 real(kind=8),parameter :: mwtims =  68.077d0 ! g/mol; from Imidazole monohydrate Molar mass 68.077 g·mol−1 and Density 1.23 g/cm3 from https://en.wikipedia.org/wiki/Imidazole
 real(kind=8),parameter :: mwtteas = 149.190d0 ! g/mol; from TEA Molar mass 149.190 g·mol−1 and Density 1.124 g/cm3 from https://en.wikipedia.org/wiki/Triethanolamine
 real(kind=8),parameter :: mwtnaoh = 39.9971d0 ! g/mol; from NaOH Molar mass 39.9971 g·mol−1 and Density 2.13 g/cm3 from https://en.wikipedia.org/wiki/Sodium_hydroxide
+real(kind=8),parameter :: mwtnaglp = 216.036d0 ! g/mol; from NaOH Molar mass 216.036 g·mol−1 from https://en.wikipedia.org/wiki/Sodium_glycerophosphate
 
  
 real(kind=8),parameter :: mvgbas = ( &
@@ -608,11 +610,11 @@ integer,parameter::nsp_sld_2 = 24 ! removing dolomite from secondary minerals
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 ! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
 #endif 
-integer,parameter::nsp_sld_all = 75
+integer,parameter::nsp_sld_all = 76
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
-integer,parameter::nsp_aq_ph = 16
-integer,parameter::nsp_aq_all = 16
+integer,parameter::nsp_aq_ph = 17
+integer,parameter::nsp_aq_all = 17
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 2
@@ -921,10 +923,10 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
     & ,'sdn  ','cdr  ','leu  ','amal ','amfe3' &
-    & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ','teas ','naoh ' &
+    & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ','teas ','naoh ','naglp' &
     & ,'inrt '/)
 chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   ','ac   ','mes  ','im   ','tea  '/)
+    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22','oxao2' &
     & ,'g2k  ','g2ca ','g2mg '/)
@@ -963,7 +965,7 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
 #endif 
 ! below are species which are sensitive to pH 
 chraq_ph   = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   ','ac   ','mes  ','im   ','tea  '/)
+    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
@@ -1013,13 +1015,13 @@ mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mv
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
     & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu,mvamal,mvamfe3 &
-    & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh  &
+    & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh,mvnaglp  &
     & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
     & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal,mvamfe3 &
-    & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh &
+    & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh,mwtnaglp &
     & ,mwtinrt/)
 
 do isps = 1, nsp_sld 
@@ -1494,6 +1496,10 @@ staq_all(findloc(chrsld_all,'teas',dim=1), findloc(chraq_all,'tea',dim=1)) = 1d0
 ! NaOH solid 
 staq_all(findloc(chrsld_all,'naoh',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
 
+! Sodium glycerophosphate
+staq_all(findloc(chrsld_all,'naglp',dim=1), findloc(chraq_all,'na',dim=1)) = 2d0
+staq_all(findloc(chrsld_all,'naglp',dim=1), findloc(chraq_all,'glp',dim=1)) = 1d0
+
 
 staq = 0d0
 stgas = 0d0
@@ -1791,7 +1797,7 @@ fkin   = 1d0
 
 do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
-        case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh')
+        case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp')
             precstyle(isps) = 'decay'
         case('cc','arg') ! added to change solubility 
             precstyle(isps) = 'def'
@@ -6987,6 +6993,8 @@ daq_all(findloc(chraq_all,'mes',dim=1))  &
 daq_all(findloc(chraq_all,'im',dim=1))  = 14d-5 /( visc**1.1d0 * (75.3d0)**0.6d0 ) * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
 ! TriEthanolAmine ( Othmer and Thakar (1953) equation and molecular volume from La-Scalea et al. 2005 )
 daq_all(findloc(chraq_all,'tea',dim=1)) = 14d-5 /( visc**1.1d0 * (177.3d0)**0.6d0 ) * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
+! Glycerophosphate (value for glycerol from Schramke et al. 1999 for now)
+daq_all(findloc(chraq_all,'glp',dim=1)) = 0.93d-5 * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
 
 ! --------------------------------- gas diff
 
@@ -7112,6 +7120,17 @@ keqaq_h(findloc(chraq_all,'im',dim=1),ieqaq_h1) =  &
 ! TEA + H+ = TEA+  
 keqaq_h(findloc(chraq_all,'tea',dim=1),ieqaq_h1) =  &
     & k_arrhenius(10d0**(8.09d0),25d0+tempk_0,tc+tempk_0,-33.6d0,rg)  
+    
+! Mehlich buffer (consts from Goldberg et al., 2002)
+
+!  GlpH- = Glp= + H+ 
+keqaq_h(findloc(chraq_all,'glp',dim=1),ieqaq_h1) = &! (10d0**-4.266d0)  &
+    & k_arrhenius(10d0**(-6.650d0),25d0+tempk_0,tc+tempk_0,-1.85d0,rg) 
+!  GlpH- + H+ = GlpH2
+keqaq_h(findloc(chraq_all,'glp',dim=1),ieqaq_h2) = &! 1d0/(10d0**-1.25d0) 
+    & k_arrhenius(10d0**(1.329d0),25d0+tempk_0,tc+tempk_0, 12.2d0,rg) 
+
+! Mehlich buffer (consts from Hoskins and Erich 2008)
 
 ! ----------------
 
@@ -8824,7 +8843,7 @@ select case(trim(adjustl(mineral)))
         ! kin = kref
         dkin_dmsp = 0d0
         
-    case('kcl','gac','mesmh','ims','teas','naoh')
+    case('kcl','gac','mesmh','ims','teas','naoh','naglp')
         kin = ( &
             & 1d0/0.01d0 &! just a value assumed; turnover time of 0.1 year for NH4NO3 
             & )
@@ -9413,7 +9432,7 @@ select case(trim(adjustl(mineral)))
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case('amnt')
         therm = 0.121d0 ! mo2 Michaelis for fertilizer
-    case('kcl','gac','mesmh','ims','teas','naoh')
+    case('kcl','gac','mesmh','ims','teas','naoh','naglp')
         therm = 1d0 ! reacting in any case
     case('inrt')
         therm = 1d0 ! not reacting in any case
@@ -11285,6 +11304,7 @@ do ispa = 1, nsp_aq_all
     ! oxalic acid
     elseif ( &
         & trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='glp' &
         & ) then
         do ispa_h = 1,2
             if (ispa_h==1) then  ! OxaH- = Oxa= + H+ 
@@ -11478,6 +11498,7 @@ do ispa = 1, nsp_aq_all
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_cl
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(cl)'//trim(adjustl(chrint))
+                    write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(cl)'//trim(adjustl(chrint))
                 endif 
                     
             endif 
@@ -11597,6 +11618,7 @@ if (print_res) then
             ! oxalic acid 
             elseif ( &
                 & trim(adjustl(chraq_all(ispa)))=='oxa' &
+                & .or. trim(adjustl(chraq_all(ispa)))=='glp' &
                 & ) then 
                 do ispa_h = 1,2
                     if (ispa_h==1) then 
@@ -11683,6 +11705,8 @@ if (print_res) then
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
                             & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
                         write(88,'(E11.3)', advance='no') keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl
+                        write(99,'(E11.3)', advance='no') (base_charge(ispa)+base_charge(icl)*rspa_cl) &
+                            & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl
                     endif 
                 enddo 
                 ! account for complexation with Hoxa-
@@ -11905,6 +11929,7 @@ do ispa = 1, nsp_aq_all
     ! oxalic acid 
     elseif ( &
         & trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='glp' &
         & ) then 
         do ispa_h = 1,2
             if (ispa_h==1) then 
@@ -12331,7 +12356,7 @@ select case(trim(adjustl(mineral)))
             & - po2x*(-1d0)/(po2x+mo2_tmp)**2d0*merge(0d0,1d0,po2x < po2th*thon) &
             & )
     
-    case('kcl','gac','mesmh','ims','teas','naoh') ! reacting in any case
+    case('kcl','gac','mesmh','ims','teas','naoh','naglp') ! reacting in any case
         omega = 0d0
     
     case('inrt') ! not reacting in any case
@@ -12376,7 +12401,7 @@ do ispa = 1, nsp_aq_all
         ! case('so4','oxa')
         case('so4')
             base_charge(ispa) = -2d0
-        case('no3','oxa','cl','ac','mes')
+        case('no3','oxa','cl','ac','mes','glp')
             base_charge(ispa) = -1d0
         case('si','im','tea')
             base_charge(ispa) = 0d0
@@ -12631,6 +12656,7 @@ do ispa = 1, nsp_aq_all
     ! oxalic acid 
     elseif ( &
         & trim(adjustl(chraq_all(ispa)))=='oxa' &
+        & .or. trim(adjustl(chraq_all(ispa)))=='glp' &
         & ) then 
         do ispa_h = 1,2
             if (ispa_h==1)then
