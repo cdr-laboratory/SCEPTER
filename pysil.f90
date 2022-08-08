@@ -15203,7 +15203,7 @@ character(5),dimension(nsld_kinspc),intent(in)::chrsld_kinspc
 real(kind=8),dimension(nsp_sld),intent(in)::msldi,msldth,mv
 real(kind=8),dimension(nsp_aq),intent(in)::maqi,maqth,daq 
 real(kind=8),dimension(nsp_gas),intent(in)::mgasi,mgasth,dgasa,dgasg,khgasi
-real(kind=8),dimension(nsp_gas)::dgasi
+real(kind=8),dimension(nsp_gas)::dgasi,dgasn
 real(kind=8),dimension(nsp_sld,nsp_aq),intent(in)::staq
 real(kind=8),dimension(nsp_sld,nsp_gas),intent(in)::stgas
 real(kind=8),dimension(nsp_sld,nz),intent(in)::msld,msldsupp 
@@ -15338,7 +15338,7 @@ real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tm
     & ,k_tmp,mv_tmp,omega_tmp,m_tmp,mth_tmp,mi_tmp,mp_tmp,msupp_tmp,mprev_tmp,omega_tmp_th,rxn_ext_tmp &
     & ,edif_tmp,edif_tmp_n,edif_tmp_p,khco2n_tmp,pco2n_tmp,edifn_tmp,caqsupp_tmp,kco2,k1,k2,kho,sw_red &
     & ,flx_max,flx_max_max,proi_tmp,knh3,k1nh3,kn2o,wp_tmp,w_tmp,sporo_tmp,sporop_tmp,sporoprev_tmp  &
-    & ,mn_tmp,wn_tmp,sporon_tmp
+    & ,mn_tmp,wn_tmp,sporon_tmp,caqdif_tmp_n
 
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8),parameter::fact = 1d-3
@@ -15377,6 +15377,9 @@ logical,intent(in)::ads_ON != .true.
 
 logical::ph_precalc = .true.
 ! logical::ph_precalc = .false.
+
+logical::aq_diff_close = .true.
+! logical::aq_diff_close = .false.
 
 ! logical::sld_enforce = .false.
 logical,intent(in)::sld_enforce != .true.
@@ -16062,6 +16065,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         
         dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*(tora*dgasa(ispg)+disp)
         dgasi(ispg) = ucv*1d3*dgasg(ispg) 
+        dgasn(ispg) = ucv*poro(1)*(1.0d0-sat(1))*1d3*torg(1)*dgasg(ispg) 
         
         agas(ispg,:)= ucv*poroprev*(1.0d0-sat)*1d3+poroprev*sat*khgas(ispg,:)*1d3
         agasx(ispg,:)= ucv*poro*(1.0d0-sat)*1d3+poro*sat*khgasx(ispg,:)*1d3
@@ -16486,6 +16490,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             caq_tmp_prev = maq(ispa,iz)         * maqft_prev(ispa,iz)
             caq_tmp_p = maqx(ispa,min(nz,iz+1)) * maqft(ispa,min(nz,iz+1))
             caq_tmp_n = maqx(ispa,max(1,iz-1))  * maqft(ispa,max(1,iz-1))
+            caqdif_tmp_n = maqx(ispa,max(1,iz-1))  * maqft(ispa,max(1,iz-1))
             caqth_tmp = maqth(ispa)
             caqi_tmp = maqi(ispa)
             caqsupp_tmp = maqsupp(ispa,iz) 
@@ -16494,6 +16499,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             drxndisp_tmp = sum(staq(:,ispa)*drxnsld_dmaq(:,ispa,iz))
             
             if (iz==1 .and. (.not. aq_close) ) caq_tmp_n = caqi_tmp
+            if (iz==1 .and. (.not. aq_diff_close) ) caqdif_tmp_n = caqi_tmp
                 
             edif_tmp = 1d3*poro(iz)*sat(iz)*( tora(iz)*d_tmp + disp(iz) )
             edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*( tora(min(iz+1,nz))*d_tmp + disp(min(iz+1,nz)) )
@@ -16505,13 +16511,13 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & -(0.5d0*(edif_tmp +edif_tmp_p) &
                 &   *merge(0d0,-1d0*maqft(ispa,iz),iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
                 & -0.5d0*(edif_tmp +edif_tmp_n) &
-                &   *merge(0d0,1d0*maqft(ispa,iz),iz==1 .and. aq_close)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
+                &   *merge(0d0,1d0*maqft(ispa,iz),iz==1 .and. aq_diff_close)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
                 & *merge(dt,1d0,dt_norm) &
                 & -(0.5d0*(edif_tmp +edif_tmp_p) &
                 &   *merge(0d0,-maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz),iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
                 & -0.5d0*(edif_tmp +edif_tmp_n) &
-                &   *merge(0d0,maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz),iz==1 .and. aq_close)/( 0.5d0*(dz(iz)+dz(max(1,iz-1))) )) &
-                &       /dz(iz) &
+                &   *merge(0d0,maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz),iz==1 .and.aq_diff_close) &
+                &   /(0.5d0*(dz(iz)+dz(max(1,iz-1))))  )/dz(iz) &
                 & *merge(dt,1d0,dt_norm) &
                 & + poro(iz)*sat(iz)*1d3*v(iz)*(1d0*maqft(ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                 & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
@@ -16523,7 +16529,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             ymx3(row) = ( &
                 & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/merge(1d0,dt,dt_norm)  &
                 & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-                & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caqdif_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
                 & *merge(dt,1d0,dt_norm) &
                 & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz)*merge(dt,1d0,dt_norm) &
                 & - rxn_tmp*merge(dt,1d0,dt_norm) &
@@ -16586,7 +16592,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     & -(0.5d0*(edif_tmp +edif_tmp_p) &
                     &   *merge(0d0,-maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz),iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
                     & -0.5d0*(edif_tmp +edif_tmp_n) & 
-                    &   * merge(0d0,maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz),iz==1 .and. aq_close) &
+                    &   * merge(0d0,maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz),iz==1 .and. aq_diff_close) &
                     &   /( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
                     & *merge(dt,1d0,dt_norm) &
                     & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
@@ -16630,7 +16636,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     & -(0.5d0*(edif_tmp +edif_tmp_p) &
                     &   *merge(0d0,-maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz),iz==nz)/( 0.5d0*(dz(iz)+dz(min(nz,iz+1))) ) &
                     & -0.5d0*(edif_tmp +edif_tmp_n) &
-                    &   * merge(0d0,maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz),iz==1 .and. aq_close) &
+                    &   * merge(0d0,maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz),iz==1 .and. aq_diff_close) &
                     &   /( 0.5d0*(dz(iz)+dz(max(1,iz-1))) ))/dz(iz) &
                     &   *merge(dt,1d0,dt_norm) &
                     & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
@@ -16845,7 +16851,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ) 
             flx_aq(ispa,idif,iz) = flx_aq(ispa,idif,iz) + (&
                 & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-                & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+                & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caqdif_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
                 & ) 
             flx_aq(ispa,irxn_sld(:),iz) = (& 
                 ! & -staq(:,ispa)*ksld(:,iz)*poro(iz)*hr(iz)*mv(:)*1d-6*msldx(:,iz)*(1d0-omega(:,iz)) &
@@ -16893,8 +16899,14 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & (agasx(ispg,iz) + dagas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/merge(1d0,dt,dt_norm) &
                 & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*merge(0d0,-1d0,iz==nz)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
                 & +0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
+				& + merge( &
+				& 	-0.5d0*(dgasi(ispg)+dgasn(ispg))*(1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+				&	, &
                 & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-                & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) )/dz(iz)  &
+                & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+				&	,iz==1 .and. aq_diff_close &
+				&		) &
+				& 		)/dz(iz)  &
                 & *merge(dt,1d0,dt_norm) &
                 & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz)*merge(dt,1d0,dt_norm) &
                 & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) *merge(dt,1d0,dt_norm) &
@@ -16907,7 +16919,11 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & (agasx(ispg,iz)*mgasx(ispg,iz)-agas(ispg,iz)*mgas(ispg,iz))/merge(1d0,dt,dt_norm) &
                 & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
                 &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-                & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+                & - merge( &
+				& 	0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+				&   ,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1))))  &
+				&	,iz==1 .and. aq_diff_close) &
+				& 		)/dz(iz)  &
                 & *merge(dt,1d0,dt_norm) &
                 & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz)*merge(dt,1d0,dt_norm) &
                 ! & -resp(iz) &
@@ -17028,7 +17044,12 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             flx_gas(ispg,idif,iz) = ( &
                 & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
                 &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-                & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+                & - merge( &
+				& 	0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+                & 	,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+				&	,iz==1 .and. aq_diff_close &
+				&	) &
+				& )/dz(iz)  &
                 & )
             flx_gas(ispg,iadv,iz) = ( &
                 & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
@@ -17668,6 +17689,7 @@ do iz = 1, nz
         caq_tmp_prev = maq(ispa,iz)         * maqft_prev(ispa,iz)
         caq_tmp_p = maqx(ispa,min(nz,iz+1)) * maqft(ispa,min(nz,iz+1))
         caq_tmp_n = maqx(ispa,max(1,iz-1))  * maqft(ispa,max(1,iz-1))
+        caqdif_tmp_n = maqx(ispa,max(1,iz-1))  * maqft(ispa,max(1,iz-1))
         caqth_tmp = maqth(ispa)
         caqi_tmp = maqi(ispa)
         caqsupp_tmp = maqsupp(ispa,iz)
@@ -17675,6 +17697,7 @@ do iz = 1, nz
         rxn_tmp = sum(staq(:,ispa)*rxnsld(:,iz))
         
         if (iz==1 .and. (.not.aq_close) ) caq_tmp_n = caqi_tmp
+        if (iz==1 .and. (.not.aq_diff_close) ) caqdif_tmp_n = caqi_tmp
             
         edif_tmp = 1d3*poro(iz)*sat(iz)* ( tora(iz)*d_tmp +  disp(iz) )
         edif_tmp_p = 1d3*poro(min(iz+1,nz))*sat(min(iz+1,nz))*( tora(min(iz+1,nz))*d_tmp + disp(min(iz+1,nz)) )
@@ -17734,7 +17757,7 @@ do iz = 1, nz
             & ) 
         flx_aq(ispa,idif,iz) = flx_aq(ispa,idif,iz) + (&
             & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caq_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
+            & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caqdif_tmp_n)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
             & ) 
         flx_aq(ispa,irxn_sld(:),iz) = (& 
             ! & -staq(:,ispa)*ksld(:,iz)*poro(iz)*hr(iz)*mv(:)*1d-6*msldx(:,iz)*(1d0-omega(:,iz)) &
@@ -17839,7 +17862,12 @@ do iz = 1, nz
         flx_gas(ispg,idif,iz) = ( &
             & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+			& - merge( &
+			& 	0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+            & 	,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+			&	,iz==1 .and. aq_diff_close &
+			&	) &
+			& )/dz(iz)  &
             & )
         flx_gas(ispg,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
@@ -17883,7 +17911,8 @@ do iz = 1, nz
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
             & - 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(Iz)*dgasg(ispg) + edifn_tmp) &
-            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+			&  )/dz(iz)  &
             & ) 
         flx_co2sp(1,irxn_ext(:),iz) = -stgas_ext(:,ispg)*rxnext(:,iz)
         flx_co2sp(1,irain,iz) = - mgassupp(ispg,iz)
@@ -17904,8 +17933,13 @@ do iz = 1, nz
             &       +poro(min(nz,iz+1))*sat(min(nz,iz+1))*kco2*1d3*(tora(min(nz,iz+1))*dgasa(ispg)+disp(min(nz,iz+1)))) &
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(poro(iz)*sat(iz)*kco2*1d3*(tora(iz)*dgasa(ispg) +disp(iz)) + edifn_tmp) &
-            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            & - merge( &
+			&	0d0  &
+			&	,0.5d0*(poro(iz)*sat(iz)*kco2*1d3*(tora(iz)*dgasa(ispg) +disp(iz)) + edifn_tmp) &
+            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+			&	,iz==1 .and.aq_diff_close &
+			&	) &
+			& )/dz(iz)  &
             & ) 
         flx_co2sp(2,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*(kco2*mgasx(ispg,iz)- kco2*pco2n_tmp)/dz(iz) &
@@ -17926,8 +17960,13 @@ do iz = 1, nz
             &       *(tora(min(nz,iz+1))*dgasa(ispg)+disp(min(nz,iz+1))) ) &
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
-            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            & - merge( &
+			&	0d0 &
+			&	,0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
+            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+			&	,iz==1 .and.aq_diff_close &
+			&	) &
+			& )/dz(iz)  &
             & ) 
         flx_co2sp(3,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*( &
@@ -17951,8 +17990,13 @@ do iz = 1, nz
             &       *(tora(min(nz,iz+1))*dgasa(ispg)+disp(min(nz,iz+1)))) &
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
-            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz)  &
+            & - merge( & 
+			&	0d0 &
+			& 	,0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
+            &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+			&	,iz==1 .and.aq_diff_close &
+			&	) &
+			& )/dz(iz)  &
             & ) 
         flx_co2sp(4,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*( &
