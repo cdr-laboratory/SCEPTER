@@ -815,7 +815,7 @@ character(5),dimension(nsp_saveall)::chrsp_saveall
 
 integer,parameter::idust = 15
 integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx  &
-    & ,isa,iaqprof2,iaqprof3,iaqprof4
+    & ,isa,iaqprof2,iaqprof3,iaqprof4,iaqprof5
 
 logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
 real(kind=8),dimension(nz,nz,nsp_sld)::trans
@@ -880,15 +880,16 @@ iaqprof     = idust + nsp_sld + nsp_gas + nsp_aq + 4
 iaqprof2    = idust + nsp_sld + nsp_gas + nsp_aq + 5
 iaqprof3    = idust + nsp_sld + nsp_gas + nsp_aq + 6
 iaqprof4    = idust + nsp_sld + nsp_gas + nsp_aq + 7
-igasprof    = idust + nsp_sld + nsp_gas + nsp_aq + 8
-isldsat     = idust + nsp_sld + nsp_gas + nsp_aq + 9
-ibsd        = idust + nsp_sld + nsp_gas + nsp_aq + 10
-irate       = idust + nsp_sld + nsp_gas + nsp_aq + 11
-ipsd        = idust + nsp_sld + nsp_gas + nsp_aq + 12
-ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 13
-ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 14
-ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 15
-isa         = idust + nsp_sld + nsp_gas + nsp_aq + 16
+iaqprof5    = idust + nsp_sld + nsp_gas + nsp_aq + 8
+igasprof    = idust + nsp_sld + nsp_gas + nsp_aq + 9
+isldsat     = idust + nsp_sld + nsp_gas + nsp_aq + 10
+ibsd        = idust + nsp_sld + nsp_gas + nsp_aq + 11
+irate       = idust + nsp_sld + nsp_gas + nsp_aq + 12
+ipsd        = idust + nsp_sld + nsp_gas + nsp_aq + 13
+ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 14
+ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 15
+ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 16
+isa         = idust + nsp_sld + nsp_gas + nsp_aq + 17
 
 ! species whose flux is saved all time
 ! chrsp_saveall = (/'pco2 '/)
@@ -5355,6 +5356,8 @@ do while (it<nt)
             & //'prof_aq(ads)-'//chr//'.txt', status='replace')
         open(iaqprof4,file=trim(adjustl(profdir))//'/' &
             & //'prof_aq(ads%cec)-'//chr//'.txt', status='replace')
+        open(iaqprof5,file=trim(adjustl(profdir))//'/' &
+            & //'prof_ex(tot)-'//chr//'.txt', status='replace')
         open(ibsd, file=trim(adjustl(profdir))//'/'  &
             & //'bsd-'//chr//'.txt', status='replace')
         open(irate, file=trim(adjustl(profdir))//'/'  &
@@ -5374,6 +5377,7 @@ do while (it<nt)
         write(iaqprof2,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'ph','time'
         write(iaqprof3,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
         write(iaqprof4,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
+        write(iaqprof5,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
         write(chrfmt,'(i0)') nsp_gas+2
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(igasprof,trim(adjustl(chrfmt))) 'z',(chrgas(isps),isps=1,nsp_gas),'time'
@@ -5401,6 +5405,9 @@ do while (it<nt)
             write(iaqprof2,*) z(iz),(maqx(ispa,iz)*maqft(ispa,iz),ispa = 1, nsp_aq),-log10(prox(iz)),time
             write(iaqprof3,*) z(iz),(cecaq(ispa,iz),ispa = 1, nsp_aq) ,proxads(iz),time
             write(iaqprof4,*) z(iz),(cecaqr(ispa,iz)*1d2,ispa = 1, nsp_aq) ,bs(iz)*1d2,time
+            write(iaqprof5,*) z(iz),(poro(iz)*sat(iz)*1d3*maqx(ispa,iz)*maqft(ispa,iz) &
+				& + maqx(ispa,iz)*maqfads(ispa,iz),ispa = 1, nsp_aq) &
+				& ,poro(iz)*sat(iz)*1d3*prox(iz) + proxads(iz) / (1d5/ucvsld1/(rho_grain_z(iz)*1d6)) ,time
             write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  &
                 & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
             write(irate,*) z(iz), (rxnsld(isps,iz),isps=1,nsp_sld),(rxnext(irxn,iz),irxn=1,nrxn_ext), time 
@@ -5415,6 +5422,7 @@ do while (it<nt)
         close(iaqprof2)
         close(iaqprof3)
         close(iaqprof4)
+        close(iaqprof5)
         close(igasprof)
         close(ibsd)
         close(irate)
