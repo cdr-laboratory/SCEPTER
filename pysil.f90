@@ -13233,7 +13233,8 @@ do isps = 1, nsp_sld_all
         case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
             ! do nothing 
         case default 
-            cycle
+            ! cycle
+			! do nothing (now allowing cation exchange for whatever phase)
     endselect 
     
     ! equation to be solved:
@@ -13402,7 +13403,8 @@ do ispa=1,nsp_aq_all
                     case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
                         ! do nothing 
                     case default 
-                        cycle
+                        ! cycle
+						! do nothing (now allowing cation exchange for whatever phase)
                 endselect 
                 
                 if (cec_pH_depend(isps)) then
