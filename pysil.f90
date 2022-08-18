@@ -11594,6 +11594,8 @@ do ispa = 1, nsp_aq_all
     endif 
 enddo     
 
+isx = 0.5d0 * isx
+
 if (print_res) write(88,'(A11)', advance='no') 'I'
 if (print_res) write(99,'(A11)', advance='no') 'I'
 if (print_res) write(88,'(A11)') 'tot_charge'
