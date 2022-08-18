@@ -10233,6 +10233,7 @@ logical,intent(out)::ph_error
 real(kind=8),dimension(nz)::prox_max,prox_min,ph_add_order,prox_tmp1,prox_tmp2
 real(kind=8),dimension(nz)::f1_max,f1_min
 real(kind=8),dimension(nz)::df1,f1,f2,df2,df21,df12,d2f1
+real(kind=8),dimension(nz)::isx
 real(kind=8) k_order,ph_inflex,a_order,c_order
 real(kind=8) error,tol,dconc 
 integer iter,iz,ispa,ispg
@@ -10411,7 +10412,7 @@ if (.not. print_cb) then
             & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
             & ,base_charge &
             & ,mgasx_loc,maqf_loc &
-            & ,z,prox &
+            & ,z,prox,isx &
             & ,print_loc,print_res,ph_add_order &
             & ,f1,df1,df1dmaqf,df1dmgas &!output
             & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
@@ -10925,7 +10926,7 @@ if (.not. print_cb) then
                 & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
-                & ,z,prox_min &
+                & ,z,prox_min,isx &
                 & ,print_loc,print_res,ph_add_order &
                 & ,f1_min,df1,df1dmaqf,df1dmgas &!output
                 & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
@@ -10937,7 +10938,7 @@ if (.not. print_cb) then
                 & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
-                & ,z,prox_max &
+                & ,z,prox_max,isx &
                 & ,print_loc,print_res,ph_add_order &
                 & ,f1_max,df1,df1dmaqf,df1dmgas &!output
                 & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
@@ -10949,7 +10950,7 @@ if (.not. print_cb) then
                 & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                 & ,base_charge &
                 & ,mgasx_loc,maqf_loc &
-                & ,z,prox &
+                & ,z,prox,isx &
                 & ,print_loc,print_res,ph_add_order &
                 & ,f1,df1,df1dmaqf,df1dmgas &!output
                 & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
@@ -11043,7 +11044,7 @@ call calc_charge_balance( &
     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
-    & ,z,prox &
+    & ,z,prox,isx &
     & ,print_loc,print_res,ph_add_order &
     & ,f1,df1,df1dmaqf,df1dmgas &!output
     & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
@@ -11133,7 +11134,7 @@ subroutine calc_charge_balance( &
     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
-    & ,z,prox &
+    & ,z,prox,isx &
     & ,print_loc,print_res,ph_add_order &
     & ,f1,df1,df1dmaqf,df1dmgas &!output
     & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
@@ -11151,6 +11152,7 @@ real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
 real(kind=8),dimension(nz),intent(in)::z,prox,ph_add_order
+real(kind=8),dimension(nz),intent(inout)::isx
 real(kind=8),dimension(nz),intent(out)::f1,df1,d2f1
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df1dmaqf,d2f1dmaqf
 real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df1dmgas,d2f1dmgas
@@ -11167,7 +11169,7 @@ integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh
 
 real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3 &
     & ,rspa_cl
-real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf,clf
+real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf,clf,isf
 real(kind=8),dimension(nz)::f1_chk,ss_add,back
 
 character(1) chrint
@@ -11215,12 +11217,16 @@ d2f1dmgas = 0d0
 back = 1d0
 back = 0d0
 
+isf = isx
+isx = 0d0
+
 f1 = f1 + prox**(ss_add+1d0) - kw*prox**(ss_add-1d0) + back*prox**(ss_add)- back*prox**(ss_add)
 df1 = df1 + (ss_add+1d0)*prox**ss_add - kw*(ss_add-1d0)*prox**(ss_add-2d0) &
     & + ss_add*back*prox**(ss_add-1d0)- ss_add*back*prox**(ss_add-1d0)
 d2f1 = d2f1 + (ss_add+1d0)*ss_add*prox**(ss_add-1d0) &
     & - kw*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0) &
     & + ss_add*(ss_add-1d0)*back*prox**(ss_add-2d0)- ss_add*(ss_add-1d0)*back*prox**(ss_add-2d0)
+isx = isx + prox**(+1d0) + kw*prox**(-1d0) 
 if (print_res) write(88,'(3A11)', advance='no') 'z','h', 'oh'
 if (print_res) write(99,'(3A11)', advance='no') 'z','h', 'oh'
 
@@ -11231,6 +11237,7 @@ df1 = df1  -  k1*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0)  -  2d0*k2*k1*kco2*p
 d2f1 = d2f1  -  k1*kco2*pco2x*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0)  &
     & -  2d0*k2*k1*kco2*pco2x*(ss_add-2d0)*(ss_add-3d0)*prox**(ss_add-4d0)
 df1dmgas(ipco2,:) = df1dmgas(ipco2,:) -  k1*kco2*1d0*prox**(ss_add-1d0)  -  2d0*k2*k1*kco2*1d0*prox**(ss_add-2d0)
+isx = isx  +  k1*kco2*pco2x*prox**(-1d0)  +  4d0*k2*k1*kco2*pco2x*prox**(-2d0)
 if (print_res) write(88,'(2A11)', advance='no') 'hco3','co3'
 if (print_res) write(99,'(2A11)', advance='no') 'hco3','co3'
 ! pNH3
@@ -11238,6 +11245,7 @@ f1 = f1  +  pnh3x*knh3/k1nh3*prox**(ss_add+1d0)
 df1 = df1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*prox**ss_add
 d2f1 = d2f1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*ss_add*prox**(ss_add-1d0)
 df1dmgas(ipnh3,:) = df1dmgas(ipnh3,:)  +  1d0*knh3/k1nh3*prox**(ss_add+1d0)
+isx = isx  +  pnh3x*knh3/k1nh3*prox**(+1d0)
 if (print_res) write(88,'(A11)', advance='no') 'nh4'
 if (print_res) write(99,'(A11)', advance='no') 'nh4'
 
@@ -11251,6 +11259,7 @@ do ispa = 1, nsp_aq_all
         & + base_charge(ispa)*maqf_loc(ispa,:)*(ss_add)*(ss_add-1d0)*prox**(ss_add-2d0)  &
         & )
     df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + base_charge(ispa)*1d0*prox**(ss_add) 
+    isx = isx + base_charge(ispa)**2d0*maqf_loc(ispa,:)
     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))
     if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))
     
@@ -11278,6 +11287,8 @@ do ispa = 1, nsp_aq_all
                 & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
                 & *(knh3/k1nh3)**rspa_nh3*rspa_nh3*rspa_nh3**(rspa_nh3-1d0)*prox**(rspa_nh3+ss_add) &
                 & )
+            isx = isx + (base_charge(ispa) + rspa_nh3)**2d0*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
+                & *(pnh3x*knh3/k1nh3)**rspa_nh3*prox**(rspa_nh3)
             if (print_res) then 
                 write(chrint,'(I1)') ispa_nh3
                 write(88,'(A11)', advance='no') '(nh4)'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
@@ -11315,6 +11326,7 @@ do ispa = 1, nsp_aq_all
                 df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + (& 
                     & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
                     & )
+                isx = isx + (base_charge(ispa) + rspa_h)**2d0*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h)
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_h
                     write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
@@ -11344,6 +11356,7 @@ do ispa = 1, nsp_aq_all
                     df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( &
                         & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
                         & )
+                    isx = isx + (base_charge(ispa) - rspa_h)**2d0*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(-rspa_h)
                     if (print_res) then 
                         write(chrint,'(I1)') ispa_h
                         write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
@@ -11365,6 +11378,7 @@ do ispa = 1, nsp_aq_all
                     df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + (& 
                         & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
                         & )
+                    isx = isx + (base_charge(ispa) + rspa_h)**2d0*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h)
                     if (print_res) then 
                         write(chrint,'(I1)') ispa_h-1
                         write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
@@ -11392,6 +11406,7 @@ do ispa = 1, nsp_aq_all
                 df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( &
                     & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
                     & )
+                isx = isx + (base_charge(ispa) - rspa_h)**2d0*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(-rspa_h)
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_h
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
@@ -11418,6 +11433,7 @@ do ispa = 1, nsp_aq_all
                     df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
                         & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-2d0) &
                         & )
+                    isx = isx + (base_charge(ispa)-2d0)**2d0*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(-2d0)
                     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(co3)'
                     if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(co3)'
                 elseif (ispa_c == 2) then ! with HCO3-
@@ -11436,6 +11452,7 @@ do ispa = 1, nsp_aq_all
                     df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
                         & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-1d0) &
                         & )
+                    isx = isx + (base_charge(ispa)-1d0)**2d0*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(-1d0)
                     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(hco3)'
                     if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(hco3)'
                 endif 
@@ -11461,6 +11478,7 @@ do ispa = 1, nsp_aq_all
                     & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s) &
                     & *maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add & 
                     & )
+                isx = isx + (base_charge(ispa)-2d0*rspa_s)**2d0*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_s
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(so4)'//trim(adjustl(chrint))
@@ -11489,6 +11507,7 @@ do ispa = 1, nsp_aq_all
                     & + (base_charge(ispa)-1d0*rspa_no3)*keqaq_no3(ispa,ispa_no3) &
                     &   *maqf_loc(ispa,:)*rspa_no3*no3f**(rspa_no3-1d0)*prox**ss_add & 
                     & )
+                isx = isx + (base_charge(ispa)-1d0*rspa_no3)**2d0*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_no3
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(no3)'//trim(adjustl(chrint))
@@ -11517,6 +11536,7 @@ do ispa = 1, nsp_aq_all
                     & + (base_charge(ispa)-1d0*rspa_cl)*keqaq_cl(ispa,ispa_cl) &
                     &   *maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0)*prox**ss_add & 
                     & )
+                isx = isx + (base_charge(ispa)-1d0*rspa_cl)**2d0*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_cl
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(cl)'//trim(adjustl(chrint))
@@ -11560,6 +11580,9 @@ do ispa = 1, nsp_aq_all
                     & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
                     &   *maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)*prox**(ss_add-rspa_oxa) & 
                     & )
+                isx = isx + (base_charge(ispa)-rspa_oxa_2)**2d0*keqaq_oxa(ispa,ispa_oxa) &
+                    ! & *maqf_loc(ispa,:)*oxaf**rspa_oxa*prox**ss_add
+                    & *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*prox**(-rspa_oxa)
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_oxa
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oxa)'//trim(adjustl(chrint))
@@ -11571,6 +11594,8 @@ do ispa = 1, nsp_aq_all
     endif 
 enddo     
 
+if (print_res) write(88,'(A11)', advance='no') 'I'
+if (print_res) write(99,'(A11)', advance='no') 'I'
 if (print_res) write(88,'(A11)') 'tot_charge'
 if (print_res) write(99,'(A11)') 'tot_charge'
 
@@ -11752,6 +11777,8 @@ if (print_res) then
                 enddo 
             endif 
         enddo     
+        write(88,'(E25.16)', advance='no') isx(iz)
+        write(99,'(E25.16)', advance='no') isx(iz)
         write(88,'(E25.16)') f1_chk(iz)
         write(99,'(E25.16)') f1_chk(iz)
     enddo 
