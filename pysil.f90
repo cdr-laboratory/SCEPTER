@@ -11169,7 +11169,9 @@ integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh
 
 real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3 &
     & ,rspa_cl
-real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf,clf,isf
+real(kind=8) tc
+real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf,clf
+real(kind=8),dimension(nz)::isf,fkw,gamma,fkeq
 real(kind=8),dimension(nz)::f1_chk,ss_add,back
 
 character(1) chrint
@@ -11219,6 +11221,14 @@ back = 0d0
 
 isf = isx
 isx = 0d0
+
+tc = 15d0 ! for now
+call calc_gamma_davies(  &
+	& nz,isf,tc,1d0 &
+	& ,gamma &
+	& )
+	
+fkw = 1d0/gamma/gamma
 
 f1 = f1 + prox**(ss_add+1d0) - kw*prox**(ss_add-1d0) + back*prox**(ss_add)- back*prox**(ss_add)
 df1 = df1 + (ss_add+1d0)*prox**ss_add - kw*(ss_add-1d0)*prox**(ss_add-2d0) &
@@ -22454,6 +22464,29 @@ enddo
 
 
 endsubroutine calc_khgas_all_v2
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calc_gamma_davies( &
+	& nz,isx,tc,charge &
+	& ,gamma &
+	& )
+implicit none
+
+integer,intent(in)::nz
+real(kind=8),intent(in)::isx(nz),tc,charge
+real(kind=8),intent(out)::gamma(nz)
+real(kind=8) epsiron,a
+
+epsiron = 87.74d0 - 0.40008d0*tc+0.0009398d0*tc**2d0-0.00000141d0*tc**3d0
+a = 1.824d6*( epsiron*(tc + 273.15d0 ) )**(-3d0/2d0)
+gamma = -a*charge**2d0*(isx**0.5d0/(1d0+isx**0.5d0) -0.3d0*isx)
+gamma = 10d0**gamma
+
+endsubroutine calc_gamma_davies
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
