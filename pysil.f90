@@ -408,6 +408,7 @@ real(kind=8),intent(in) :: p80 != 1d-6 ! m
 
 ! real(kind=8) ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save,mvka_save,mvgb_save
 real(kind=8),dimension(nz):: pro,prox,poroprev,hrb,vprev,torgprev,toraprev,wprev,ssab,int_ph
+real(kind=8),dimension(nz):: ios,iosx
 real(kind=8),dimension(nz):: dummy,up,dwn,cnr,adf
 real(kind=8) :: rough_c0 != 10d0**(3.3d0)
 real(kind=8) :: rough_c1 != 0.33d0
@@ -607,8 +608,8 @@ integer,intent(in)::nsp_sld != 5
 #ifdef diss_only
 integer,parameter::nsp_sld_2 = 0
 #else
-! integer,parameter::nsp_sld_2 = 23
-integer,parameter::nsp_sld_2 = 24 ! removing dolomite from secondary minerals
+integer,parameter::nsp_sld_2 = 25
+! integer,parameter::nsp_sld_2 = 24 ! removing dolomite from secondary minerals
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 ! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
 #endif 
@@ -689,14 +690,14 @@ real(kind=8),dimension(nrxn_ext_all,nsp_gas_all)::stgas_ext_all,stgas_dext_all
 real(kind=8),dimension(nrxn_ext_all,nsp_sld_all)::stsld_ext_all,stsld_dext_all
 
 real(kind=8),dimension(nsp_aq,nz)::maqft,maqft_prev,maqfads,maqfads_prev
-real(kind=8),dimension(nsp_aq_all,nz)::dprodmaq_all,dso4fdmaq_all
-real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,dmaqft_dpro_loc,maqft_loc,maqads_loc
+real(kind=8),dimension(nsp_aq_all,nz)::dprodmaq_all,dso4fdmaq_all,diosdmaq_all
+real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,dmaqft_dpro_loc,maqft_loc,maqads_loc,dmaqft_dios_loc
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz)::dmaqft_dmaqf_loc
 real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz)::dmaqft_dmgas_loc
 real(kind=8),dimension(nsp_aq_all,nz)::maqfads_loc,dmaqfads_dpro
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz)::dmaqfads_dmaqf
 real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz)::dmaqfads_dmsld
-real(kind=8),dimension(nsp_gas_all,nz)::dprodmgas_all,dso4fdmgas_all
+real(kind=8),dimension(nsp_gas_all,nz)::dprodmgas_all,dso4fdmgas_all,diosdmgas_all
 real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
 real(kind=8),dimension(nsp_sld_all,nz)::msldx_loc,msldf_loc,beta_loc
 
@@ -949,13 +950,14 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n2
 #ifdef diss_only
 chrsld_2(:) = '     '
 #else
-! chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    ! ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'/) 
+chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
+    & ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'  &
+    & ,'amal ','amfe3' /) 
     
 ! version that removes dolomite from 2ndary minerals
-chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    & ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3','amal '  &
-    & ,'amfe3' /) 
+! chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
+    ! & ,'arg  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3','amal '  &
+    ! & ,'amfe3' /) 
     
 ! version that removes all carbonates from 2ndary minerals
 ! chrsld_2 = (/'ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
@@ -1806,7 +1808,7 @@ do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
         case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2')
             precstyle(isps) = 'decay'
-        case('cc','arg') ! added to change solubility 
+        case('cc','arg','dlm') ! added to change solubility 
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
             ! solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
@@ -2594,16 +2596,19 @@ print_cb = .false.
 print_loc = './ph.txt'
 
 pro = 1d0
+ios = 1d-12
 call calc_pH_v7_4( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    & ,poro,sat &! input 
+    & ,poro,sat,tc &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,keqaq_oxa,keqaq_cl &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
+    & ,ios,diosdmaq_all,diosdmgas_all &! output
     & ,pro,ph_error,ph_iter &! output
     & ) 
+! print*,ios
 ! stop
 ! getting mgasx_loc & maqx_loc
 call get_maqgasx_all( &
@@ -2619,8 +2624,8 @@ call get_maqt_all( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
-    & ,mgasx_loc,maqx_loc,pro &
-    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
+    & ,mgasx_loc,maqx_loc,pro,ios,tc &
+    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc,dmaqft_dios_loc &! output
     & ,maqft_loc  &! output
     & )
 maqft = 0d0
@@ -2931,16 +2936,19 @@ if (read_data) then
     print_loc = './ph.txt'
     
     prox = pro
+    iosx = ios
     call calc_pH_v7_4( &
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-        & ,poro,sat &! input 
+        & ,poro,sat,tc &! input 
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
         & ,keqaq_oxa,keqaq_cl &! input
         & ,print_cb,print_loc,z &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
+        & ,iosx,diosdmaq_all,diosdmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
         & ) 
+    ios = iosx
     ! stop
     ! getting mgasx_loc & maqx_loc
     call get_maqgasx_all( &
@@ -2956,8 +2964,8 @@ if (read_data) then
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
         & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
-        & ,mgasx_loc,maqx_loc,prox &
-        & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
+        & ,mgasx_loc,maqx_loc,prox,iosx,tc &
+        & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc,dmaqft_dios_loc &! output
         & ,maqft_loc  &! output
         & )
     maqft = 0d0
@@ -3389,6 +3397,7 @@ do while (it<nt)
     maqx = maq
     
     prox = pro  
+    iosx = ios  
     
     ! so4f = so4fprev
     maqft = maqft_prev
@@ -3956,12 +3965,12 @@ do while (it<nt)
         !  old inputs
         & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close &
+        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios &
         ! old inout
         & ,dt,flgback,w &    
         ! output 
         & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,maqft &
-        & ,maqfads,msldf_loc,beta_loc &
+        & ,maqfads,msldf_loc,beta_loc,iosx &
         & )
     
     
@@ -5147,6 +5156,7 @@ do while (it<nt)
     msld = msldx
     
     pro = prox
+    ios = iosx
     ! so4fprev = so4f
     maqft_prev = maqft
     maqfads_prev = maqfads
@@ -5329,12 +5339,13 @@ do while (it<nt)
             
         call calc_pH_v7_4( &
             & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-            & ,poro,sat &! input 
+            & ,poro,sat,tc &! input 
             & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
             & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
             & ,keqaq_oxa,keqaq_cl &! input
             & ,print_cb,print_loc,z &! input 
             & ,dprodmaq_all,dprodmgas_all &! output
+            & ,iosx,diosdmaq_all,diosdmgas_all &! output
             & ,prox,ph_error,ph_iter &! output
             & ) 
         
@@ -5406,8 +5417,8 @@ do while (it<nt)
             write(iaqprof3,*) z(iz),(cecaq(ispa,iz),ispa = 1, nsp_aq) ,proxads(iz),time
             write(iaqprof4,*) z(iz),(cecaqr(ispa,iz)*1d2,ispa = 1, nsp_aq) ,bs(iz)*1d2,time
             write(iaqprof5,*) z(iz),(poro(iz)*sat(iz)*1d3*maqx(ispa,iz)*maqft(ispa,iz) &
-				& + maqx(ispa,iz)*maqfads(ispa,iz),ispa = 1, nsp_aq) &
-				& ,poro(iz)*sat(iz)*1d3*prox(iz) + proxads(iz) / (1d5/ucvsld1/(rho_grain_z(iz)*1d6)) ,time
+                & + maqx(ispa,iz)*maqfads(ispa,iz),ispa = 1, nsp_aq) &
+                & ,poro(iz)*sat(iz)*1d3*prox(iz) + proxads(iz) / (1d5/ucvsld1/(rho_grain_z(iz)*1d6)) ,time
             write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  &
                 & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
             write(irate,*) z(iz), (rxnsld(isps,iz),isps=1,nsp_sld),(rxnext(irxn,iz),irxn=1,nrxn_ext), time 
@@ -9275,6 +9286,10 @@ select case(trim(adjustl(mineral)))
         ha_1 = -292.8769275d0
         tc_ref_1 = 15d0
         ! from Kanzaki and Murakami 2018
+        therm_ref_1 = 10d0**(-19.714d0 - 2d0* (-22.7d0))
+        ha_1 = (11.580d0 - 2d0* (42.30d0))*cal2j
+        tc_ref_1 = 25d0
+        ! from PHREEQC.DAT
         therm_1 = k_arrhenius(therm_ref_1,tc_ref_1+tempk_0,tc+tempk_0,ha_1,rg) ! rg in kJ mol^-1 K^-1
         delG_1 = - rg*(tc+tempk_0)*log(therm_1) ! del-G = -RT ln K  now in kJ mol-1
         ! Then albite 
@@ -9282,6 +9297,10 @@ select case(trim(adjustl(mineral)))
         ha_2 = -54.15042876d0
         tc_ref_2 = 15d0
         ! from Kanzaki and Murakami 2018
+        therm_ref_2 =  10d0**(-18.002d0 - 1d0* (-22.7d0))
+        ha_2 = (25.896d0 - 1d0* (42.30d0))*cal2j
+        tc_ref_2 = 25d0
+        ! from PHREEQC.DAT
         therm_2 = k_arrhenius(therm_ref_2,tc_ref_2+tempk_0,tc+tempk_0,ha_2,rg)
         delG_2 = - rg*(tc+tempk_0)*log(therm_2) ! del-G = -RT ln K  now in kJ mol-1
         
@@ -10210,12 +10229,13 @@ endsubroutine precalc_aqs_v2
 
 subroutine calc_pH_v7_4( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input
-    & ,poro,sat &! input  
+    & ,poro,sat,tc &! input  
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,keqaq_oxa,keqaq_cl &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
+    & ,iosx,diosdmaq_all,diosdmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
     & ) 
 ! solving charge balance with specific primary variables input; 
@@ -10223,9 +10243,10 @@ subroutine calc_pH_v7_4( &
 ! gases are already treated with specific gas form.  
 implicit none
 integer,intent(in)::nz
-real(kind=8),intent(in)::kw
+real(kind=8),intent(in)::kw,tc
 real(kind=8) so4th
 real(kind=8),dimension(nz)::so4x,prox_save,error_save,prox_save_newton,prox_save_bisec,prox_init
+real(kind=8),dimension(nz)::iosx_save,ios_new
 real(kind=8),dimension(nz),intent(in)::z,poro,sat
 real(kind=8),dimension(nz),intent(inout)::prox
 logical,intent(out)::ph_error
@@ -10233,7 +10254,7 @@ logical,intent(out)::ph_error
 real(kind=8),dimension(nz)::prox_max,prox_min,ph_add_order,prox_tmp1,prox_tmp2
 real(kind=8),dimension(nz)::f1_max,f1_min
 real(kind=8),dimension(nz)::df1,f1,f2,df2,df21,df12,d2f1
-real(kind=8),dimension(nz)::isx
+real(kind=8),dimension(nz),intent(inout)::iosx
 real(kind=8) k_order,ph_inflex,a_order,c_order
 real(kind=8) error,tol,dconc 
 integer iter,iz,ispa,ispg
@@ -10269,6 +10290,9 @@ real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas,df2dmgas,d2f1dmgas
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dprodmaq_all
 real(kind=8),dimension(nsp_gas_all,nz),intent(out)::dprodmgas_all
 
+real(kind=8),dimension(nsp_aq_all,nz),intent(out)::diosdmaq_all
+real(kind=8),dimension(nsp_gas_all,nz),intent(out)::diosdmgas_all
+
 real(kind=8),dimension(nsp_aq_all,nz)::dmaq,maqtmp_loc
 real(kind=8),dimension(nsp_gas_all,nz)::dmgas,mgastmp_loc
 real(kind=8),dimension(nz)::df1_dum,f1_dum,d2f1_dum,fact,f1_tmp,df1_tmp,d2f1_tmp
@@ -10276,8 +10300,11 @@ real(kind=8),dimension(nz)::f1_tmp1,df1_tmp1,d2f1_tmp1
 real(kind=8),dimension(nz)::f1_tmp2,df1_tmp2,d2f1_tmp2
 real(kind=8),dimension(nsp_aq_all,nz)::df1dmaqf_dum,d2f1dmaqf_dum,df1dmaqf_tmp,d2f1dmaqf_tmp
 real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas_dum,d2f1dmgas_dum,df1dmgas_tmp,d2f1dmgas_tmp
+real(kind=8),dimension(nz)::d2f2,df1df2,df2df1
+real(kind=8),dimension(nsp_aq_all,nz)::df2dmaqf,d2f2dmaqf
+real(kind=8),dimension(nsp_gas_all,nz)::d2f2dmgas
 
-real(kind=8),dimension(nsp_aq_all,nz)::dmaqft_dpro_loc,maqft_loc
+real(kind=8),dimension(nsp_aq_all,nz)::dmaqft_dpro_loc,maqft_loc,dmaqft_dios_loc
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz)::dmaqft_dmaqf_loc
 real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz)::dmaqft_dmgas_loc
 
@@ -10363,8 +10390,8 @@ call get_maqt_all( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
-    & ,mgasx_loc,maqx_loc,prox &
-    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
+    & ,mgasx_loc,maqx_loc,prox,iosx,tc &
+    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc,dmaqft_dios_loc &! output
     & ,maqft_loc  &! output
     & )
     
@@ -10373,6 +10400,9 @@ so4x = maqx_loc(iso4,:)*maqft_loc(iso4,:)
     
 maqf_loc = maqx_loc ! fixed free concs. 
 
+! iosx = 1d-12
+
+nmx = nz*2
 nmx = nz
 
 if (allocated(amx)) deallocate(amx)
@@ -10388,6 +10418,7 @@ prox_init = prox
 
 ! print*,'calc_pH'
 if (.not. print_cb) then
+! if (.true.) then
     ! obtaining ph and so4f from scratch
   
     ! prox = 1d0 
@@ -10395,16 +10426,7 @@ if (.not. print_cb) then
     ! do while (error > tol*1d-4)
 
         prox_save = prox
-        
-        if (mod_ph_order) ph_add_order = a_order/(1d0+EXP(-2d0*k_order*(-log10(prox)-ph_inflex))) + c_order
-        ! ph_add_order = 4d0/14d0*(-log10(prox))
-        
-        if (bisec_only) then 
-            ph_error = .true.
-            bisec_chk_ON = .true.
-            exit
-        endif 
-        ! free SO42- (for simplicity only consider XSO4 complex where X is a cation)
+        iosx_save = iosx
         
         call calc_charge_balance( &
             & nz,nsp_aq_all,nsp_gas_all &
@@ -10412,92 +10434,102 @@ if (.not. print_cb) then
             & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
             & ,base_charge &
             & ,mgasx_loc,maqf_loc &
-            & ,z,prox,isx &
+            & ,z,prox,iosx,tc &
             & ,print_loc,print_res,ph_add_order &
             & ,f1,df1,df1dmaqf,df1dmgas &!output
             & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
+            & ,f2,df2,df2dmaqf,df2dmgas &!output
+            & ,df1df2,df2df1,ios_new &!output
             & )
         
         ! df1 = df1*prox
         
-        if (any(isnan(f1)).or.any(isnan(df1))) then 
+        if (any(isnan(f1)).or.any(isnan(df1)) .or. any(isnan(f2)).or.any(isnan(df2)) ) then 
             print*,'found nan during the course of ph calc: newton'
-            print *,any(isnan(f1)),any(isnan(df1))
+            print *,any(isnan(f1)),any(isnan(df1)),any(isnan(f2)),any(isnan(df2))
             print *,prox
+            print *
+            print *,iosx
+            print *
+            print *,f1
+            print *
+            print *,f2
+            print *
+            ! if (any(isnan(f1))) print *, f1
+            if (any(isnan(df1))) print *, df1
+            ! if (any(isnan(f2))) print *, f2
+            if (any(isnan(df2))) print *, df2
             ph_error = .true.
+            ! stop
             return
             exit
             ! pause 
         endif 
         
-        if (calc_simple) then         
-            ! where (-f1/df1 < -threshold)
-                ! fact = 1d0/corr
-            ! elsewhere (-f1/df1 > threshold)
-                ! fact = corr
-            ! elsewhere 
-                ! fact = exp(-f1/df1)
-            ! endwhere
-            ! fact = exp(-f1/df1)
-            ! prox = prox*fact
-            ! prox = prox*dexp( -f1/df1/prox )
-            ! error = maxval(dabs(dexp( -f1/df1/prox )-1d0))
+        if (nmx==nz) then 
+        
+            where (prox -f1/df1>0d0)
+                prox = prox -f1/df1
+            elsewhere 
+                prox = prox*dexp( -f1/df1/prox )
+            endwhere
+            error = maxval(dabs(dexp( -f1/df1/prox )-1d0))
             
-            ! if (maxval(dabs(dexp( -f1/df1/prox )-1d0)) < &
-                ! & maxval(dabs(dexp( -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )/prox )-1d0)) ) then 
-            ! if (.false.) then
-            if (.true.) then
-                halley = .false.
-                where (prox -f1/df1>0d0)
-                    prox = prox -f1/df1
-                elsewhere 
-                    prox = prox*dexp( -f1/df1/prox )
-                    ! prox = prox*0.1d0
-                endwhere
-                error = maxval(dabs(dexp( -f1/df1/prox )-1d0))
-            else 
-                halley = .true.
-                ! where (prox -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 ) >0d0)
-                    ! prox = prox - 2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )
-                ! elsewhere 
-                    ! prox = prox*dexp( -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )/prox )
-                ! endwhere
-                prox = prox*dexp( -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )/prox )
-                error = maxval(dabs(dexp( -2d0*f1*df1/(2d0*df1**2d0 - f1*d2f1 )/prox )-1d0))
-            endif 
-            ! if (isnan(error)) error = 1d4    
-
-        else
-            halley = .false.
+            iosx = ios_new
             
+            error = max( error, maxval(dabs(dexp( -f2/df2/iosx )-1d0)) )
+        endif 
+        
+        df1 = df1*prox
+        df2df1 = df2df1*prox
+        df2 = df2*iosx
+        df1df2 = df1df2*iosx
+        
+        if (any(isnan(f1)).or.any(isnan(f2)).or.any(isnan(df1)).or.any(isnan(df2)) &
+            & .or.any(isnan(df1df2)).or.any(isnan(df2df1))) then 
+            print*,'found nan during the course of ph calc'
+            print *,any(isnan(f1)),any(isnan(f2)),any(isnan(df1)),any(isnan(df2)) &
+                & ,any(isnan(df1df2)),any(isnan(df2df1))
+            print *,prox
+            print *,iosx
+            ph_error = .true.
+            exit
+            ! pause 
+        endif 
+        
+        
+        if (nmx/=nz) then 
             amx = 0d0
             ymx = 0d0
             
             ymx(1:nz) = f1(:)
+            ymx(nz+1:nmx) = f2(:)
             
             do iz=1,nz
-                amx(iz,iz)=df1(iz)*prox(iz)
+                amx(iz,iz)=df1(iz)
+                amx(nz+iz,nz+iz)=df2(iz)
+                amx(iz,nz+iz)=df1df2(iz)
+                amx(nz+iz,iz)=df2df1(iz)
             enddo 
             ymx = -ymx
             
             call DGESV(nmx,int(1),amx,nmx,ipiv,ymx,nmx,info) 
             
-            error = maxval(abs(exp( ymx )-1d0))
-            ! error = maxval( abs ( prox*exp( ymx(1:nz) )*poro*sat*1d3 - prox*poro*sat*1d3))
-            
             prox = prox*exp( ymx(1:nz) )
+            iosx = iosx*exp( ymx(nz+1:nmx) )
             
+            error = maxval(abs(exp( ymx )-1d0))
             if (isnan(error) .or. info/=0) then 
-                print*,error,info
+                print *,'error in error or dgesv'
                 error = 1d4
                 ph_error = .true.
-                return
                 exit 
             endif 
         endif 
+
         
-        error = maxval(dabs((prox_save-prox)/prox))
-        error_save = dabs((prox_save-prox)/prox)
+        ! error = maxval(dabs((prox_save-prox)/prox))
+        ! error_save = dabs((prox_save-prox)/prox)
         
         ! if (any(prox == 0d0)) then 
             ! error = 1d4
@@ -10509,11 +10541,18 @@ if (.not. print_cb) then
         
         iter = iter + 1
         
+        ! print*,iter,error
+        
         if (iter > 3000) then 
             print *,'iteration exceeds 3000 with newton method: error = ',error, ' tol = ',tol,halley
             do iz=1,nz
                 print*,iz,-log10(prox_save(iz)),-log10(prox(iz)),dabs((prox_save(iz)-prox(iz))/prox(iz)),abs(f1(iz))
                 error_save(iz) = dabs((prox_save(iz)-prox(iz))/prox(iz))
+            enddo
+            print *
+            do iz=1,nz
+                print*,iz,-log10(iosx_save(iz)),-log10(iosx(iz)),dabs((iosx_save(iz)-iosx(iz))/iosx(iz)),abs(f2(iz))
+                error_save(iz) = dabs((iosx_save(iz)-iosx(iz))/iosx(iz))
             enddo
             ! print*,error
             ! print*,prox
@@ -10577,7 +10616,7 @@ if (.not. print_cb) then
                         & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
-                        & ,z,prox_tmp1,iz &
+                        & ,z,prox_tmp1,iz,iosx,tc &
                         & ,print_loc,print_res,ph_add_order &
                         & ,f1_tmp1,df1_tmp1,df1dmaqf_dum,df1dmgas_dum &!output
                         & ,d2f1_tmp1,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10589,7 +10628,7 @@ if (.not. print_cb) then
                         & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
-                        & ,z,prox_tmp2,iz &
+                        & ,z,prox_tmp2,iz,iosx,tc &
                         & ,print_loc,print_res,ph_add_order &
                         & ,f1_tmp2,df1_tmp2,df1dmaqf_dum,df1dmgas_dum &!output
                         & ,d2f1_tmp2,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10618,7 +10657,7 @@ if (.not. print_cb) then
                         & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
-                        & ,z,prox,iz &
+                        & ,z,prox,iz,iosx,tc &
                         & ,print_loc,print_res,ph_add_order &
                         & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
                         & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10657,7 +10696,7 @@ if (.not. print_cb) then
                         & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
-                        & ,z,prox_tmp1,iz &
+                        & ,z,prox_tmp1,iz,iosx,tc &
                         & ,print_loc,print_res,ph_add_order &
                         & ,f1_tmp1,df1_tmp1,df1dmaqf_dum,df1dmgas_dum &!output
                         & ,d2f1_tmp1,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10669,7 +10708,7 @@ if (.not. print_cb) then
                         & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
-                        & ,z,prox_tmp2,iz &
+                        & ,z,prox_tmp2,iz,iosx,tc &
                         & ,print_loc,print_res,ph_add_order &
                         & ,f1_tmp2,df1_tmp2,df1dmaqf_dum,df1dmgas_dum &!output
                         & ,d2f1_tmp2,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10700,7 +10739,7 @@ if (.not. print_cb) then
                         & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                         & ,base_charge &
                         & ,mgasx_loc,maqf_loc &
-                        & ,z,prox,iz &
+                        & ,z,prox,iz,iosx,tc &
                         & ,print_loc,print_res,ph_add_order &
                         & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
                         & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10800,7 +10839,7 @@ if (.not. print_cb) then
                     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
-                    & ,z,prox_tmp1,iz &
+                    & ,z,prox_tmp1,iz,iosx,tc &
                     & ,print_loc,print_res,ph_add_order &
                     & ,f1_tmp1,df1_tmp1,df1dmaqf_dum,df1dmgas_dum &!output
                     & ,d2f1_tmp1,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10812,7 +10851,7 @@ if (.not. print_cb) then
                     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
-                    & ,z,prox_tmp2,iz &
+                    & ,z,prox_tmp2,iz,iosx,tc &
                     & ,print_loc,print_res,ph_add_order &
                     & ,f1_tmp2,df1_tmp2,df1dmaqf_dum,df1dmgas_dum &!output
                     & ,d2f1_tmp2,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10848,7 +10887,7 @@ if (.not. print_cb) then
                     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
-                    & ,z,prox,iz &
+                    & ,z,prox,iz,iosx,tc &
                     & ,print_loc,print_res,ph_add_order &
                     & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
                     & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10879,7 +10918,7 @@ if (.not. print_cb) then
                     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
                     & ,base_charge &
                     & ,mgasx_loc,maqf_loc &
-                    & ,z,prox,iz &
+                    & ,z,prox,iz,iosx,tc &
                     & ,print_loc,print_res,ph_add_order &
                     & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
                     & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
@@ -10905,119 +10944,6 @@ if (.not. print_cb) then
         enddo 
     endif 
     
-    ! if (bisec_chk) then 
-    if (.false.) then 
-        ! bisection method 
-        prox_save_newton = prox
-        prox_min = prox/2d0
-        prox_max = prox*2d0
-        error = 1d4
-        iter = 0
-        ph_error = .false.
-        do while (error > 1d-18)
-            ! free SO42- (for simplicity only consider XSO4 complex where X is a cation)
-            
-            prox = 0.5d0 *(prox_min + prox_max)
-            ! prox = (prox_min * prox_max)**0.5d0 
-            
-            call calc_charge_balance( &
-                & nz,nsp_aq_all,nsp_gas_all &
-                & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
-                & ,base_charge &
-                & ,mgasx_loc,maqf_loc &
-                & ,z,prox_min,isx &
-                & ,print_loc,print_res,ph_add_order &
-                & ,f1_min,df1,df1dmaqf,df1dmgas &!output
-                & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
-                & )
-            
-            call calc_charge_balance( &
-                & nz,nsp_aq_all,nsp_gas_all &
-                & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
-                & ,base_charge &
-                & ,mgasx_loc,maqf_loc &
-                & ,z,prox_max,isx &
-                & ,print_loc,print_res,ph_add_order &
-                & ,f1_max,df1,df1dmaqf,df1dmgas &!output
-                & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
-                & )
-            
-            call calc_charge_balance( &
-                & nz,nsp_aq_all,nsp_gas_all &
-                & ,chraq_all,chrgas_all &
-                & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
-                & ,base_charge &
-                & ,mgasx_loc,maqf_loc &
-                & ,z,prox,isx &
-                & ,print_loc,print_res,ph_add_order &
-                & ,f1,df1,df1dmaqf,df1dmgas &!output
-                & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
-                & )
-            
-            ! df1 = df1*prox
-            
-            if (any(isnan(f1)).or.any(isnan(df1))) then 
-                print*,'found nan during the course of ph calc: bisec'
-                print *,any(isnan(f1)),any(isnan(df1))
-                print *,prox
-                ph_error = .true.
-                exit
-                ! pause 
-            endif 
-            
-            ! where (-f1/df1 < -threshold)
-                ! fact = 1d0/corr
-            ! elsewhere (-f1/df1 > threshold)
-                ! fact = corr
-            ! elsewhere 
-                ! fact = exp(-f1/df1)
-            ! endwhere
-            ! fact = exp(-f1/df1)
-            ! prox = prox*fact
-            
-            ! prox = prox*exp( -f1/df1 )
-            ! error = maxval(abs(exp( -f1/df1 )-1d0))
-            error = maxval(abs((prox-prox_max)/prox_max))
-            ! error = maxval(abs(f1/1d-30))
-            if (isnan(error)) error = 1d4
-            
-            ! where (prox <= 1d-15)
-                ! prox = 1d0
-            ! endwhere
-            
-            where(f1_min*f1>0d0)
-                prox_min = prox
-            elsewhere
-                prox_max = prox
-            endwhere
-            
-            iter = iter + 1
-            
-            if (iter > 3000) then 
-                print *,'iteration exceeds 3000 bisection'
-                print*,error
-                print*,prox
-                ! ph_error = .true.
-                ! return
-                exit
-            endif 
-            
-            if (ph_error) exit 
-            
-        enddo  
-        print *,'solved with bisection'
-        print *,' updated ', ' newton ', ' bisec ', ' previous error '
-        prox_save_bisec = prox
-        prox = prox_save_newton
-        where (error_save > tol) 
-            prox = prox_save_bisec
-        endwhere 
-        do iz=1,nz
-            print *,-log10(prox(iz)),-log10(prox_save_newton(iz)),-log10(prox_save_bisec(iz)),error_save(iz)
-        enddo
-    endif 
     
 endif 
 
@@ -11035,8 +10961,6 @@ endif
 
 if (print_cb) print_res = .true.
 
-if (mod_ph_order) ph_add_order = a_order/(1d0+EXP(-2d0*k_order*(-log10(prox)-ph_inflex))) + c_order
-
         
 call calc_charge_balance( &
     & nz,nsp_aq_all,nsp_gas_all &
@@ -11044,80 +10968,108 @@ call calc_charge_balance( &
     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
-    & ,z,prox,isx &
+    & ,z,prox,iosx,tc &
     & ,print_loc,print_res,ph_add_order &
     & ,f1,df1,df1dmaqf,df1dmgas &!output
     & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
+    & ,f2,df2,df2dmaqf,df2dmgas &!output
+    & ,df1df2,df2df1,ios_new &!output
     & )
 
-f1_tmp = 0d0
-df1_tmp = 0d0 
-d2f1_tmp = 0d0
-df1dmaqf_tmp = 0d0
-df1dmgas_tmp = 0d0
-d2f1dmaqf_tmp = 0d0
-d2f1dmgas_tmp = 0d0 
-print_res = .false.
-do iz=1,nz
-    call calc_charge_balance_point( &
-        & nz,nsp_aq_all,nsp_gas_all &
-        & ,chraq_all,chrgas_all &
-        & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
-        & ,base_charge &
-        & ,mgasx_loc,maqf_loc &
-        & ,z,prox,iz &
-        & ,print_loc,print_res,ph_add_order &
-        & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
-        & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
-        & )
-    f1_tmp(iz) = f1_dum(iz)
-    df1_tmp(iz) = df1_dum(iz) 
-    d2f1_tmp(iz) = d2f1_dum(iz)
-    df1dmaqf_tmp(:,iz) = df1dmaqf_dum(:,iz)
-    df1dmgas_tmp(:,iz) = df1dmgas_dum(:,iz)
-    d2f1dmaqf_tmp(:,iz) = d2f1dmaqf_dum(:,iz)
-    d2f1dmgas_tmp(:,iz) = d2f1dmgas_dum(:,iz)
+! if ( maxval(abs((ios_new - iosx)/iosx)) > tol ) then
+    ! print *, 'Ionic strength calculation check failure'
+    ! print *, maxval(abs((ios_new - iosx)/iosx))
+    ! stop
+! endif 
 
+! stop
+
+! ### CHECKING WIHT POINT SUBROUTINE WORKS ###
+
+! f1_tmp = 0d0
+! df1_tmp = 0d0 
+! d2f1_tmp = 0d0
+! df1dmaqf_tmp = 0d0
+! df1dmgas_tmp = 0d0
+! d2f1dmaqf_tmp = 0d0
+! d2f1dmgas_tmp = 0d0 
+! print_res = .false.
+! do iz=1,nz
+    ! call calc_charge_balance_point( &
+        ! & nz,nsp_aq_all,nsp_gas_all &
+        ! & ,chraq_all,chrgas_all &
+        ! & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
+        ! & ,base_charge &
+        ! & ,mgasx_loc,maqf_loc &
+        ! & ,z,prox,iz &
+        ! & ,print_loc,print_res,ph_add_order &
+        ! & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
+        ! & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+        ! & )
+    ! f1_tmp(iz) = f1_dum(iz)
+    ! df1_tmp(iz) = df1_dum(iz) 
+    ! d2f1_tmp(iz) = d2f1_dum(iz)
+    ! df1dmaqf_tmp(:,iz) = df1dmaqf_dum(:,iz)
+    ! df1dmgas_tmp(:,iz) = df1dmgas_dum(:,iz)
+    ! d2f1dmaqf_tmp(:,iz) = d2f1dmaqf_dum(:,iz)
+    ! d2f1dmgas_tmp(:,iz) = d2f1dmgas_dum(:,iz)
+
+! enddo 
+
+! if (maxval(abs((f1_tmp -f1)/f1)) > tol) then 
+    ! print *, 'point wrong for f1?'
+    ! stop
+! endif 
+
+! if (maxval(abs((df1_tmp - df1)/df1)) > tol) then 
+    ! print *, 'point wrong for df1?'
+    ! stop
+! endif 
+
+! if (maxval(abs((df1dmaqf_tmp - df1dmaqf)/df1dmaqf)) > tol) then 
+    ! print *, 'point wrong for df1dmaqf?'
+    ! stop
+! endif 
+
+! if (maxval(abs((df1dmgas_tmp - df1dmgas)/df1dmgas)) > tol) then 
+    ! print *, 'point wrong for df1dmaqf?'
+    ! stop
+! endif 
+
+
+! ### END CHECKING ###
+
+do ispa = 1, nsp_aq_all
+    dprodmaq_all(ispa,:) = - df1dmaqf(ispa,:) / df1   
 enddo 
 
-if (maxval(abs((f1_tmp -f1)/f1)) > tol) then 
-    print *, 'point wrong for f1?'
-    stop
-endif 
+do ispg = 1, nsp_gas_all
+    dprodmgas_all(ispg,:) = - df1dmgas(ispg,:) /df1
+enddo 
 
-if (maxval(abs((df1_tmp - df1)/df1)) > tol) then 
-    print *, 'point wrong for df1?'
-    stop
-endif 
+do ispa = 1, nsp_aq_all
+    diosdmaq_all(ispa,:) = - df2dmaqf(ispa,:) / df2   
+enddo 
 
-if (maxval(abs((df1dmaqf_tmp - df1dmaqf)/df1dmaqf)) > tol) then 
-    print *, 'point wrong for df1dmaqf?'
-    stop
-endif 
-
-if (maxval(abs((df1dmgas_tmp - df1dmgas)/df1dmgas)) > tol) then 
-    print *, 'point wrong for df1dmaqf?'
-    stop
-endif 
+do ispg = 1, nsp_gas_all
+    diosdmgas_all(ispg,:) = - df2dmgas(ispg,:) /df2
+enddo 
 
 ! solving two equations analytically:
 ! df1/dmsp + df1/dph * dph/dmsp  = 0  
 ! df1/dmsp * Dmsp + df1/dph *Dph = 0
 ! df1/dmsp * Dmsp + df1/dph *Dph + (d2f1/dmsp2) * (Dmsp)^2 + (d2f1/d2ph) *(Dph)^2 = 0
 ! df1/dmsp * Dmsp + (d2f1/dmsp2) * (Dmsp)^2 + df1/dph *Dph +  (d2f1/d2ph) *(Dph)^2 = 0
-do ispa = 1, nsp_aq_all
-    dprodmaq_all(ispa,:) = - df1dmaqf(ispa,:) / df1   
-    ! dprodmaq_all(ispa,:) = 2d0*(df1dmaqf(ispa,:)*dconc +d2f1dmaqf(ispa,:)*dconc**2d0) &
-        ! & / (-df1 - ( df1**2d0-4d0*d2f1*(df1dmaqf(ispa,:)*dconc +d2f1dmaqf(ispa,:)*dconc**2d0))**0.5d0)
-    ! dprodmaq_all(ispa,:) = dprodmaq_all(ispa,:)/dconc
-enddo 
 
-do ispg = 1, nsp_gas_all
-    dprodmgas_all(ispg,:) = - df1dmgas(ispg,:) /df1
-    ! dprodmgas_all(ispg,:) = 2d0*(df1dmgas(ispg,:)*dconc +d2f1dmgas(ispg,:)*dconc**2d0) &
-        ! & / (-df1 - ( df1**2d0-4d0*d2f1*(df1dmgas(ispg,:)*dconc +d2f1dmgas(ispg,:)*dconc**2d0))**0.5d0)
-    ! dprodmgas_all(ispg,:) = dprodmgas_all(ispg,:)/dconc
-enddo 
+! do ispa = 1, nsp_aq_all
+    ! dprodmaq_all(ispa,:) = - (df2*df1dmaqf(ispa,:) - df1df2*df2dmaqf(ispa,:))/(df2*df1 - df1df2*df2df1)   
+    ! diosdmaq_all(ispa,:) = - ( df2df1*df1dmaqf(ispa,:) - df1*df2dmaqf(ispa,:) )/(df2df1*df1df2 - df1*df2 ) 
+! enddo 
+
+! do ispg = 1, nsp_gas_all
+    ! dprodmgas_all(ispg,:) = - (df2*df1dmgas(ispg,:) - df1df2*df2dmgas(ispg,:) )/(df2*df1 -df12*df2df1)
+    ! diosdmgas_all(ispg,:) = - ( df2df1*df1dmgas(ispg,:) - df1*df2dmgas(ispg,:) )/(df2df1*df1df2 - df1*df2 )  
+! enddo 
 
 return
 
@@ -11134,17 +11086,19 @@ subroutine calc_charge_balance( &
     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
-    & ,z,prox,isx &
+    & ,z,prox,iosx,tc &
     & ,print_loc,print_res,ph_add_order &
     & ,f1,df1,df1dmaqf,df1dmgas &!output
     & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
+    & ,f2,df2,df2dmaqf,df2dmgas &!output
+    & ,df1df2,df2df1,ios_new &!output
     & )
 implicit none
 
 integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
 character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),intent(in)::kw
+real(kind=8),intent(in)::kw,tc
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl
@@ -11152,10 +11106,16 @@ real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
 real(kind=8),dimension(nz),intent(in)::z,prox,ph_add_order
-real(kind=8),dimension(nz),intent(inout)::isx
+real(kind=8),dimension(nz),intent(in)::iosx
 real(kind=8),dimension(nz),intent(out)::f1,df1,d2f1
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df1dmaqf,d2f1dmaqf
 real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df1dmgas,d2f1dmgas
+real(kind=8),dimension(nz),intent(out)::f2,df2,df1df2,df2df1,ios_new
+real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df2dmaqf
+real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df2dmgas
+real(kind=8),dimension(nz)::d2f2
+real(kind=8),dimension(nsp_aq_all,nz)::d2f2dmaqf
+real(kind=8),dimension(nsp_gas_all,nz)::d2f2dmgas
 
 logical,intent(in)::print_res
 character(500),intent(in)::print_loc
@@ -11165,22 +11125,34 @@ integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
 
 integer ispa,ispa_h,ispa_c,ispa_s,iz,ipco2,ipnh3,iso4,ioxa,ispa_no3,ino3,ispa_nh3,ispa_oxa,ispa_cl &
-    & ,icl
+    & ,icl,icharge,ic1,ic2,ic3
 
 real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3 &
-    & ,rspa_cl
-real(kind=8) tc
+    & ,rspa_cl,rcharge
+! real(kind=8) tc
 real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf,clf
-real(kind=8),dimension(nz)::isf,fkw,gamma,fkeq
+real(kind=8),dimension(nz)::isf,fkw,fkeq,dfkw_dios,dfkeq_dios
+real(kind=8),dimension(nz)::gamma_tmp,dgamma_dios_tmp
+real(kind=8),dimension(4,nz)::gamma,dgamma_dios
 real(kind=8),dimension(nz)::f1_chk,ss_add,back
 
 character(1) chrint
+
+real(kind=8),dimension(nsp_gas_all,3,nz)::fkeqgas_h
+real(kind=8),dimension(nsp_aq_all,4,nz)::fkeqaq_h
+real(kind=8),dimension(nsp_aq_all,2,nz)::fkeqaq_c,fkeqaq_s,fkeqaq_no3,fkeqaq_nh3,fkeqaq_oxa,fkeqaq_cl
 
 path_tmp = print_loc(:index(print_loc,'.txt')-5)
 index_tmp = print_loc(index(print_loc,'.txt')-4:)
 
 if (print_res) open(88,file = trim(adjustl(print_loc)),status='replace')
-if (print_res) open(99,file = trim(adjustl(path_tmp))//'(eq)'//trim(adjustl(index_tmp)),status='replace')
+if (print_res) then 
+    if (print_loc == './ph.txt') then 
+        open(99,file = './ph(eq).txt',status='replace')
+    else
+        open(99,file = trim(adjustl(path_tmp))//'(eq)'//trim(adjustl(index_tmp)),status='replace')
+    endif 
+endif 
 
 ipco2   = findloc(chrgas_all,'pco2',dim=1)
 ipnh3   = findloc(chrgas_all,'pnh3',dim=1)
@@ -11216,46 +11188,91 @@ df1dmgas = 0d0
 d2f1dmaqf = 0d0
 d2f1dmgas = 0d0
 
+f2 = 0d0
+df2 = 0d0
+d2f2 = 0d0
+df2dmaqf = 0d0
+df2dmgas = 0d0
+d2f2dmaqf = 0d0
+d2f2dmgas = 0d0
+
+df1df2=0d0
+df2df1=0d0
+
 back = 1d0
 back = 0d0
 
-isf = isx
-isx = 0d0
+fkeqaq_c=0d0;fkeqaq_s=0d0;fkeqaq_no3=0d0;fkeqaq_nh3=0d0;fkeqaq_oxa=0d0;fkeqaq_cl=0d0
+fkeqaq_h=0d0
+fkeqgas_h=0d0
 
-tc = 15d0 ! for now
-call calc_gamma_davies(  &
-	& nz,isf,tc,1d0 &
-	& ,gamma &
-	& )
-	
-fkw = 1d0/gamma/gamma
+do icharge=1,4
+    rcharge = 1d0*icharge
+    call calc_gamma_davies(  &
+        & nz,iosx,tc,rcharge &
+        & ,gamma_tmp,dgamma_dios_tmp &
+        & )
+    gamma(icharge,:)=gamma_tmp(:)
+    dgamma_dios(icharge,:)=dgamma_dios_tmp(:)
+enddo
+    
+fkw = 1d0/gamma(1,:)/gamma(1,:) ! H2O = H+ + OH- <--> Kw = {H+}{OH-} <--> Kw/gamma/gamma = [H+][OH-]
+dfkw_dios = 1d0*(-2d0)*gamma(1,:)**(-3d0)*dgamma_dios(1,:)
 
-f1 = f1 + prox**(ss_add+1d0) - kw*prox**(ss_add-1d0) + back*prox**(ss_add)- back*prox**(ss_add)
-df1 = df1 + (ss_add+1d0)*prox**ss_add - kw*(ss_add-1d0)*prox**(ss_add-2d0) &
-    & + ss_add*back*prox**(ss_add-1d0)- ss_add*back*prox**(ss_add-1d0)
+! print *,fkw 
+! print *,dfkw_dios 
+! stop
+
+f1 = f1 + prox**(ss_add+1d0) - fkw*kw*prox**(ss_add-1d0) 
+df1 = df1 + (ss_add+1d0)*prox**ss_add - fkw*kw*(ss_add-1d0)*prox**(ss_add-2d0) 
 d2f1 = d2f1 + (ss_add+1d0)*ss_add*prox**(ss_add-1d0) &
-    & - kw*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0) &
-    & + ss_add*(ss_add-1d0)*back*prox**(ss_add-2d0)- ss_add*(ss_add-1d0)*back*prox**(ss_add-2d0)
-isx = isx + prox**(+1d0) + kw*prox**(-1d0) 
+    & - fkw*kw*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0) 
+df1df2 = df1df2 - dfkw_dios*kw*prox**(ss_add-1d0)
+f2 = f2 - 2d0*iosx*prox**(ss_add) + prox**(ss_add+1d0) + fkw*kw*prox**(ss_add-1d0) 
+df2 = df2 - 2d0*prox**(ss_add) + dfkw_dios*kw*prox**(ss_add-1d0)
+df2df1 = df2df1 - 2d0*iosx*ss_add*prox**(ss_add-1d0) &
+    & + (ss_add+1d0)*prox**(ss_add) + fkw*kw*(ss_add-1d0)*prox**(ss_add-2d0) 
 if (print_res) write(88,'(3A11)', advance='no') 'z','h', 'oh'
 if (print_res) write(99,'(3A11)', advance='no') 'z','h', 'oh'
 
 ! adding charges coming from aq species in eq with gases
-! pCO2
-f1 = f1  -  k1*kco2*pco2x*prox**(ss_add-1d0)  -  2d0*k2*k1*kco2*pco2x*prox**(ss_add-2d0)
-df1 = df1  -  k1*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0)  -  2d0*k2*k1*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0)
-d2f1 = d2f1  -  k1*kco2*pco2x*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0)  &
-    & -  2d0*k2*k1*kco2*pco2x*(ss_add-2d0)*(ss_add-3d0)*prox**(ss_add-4d0)
-df1dmgas(ipco2,:) = df1dmgas(ipco2,:) -  k1*kco2*1d0*prox**(ss_add-1d0)  -  2d0*k2*k1*kco2*1d0*prox**(ss_add-2d0)
-isx = isx  +  k1*kco2*pco2x*prox**(-1d0)  +  4d0*k2*k1*kco2*pco2x*prox**(-2d0)
+! pCO2 
+! Kco2: CO2(g) = CO2(a) assume no correction for activity/fugacity 
+! K1  : CO2(a) + H2O = HCO3- + H+ <--> K1 = {HCO3-}{H+}/{CO2(a)} <--> K1/gamma/gamma = [HCO3-][H+]/[CO2(a)]
+! K2  : HCO3- = CO32- + H+ <--> K2 = {CO32-}{H+}/{HCO3-} <--> K2*gamma/gamma/gamma2 = [CO32-][H+]/[HCO3-]
+fkeq = 1d0/gamma(2,:)
+dfkeq_dios = -1d0/gamma(2,:)**2d0*dgamma_dios(2,:)
+
+f1 = f1  -  fkw*k1*kco2*pco2x*prox**(ss_add-1d0)  -  2d0*fkeq*fkw*k2*k1*kco2*pco2x*prox**(ss_add-2d0)
+df1 = df1  -  fkw*k1*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0)  -  2d0*fkeq*fkw*k2*k1*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0)
+d2f1 = d2f1  -  fkw*k1*kco2*pco2x*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0)  &
+    & -  2d0*fkeq*fkw*k2*k1*kco2*pco2x*(ss_add-2d0)*(ss_add-3d0)*prox**(ss_add-4d0)
+df1dmgas(ipco2,:) = df1dmgas(ipco2,:) -  fkw*k1*kco2*1d0*prox**(ss_add-1d0)  -  2d0*fkeq*fkw*k2*k1*kco2*1d0*prox**(ss_add-2d0)
+df1df2 = df1df2  + ( &
+    & -  dfkw_dios*k1*kco2*pco2x*prox**(ss_add-1d0)  &
+    & -  2d0*dfkeq_dios*fkw*k2*k1*kco2*pco2x*prox**(ss_add-2d0) &
+    & -  2d0*fkeq*dfkw_dios*k2*k1*kco2*pco2x*prox**(ss_add-2d0) &
+    & )
+f2 = f2  +  fkw*k1*kco2*pco2x*prox**(ss_add-1d0)  +  4d0*fkeq*fkw*k2*k1*kco2*pco2x*prox**(ss_add-2d0)
+df2 = df2  + ( &
+    & +  dfkw_dios*k1*kco2*pco2x*prox**(ss_add-1d0)  &
+    & +  4d0*dfkeq_dios*fkw*k2*k1*kco2*pco2x*prox**(ss_add-2d0) &
+    & +  4d0*fkeq*dfkw_dios*k2*k1*kco2*pco2x*prox**(ss_add-2d0) &
+    & )
+df2df1 = df2df1  &
+    & +  fkw*k1*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0)  +  4d0*fkeq*fkw*k2*k1*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0)
+df2dmgas(ipco2,:) = df2dmgas(ipco2,:) +  fkw*k1*kco2*1d0*prox**(ss_add-1d0)  +  4d0*fkeq*fkw*k2*k1*kco2*1d0*prox**(ss_add-2d0)
 if (print_res) write(88,'(2A11)', advance='no') 'hco3','co3'
 if (print_res) write(99,'(2A11)', advance='no') 'hco3','co3'
-! pNH3
+! pNH3 
+! k1nh3: NH4+ = NH3 + H+ (no change in thermodynamic const is necessary?)
 f1 = f1  +  pnh3x*knh3/k1nh3*prox**(ss_add+1d0)
 df1 = df1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*prox**ss_add
 d2f1 = d2f1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*ss_add*prox**(ss_add-1d0)
 df1dmgas(ipnh3,:) = df1dmgas(ipnh3,:)  +  1d0*knh3/k1nh3*prox**(ss_add+1d0)
-isx = isx  +  pnh3x*knh3/k1nh3*prox**(+1d0)
+f2 = f2  +  pnh3x*knh3/k1nh3*prox**(ss_add+1d0)
+df2df1 = df2df1  +  pnh3x*knh3/k1nh3*(ss_add+1d0)*prox**ss_add
+df2dmgas(ipnh3,:) = df2dmgas(ipnh3,:)  +  1d0*knh3/k1nh3*prox**(ss_add+1d0)
 if (print_res) write(88,'(A11)', advance='no') 'nh4'
 if (print_res) write(99,'(A11)', advance='no') 'nh4'
 
@@ -11268,37 +11285,93 @@ do ispa = 1, nsp_aq_all
     d2f1 = d2f1 + ( &
         & + base_charge(ispa)*maqf_loc(ispa,:)*(ss_add)*(ss_add-1d0)*prox**(ss_add-2d0)  &
         & )
-    df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + base_charge(ispa)*1d0*prox**(ss_add) 
-    isx = isx + base_charge(ispa)**2d0*maqf_loc(ispa,:)
+    df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + base_charge(ispa)*1d0*prox**(ss_add)
+    f2 = f2 + base_charge(ispa)**2d0*maqf_loc(ispa,:)*prox**(ss_add)
+    df2df1 = df2df1 + ( &
+        & + base_charge(ispa)**2d0*maqf_loc(ispa,:)*(ss_add)*prox**(ss_add-1d0)  &
+        & )
+    df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + base_charge(ispa)**2d0*1d0*prox**(ss_add)
     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))
     if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))
     
-    ! account for speces associated with NH4+ (both anions and cations)
+    ! account for speces associated with NH4+ (both anions and cations: X + NH4+ = XNH4+)
     do ispa_nh3 = 1,2
         if ( keqaq_nh3(ispa,ispa_nh3) > 0d0) then 
             rspa_nh3 = real(ispa_nh3,kind=8)
-            f1 = f1 + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
+            ic1 = nint(abs(base_charge(ispa)))
+            ic2 = nint(abs(base_charge(ispa)+rspa_nh3))
+            if ( ic1>0 .and. ic2 > 0) then  
+                fkeq = gamma(ic1,:)*gamma(1,:)**rspa_nh3/gamma(ic2,:)
+                dfkeq_dios = ( &
+                    & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_nh3/gamma(ic2,:) &
+                    & + gamma(ic1,:)*rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                    &   /gamma(ic2,:) &
+                    & + gamma(ic1,:)*gamma(1,:)**rspa_nh3*(-1d0) &
+                    &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                    & )
+            elseif ( ic1==0 .and. ic2 > 0) then  
+                fkeq = gamma(1,:)**rspa_nh3/gamma(ic2,:)
+                dfkeq_dios = ( &
+                    & + rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                    &   /gamma(ic2,:) &
+                    & + gamma(1,:)**rspa_nh3*(-1d0) &
+                    &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                    & )
+            elseif ( ic1>0 .and. ic2 == 0) then  
+                fkeq = gamma(ic1,:)*gamma(1,:)**rspa_nh3
+                dfkeq_dios = ( &
+                    & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_nh3 &
+                    & + gamma(ic1,:)*rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                    & )
+            elseif ( ic1==0 .and. ic2 == 0) then  
+                fkeq = gamma(1,:)**rspa_nh3
+                dfkeq_dios = ( &
+                    & + rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                    & )
+            else    
+                print *, 'something is wrong'
+                stop
+            endif 
+            fkeqaq_nh3(ispa,ispa_nh3,:) = fkeq
+            f1 = f1 + (base_charge(ispa) + rspa_nh3)*fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
                 & *(pnh3x*knh3/k1nh3)**rspa_nh3*prox**(rspa_nh3+ss_add)
             df1 = df1 + ( & 
-                & + (base_charge(ispa) + rspa_nh3) &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq &
                 & *keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(pnh3x*knh3/k1nh3)**rspa_nh3 &
                 & *(rspa_nh3+ss_add)*prox**(rspa_nh3+ss_add-1d0) &
                 & )
             d2f1 = d2f1 + ( & 
-                & + (base_charge(ispa) + rspa_nh3) &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq &
                 & *keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(rspa_nh3+ss_add)*(rspa_nh3+ss_add-1d0)*(pnh3x*knh3/k1nh3)**rspa_nh3 &
                 & *prox**(rspa_nh3+ss_add-2d0) &
                 & )
             df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + (& 
-                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3) &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq*keqaq_nh3(ispa,ispa_nh3) &
                 & *1d0*(pnh3x*knh3/k1nh3)**rspa_nh3*prox**(rspa_nh3+ss_add) &
                 & )
             df1dmgas(ipnh3,:) = df1dmgas(ipnh3,:) + (& 
-                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
                 & *(knh3/k1nh3)**rspa_nh3*rspa_nh3*rspa_nh3**(rspa_nh3-1d0)*prox**(rspa_nh3+ss_add) &
                 & )
-            isx = isx + (base_charge(ispa) + rspa_nh3)**2d0*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
-                & *(pnh3x*knh3/k1nh3)**rspa_nh3*prox**(rspa_nh3)
+            df1df2 = df1df2 + (base_charge(ispa) + rspa_nh3)*dfkeq_dios*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
+                & *(pnh3x*knh3/k1nh3)**rspa_nh3*prox**(rspa_nh3+ss_add)
+            f2 = f2 + (base_charge(ispa) + rspa_nh3)**2d0*fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
+                & *(pnh3x*knh3/k1nh3)**rspa_nh3*prox**(rspa_nh3+ss_add)
+            df2df1 = df2df1 + ( & 
+                & + (base_charge(ispa) + rspa_nh3)**2d0*fkeq &
+                & *keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(pnh3x*knh3/k1nh3)**rspa_nh3 &
+                & *(rspa_nh3+ss_add)*prox**(rspa_nh3+ss_add-1d0) &
+                & )
+            df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + (& 
+                & + (base_charge(ispa) + rspa_nh3)**2d0*fkeq*keqaq_nh3(ispa,ispa_nh3) &
+                & *1d0*(pnh3x*knh3/k1nh3)**rspa_nh3*prox**(rspa_nh3+ss_add) &
+                & )
+            df2dmgas(ipnh3,:) = df2dmgas(ipnh3,:) + (& 
+                & + (base_charge(ispa) + rspa_nh3)**2d0*fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
+                & *(knh3/k1nh3)**rspa_nh3*rspa_nh3*rspa_nh3**(rspa_nh3-1d0)*prox**(rspa_nh3+ss_add) &
+                & )
+            df2 = df2 + (base_charge(ispa) + rspa_nh3)**2d0*dfkeq_dios*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:) &
+                & *(pnh3x*knh3/k1nh3)**rspa_nh3*prox**(rspa_nh3+ss_add)
             if (print_res) then 
                 write(chrint,'(I1)') ispa_nh3
                 write(88,'(A11)', advance='no') '(nh4)'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
@@ -11320,23 +11393,69 @@ do ispa = 1, nsp_aq_all
         ! & .or. trim(adjustl(chraq_all(ispa)))=='oxa' &
         & ) then 
         
-        ! account for speces associated with H+
+        ! account for speces associated with H+ (X + H+ = XH+)
         do ispa_h = 1,2
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                 rspa_h = real(ispa_h,kind=8)
-                f1 = f1 + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)+rspa_h))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_h/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_h/gamma(ic2,:) &
+                        & + gamma(ic1,:)*rspa_h*gamma(1,:)**(rspa_h-1d0)*dgamma_dios(1,:) &
+                        &   /gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(1,:)**rspa_h*(-1d0) &
+                        &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(1,:)**rspa_h/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + rspa_h*gamma(1,:)**(rspa_h-1d0)*dgamma_dios(1,:) &
+                        &   /gamma(ic2,:) &
+                        & + gamma(1,:)**rspa_h*(-1d0) &
+                        &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_h &
+                        & + gamma(ic1,:)*rspa_h*gamma(1,:)**(rspa_h-1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + rspa_h*gamma(1,:)**(rspa_h-1d0)*dgamma_dios(1,:) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                fkeqaq_h(ispa,ispa_h,:) = fkeq
+                f1 = f1 + (base_charge(ispa) + rspa_h)*fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
                 df1 = df1 + ( & 
-                    & + (base_charge(ispa) + rspa_h) &
+                    & + (base_charge(ispa) + rspa_h)*fkeq &
                     &        *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0) &
                     & )
                 d2f1 = d2f1 + ( & 
-                    & + (base_charge(ispa) + rspa_h) &
+                    & + (base_charge(ispa) + rspa_h)*fkeq &
                     &        *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*(rspa_h+ss_add-1d0)*prox**(rspa_h+ss_add-2d0) &
                     & )
                 df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + (& 
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
+                    & + (base_charge(ispa) + rspa_h)*fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
                     & )
-                isx = isx + (base_charge(ispa) + rspa_h)**2d0*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h)
+                df1df2 = df1df2 + ( &
+                    & + (base_charge(ispa) + rspa_h)*dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add) &
+                    & )
+                f2 = f2 + (base_charge(ispa) + rspa_h)**2d0*fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
+                df2df1 = df2df1 + ( & 
+                    & + (base_charge(ispa) + rspa_h)**2d0*fkeq &
+                    &        *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0) &
+                    & )
+                df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + (& 
+                    & + (base_charge(ispa) + rspa_h)**2d0*fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
+                    & )
+                df2 = df2 + (base_charge(ispa) + rspa_h)**2d0*dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_h
                     write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
@@ -11354,19 +11473,36 @@ do ispa = 1, nsp_aq_all
             if (ispa_h==1) then  ! OxaH- = Oxa= + H+ 
                 if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                     rspa_h = real(ispa_h,kind=8)
-                    f1 = f1 + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
+                    fkeq = 1d0/gamma(2,:)
+                    dfkeq_dios = -1d0/gamma(2,:)**2d0*dgamma_dios(2,:)
+                    fkeqaq_h(ispa,ispa_h,:) = fkeq
+                    f1 = f1 + (base_charge(ispa) - rspa_h)*fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
                     df1 = df1 + ( &
-                        & + (base_charge(ispa) - rspa_h) &
+                        & + (base_charge(ispa) - rspa_h)*fkeq &
                         &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*prox**(ss_add-rspa_h-1d0) &
                         & )
                     d2f1 = d2f1 + ( &
-                        & + (base_charge(ispa) - rspa_h) &
+                        & + (base_charge(ispa) - rspa_h)*fkeq &
                         &   *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*(ss_add-rspa_h-1d0)*prox**(ss_add-rspa_h-2d0) &
                         & )
                     df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( &
-                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
+                        & + (base_charge(ispa) - rspa_h)*fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
                         & )
-                    isx = isx + (base_charge(ispa) - rspa_h)**2d0*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(-rspa_h)
+                    df1df2 = df1df2 + ( &
+                        & + (base_charge(ispa) - rspa_h)*dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h) &
+                        & )
+                    f2 = f2 + (base_charge(ispa) - rspa_h)**2d0*fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
+                    df2df1 = df2df1 + ( &
+                        & + (base_charge(ispa) - rspa_h)**2d0*fkeq &
+                        &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*prox**(ss_add-rspa_h-1d0) &
+                        & )
+                    df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + ( &
+                        & + (base_charge(ispa) - rspa_h)**2d0*fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
+                        & )
+                    df2 = df2 + ( &
+                        & + (base_charge(ispa) - rspa_h)**2d0*dfkeq_dios &
+                        &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h) &
+                        & )
                     if (print_res) then 
                         write(chrint,'(I1)') ispa_h
                         write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
@@ -11376,19 +11512,36 @@ do ispa = 1, nsp_aq_all
             elseif (ispa_h==2) then  ! OxaH- + H+ = OxaH2  
                 if ( keqaq_h(ispa,ispa_h) > 0d0) then  
                     rspa_h = real(ispa_h-1,kind=8)
-                    f1 = f1 + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
+                    fkeq = gamma(1,:)**2d0
+                    dfkeq_dios = 2d0*gamma(1,:)*dgamma_dios(1,:)
+                    fkeqaq_h(ispa,ispa_h,:)=fkeq
+                    f1 = f1 + (base_charge(ispa) + rspa_h)*fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
                     df1 = df1 + ( & 
-                        & + (base_charge(ispa) + rspa_h) &
+                        & + (base_charge(ispa) + rspa_h)*fkeq &
                         &        *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0) &
                         & )
                     d2f1 = d2f1 + ( & 
-                        & + (base_charge(ispa) + rspa_h) &
+                        & + (base_charge(ispa) + rspa_h)*fkeq &
                         &   *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*(rspa_h+ss_add-1d0)*prox**(rspa_h+ss_add-2d0) &
                         & )
                     df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + (& 
-                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
+                        & + (base_charge(ispa) + rspa_h)*fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
                         & )
-                    isx = isx + (base_charge(ispa) + rspa_h)**2d0*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h)
+                    df1df2 = df1df2 + ( &
+                        & + (base_charge(ispa) + rspa_h)*dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add) &
+                        & )
+                    f2 = f2 + (base_charge(ispa) + rspa_h)**2d0*fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add)
+                    df2df1 = df2df1 + ( & 
+                        & + (base_charge(ispa) + rspa_h)**2d0*fkeq &
+                        &        *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(rspa_h+ss_add)*prox**(rspa_h+ss_add-1d0) &
+                        & )
+                    df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + (& 
+                        & + (base_charge(ispa) + rspa_h)**2d0*fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**(rspa_h+ss_add) &
+                        & )
+                    df2 = df2 + ( &
+                        & + (base_charge(ispa) + rspa_h)**2d0*dfkeq_dios &
+                        &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(rspa_h+ss_add) &
+                        & )
                     if (print_res) then 
                         write(chrint,'(I1)') ispa_h-1
                         write(88,'(A11)', advance='no') 'h'//trim(adjustl(chrint))//trim(adjustl(chraq_all(ispa)))
@@ -11400,23 +11553,65 @@ do ispa = 1, nsp_aq_all
         enddo
     ! cations
     else 
-        ! account for hydrolysis speces
+        ! account for hydrolysis speces (X + H2O = XOH- + H+)
         do ispa_h = 1,4
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                 rspa_h = real(ispa_h,kind=8)
-                f1 = f1 + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-rspa_h))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)/gamma(ic2,:)/gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)/gamma(ic2,:)/gamma(1,:)**rspa_h &
+                        & + gamma(ic1,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:)/gamma(1,:)**rspa_h &
+                        & + gamma(ic1,:)/gamma(ic2,:)*(-rspa_h)/gamma(1,:)**(rspa_h+1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = 1d0/gamma(ic2,:)/gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + 1d0*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:)/gamma(1,:)**rspa_h &
+                        & + 1d0/gamma(ic2,:)*(-rspa_h)/gamma(1,:)**(rspa_h+1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)/gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)/gamma(1,:)**rspa_h &
+                        & + gamma(ic1,:)*(-rspa_h)/gamma(1,:)**(rspa_h+1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = 1d0/gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + 1d0*(-rspa_h)/gamma(1,:)**(rspa_h+1d0)*dgamma_dios(1,:) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                fkeqaq_h(ispa,ispa_h,:)=fkeq
+                f1 = f1 + (base_charge(ispa) - rspa_h)*fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
                 df1 = df1 + ( &
-                    & + (base_charge(ispa) - rspa_h) &
+                    & + (base_charge(ispa) - rspa_h)*fkeq &
                     &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*prox**(ss_add-rspa_h-1d0) &
                     & )
                 d2f1 = d2f1 + ( &
-                    & + (base_charge(ispa) - rspa_h) &
+                    & + (base_charge(ispa) - rspa_h)*fkeq &
                     &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*(ss_add-rspa_h-1d0)*prox**(ss_add-rspa_h-2d0) &
                     & )
                 df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
+                    & + (base_charge(ispa) - rspa_h)*fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
                     & )
-                isx = isx + (base_charge(ispa) - rspa_h)**2d0*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(-rspa_h)
+                df1df2 = df1df2 + ( & 
+                    & + (base_charge(ispa) - rspa_h)*dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h) &
+                    & )
+                f2 = f2 + (base_charge(ispa) - rspa_h)**2d0*fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
+                df2df1 = df2df1 + ( &
+                    & + (base_charge(ispa) - rspa_h)**2d0*fkeq &
+                    &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(ss_add-rspa_h)*prox**(ss_add-rspa_h-1d0) &
+                    & )
+                df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + ( &
+                    & + (base_charge(ispa) - rspa_h)**2d0*fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**(ss_add-rspa_h) &
+                    & )
+                df2 = df2 + (base_charge(ispa) - rspa_h)**2d0*dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**(ss_add-rspa_h)
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_h
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oh)'//trim(adjustl(chrint))
@@ -11427,68 +11622,229 @@ do ispa = 1, nsp_aq_all
         ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
         do ispa_c = 1,2
             if ( keqaq_c(ispa,ispa_c) > 0d0) then 
-                if (ispa_c == 1) then ! with CO3--
-                    f1 = f1 + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0)
+                if (ispa_c == 1) then ! with CO3-- (e.g., Mg2+ + CO32- = MgCO3 )
+                    ic1 = nint(abs(base_charge(ispa)))
+                    ic2 = nint(abs(base_charge(ispa)-2d0))
+                    if ( ic1>0 .and. ic2 > 0) then  
+                        fkeq = gamma(ic1,:)*gamma(2,:)/gamma(ic2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(ic1,:)*gamma(2,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*dgamma_dios(2,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*gamma(2,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 > 0) then  
+                        fkeq = gamma(2,:)/gamma(ic2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(2,:)/gamma(ic2,:) &
+                            & + gamma(2,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                            & )
+                    elseif ( ic1>0 .and. ic2 == 0) then  
+                        fkeq = gamma(ic1,:)*gamma(2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(ic1,:)*gamma(2,:) &
+                            & + gamma(ic1,:)*dgamma_dios(2,:) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 == 0) then  
+                        fkeq = gamma(2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(2,:) &
+                            & )
+                    else    
+                        print *, 'something is wrong'
+                        stop
+                    endif 
+                    fkeqaq_c(ispa,ispa_c,:) = fkeq
+                    f1 = f1 + (base_charge(ispa)-2d0)*fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0)
                     df1 = df1 + ( & 
-                        & + (base_charge(ispa)-2d0) &
+                        & + (base_charge(ispa)-2d0)*fkeq &
                         &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0) &
                         & )
                     d2f1 = d2f1 + ( & 
-                        & + (base_charge(ispa)-2d0) &
+                        & + (base_charge(ispa)-2d0)*fkeq &
                         & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-2d0)*(ss_add-3d0)*prox**(ss_add-4d0) &
                         & )
                     df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( & 
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
+                        & + (base_charge(ispa)-2d0)*fkeq*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
                         & )
                     df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
-                        & + (base_charge(ispa)-2d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-2d0) &
+                        & + (base_charge(ispa)-2d0)*fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-2d0) &
                         & )
-                    isx = isx + (base_charge(ispa)-2d0)**2d0*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(-2d0)
+                    df1df2 = df1df2 + ( &
+                        & + (base_charge(ispa)-2d0)*dfkeq_dios &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
+                        & )
+                    f2 = f2 + ( &
+                        & + (base_charge(ispa)-2d0)**2d0*fkeq &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
+                        & )
+                    df2df1 = df2df1 + ( & 
+                        & + (base_charge(ispa)-2d0)**2d0*fkeq &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-2d0)*prox**(ss_add-3d0) &
+                        & )
+                    df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + ( & 
+                        & + (base_charge(ispa)-2d0)**2d0*fkeq*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
+                        & )
+                    df2dmgas(ipco2,:) = df2dmgas(ipco2,:) + ( & 
+                        & + (base_charge(ispa)-2d0)**2d0*fkeq &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-2d0) &
+                        & )
+                    df2 = df2 + ( &
+                        & + (base_charge(ispa)-2d0)**2d0*dfkeq_dios &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-2d0) &
+                        & )
                     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(co3)'
                     if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(co3)'
-                elseif (ispa_c == 2) then ! with HCO3-
-                    f1 = f1 + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0)
+                elseif (ispa_c == 2) then ! with HCO3- (e.g., Mg2+ + H+ + CO32- = MgHCO3+ )
+                    ic1 = nint(abs(base_charge(ispa)))
+                    ic2 = nint(abs(base_charge(ispa)-1d0))
+                    if ( ic1>0 .and. ic2 > 0) then  
+                        fkeq = gamma(ic1,:)*gamma(2,:)*gamma(1,:)/gamma(ic2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(ic1,:)*gamma(2,:)*gamma(1,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*dgamma_dios(2,:)*gamma(1,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*gamma(2,:)*dgamma_dios(1,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*gamma(2,:)*gamma(1,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 > 0) then  
+                        fkeq = gamma(2,:)*gamma(1,:)/gamma(ic2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(2,:)*gamma(1,:)/gamma(ic2,:) &
+                            & + gamma(2,:)*dgamma_dios(1,:)/gamma(ic2,:) &
+                            & + gamma(2,:)*gamma(1,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                            & )
+                    elseif ( ic1>0 .and. ic2 == 0) then  
+                        fkeq = gamma(ic1,:)*gamma(2,:)*gamma(1,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(ic1,:)*gamma(2,:)*gamma(1,:) &
+                            & + gamma(ic1,:)*dgamma_dios(2,:)*gamma(1,:) &
+                            & + gamma(ic1,:)*gamma(2,:)*dgamma_dios(1,:) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 == 0) then  
+                        fkeq = gamma(2,:)*gamma(1,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(2,:)*gamma(1,:) &
+                            & + gamma(2,:)*dgamma_dios(1,:) &
+                            & )
+                    else    
+                        print *, 'something is wrong'
+                        stop
+                    endif 
+                    fkeqaq_c(ispa,ispa_c,:) = fkeq
+                    f1 = f1 + (base_charge(ispa)-1d0)*fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0)
                     df1 = df1 + ( & 
-                        & + (base_charge(ispa)-1d0) &
+                        & + (base_charge(ispa)-1d0)*fkeq &
                         &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0) &
                         & )
                     d2f1 = d2f1 + ( & 
-                        & + (base_charge(ispa)-1d0) &
+                        & + (base_charge(ispa)-1d0)*fkeq &
                         & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-1d0)*(ss_add-2d0)*prox**(ss_add-3d0) &
                         & )
                     df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( & 
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
+                        & + (base_charge(ispa)-1d0)*fkeq*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
                         & )
                     df1dmgas(ipco2,:) = df1dmgas(ipco2,:) + ( & 
-                        & + (base_charge(ispa)-1d0)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-1d0) &
+                        & + (base_charge(ispa)-1d0)*fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-1d0) &
                         & )
-                    isx = isx + (base_charge(ispa)-1d0)**2d0*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(-1d0)
+                    df1df2 = df1df2 + ( &
+                        & + (base_charge(ispa)-1d0)*dfkeq_dios &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
+                        & )
+                    f2 = f2 + ( &
+                        & + (base_charge(ispa)-1d0)**2d0*fkeq &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
+                        & )
+                    df2df1 = df2df1 + ( & 
+                        & + (base_charge(ispa)-1d0)**2d0*fkeq &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(ss_add-1d0)*prox**(ss_add-2d0) &
+                        & )
+                    df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + ( & 
+                        & + (base_charge(ispa)-1d0)**2d0*fkeq*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
+                        & )
+                    df2dmgas(ipco2,:) = df2dmgas(ipco2,:) + ( & 
+                        & + (base_charge(ispa)-1d0)**2d0*fkeq &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0*prox**(ss_add-1d0) &
+                        & )
+                    df2 = df2 + ( &
+                        & + (base_charge(ispa)-1d0)**2d0*dfkeq_dios &
+                        &       *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*prox**(ss_add-1d0) &
+                        & )
                     if (print_res) write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(hco3)'
                     if (print_res) write(99,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(hco3)'
                 endif 
             endif 
         enddo 
-        ! account for complexation with free SO4
+        ! account for complexation with free SO4 (e.g., X + SO42- = XSO42-)
         do ispa_s = 1,2
             if ( keqaq_s(ispa,ispa_s) > 0d0) then 
                 rspa_s = real(ispa_s,kind=8)
-                f1 = f1 + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-2d0*rspa_s))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)*gamma(2,:)**rspa_s/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(2,:)**rspa_s/gamma(ic2,:) &
+                        & + gamma(ic1,:)*rspa_s*gamma(2,:)**(rspa_s-1d0)*dgamma_dios(2,:)/gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(2,:)**rspa_s*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(2,:)**rspa_s/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + rspa_s*gamma(2,:)**(rspa_s-1d0)*dgamma_dios(2,:)/gamma(ic2,:) &
+                        & + gamma(2,:)**rspa_s*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(2,:)**rspa_s
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(2,:)**rspa_s &
+                        & + gamma(ic1,:)*rspa_s*gamma(2,:)**(rspa_s-1d0)*dgamma_dios(2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = gamma(2,:)**rspa_s
+                    dfkeq_dios = ( &
+                        & + rspa_s*gamma(2,:)**(rspa_s-1d0)*dgamma_dios(2,:) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                fkeqaq_s(ispa,ispa_s,:) = fkeq
+                f1 = f1 + (base_charge(ispa)-2d0*rspa_s)*fkeq*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add
                 df1 = df1 + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s) &
+                    & + (base_charge(ispa)-2d0*rspa_s)*fkeq &
                     &       *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*ss_add*prox**(ss_add-1d0) & 
                     & )
                 d2f1 = d2f1 + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s) &
+                    & + (base_charge(ispa)-2d0*rspa_s)*fkeq &
                     &       *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*ss_add*(ss_add-1d0)*prox**(ss_add-2d0) & 
                     & )
                 df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s*prox**ss_add & 
+                    & + (base_charge(ispa)-2d0*rspa_s)*fkeq*keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s*prox**ss_add & 
                     & )
                 df1dmaqf(iso4,:) = df1dmaqf(iso4,:) + ( & 
-                    & + (base_charge(ispa)-2d0*rspa_s)*keqaq_s(ispa,ispa_s) &
+                    & + (base_charge(ispa)-2d0*rspa_s)*fkeq*keqaq_s(ispa,ispa_s) &
                     & *maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add & 
                     & )
-                isx = isx + (base_charge(ispa)-2d0*rspa_s)**2d0*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s
+                df1df2 = df1df2 + ( &
+                    & + (base_charge(ispa)-2d0*rspa_s)*dfkeq_dios*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add &
+                    & )
+                f2 = f2 + ( & 
+                    & + (base_charge(ispa)-2d0*rspa_s)**2d0*fkeq*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add &
+                    & )
+                df2df1 = df2df1 + ( & 
+                    & + (base_charge(ispa)-2d0*rspa_s)**2d0*fkeq &
+                    &       *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*ss_add*prox**(ss_add-1d0) & 
+                    & )
+                df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + ( & 
+                    & + (base_charge(ispa)-2d0*rspa_s)**2d0*fkeq*keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s*prox**ss_add & 
+                    & )
+                df2dmaqf(iso4,:) = df2dmaqf(iso4,:) + ( & 
+                    & + (base_charge(ispa)-2d0*rspa_s)**2d0*fkeq*keqaq_s(ispa,ispa_s) &
+                    & *maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)*prox**ss_add & 
+                    & )
+                df2 = df2 + ( & 
+                    & + (base_charge(ispa)-2d0*rspa_s)**2d0*dfkeq_dios &
+                    &       *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s*prox**ss_add &
+                    & )
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_s
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(so4)'//trim(adjustl(chrint))
@@ -11497,27 +11853,83 @@ do ispa = 1, nsp_aq_all
                     
             endif 
         enddo 
-        ! accounting for complexation with free NO3
+        ! accounting for complexation with free NO3 (e.g., X + NO3- = XNO3-)
         do ispa_no3 = 1,2
             if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
                 rspa_no3 = real(ispa_no3,kind=8)
-                f1 = f1 + (base_charge(ispa)-1d0*rspa_no3)*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3*prox**ss_add
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-1d0*rspa_no3))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_no3/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_no3/gamma(ic2,:) &
+                        & + gamma(ic1,:)*rspa_no3*gamma(1,:)**(rspa_no3-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(1,:)**rspa_no3*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(1,:)**rspa_no3/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + rspa_no3*gamma(1,:)**(rspa_no3-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(1,:)**rspa_no3*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_no3
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_no3 &
+                        & + gamma(ic1,:)*rspa_no3*gamma(1,:)**(rspa_no3-1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = gamma(1,:)**rspa_no3
+                    dfkeq_dios = ( &
+                        & + rspa_no3*gamma(1,:)**(rspa_no3-1d0)*dgamma_dios(1,:) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                fkeqaq_no3(ispa,ispa_no3,:) = fkeq
+                f1 = f1 + ( &
+                    & + (base_charge(ispa)-1d0*rspa_no3)*fkeq &
+                    &       *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3*prox**ss_add &
+                    & )
                 df1 = df1 + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_no3) &
+                    & + (base_charge(ispa)-1d0*rspa_no3)*fkeq &
                     &       *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3*ss_add*prox**(ss_add-1d0) & 
                     & )
                 d2f1 = d2f1 + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_no3) &
+                    & + (base_charge(ispa)-1d0*rspa_no3)*fkeq &
                     &       *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3*ss_add*(ss_add-1d0)*prox**(ss_add-2d0) & 
                     & )
                 df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_no3)*keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3*prox**ss_add & 
+                    & + (base_charge(ispa)-1d0*rspa_no3)*fkeq*keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3*prox**ss_add & 
                     & )
                 df1dmaqf(ino3,:) = df1dmaqf(ino3,:) + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_no3)*keqaq_no3(ispa,ispa_no3) &
+                    & + (base_charge(ispa)-1d0*rspa_no3)*fkeq*keqaq_no3(ispa,ispa_no3) &
                     &   *maqf_loc(ispa,:)*rspa_no3*no3f**(rspa_no3-1d0)*prox**ss_add & 
                     & )
-                isx = isx + (base_charge(ispa)-1d0*rspa_no3)**2d0*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3
+                df1df2 = df1df2 + ( &
+                    & + (base_charge(ispa)-1d0*rspa_no3)*dfkeq_dios &
+                    &       *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3*prox**ss_add &
+                    & )
+                f2 = f2 + ( &
+                    & + (base_charge(ispa)-1d0*rspa_no3)**2d0*fkeq &
+                    &       *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3*prox**ss_add &
+                    & )
+                df2df1 = df2df1 + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_no3)**2d0*fkeq &
+                    &       *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3*ss_add*prox**(ss_add-1d0) & 
+                    & )
+                df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_no3)**2d0*fkeq*keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3*prox**ss_add & 
+                    & )
+                df2dmaqf(ino3,:) = df2dmaqf(ino3,:) + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_no3)**2d0*fkeq*keqaq_no3(ispa,ispa_no3) &
+                    &   *maqf_loc(ispa,:)*rspa_no3*no3f**(rspa_no3-1d0)*prox**ss_add & 
+                    & )
+                df2 = df2 + ( &
+                    & + (base_charge(ispa)-1d0*rspa_no3)**2d0*dfkeq_dios &
+                    &       *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3*prox**ss_add &
+                    & )
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_no3
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(no3)'//trim(adjustl(chrint))
@@ -11530,23 +11942,79 @@ do ispa = 1, nsp_aq_all
         do ispa_cl = 1,2
             if ( keqaq_cl(ispa,ispa_cl) > 0d0) then 
                 rspa_cl = real(ispa_cl,kind=8)
-                f1 = f1 + (base_charge(ispa)-1d0*rspa_cl)*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*prox**ss_add
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-1d0*rspa_cl))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_cl/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_cl/gamma(ic2,:) &
+                        & + gamma(ic1,:)*rspa_cl*gamma(1,:)**(rspa_cl-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(1,:)**rspa_cl*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(1,:)**rspa_cl/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + rspa_cl*gamma(1,:)**(rspa_cl-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(1,:)**rspa_cl*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_cl
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_cl &
+                        & + gamma(ic1,:)*rspa_cl*gamma(1,:)**(rspa_cl-1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = gamma(1,:)**rspa_cl
+                    dfkeq_dios = ( &
+                        & + rspa_cl*gamma(1,:)**(rspa_cl-1d0)*dgamma_dios(1,:) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                fkeqaq_cl(ispa,ispa_cl,:) = fkeq
+                f1 = f1 + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)*fkeq &
+                    &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*prox**ss_add & 
+                    & ) 
                 df1 = df1 + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_cl) &
+                    & + (base_charge(ispa)-1d0*rspa_cl)*fkeq &
                     &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*ss_add*prox**(ss_add-1d0) & 
                     & )
                 d2f1 = d2f1 + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_cl) &
+                    & + (base_charge(ispa)-1d0*rspa_cl)*fkeq &
                     &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*ss_add*(ss_add-1d0)*prox**(ss_add-2d0) & 
                     & )
                 df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_cl)*keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl*prox**ss_add & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)*fkeq*keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl*prox**ss_add & 
                     & )
                 df1dmaqf(icl,:) = df1dmaqf(icl,:) + ( & 
-                    & + (base_charge(ispa)-1d0*rspa_cl)*keqaq_cl(ispa,ispa_cl) &
+                    & + (base_charge(ispa)-1d0*rspa_cl)*fkeq*keqaq_cl(ispa,ispa_cl) &
                     &   *maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0)*prox**ss_add & 
                     & )
-                isx = isx + (base_charge(ispa)-1d0*rspa_cl)**2d0*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
+                df1df2 = df1df2 + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)*dfkeq_dios &
+                    &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*prox**ss_add &
+                    & )
+                f2 = f2 + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)**2d0*fkeq &
+                    &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*prox**ss_add &
+                    & )
+                df2df1 = df2df1 + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)**2d0*fkeq &
+                    &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*ss_add*prox**(ss_add-1d0) & 
+                    & )
+                df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)**2d0*fkeq*keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl*prox**ss_add & 
+                    & )
+                df2dmaqf(icl,:) = df2dmaqf(icl,:) + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)**2d0*fkeq*keqaq_cl(ispa,ispa_cl) &
+                    &   *maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0)*prox**ss_add & 
+                    & )
+                df2 = df2 + ( & 
+                    & + (base_charge(ispa)-1d0*rspa_cl)**2d0*dfkeq_dios &
+                    &       *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl*prox**ss_add &
+                    & )
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_cl
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(cl)'//trim(adjustl(chrint))
@@ -11555,7 +12023,10 @@ do ispa = 1, nsp_aq_all
                     
             endif 
         enddo 
-        ! accounting for complexation with HOxa-
+        ! accounting for complexation with HOxa- 
+        ! (e.g., Fe+3 + 2 OxaH- = Fe(Oxa)2- + 2 H+ )
+        ! (Al3+ + H2O + HOxa- = Al(OH)Oxa + 2H+    | ispa_oxa=1)
+        ! (Al3+ + 2H2O + HOxa- = Al(OH)2Oxa- + 3H+ | ispa_oxa=2)
         do ispa_oxa = 1,2
             rspa_oxa   = real(ispa_oxa,kind=8)
             rspa_oxa_2 = real(ispa_oxa,kind=8) * 2d0
@@ -11566,33 +12037,87 @@ do ispa = 1, nsp_aq_all
                 rspa_oxa_3 = 1d0
             endif 
             if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
-                f1 = f1 + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-rspa_oxa_2))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    ! fkeq = gamma(ic1,:)*gamma(1,:)**rspa_oxa_3/gamma(ic2,:)/gamma(1,:)**rspa_oxa
+                    fkeq = gamma(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,:) &
+                        & + gamma(ic1,:)*(rspa_oxa_3-rspa_oxa)*gamma(1,:)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,:) &
+                        &       /gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(1,:)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + (rspa_oxa_3-rspa_oxa)*gamma(1,:)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(1,:)**(rspa_oxa_3-rspa_oxa)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa) &
+                        & + gamma(ic1,:)*(rspa_oxa_3-rspa_oxa)*gamma(1,:)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then
+                    fkeq = gamma(1,:)**(rspa_oxa_3-rspa_oxa)
+                    dfkeq_dios = ( &
+                        & + (rspa_oxa_3-rspa_oxa)*gamma(1,:)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,:) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                fkeqaq_oxa(ispa,ispa_oxa,:) = fkeq
+                f1 = f1 + (base_charge(ispa)-rspa_oxa_2)*fkeq*keqaq_oxa(ispa,ispa_oxa) &
                     ! & *maqf_loc(ispa,:)*oxaf**rspa_oxa*prox**ss_add
                     & *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*prox**(ss_add-rspa_oxa)
                 df1 = df1 + ( & 
-                    & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    & + (base_charge(ispa)-rspa_oxa_2)*fkeq*keqaq_oxa(ispa,ispa_oxa) &
                     ! &   *maqf_loc(ispa,:)*oxaf**rspa_oxa*ss_add*prox**(ss_add-1d0) & 
                     &   *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(ss_add-rspa_oxa)*prox**(ss_add-rspa_oxa-1d0) & 
                     & )
                 d2f1 = d2f1 + ( & 
-                    & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    & + (base_charge(ispa)-rspa_oxa_2)*fkeq*keqaq_oxa(ispa,ispa_oxa) &
                     ! &   *maqf_loc(ispa,:)*oxaf**rspa_oxa*ss_add*(ss_add-1d0)*prox**(ss_add-2d0) & 
                     &   *maqf_loc(ispa,:)*oxaf**rspa_oxa_3 &
                     &   *(ss_add-rspa_oxa)*(ss_add-rspa_oxa-1d0)*prox**(ss_add-rspa_oxa-2d0) & 
                     & )
                 df1dmaqf(ispa,:) = df1dmaqf(ispa,:) + ( & 
                     ! & + (base_charge(ispa)-2d0*rspa_oxa)*keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa*prox**ss_add & 
-                    & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    & + (base_charge(ispa)-rspa_oxa_2)*fkeq*keqaq_oxa(ispa,ispa_oxa) &
                     &   *1d0*oxaf**rspa_oxa_3*prox**(ss_add-rspa_oxa) & 
                     & )
                 df1dmaqf(ioxa,:) = df1dmaqf(ioxa,:) + ( & 
                     ! & + (base_charge(ispa)-2d0*rspa_oxa)*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*1d0**rspa_oxa*prox**ss_add & 
-                    & + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    & + (base_charge(ispa)-rspa_oxa_2)*fkeq*keqaq_oxa(ispa,ispa_oxa) &
                     &   *maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)*prox**(ss_add-rspa_oxa) & 
                     & )
-                isx = isx + (base_charge(ispa)-rspa_oxa_2)**2d0*keqaq_oxa(ispa,ispa_oxa) &
+                df1df2 = df1df2 + (base_charge(ispa)-rspa_oxa_2)*dfkeq_dios*keqaq_oxa(ispa,ispa_oxa) &
                     ! & *maqf_loc(ispa,:)*oxaf**rspa_oxa*prox**ss_add
-                    & *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*prox**(-rspa_oxa)
+                    & *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*prox**(ss_add-rspa_oxa)
+                f2 = f2 + (base_charge(ispa)-rspa_oxa_2)**2d0*fkeq*keqaq_oxa(ispa,ispa_oxa) &
+                    ! & *maqf_loc(ispa,:)*oxaf**rspa_oxa*prox**ss_add
+                    & *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*prox**(ss_add-rspa_oxa)
+                df2df1 = df2df1 + ( & 
+                    & + (base_charge(ispa)-rspa_oxa_2)**2d0*fkeq*keqaq_oxa(ispa,ispa_oxa) &
+                    ! &   *maqf_loc(ispa,:)*oxaf**rspa_oxa*ss_add*prox**(ss_add-1d0) & 
+                    &   *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(ss_add-rspa_oxa)*prox**(ss_add-rspa_oxa-1d0) & 
+                    & )
+                df2dmaqf(ispa,:) = df2dmaqf(ispa,:) + ( & 
+                    ! & + (base_charge(ispa)-2d0*rspa_oxa)*keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa*prox**ss_add & 
+                    & + (base_charge(ispa)-rspa_oxa_2)**2d0*fkeq*keqaq_oxa(ispa,ispa_oxa) &
+                    &   *1d0*oxaf**rspa_oxa_3*prox**(ss_add-rspa_oxa) & 
+                    & )
+                df2dmaqf(ioxa,:) = df2dmaqf(ioxa,:) + ( & 
+                    ! & + (base_charge(ispa)-2d0*rspa_oxa)*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*1d0**rspa_oxa*prox**ss_add & 
+                    & + (base_charge(ispa)-rspa_oxa_2)**2d0*fkeq*keqaq_oxa(ispa,ispa_oxa) &
+                    &   *maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)*prox**(ss_add-rspa_oxa) & 
+                    & )
+                df2 = df2 + (base_charge(ispa)-rspa_oxa_2)**2d0*dfkeq_dios*keqaq_oxa(ispa,ispa_oxa) &
+                    ! & *maqf_loc(ispa,:)*oxaf**rspa_oxa*prox**ss_add
+                    & *maqf_loc(ispa,:)*oxaf**rspa_oxa_3*prox**(ss_add-rspa_oxa)
                 if (print_res) then 
                     write(chrint,'(I1)') ispa_oxa
                     write(88,'(A11)', advance='no') trim(adjustl(chraq_all(ispa)))//'(oxa)'//trim(adjustl(chrint))
@@ -11604,7 +12129,8 @@ do ispa = 1, nsp_aq_all
     endif 
 enddo     
 
-isx = 0.5d0 * isx
+ios_new = f2 + 2d0*iosx*prox**(ss_add)
+ios_new = 0.5d0*ios_new/prox**(ss_add)
 
 if (print_res) write(88,'(A11)', advance='no') 'I'
 if (print_res) write(99,'(A11)', advance='no') 'I'
@@ -11613,18 +12139,23 @@ if (print_res) write(99,'(A11)') 'tot_charge'
 
 f1_chk = 0d0
 ss_add = 0d0
+
+fkeq = 1d0/gamma(2,:)
+fkw = 1d0/gamma(1,:)/gamma(1,:) ! H2O = H+ + OH- <--> Kw = {H+}{OH-} <--> Kw/gamma/gamma = [H+][OH-]
 if (print_res) then
     do iz = 1, nz
-        f1_chk(iz) = f1_chk(iz) + prox(iz)**(ss_add(iz)+1d0) - kw*prox(iz)**(ss_add(iz)-1d0)
-        write(88,'(3E25.16)', advance='no') z(iz),prox(iz), kw/prox(iz)
-        write(99,'(3E25.16)', advance='no') z(iz),prox(iz), -kw/prox(iz)
+        f1_chk(iz) = f1_chk(iz) + prox(iz)**(ss_add(iz)+1d0) - fkw(iz)*kw*prox(iz)**(ss_add(iz)-1d0)
+        write(88,'(3E25.16)', advance='no') z(iz),prox(iz), fkw(iz)*kw/prox(iz)
+        write(99,'(3E25.16)', advance='no') z(iz),prox(iz), -fkw(iz)*kw/prox(iz)
 
         ! adding charges coming from aq species in eq with gases
         ! pCO2
-        f1_chk(iz) = f1_chk(iz)  -  k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0) &
-            & -  2d0*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
-        write(88,'(2E25.16)', advance='no')    k1*kco2*pco2x(iz)/prox(iz),  k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
-        write(99,'(2E25.16)', advance='no')  - k1*kco2*pco2x(iz)/prox(iz), -2d0*k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
+        f1_chk(iz) = f1_chk(iz)  -  fkw(iz)*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0) &
+            & -  2d0*fkw(iz)*fkeq(iz)*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
+        write(88,'(2E25.16)', advance='no')    fkw(iz)*k1*kco2*pco2x(iz)/prox(iz) &
+            & ,  fkw(iz)*fkeq(iz)*k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
+        write(99,'(2E25.16)', advance='no')  - fkw(iz)*k1*kco2*pco2x(iz)/prox(iz)  &
+            & , -2d0*fkw(iz)*fkeq(iz)*k2*k1*kco2*pco2x(iz)/prox(iz)**2d0
         ! pNH3
         f1_chk(iz) = f1_chk(iz)  +  pnh3x(iz)*knh3/k1nh3*prox(iz)**(ss_add(iz)+1d0)
         write(88,'(E25.16)', advance='no')    pnh3x(iz)*knh3/k1nh3*prox(iz)
@@ -11642,12 +12173,15 @@ if (print_res) then
                     rspa_nh3 = real(ispa_nh3,kind=8)
                     f1_chk(iz) = f1_chk(iz) &
                         & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
-                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz))
+                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz)) &
+                        & *fkeqaq_nh3(ispa,ispa_nh3,iz)
                     write(88,'(E25.16)', advance='no') keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
-                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**rspa_nh3
+                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**rspa_nh3&
+                        & *fkeqaq_nh3(ispa,ispa_nh3,iz)
                     write(99,'(E25.16)', advance='no') (base_charge(ispa) + rspa_nh3) &
                         & *keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
-                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**rspa_nh3
+                        & *(pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**rspa_nh3&
+                        & *fkeqaq_nh3(ispa,ispa_nh3,iz)
                 endif 
             enddo 
             
@@ -11668,10 +12202,13 @@ if (print_res) then
                     if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                         rspa_h = real(ispa_h,kind=8)
                         f1_chk(iz) = f1_chk(iz) &
-                            & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
-                        write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                            & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz)) &
+                            & *fkeqaq_h(ispa,ispa_h,iz)
+                        write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h &
+                            & *fkeqaq_h(ispa,ispa_h,iz)
                         write(99,'(E25.16)', advance='no') (base_charge(ispa) + rspa_h) &
-                            & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                            & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h &
+                            & *fkeqaq_h(ispa,ispa_h,iz)
                     endif 
                 enddo 
             ! oxalic acid 
@@ -11685,20 +12222,26 @@ if (print_res) then
                             rspa_h = real(ispa_h,kind=8)
                             f1_chk(iz) = f1_chk(iz) &
                                 & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h) &
-                                &       *maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
-                            write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                                &       *maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)  &
+                                &       *fkeqaq_h(ispa,ispa_h,iz)
+                            write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h &
+                                & *fkeqaq_h(ispa,ispa_h,iz)
                             write(99,'(E25.16)', advance='no') (base_charge(ispa) - rspa_h) &
-                                & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                                & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h &
+                                & *fkeqaq_h(ispa,ispa_h,iz)
                         endif 
                     elseif (ispa_h==2)then
                         if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                             rspa_h = real(ispa_h-1,kind=8)
                             f1_chk(iz) = f1_chk(iz) &
                                 & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h) &
-                                &       *maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
-                            write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                                &       *maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz)) &
+                                &       *fkeqaq_h(ispa,ispa_h,iz)
+                            write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h &
+                                & *fkeqaq_h(ispa,ispa_h,iz)
                             write(99,'(E25.16)', advance='no') (base_charge(ispa) + rspa_h) &
-                                & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h
+                                & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**rspa_h &
+                                & *fkeqaq_h(ispa,ispa_h,iz)
                         endif 
                     endif 
                 enddo 
@@ -11709,10 +12252,13 @@ if (print_res) then
                     if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                         rspa_h = real(ispa_h,kind=8)
                         f1_chk(iz) = f1_chk(iz) &
-                            & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
-                        write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                            & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h) &
+                            & *fkeqaq_h(ispa,ispa_h,iz)
+                        write(88,'(E25.16)', advance='no') keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h &
+                            & *fkeqaq_h(ispa,ispa_h,iz)
                         write(99,'(E25.16)', advance='no') (base_charge(ispa) - rspa_h) &
-                            & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h
+                            & *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)/prox(iz)**rspa_h &
+                            & *fkeqaq_h(ispa,ispa_h,iz)
                     endif 
                 enddo 
                 ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
@@ -11720,18 +12266,24 @@ if (print_res) then
                     if ( keqaq_c(ispa,ispa_c) > 0d0) then 
                         if (ispa_c == 1) then ! with CO3--
                             f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-2d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
+                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0) &
+                                & *fkeqaq_c(ispa,ispa_c,iz)
                             write(88,'(E25.16)', advance='no') &
-                                & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0
+                                & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
+                                & *fkeqaq_c(ispa,ispa_c,iz)
                             write(99,'(E25.16)', advance='no') (base_charge(ispa)-2d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0
+                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)**2d0 &
+                                & *fkeqaq_c(ispa,ispa_c,iz)
                         elseif (ispa_c == 2) then ! with HCO3-
                             f1_chk(iz) = f1_chk(iz) + (base_charge(ispa)-1d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
+                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0) &
+                                & *fkeqaq_c(ispa,ispa_c,iz)
                             write(88,'(E25.16)', advance='no') &
-                                & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)
+                                & keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz) &
+                                & *fkeqaq_c(ispa,ispa_c,iz)
                             write(99,'(E25.16)', advance='no') (base_charge(ispa)-1d0) &
-                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz)
+                                & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)/prox(iz) &
+                                & *fkeqaq_c(ispa,ispa_c,iz)
                         endif 
                     endif 
                 enddo 
@@ -11740,10 +12292,13 @@ if (print_res) then
                     if ( keqaq_s(ispa,ispa_s) > 0d0) then 
                         rspa_s = real(ispa_s,kind=8)
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
-                        write(88,'(E25.16)', advance='no') keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s
+                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add(iz) &
+                            & *fkeqaq_s(ispa,ispa_s,iz)
+                        write(88,'(E25.16)', advance='no') keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s &
+                            & *fkeqaq_s(ispa,ispa_s,iz)
                         write(99,'(E25.16)', advance='no') (base_charge(ispa)-2d0*rspa_s) &
-                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s
+                            & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s &
+                            & *fkeqaq_s(ispa,ispa_s,iz)
                     endif 
                 enddo 
                 ! account for complexation with free NO3
@@ -11751,10 +12306,13 @@ if (print_res) then
                     if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
                         rspa_no3 = real(ispa_no3,kind=8)
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
-                            & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
-                        write(88,'(E25.16)', advance='no') keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3
+                            & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz) &
+                            & *fkeqaq_no3(ispa,ispa_no3,iz)
+                        write(88,'(E25.16)', advance='no') keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3 &
+                            & *fkeqaq_no3(ispa,ispa_no3,iz)
                         write(99,'(E25.16)', advance='no') (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
-                            & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3
+                            & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3 &
+                            & *fkeqaq_no3(ispa,ispa_no3,iz)
                     endif 
                 enddo 
                 ! account for complexation with free Cl
@@ -11762,10 +12320,13 @@ if (print_res) then
                     if ( keqaq_cl(ispa,ispa_cl) > 0d0) then 
                         rspa_cl = real(ispa_cl,kind=8)
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
-                            & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
-                        write(88,'(E11.3)', advance='no') keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl
-                        write(99,'(E11.3)', advance='no') (base_charge(ispa)+base_charge(icl)*rspa_cl) &
-                            & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl
+                            & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*prox(iz)**ss_add(iz) &
+                            & *fkeqaq_cl(ispa,ispa_cl,iz)
+                        write(88,'(E25.16)', advance='no') keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl &
+                            & *fkeqaq_cl(ispa,ispa_cl,iz)
+                        write(99,'(E25.16)', advance='no') (base_charge(ispa)+base_charge(icl)*rspa_cl) &
+                            & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl &
+                            & *fkeqaq_cl(ispa,ispa_cl,iz)
                     endif 
                 enddo 
                 ! account for complexation with Hoxa-
@@ -11780,17 +12341,20 @@ if (print_res) then
                     endif 
                     if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
                         f1_chk(iz) = f1_chk(iz)  + (base_charge(ispa)-rspa_oxa_2) &
-                            & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
+                            & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa) &
+                            & *fkeqaq_oxa(ispa,ispa_oxa,iz)
                         write(88,'(E25.16)', advance='no') &
-                            & keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3/prox(iz)**rspa_oxa
+                            & keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3/prox(iz)**rspa_oxa &
+                            & *fkeqaq_oxa(ispa,ispa_oxa,iz)
                         write(99,'(E25.16)', advance='no') (base_charge(ispa)-rspa_oxa_2) &
-                            & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3/prox(iz)**rspa_oxa
+                            & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3/prox(iz)**rspa_oxa &
+                            & *fkeqaq_oxa(ispa,ispa_oxa,iz)
                     endif 
                 enddo 
             endif 
         enddo     
-        write(88,'(E25.16)', advance='no') isx(iz)
-        write(99,'(E25.16)', advance='no') isx(iz)
+        write(88,'(E25.16)', advance='no') iosx(iz)
+        write(99,'(E25.16)', advance='no') iosx(iz)
         write(88,'(E25.16)') f1_chk(iz)
         write(99,'(E25.16)') f1_chk(iz)
     enddo 
@@ -11812,7 +12376,7 @@ subroutine calc_charge_balance_point( &
     & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
     & ,base_charge &
     & ,mgasx_loc,maqf_loc &
-    & ,z,prox,iz &
+    & ,z,prox,iz,iosx,tc &
     & ,print_loc,print_res,ph_add_order &
     & ,f1,df1,df1dmaqf,df1dmgas &!output
     & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
@@ -11822,14 +12386,14 @@ implicit none
 integer,intent(in)::nz,nsp_aq_all,nsp_gas_all,iz
 character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-real(kind=8),intent(in)::kw
+real(kind=8),intent(in)::kw,tc
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_aq_all),intent(in)::base_charge
-real(kind=8),dimension(nz),intent(in)::z,prox,ph_add_order
+real(kind=8),dimension(nz),intent(in)::z,prox,ph_add_order,iosx
 real(kind=8),dimension(nz),intent(out)::f1,df1,d2f1
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::df1dmaqf,d2f1dmaqf
 real(kind=8),dimension(nsp_gas_all,nz),intent(out)::df1dmgas,d2f1dmgas
@@ -11846,6 +12410,12 @@ real(kind=8) kco2,k1,k2,knh3,k1nh3,rspa_h,rspa_s,rspa_no3,rspa_nh3,rspa_oxa,rspa
     & ,rspa_cl
 real(kind=8),dimension(nz)::pco2x,pnh3x,so4f,no3f,oxaf,clf
 real(kind=8),dimension(nz)::f1_chk,ss_add,back
+
+integer icharge,ic1,ic2
+! real(kind=8) tc
+real(kind=8) rcharge
+real(kind=8),dimension(nz)::gamma_tmp,dgamma_dios_tmp,fkw,fkeq,dfkw_dios,dfkeq_dios 
+real(kind=8),dimension(4,nz)::gamma,dgamma_dios 
 
 character(1) chrint
 
@@ -11886,29 +12456,45 @@ d2f1dmgas = 0d0
 back = 1d0
 back = 0d0
 
-f1(iz) = f1(iz) + prox(iz)**(ss_add(iz)+1d0) - kw*prox(iz)**(ss_add(iz)-1d0) &
+do icharge=1,4
+    rcharge = 1d0*icharge
+    call calc_gamma_davies(  &
+        & nz,iosx,tc,rcharge &
+        & ,gamma_tmp,dgamma_dios_tmp &
+        & )
+    gamma(icharge,:)=gamma_tmp(:)
+    dgamma_dios(icharge,:)=dgamma_dios_tmp(:)
+enddo
+
+fkw(iz) = 1d0/gamma(1,iz)/gamma(1,iz) ! H2O = H+ + OH- <--> Kw = {H+}{OH-} <--> Kw/gamma/gamma = [H+][OH-]
+dfkw_dios(iz) = 1d0*(-2d0)*gamma(1,iz)**(-3d0)*dgamma_dios(1,iz)
+
+f1(iz) = f1(iz) + prox(iz)**(ss_add(iz)+1d0) - fkw(iz)*kw*prox(iz)**(ss_add(iz)-1d0) &
     & + back(iz)*prox(iz)**(ss_add(iz))- back(iz)*prox(iz)**(ss_add(iz))
 df1(iz) = df1(iz) + (ss_add(iz)+1d0)*prox(iz)**(ss_add(iz)) &
-    & - kw*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0) &
+    & - fkw(iz)*kw*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0) &
     & + ss_add(iz)*back(iz)*prox(iz)**(ss_add(iz)-1d0) &
     & - ss_add(iz)*back(iz)*prox(iz)**(ss_add(iz)-1d0)
 d2f1(iz) = d2f1(iz) + (ss_add(iz)+1d0)*(ss_add(iz))*prox(iz)**(ss_add(iz)-1d0) &
-    & - kw*(ss_add(iz)-1d0)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0) &
+    & - fkw(iz)*kw*(ss_add(iz)-1d0)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0) &
     & + ss_add(iz)*(ss_add(iz)-1d0)*back(iz)*prox(iz)**(ss_add(iz)-2d0) &
     & - ss_add(iz)*(ss_add(iz)-1d0)*back(iz)*prox(iz)**(ss_add(iz)-2d0)
 
 ! adding charges coming from aq species in eq with gases
 ! pCO2
-f1(iz) = f1(iz)  -  k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0) &
-    & -  2d0*k2*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
+fkeq(iz) = 1d0/gamma(2,iz)
+dfkeq_dios(iz) = -1d0/gamma(2,iz)**2d0*dgamma_dios(2,iz)
+
+f1(iz) = f1(iz)  -  fkw(iz)*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0) &
+    & -  2d0*fkeq(iz)*k2*fkw(iz)*k1*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
 df1(iz) = df1(iz)  &
-    & -  k1*kco2*pco2x(iz)*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0) &
-    & -  2d0*k2*k1*kco2*pco2x(iz)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
+    & -  fkw(iz)*k1*kco2*pco2x(iz)*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0) &
+    & -  2d0*fkeq(iz)*k2*fkw(iz)*k1*kco2*pco2x(iz)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
 d2f1(iz) = d2f1(iz)  &
-    & -  k1*kco2*pco2x(iz)*(ss_add(iz)-1d0)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0) &
-    & -  2d0*k2*k1*kco2*pco2x(iz)*(ss_add(iz)-2d0)*(ss_add(iz)-3d0)*prox(iz)**(ss_add(iz)-4d0)
-df1dmgas(ipco2,iz) = df1dmgas(ipco2,iz)  -  k1*kco2*1d0*prox(iz)**(ss_add(iz)-1d0) &
-    & -  2d0*k2*k1*kco2*1d0*prox(iz)**(ss_add(iz)-2d0)
+    & -  fkw(iz)*k1*kco2*pco2x(iz)*(ss_add(iz)-1d0)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0) &
+    & -  2d0*fkeq(iz)*k2*fkw(iz)*k1*kco2*pco2x(iz)*(ss_add(iz)-2d0)*(ss_add(iz)-3d0)*prox(iz)**(ss_add(iz)-4d0)
+df1dmgas(ipco2,iz) = df1dmgas(ipco2,iz)  -  fkw(iz)*k1*kco2*1d0*prox(iz)**(ss_add(iz)-1d0) &
+    & -  2d0*fkeq(iz)*k2*fkw(iz)*k1*kco2*1d0*prox(iz)**(ss_add(iz)-2d0)
 ! pNH3
 f1(iz) = f1(iz)  +  pnh3x(iz)*knh3/k1nh3*prox(iz)**(ss_add(iz)+1d0)
 df1(iz) = df1(iz)  +  pnh3x(iz)*knh3/k1nh3*(ss_add(iz)+1d0)*prox(iz)**(ss_add(iz))
@@ -11932,21 +12518,55 @@ do ispa = 1, nsp_aq_all
     do ispa_nh3 = 1,2
         if ( keqaq_nh3(ispa,ispa_nh3) > 0d0) then 
             rspa_nh3 = real(ispa_nh3,kind=8)
+            ic1 = nint(abs(base_charge(ispa)))
+            ic2 = nint(abs(base_charge(ispa)+rspa_nh3))
+            if ( ic1>0 .and. ic2 > 0) then  
+                fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_nh3/gamma(ic2,iz)
+                dfkeq_dios(iz) = ( &
+                    & + dgamma_dios(ic1,iz)*gamma(1,iz)**rspa_nh3/gamma(ic2,iz) &
+                    & + gamma(ic1,iz)*rspa_nh3*gamma(1,iz)**(rspa_nh3-1d0)*dgamma_dios(1,iz) &
+                    &   /gamma(ic2,iz) &
+                    & + gamma(ic1,iz)*gamma(1,iz)**rspa_nh3*(-1d0) &
+                    &   /gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                    & )
+            elseif ( ic1==0 .and. ic2 > 0) then  
+                fkeq(iz) = gamma(1,iz)**rspa_nh3/gamma(ic2,iz)
+                dfkeq_dios(iz) = ( &
+                    & + rspa_nh3*gamma(1,iz)**(rspa_nh3-1d0)*dgamma_dios(1,iz) &
+                    &   /gamma(ic2,iz) &
+                    & + gamma(1,iz)**rspa_nh3*(-1d0) &
+                    &   /gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                    & )
+            elseif ( ic1>0 .and. ic2 == 0) then  
+                fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_nh3
+                dfkeq_dios(iz) = ( &
+                    & + dgamma_dios(ic1,iz)*gamma(1,iz)**rspa_nh3 &
+                    & + gamma(ic1,iz)*rspa_nh3*gamma(1,iz)**(rspa_nh3-1d0)*dgamma_dios(1,iz) &
+                    & )
+            elseif ( ic1==0 .and. ic2 == 0) then  
+                fkeq(iz) = gamma(1,iz)**rspa_nh3
+                dfkeq_dios(iz) = ( &
+                    & + rspa_nh3*gamma(1,iz)**(rspa_nh3-1d0)*dgamma_dios(1,iz) &
+                    & )
+            else    
+                print *, 'something is wrong'
+                stop
+            endif 
             f1(iz) = f1(iz) &
-                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq(iz)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
                 & * (pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz))
             df1(iz) = df1(iz) &
-                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq(iz)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
                 & * (pnh3x(iz)*knh3/k1nh3)**rspa_nh3*(rspa_nh3+ss_add(iz))*prox(iz)**(rspa_nh3+ss_add(iz)-1d0)
             d2f1(iz) = d2f1(iz) &
-                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq(iz)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
                 & * (pnh3x(iz)*knh3/k1nh3)**rspa_nh3*(rspa_nh3+ss_add(iz))*(rspa_nh3+ss_add(iz)-1d0) &
                 & * prox(iz)**(rspa_nh3+ss_add(iz)-2d0)
             df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
-                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*1d0 &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq(iz)*keqaq_nh3(ispa,ispa_nh3)*1d0 &
                 & * (pnh3x(iz)*knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz))
             df1dmgas(ipnh3,iz) = df1dmgas(ipnh3,iz) &
-                & + (base_charge(ispa) + rspa_nh3)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
+                & + (base_charge(ispa) + rspa_nh3)*fkeq(iz)*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,iz) &
                 & * (knh3/k1nh3)**rspa_nh3*prox(iz)**(rspa_nh3+ss_add(iz)) &
                 & * rspa_nh3*pnh3x(iz)**(rspa_nh3-1d0)
         endif 
@@ -11972,16 +12592,50 @@ do ispa = 1, nsp_aq_all
         do ispa_h = 1,2
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                 rspa_h = real(ispa_h,kind=8)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)+rspa_h))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_h/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(1,iz)**rspa_h/gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*rspa_h*gamma(1,iz)**(rspa_h-1d0)*dgamma_dios(1,iz) &
+                        &   /gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*gamma(1,iz)**rspa_h*(-1d0) &
+                        &   /gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(1,iz)**rspa_h/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + rspa_h*gamma(1,iz)**(rspa_h-1d0)*dgamma_dios(1,iz) &
+                        &   /gamma(ic2,iz) &
+                        & + gamma(1,iz)**rspa_h*(-1d0) &
+                        &   /gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_h
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(1,iz)**rspa_h &
+                        & + gamma(ic1,iz)*rspa_h*gamma(1,iz)**(rspa_h-1d0)*dgamma_dios(1,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(1,iz)**rspa_h
+                    dfkeq_dios(iz) = ( &
+                        & + rspa_h*gamma(1,iz)**(rspa_h-1d0)*dgamma_dios(1,iz) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
                 f1(iz) = f1(iz) &
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
+                    & + (base_charge(ispa) + rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
                 df1(iz) = df1(iz) &
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
+                    & + (base_charge(ispa) + rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
                     & * prox(iz)**(rspa_h+ss_add(iz)-1d0)
                 d2f1(iz) = d2f1(iz) &
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
+                    & + (base_charge(ispa) + rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
                     & * (rspa_h+ss_add(iz)-1d0)*prox(iz)**(rspa_h+ss_add(iz)-2d0)
                 df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
-                    & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(rspa_h+ss_add(iz))
+                    & + (base_charge(ispa) + rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(rspa_h+ss_add(iz))
             endif 
         enddo 
         if (print_res .and. f1(iz)<0d0) then 
@@ -11996,30 +12650,36 @@ do ispa = 1, nsp_aq_all
             if (ispa_h==1) then 
                 if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                     rspa_h = real(ispa_h,kind=8)
+                    fkeq(iz) = 1d0/gamma(2,iz)
+                    dfkeq_dios(iz) = -1d0/gamma(2,iz)**2d0*dgamma_dios(2,iz)
                     f1(iz) = f1(iz) &
-                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
+                        & + (base_charge(ispa) - rspa_h)*fkeq(iz) &
+                        &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
                     df1(iz) = df1(iz) &
-                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
+                        & + (base_charge(ispa) - rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
                         & * prox(iz)**(ss_add(iz)-rspa_h-1d0)
                     d2f1(iz) = d2f1(iz) &
-                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
+                        & + (base_charge(ispa) - rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
                         & * (ss_add(iz)-rspa_h-1d0)* prox(iz)**(ss_add(iz)-rspa_h-2d0)
                     df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
-                        & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(ss_add(iz)-rspa_h)
+                        & + (base_charge(ispa) - rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(ss_add(iz)-rspa_h)
                 endif 
             elseif(ispa_h==2)then
                 if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                     rspa_h = real(ispa_h-1,kind=8)
+                    fkeq(iz) = gamma(1,iz)**2d0
+                    dfkeq_dios(iz) = 2d0*gamma(1,iz)*dgamma_dios(1,iz)
                     f1(iz) = f1(iz) &
-                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
+                        & + (base_charge(ispa) + rspa_h)*fkeq(iz) &
+                        &       *keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(rspa_h+ss_add(iz))
                     df1(iz) = df1(iz) &
-                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
+                        & + (base_charge(ispa) + rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
                         & * prox(iz)**(rspa_h+ss_add(iz)-1d0)
                     d2f1(iz) = d2f1(iz) &
-                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
+                        & + (base_charge(ispa) + rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(rspa_h+ss_add(iz)) &
                         & * (rspa_h+ss_add(iz)-1d0)*prox(iz)**(rspa_h+ss_add(iz)-2d0)
                     df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
-                        & + (base_charge(ispa) + rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(rspa_h+ss_add(iz))
+                        & + (base_charge(ispa) + rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(rspa_h+ss_add(iz))
                 endif 
             endif
         enddo 
@@ -12032,16 +12692,46 @@ do ispa = 1, nsp_aq_all
         do ispa_h = 1,4
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
                 rspa_h = real(ispa_h,kind=8)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-rspa_h))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(ic1,iz)/gamma(ic2,iz)/gamma(1,iz)**rspa_h
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)/gamma(ic2,iz)/gamma(1,iz)**rspa_h &
+                        & + gamma(ic1,iz)*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz)/gamma(1,iz)**rspa_h &
+                        & + gamma(ic1,iz)/gamma(ic2,iz)*(-rspa_h)/gamma(1,iz)**(rspa_h+1d0)*dgamma_dios(1,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq(iz) = 1d0/gamma(ic2,iz)/gamma(1,iz)**rspa_h
+                    dfkeq_dios(iz) = ( &
+                        & + 1d0*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz)/gamma(1,iz)**rspa_h &
+                        & + 1d0/gamma(ic2,iz)*(-rspa_h)/gamma(1,iz)**(rspa_h+1d0)*dgamma_dios(1,iz) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(ic1,iz)/gamma(1,iz)**rspa_h
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)/gamma(1,iz)**rspa_h &
+                        & + gamma(ic1,iz)*(-rspa_h)/gamma(1,iz)**(rspa_h+1d0)*dgamma_dios(1,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq(iz) = 1d0/gamma(1,iz)**rspa_h
+                    dfkeq_dios(iz) = ( &
+                        & + 1d0*(-rspa_h)/gamma(1,iz)**(rspa_h+1d0)*dgamma_dios(1,iz) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
                 f1(iz) = f1(iz) &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
+                    & + (base_charge(ispa) - rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*prox(iz)**(ss_add(iz)-rspa_h)
                 df1(iz) = df1(iz) &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
+                    & + (base_charge(ispa) - rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
                     & * prox(iz)**(ss_add(iz)-rspa_h-1d0)
                 d2f1(iz) = d2f1(iz) &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
+                    & + (base_charge(ispa) - rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,iz)*(ss_add(iz)-rspa_h) &
                     & * (ss_add(iz)-rspa_h-1d0)* prox(iz)**(ss_add(iz)-rspa_h-2d0)
                 df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) &
-                    & + (base_charge(ispa) - rspa_h)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(ss_add(iz)-rspa_h)
+                    & + (base_charge(ispa) - rspa_h)*fkeq(iz)*keqaq_h(ispa,ispa_h)*1d0*prox(iz)**(ss_add(iz)-rspa_h)
             endif 
         enddo 
         if (print_res .and. f1(iz)<0d0) then 
@@ -12051,29 +12741,95 @@ do ispa = 1, nsp_aq_all
         do ispa_c = 1,2
             if ( keqaq_c(ispa,ispa_c) > 0d0) then 
                 if (ispa_c == 1) then ! with CO3--
+                    ic1 = nint(abs(base_charge(ispa)))
+                    ic2 = nint(abs(base_charge(ispa)-2d0))
+                    if ( ic1>0 .and. ic2 > 0) then  
+                        fkeq(iz) = gamma(ic1,iz)*gamma(2,iz)/gamma(ic2,iz)
+                        dfkeq_dios(iz) = ( &
+                            & + dgamma_dios(ic1,iz)*gamma(2,iz)/gamma(ic2,iz) &
+                            & + gamma(ic1,iz)*dgamma_dios(2,iz)/gamma(ic2,iz) &
+                            & + gamma(ic1,iz)*gamma(2,iz)*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 > 0) then  
+                        fkeq(iz) = gamma(2,iz)/gamma(ic2,iz)
+                        dfkeq_dios(iz) = ( &
+                            & + dgamma_dios(2,iz)/gamma(ic2,iz) &
+                            & + gamma(2,iz)*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                            & )
+                    elseif ( ic1>0 .and. ic2 == 0) then  
+                        fkeq(iz) = gamma(ic1,iz)*gamma(2,iz)
+                        dfkeq_dios(iz) = ( &
+                            & + dgamma_dios(ic1,iz)*gamma(2,iz) &
+                            & + gamma(ic1,iz)*dgamma_dios(2,iz) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 == 0) then  
+                        fkeq(iz) = gamma(2,iz)
+                        dfkeq_dios(iz) = ( &
+                            & + dgamma_dios(2,iz) &
+                            & )
+                    else    
+                        print *, 'something is wrong'
+                        stop
+                    endif 
                     f1(iz) = f1(iz) + (base_charge(ispa)-2d0) &
-                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
                     df1(iz) = df1(iz) + (base_charge(ispa)-2d0) &
-                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-2d0) &
+                        & *prox(iz)**(ss_add(iz)-3d0)
                     d2f1(iz) = d2f1(iz) + (base_charge(ispa)-2d0) &
-                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-2d0) &
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-2d0) &
                         & *(ss_add(iz)-3d0)*prox(iz)**(ss_add(iz)-4d0)
                     df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) + (base_charge(ispa)-2d0) &
-                        & *keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-2d0)
                     df1dmgas(ipco2,iz) = df1dmgas(ipco2,iz) + (base_charge(ispa)-2d0) &
-                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*1d0*prox(iz)**(ss_add(iz)-2d0)
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*1d0*prox(iz)**(ss_add(iz)-2d0)
                 elseif (ispa_c == 2) then ! with HCO3-
+                    ic1 = nint(abs(base_charge(ispa)))
+                    ic2 = nint(abs(base_charge(ispa)-1d0))
+                    if ( ic1>0 .and. ic2 > 0) then  
+                        fkeq(iz) = gamma(ic1,iz)*gamma(2,iz)*gamma(1,iz)/gamma(ic2,iz)
+                        dfkeq_dios(iz) = ( &
+                            & + dgamma_dios(ic1,iz)*gamma(2,iz)*gamma(1,iz)/gamma(ic2,iz) &
+                            & + gamma(ic1,iz)*dgamma_dios(2,iz)*gamma(1,iz)/gamma(ic2,iz) &
+                            & + gamma(ic1,iz)*gamma(2,iz)*dgamma_dios(1,iz)/gamma(ic2,iz) &
+                            & + gamma(ic1,iz)*gamma(2,iz)*gamma(1,iz)*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 > 0) then  
+                        fkeq(iz) = gamma(2,iz)*gamma(1,iz)/gamma(ic2,iz)
+                        dfkeq_dios(iz) = ( &
+                            & + dgamma_dios(2,iz)*gamma(1,iz)/gamma(ic2,iz) &
+                            & + gamma(2,iz)*dgamma_dios(1,iz)/gamma(ic2,iz) &
+                            & + gamma(2,iz)*gamma(1,iz)*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                            & )
+                    elseif ( ic1>0 .and. ic2 == 0) then  
+                        fkeq(iz) = gamma(ic1,iz)*gamma(2,iz)*gamma(1,iz)
+                        dfkeq_dios(iz) = ( &
+                            & + dgamma_dios(ic1,iz)*gamma(2,iz)*gamma(1,iz) &
+                            & + gamma(ic1,iz)*dgamma_dios(2,iz)*gamma(1,iz) &
+                            & + gamma(ic1,iz)*gamma(2,iz)*dgamma_dios(1,iz) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 == 0) then  
+                        fkeq(iz) = gamma(2,iz)*gamma(1,iz)
+                        dfkeq_dios(iz) = ( &
+                            & + dgamma_dios(2,iz)*gamma(1,iz) &
+                            & + gamma(2,iz)*dgamma_dios(1,iz) &
+                            & )
+                    else    
+                        print *, 'something is wrong'
+                        stop
+                    endif 
                     f1(iz) = f1(iz) + (base_charge(ispa)-1d0) &
-                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
                     df1(iz) = df1(iz) + (base_charge(ispa)-1d0) &
-                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-1d0) &
+                        & *prox(iz)**(ss_add(iz)-2d0)
                     d2f1(iz) = d2f1(iz) + (base_charge(ispa)-1d0) &
-                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-1d0) &
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*pco2x(iz)*(ss_add(iz)-1d0) &
                         & *(ss_add(iz)-2d0)*prox(iz)**(ss_add(iz)-3d0)
                     df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz) + (base_charge(ispa)-1d0) &
-                        & *keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x(iz)*prox(iz)**(ss_add(iz)-1d0)
                     df1dmgas(ipco2,iz) = df1dmgas(ipco2,iz) + (base_charge(ispa)-1d0) &
-                        & *keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*1d0*prox(iz)**(ss_add(iz)-1d0)
+                        & *fkeq(iz)*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,iz)*k1*k2*kco2*1d0*prox(iz)**(ss_add(iz)-1d0)
                 endif 
             endif 
         enddo 
@@ -12084,17 +12840,47 @@ do ispa = 1, nsp_aq_all
         do ispa_s = 1,2
             if ( keqaq_s(ispa,ispa_s) > 0d0) then 
                 rspa_s = real(ispa_s,kind=8)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-2d0*rspa_s))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(2,iz)**rspa_s/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(2,iz)**rspa_s/gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*rspa_s*gamma(2,iz)**(rspa_s-1d0)*dgamma_dios(2,iz)/gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*gamma(2,iz)**rspa_s*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(2,iz)**rspa_s/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + rspa_s*gamma(2,iz)**(rspa_s-1d0)*dgamma_dios(2,iz)/gamma(ic2,iz) &
+                        & + gamma(2,iz)**rspa_s*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(2,iz)**rspa_s
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(2,iz)**rspa_s &
+                        & + gamma(ic1,iz)*rspa_s*gamma(2,iz)**(rspa_s-1d0)*dgamma_dios(2,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(2,iz)**rspa_s
+                    dfkeq_dios(iz) = ( &
+                        & + rspa_s*gamma(2,iz)**(rspa_s-1d0)*dgamma_dios(2,iz) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
                 f1(iz) = f1(iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                    & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
                 df1(iz) = df1(iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                    & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
+                    & *fkeq(iz)*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
                 d2f1(iz) = d2f1(iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                    & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*ss_add(iz) &
+                    & *fkeq(iz)*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*so4f(iz)**rspa_s*ss_add(iz) &
                     & *(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
                 df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                    & *keqaq_s(ispa,ispa_s)*1d0*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_s(ispa,ispa_s)*1d0*so4f(iz)**rspa_s*prox(iz)**ss_add(iz)
                 df1dmaqf(iso4,iz) = df1dmaqf(iso4,iz)  + (base_charge(ispa)-2d0*rspa_s) &
-                    & *keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*rspa_s*so4f(iz)**(rspa_s-1d0)*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,iz)*rspa_s*so4f(iz)**(rspa_s-1d0)*prox(iz)**ss_add(iz)
             endif 
         enddo 
         if (print_res .and. f1(iz)<0d0) then 
@@ -12104,17 +12890,47 @@ do ispa = 1, nsp_aq_all
         do ispa_no3 = 1,2
             if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
                 rspa_no3 = real(ispa_no3,kind=8)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-1d0*rspa_no3))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_no3/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(1,iz)**rspa_no3/gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*rspa_no3*gamma(1,iz)**(rspa_no3-1d0)*dgamma_dios(1,iz)/gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*gamma(1,iz)**rspa_no3*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(1,iz)**rspa_no3/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + rspa_no3*gamma(1,iz)**(rspa_no3-1d0)*dgamma_dios(1,iz)/gamma(ic2,iz) &
+                        & + gamma(1,iz)**rspa_no3*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_no3
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(1,iz)**rspa_no3 &
+                        & + gamma(ic1,iz)*rspa_no3*gamma(1,iz)**(rspa_no3-1d0)*dgamma_dios(1,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(1,iz)**rspa_no3
+                    dfkeq_dios(iz) = ( &
+                        & + rspa_no3*gamma(1,iz)**(rspa_no3-1d0)*dgamma_dios(1,iz) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
                 f1(iz) = f1(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
-                    & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
                 df1(iz) = df1(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
-                    & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
+                    & *fkeq(iz)*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
                 d2f1(iz) = d2f1(iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
-                    & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*ss_add(iz) &
+                    & *fkeq(iz)*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*no3f(iz)**rspa_no3*ss_add(iz) &
                     & *(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
                 df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
-                    & *keqaq_no3(ispa,ispa_no3)*1d0*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_no3(ispa,ispa_no3)*1d0*no3f(iz)**rspa_no3*prox(iz)**ss_add(iz)
                 df1dmaqf(ino3,iz) = df1dmaqf(ino3,iz)  + (base_charge(ispa)+base_charge(ino3)*rspa_no3) &
-                    & *keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*rspa_no3*no3f(iz)**(rspa_no3-1d0)*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,iz)*rspa_no3*no3f(iz)**(rspa_no3-1d0)*prox(iz)**ss_add(iz)
             endif 
         enddo 
         if (print_res .and. f1(iz)<0d0) then 
@@ -12124,17 +12940,47 @@ do ispa = 1, nsp_aq_all
         do ispa_cl = 1,2
             if ( keqaq_cl(ispa,ispa_cl) > 0d0) then 
                 rspa_cl = real(ispa_cl,kind=8)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-1d0*rspa_cl))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_cl/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(1,iz)**rspa_cl/gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*rspa_cl*gamma(1,iz)**(rspa_cl-1d0)*dgamma_dios(1,iz)/gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*gamma(1,iz)**rspa_cl*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(1,iz)**rspa_cl/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + rspa_cl*gamma(1,iz)**(rspa_cl-1d0)*dgamma_dios(1,iz)/gamma(ic2,iz) &
+                        & + gamma(1,iz)**rspa_cl*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_cl
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(1,iz)**rspa_cl &
+                        & + gamma(ic1,iz)*rspa_cl*gamma(1,iz)**(rspa_cl-1d0)*dgamma_dios(1,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(1,iz)**rspa_cl
+                    dfkeq_dios(iz) = ( &
+                        & + rspa_cl*gamma(1,iz)**(rspa_cl-1d0)*dgamma_dios(1,iz) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
                 f1(iz) = f1(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
-                    & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
                 df1(iz) = df1(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
-                    & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
+                    & *fkeq(iz)*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*ss_add(iz)*prox(iz)**(ss_add(iz)-1d0)
                 d2f1(iz) = d2f1(iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
-                    & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*ss_add(iz) &
+                    & *fkeq(iz)*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*clf(iz)**rspa_cl*ss_add(iz) &
                     & *(ss_add(iz)-1d0)*prox(iz)**(ss_add(iz)-2d0)
                 df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
-                    & *keqaq_cl(ispa,ispa_cl)*1d0*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_cl(ispa,ispa_cl)*1d0*clf(iz)**rspa_cl*prox(iz)**ss_add(iz)
                 df1dmaqf(icl,iz) = df1dmaqf(icl,iz)  + (base_charge(ispa)+base_charge(icl)*rspa_cl) &
-                    & *keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*rspa_cl*clf(iz)**(rspa_cl-1d0)*prox(iz)**ss_add(iz)
+                    & *fkeq(iz)*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,iz)*rspa_cl*clf(iz)**(rspa_cl-1d0)*prox(iz)**ss_add(iz)
             endif 
         enddo 
         if (print_res .and. f1(iz)<0d0) then 
@@ -12152,16 +12998,48 @@ do ispa = 1, nsp_aq_all
             endif 
                 
             if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-rspa_oxa_2))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    ! fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**rspa_oxa_3/gamma(ic2,iz)/gamma(1,iz)**rspa_oxa
+                    fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*(rspa_oxa_3-rspa_oxa)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,iz) &
+                        &       /gamma(ic2,iz) &
+                        & + gamma(ic1,iz)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa)*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq(iz) = gamma(1,iz)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,iz)
+                    dfkeq_dios(iz) = ( &
+                        & + (rspa_oxa_3-rspa_oxa)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,iz)/gamma(ic2,iz) &
+                        & + gamma(1,iz)**(rspa_oxa_3-rspa_oxa)*(-1d0)/gamma(ic2,iz)**2d0*dgamma_dios(ic2,iz) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq(iz) = gamma(ic1,iz)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa)
+                    dfkeq_dios(iz) = ( &
+                        & + dgamma_dios(ic1,iz)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa) &
+                        & + gamma(ic1,iz)*(rspa_oxa_3-rspa_oxa)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,iz) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then
+                    fkeq(iz) = gamma(1,iz)**(rspa_oxa_3-rspa_oxa)
+                    dfkeq_dios(iz) = ( &
+                        & + (rspa_oxa_3-rspa_oxa)*gamma(1,iz)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,iz) &
+                        & )
+                else    
+                    print *, 'something is wrong'
+                    stop
+                endif 
                 f1(iz) = f1(iz)  + (base_charge(ispa)-rspa_oxa_2) &
-                    & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
-                df1(iz) = df1(iz)  + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    & *fkeq(iz)*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
+                df1(iz) = df1(iz)  + (base_charge(ispa)-rspa_oxa_2)*fkeq(iz)*keqaq_oxa(ispa,ispa_oxa) &
                     & *maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*(ss_add(iz)-rspa_oxa)*prox(iz)**(ss_add(iz)-rspa_oxa-1d0)
                 d2f1(iz) = d2f1(iz)  + (base_charge(ispa)-rspa_oxa_2) &
-                    & *keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*(ss_add(iz)-rspa_oxa) &
+                    & *fkeq(iz)*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,iz)*oxaf(iz)**rspa_oxa_3*(ss_add(iz)-rspa_oxa) &
                     & *(ss_add(iz)-rspa_oxa-1d0)*prox(iz)**(ss_add(iz)-rspa_oxa-2d0)
                 df1dmaqf(ispa,iz) = df1dmaqf(ispa,iz)  + (base_charge(ispa)-rspa_oxa_2) &
-                    & *keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
-                df1dmaqf(ioxa,iz) = df1dmaqf(ioxa,iz)  + (base_charge(ispa)-rspa_oxa_2)*keqaq_oxa(ispa,ispa_oxa) &
+                    & *fkeq(iz)*keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf(iz)**rspa_oxa_3*prox(iz)**(ss_add(iz)-rspa_oxa)
+                df1dmaqf(ioxa,iz) = df1dmaqf(ioxa,iz)  + (base_charge(ispa)-rspa_oxa_2)*fkeq(iz)*keqaq_oxa(ispa,ispa_oxa) &
                     & *maqf_loc(ispa,iz)*rspa_oxa_3*oxaf(iz)**(rspa_oxa_3-1d0)*prox(iz)**(ss_add(iz)-rspa_oxa)
             endif  
         enddo 
@@ -12193,18 +13071,18 @@ endsubroutine calc_charge_balance_point
 subroutine calc_omega_v5( &
     & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst & 
     & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &
-    & ,maqx,maqc,mgasx,mgasc,mgasth_all,prox &
+    & ,maqx,maqc,mgasx,mgasc,mgasth_all,prox,iosx,tc &
     & ,keqsld_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
     & ,staq_all,stgas_all &
     & ,mineral &
-    & ,domega_dmaq_all,domega_dmgas_all,domega_dpro_loc &! output
+    & ,domega_dmaq_all,domega_dmgas_all,domega_dpro_loc,domega_dios_loc &! output
     & ,omega,omega_error &! output
     & )
 ! this subroutine assumes to receive free ions
 implicit none
 integer,intent(in)::nz
-real(kind=8):: k1,k2,kco2,po2th,mo2g1,mo2g2,mo2g3,keq_tmp,ss_x,ss_pro,ss_pco2,mo2_tmp
-real(kind=8),dimension(nz),intent(in):: prox
+real(kind=8):: k1,k2,kco2,po2th,mo2g1,mo2g2,mo2g3,keq_tmp,ss_x,ss_pro,ss_pco2,mo2_tmp,tc
+real(kind=8),dimension(nz),intent(in):: prox,iosx
 real(kind=8),dimension(nz):: pco2x,po2x
 real(kind=8),dimension(nz),intent(out)::omega
 logical,intent(out)::omega_error
@@ -12230,7 +13108,7 @@ real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_gas_all),intent(in)::stgas_all
 
-real(kind=8),dimension(nz),intent(out)::domega_dpro_loc
+real(kind=8),dimension(nz),intent(out)::domega_dpro_loc,domega_dios_loc
 real(kind=8),dimension(nsp_gas_all,nz),intent(out)::domega_dmgas_all
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::domega_dmaq_all
 
@@ -12253,6 +13131,14 @@ data ieqaq_so4,ieqaq_so42/1,2/
 integer ispa,ipco2,ipo2
 ! real(kind=8)::thon = 1d0
 real(kind=8)::thon = -1d100
+
+integer icharge
+real(kind=8),dimension(nz)::fkeq,gamma_tmp,dgamma_dios_tmp
+real(kind=8),dimension(4,nz)::gamma,dgamma_dios
+real(kind=8) rcharge
+
+logical::act_ON = .true.
+! logical::act_ON = .false.
 
 mo2g1 = keqsld_all(findloc(chrsld_all,'g1',dim=1))
 mo2g2 = keqsld_all(findloc(chrsld_all,'g2',dim=1))
@@ -12279,9 +13165,20 @@ po2x = mgasx_loc(findloc(chrgas_all,'po2',dim=1),:)
 ipco2 = findloc(chrgas_all,'pco2',dim=1)
 ipo2 = findloc(chrgas_all,'po2',dim=1)
 
-domega_dmaq_all =0d0
+do icharge=1,4
+    rcharge = 1d0*icharge
+    call calc_gamma_davies(  &
+        & nz,iosx,tc,rcharge &
+        & ,gamma_tmp,dgamma_dios_tmp &
+        & )
+    gamma(icharge,:)=gamma_tmp(:)
+    dgamma_dios(icharge,:)=dgamma_dios_tmp(:)
+enddo
+
+domega_dmaq_all  =0d0
 domega_dmgas_all =0d0
-domega_dpro_loc =0d0
+domega_dpro_loc  =0d0
+domega_dios_loc  =0d0
 
 select case(trim(adjustl(mineral)))
 
@@ -12295,6 +13192,7 @@ select case(trim(adjustl(mineral)))
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
         ss_pro = 0d0
+        fkeq = 1d0
         do ispa = 1,nsp_aq_all
             if (staq_all(findloc(chrsld_all,mineral,dim=1),ispa) > 0d0) then 
 
@@ -12308,23 +13206,38 @@ select case(trim(adjustl(mineral)))
                 selectcase(trim(adjustl(chraq_all(ispa)))) 
                     case('na','k')
                         ss_pro = ss_pro + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                        fkeq  = fkeq * gamma(1,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                        ! derivatives are first given as d(log gamma)/dios 
+                        domega_dios_loc = domega_dios_loc &
+                            & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)*dgamma_dios(1,:)/gamma(1,:)
                     case('fe2','ca','mg')
                         ss_pro = ss_pro + 2d0*staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                        fkeq  = fkeq * gamma(2,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                        domega_dios_loc = domega_dios_loc &
+                            & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)*dgamma_dios(2,:)/gamma(2,:)
                     case('fe3','al')
                         ss_pro = ss_pro + 3d0*staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                        fkeq  = fkeq * gamma(3,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                        domega_dios_loc = domega_dios_loc &
+                            & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)*dgamma_dios(3,:)/gamma(3,:)
                 endselect
             endif 
         enddo 
         
         if (ss_pro > 0d0) then 
             omega = omega / prox**ss_pro
+            
+            fkeq  = fkeq / gamma(1,:)**ss_pro
 
             ! derivatives are first given as d(log omega)/dc 
             domega_dpro_loc = domega_dpro_loc - ss_pro/prox 
+            ! derivatives are first given as d(log gamma)/dios 
+            domega_dios_loc = domega_dios_loc - ss_pro*dgamma_dios(1,:)/gamma(1,:)
         endif 
         
         if (keq_tmp > 0d0) then 
-            omega = omega / keq_tmp
+            if (.not.act_ON) omega = omega / keq_tmp
+            if (act_ON)      omega = omega / keq_tmp * fkeq
         endif         
         
         ! derivatives are now d(omega)/dc ( = d(omega)/d(log omega) * d(log omega)/dc = omega * d(log omega)/dc)
@@ -12333,10 +13246,14 @@ select case(trim(adjustl(mineral)))
         enddo 
         domega_dpro_loc = domega_dpro_loc*omega
         
+        if (.not.act_ON) domega_dios_loc = 0d0
+        if (act_ON)      domega_dios_loc = domega_dios_loc*omega
+        
     case('cc','arg','dlm') ! carbonates
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         ss_pco2 = stgas_all(findloc(chrsld_all,mineral,dim=1),findloc(chrgas_all,'pco2',dim=1))
         omega = 1d0
+        fkeq = 1d0
         
         do ispa = 1,nsp_aq_all
             if (staq_all(findloc(chrsld_all,mineral,dim=1),ispa) > 0d0) then 
@@ -12346,6 +13263,10 @@ select case(trim(adjustl(mineral)))
                 domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:) + ( &
                     & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*1d0 &
                     & )
+                
+                fkeq  = fkeq * gamma(2,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                domega_dios_loc = domega_dios_loc &
+                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)*dgamma_dios(2,:)/gamma(2,:)
             endif 
         enddo 
         
@@ -12355,10 +13276,14 @@ select case(trim(adjustl(mineral)))
             ! derivatives are first given as d(log omega)/dc 
             domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:) + ss_pco2/pco2x 
             domega_dpro_loc = domega_dpro_loc - 2d0*ss_pco2/prox 
+            
+            fkeq  = fkeq * gamma(2,:)**ss_pco2
+            domega_dios_loc = domega_dios_loc + ss_pco2*dgamma_dios(2,:)/gamma(2,:)
         endif 
         
         if (keq_tmp > 0d0) then 
-            omega = omega / keq_tmp
+            if (.not.act_ON) omega = omega / keq_tmp
+            if (act_ON)      omega = omega / keq_tmp * fkeq
         endif     
         
         ! derivatives are now d(omega)/dc ( = d(omega)/d(log omega) * d(log omega)/dc = omega * d(log omega)/dc)
@@ -12368,10 +13293,14 @@ select case(trim(adjustl(mineral)))
         domega_dmgas_all(ipco2,:) = domega_dmgas_all(ipco2,:)*omega(:)
         domega_dpro_loc = domega_dpro_loc*omega
         
+        if (.not.act_ON) domega_dios_loc = 0d0
+        if (act_ON)      domega_dios_loc = domega_dios_loc*omega
+        
     case('gps') ! sulfates
     ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
+        fkeq = 1d0
         
         do ispa = 1,nsp_aq_all
             if (staq_all(findloc(chrsld_all,mineral,dim=1),ispa) > 0d0) then 
@@ -12381,17 +13310,25 @@ select case(trim(adjustl(mineral)))
                 domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:) + ( &
                     & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*1d0 &
                     & )
+                    
+                fkeq  = fkeq * gamma(2,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                domega_dios_loc = domega_dios_loc &
+                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)*dgamma_dios(2,:)/gamma(2,:)
             endif 
         enddo 
         
         if (keq_tmp > 0d0) then 
-            omega = omega / keq_tmp
+            if (.not.act_ON) omega = omega / keq_tmp
+            if (act_ON)      omega = omega / keq_tmp * fkeq
         endif     
         
         ! derivatives are now d(omega)/dc ( = d(omega)/d(log omega) * d(log omega)/dc = omega * d(log omega)/dc)
         do ispa=1,nsp_aq_all
             domega_dmaq_all(ispa,:) = domega_dmaq_all(ispa,:)*omega(:)
         enddo 
+        
+        if (.not.act_ON) domega_dios_loc = 0d0
+        if (act_ON)      domega_dios_loc = domega_dios_loc*omega
         
     !!! other minerals that are assumed not to be controlled by distance from equilibrium i.e. omega
     
@@ -12615,8 +13552,8 @@ subroutine get_maqt_all( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
-    & ,mgasx_loc,maqf_loc,prox &
-    & ,dmaqft_dpro,dmaqft_dmaqf,dmaqft_dmgas &! output
+    & ,mgasx_loc,maqf_loc,prox,iosx,tc &
+    & ,dmaqft_dpro,dmaqft_dmaqf,dmaqft_dmgas,dmaqft_dios &! output
     & ,maqft_loc  &! output
     & )
 ! calculating ratio of total dissolved species relative to maqf_loc
@@ -12624,20 +13561,22 @@ implicit none
 integer,intent(in)::nz,nsp_aq_all,nsp_gas_all
 character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+real(kind=8),intent(in)::tc
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_gas_all,nz),intent(in)::mgasx_loc
-real(kind=8),dimension(nz),intent(in)::prox
+real(kind=8),dimension(nz),intent(in)::prox,iosx
 
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::maqft_loc
 real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dmaqft_dpro
+real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dmaqft_dios
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz),intent(out)::dmaqft_dmaqf
 real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz),intent(out)::dmaqft_dmgas
 
 integer ispa,ispa_h,ispa_c,ispa_s,ispa_no3,ispa_nh3,ispg,iso4,ipco2,ino3,ipnh3,ispa2 &
-    & ,ioxa,ispa_oxa,icl,ispa_cl
+    & ,ioxa,ispa_oxa,icl,ispa_cl,icharge,ic1,ic2
 
 integer ieqgas_h0,ieqgas_h1,ieqgas_h2
 data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
@@ -12646,8 +13585,10 @@ integer ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4
 data ieqaq_h1,ieqaq_h2,ieqaq_h3,ieqaq_h4/1,2,3,4/
 
 real(kind=8) kco2,k1,k2,k1no3,rspa_h,rspa_s,rspa_no3,rspa_nh3,knh3,k1nh3,rspa_oxa,rspa_oxa_2,rspa_oxa_3 &
-    & ,rspa_cl
-real(kind=8),dimension(nz)::pco2x,so4f,no3f,pnh3x,oxaf,clf
+    & ,rspa_cl,rcharge
+real(kind=8),dimension(nz)::pco2x,so4f,no3f,pnh3x,oxaf,clf,fkeq,dfkeq_dios,gamma_tmp,dgamma_dios_tmp
+real(kind=8),dimension(4,nz)::gamma,dgamma_dios
+real(kind=8),dimension(nsp_aq_all)::base_charge
 
 iso4    = findloc(chraq_all,'so4',dim=1)
 ino3    = findloc(chraq_all,'no3',dim=1)
@@ -12669,11 +13610,28 @@ no3f    = maqf_loc(ino3,:)
 oxaf    = maqf_loc(ioxa,:)
 clf     = maqf_loc(icl,:)
 
-maqft_loc = 0
+maqft_loc    = 0d0
 
-dmaqft_dpro = 0d0
+dmaqft_dpro  = 0d0
+dmaqft_dios  = 0d0
 dmaqft_dmaqf = 0d0
 dmaqft_dmgas = 0d0
+
+do icharge=1,4
+    rcharge = 1d0*icharge
+    call calc_gamma_davies(  &
+        & nz,iosx,tc,rcharge &
+        & ,gamma_tmp,dgamma_dios_tmp &
+        & )
+    gamma(icharge,:)=gamma_tmp(:)
+    dgamma_dios(icharge,:)=dgamma_dios_tmp(:)
+enddo
+    
+call get_base_charge( &
+    & nsp_aq_all & 
+    & ,chraq_all & 
+    & ,base_charge &! output 
+    & )
 
 do ispa = 1, nsp_aq_all
     
@@ -12684,12 +13642,53 @@ do ispa = 1, nsp_aq_all
     do ispa_nh3 = 1,2
         rspa_nh3 = real(ispa_nh3,kind=8)
         if ( keqaq_nh3(ispa,ispa_nh3) > 0d0) then 
-            maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(pnh3x*knh3/k1nh3*prox)**rspa_nh3
-            dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_nh3(ispa,ispa_nh3)*1d0*(pnh3x*knh3/k1nh3*prox)**rspa_nh3
+            ic1 = nint(abs(base_charge(ispa)))
+            ic2 = nint(abs(base_charge(ispa)+rspa_nh3))
+            if ( ic1>0 .and. ic2 > 0) then  
+                fkeq = gamma(ic1,:)*gamma(1,:)**rspa_nh3/gamma(ic2,:)
+                dfkeq_dios = ( &
+                    & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_nh3/gamma(ic2,:) &
+                    & + gamma(ic1,:)*rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                    &   /gamma(ic2,:) &
+                    & + gamma(ic1,:)*gamma(1,:)**rspa_nh3*(-1d0) &
+                    &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                    & )
+            elseif ( ic1==0 .and. ic2 > 0) then  
+                fkeq = gamma(1,:)**rspa_nh3/gamma(ic2,:)
+                dfkeq_dios = ( &
+                    & + rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                    &   /gamma(ic2,:) &
+                    & + gamma(1,:)**rspa_nh3*(-1d0) &
+                    &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                    & )
+            elseif ( ic1>0 .and. ic2 == 0) then  
+                fkeq = gamma(ic1,:)*gamma(1,:)**rspa_nh3
+                dfkeq_dios = ( &
+                    & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_nh3 &
+                    & + gamma(ic1,:)*rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                    & )
+            elseif ( ic1==0 .and. ic2 == 0) then  
+                fkeq = gamma(1,:)**rspa_nh3
+                dfkeq_dios = ( &
+                    & + rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                    & )
+            else 
+                print *, 'something is wrong'
+                stop
+            endif 
+            maqft_loc(ispa,:) = maqft_loc(ispa,:) + ( &
+                & + fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(pnh3x*knh3/k1nh3*prox)**rspa_nh3 & 
+                & )
+            dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + ( &
+                & + fkeq*keqaq_nh3(ispa,ispa_nh3)*1d0*(pnh3x*knh3/k1nh3*prox)**rspa_nh3 &
+                & )
             dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
-                & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(pnh3x*knh3/k1nh3)**rspa_nh3*rspa_nh3*prox**(rspa_nh3-1d0)
+                & + fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(pnh3x*knh3/k1nh3)**rspa_nh3*rspa_nh3*prox**(rspa_nh3-1d0)
             dmaqft_dmgas(ispa,ipnh3,:) = dmaqft_dmgas(ispa,ipnh3,:) &
-                & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3*prox)**rspa_nh3*rspa_nh3*pnh3x**(rspa_nh3-1d0)
+                & + fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3*prox)**rspa_nh3*rspa_nh3*pnh3x**(rspa_nh3-1d0)
+            dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + ( &
+                & + dfkeq_dios*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(pnh3x*knh3/k1nh3*prox)**rspa_nh3 & 
+                & )
         endif 
     enddo 
     
@@ -12709,9 +13708,44 @@ do ispa = 1, nsp_aq_all
         do ispa_h = 1,2
             rspa_h = real(ispa_h,kind=8)
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**rspa_h
-                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_h(ispa,ispa_h)*1d0*prox**rspa_h
-                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*rspa_h*prox**(rspa_h-1d0)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)+rspa_h))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_h/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_h/gamma(ic2,:) &
+                        & + gamma(ic1,:)*rspa_h*gamma(1,:)**(rspa_h-1d0)*dgamma_dios(1,:) &
+                        &   /gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(1,:)**rspa_h*(-1d0) &
+                        &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(1,:)**rspa_h/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + rspa_h*gamma(1,:)**(rspa_h-1d0)*dgamma_dios(1,:) &
+                        &   /gamma(ic2,:) &
+                        & + gamma(1,:)**rspa_h*(-1d0) &
+                        &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_h &
+                        & + gamma(ic1,:)*rspa_h*gamma(1,:)**(rspa_h-1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + rspa_h*gamma(1,:)**(rspa_h-1d0)*dgamma_dios(1,:) &
+                        & )
+                else 
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**rspa_h
+                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**rspa_h
+                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*rspa_h*prox**(rspa_h-1d0)
+                dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**rspa_h
             endif 
         enddo 
     ! oxalic acid 
@@ -12723,16 +13757,24 @@ do ispa = 1, nsp_aq_all
             if (ispa_h==1)then
                 rspa_h = real(ispa_h,kind=8)
                 if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)/prox**rspa_h
-                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_h(ispa,ispa_h)*1d0/prox**rspa_h
-                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(-rspa_h)/prox**(1d0+rspa_h)
+                    fkeq = 1d0/gamma(2,:)
+                    dfkeq_dios = -1d0/gamma(2,:)**2d0*dgamma_dios(2,:)
+                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)/prox**rspa_h
+                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*1d0/prox**rspa_h
+                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + ( &
+                        & + fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(-rspa_h)/prox**(1d0+rspa_h) &
+                        & )
+                    dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)/prox**rspa_h
                 endif 
             elseif(ispa_h==2)then
                 rspa_h = real(ispa_h-1,kind=8)
                 if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**rspa_h
-                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_h(ispa,ispa_h)*1d0*prox**rspa_h
-                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*rspa_h*prox**(rspa_h-1d0)
+                    fkeq = gamma(1,:)**2d0
+                    dfkeq_dios = 2d0*gamma(1,:)*dgamma_dios(1,:)
+                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**rspa_h
+                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*1d0*prox**rspa_h
+                    dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*rspa_h*prox**(rspa_h-1d0)
+                    dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*prox**rspa_h
                 endif 
             endif 
         enddo 
@@ -12743,28 +13785,129 @@ do ispa = 1, nsp_aq_all
         do ispa_h = 1,4
             rspa_h = real(ispa_h,kind=8)
             if ( keqaq_h(ispa,ispa_h) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)/prox**rspa_h
-                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_h(ispa,ispa_h)*1d0/prox**rspa_h
-                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(-rspa_h)/prox**(1d0+rspa_h)
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-rspa_h))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)/gamma(ic2,:)/gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)/gamma(ic2,:)/gamma(1,:)**rspa_h &
+                        & + gamma(ic1,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:)/gamma(1,:)**rspa_h &
+                        & + gamma(ic1,:)/gamma(ic2,:)*(-rspa_h)/gamma(1,:)**(rspa_h+1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = 1d0/gamma(ic2,:)/gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + 1d0*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:)/gamma(1,:)**rspa_h &
+                        & + 1d0/gamma(ic2,:)*(-rspa_h)/gamma(1,:)**(rspa_h+1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)/gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)/gamma(1,:)**rspa_h &
+                        & + gamma(ic1,:)*(-rspa_h)/gamma(1,:)**(rspa_h+1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = 1d0/gamma(1,:)**rspa_h
+                    dfkeq_dios = ( &
+                        & + 1d0*(-rspa_h)/gamma(1,:)**(rspa_h+1d0)*dgamma_dios(1,:) &
+                        & )
+                else 
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)/prox**rspa_h
+                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*1d0/prox**rspa_h
+                dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) + fkeq*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)*(-rspa_h)/prox**(1d0+rspa_h)
+                dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + dfkeq_dios*keqaq_h(ispa,ispa_h)*maqf_loc(ispa,:)/prox**rspa_h
             endif 
         enddo 
         ! account for species associated with CO3-- (ispa_c =1) and HCO3- (ispa_c =2)
         do ispa_c = 1,2
             if ( keqaq_c(ispa,ispa_c) > 0d0) then 
                 if (ispa_c == 1) then ! with CO3--
-                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x/prox**2d0
-                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x/prox**2d0
+                    ic1 = nint(abs(base_charge(ispa)))
+                    ic2 = nint(abs(base_charge(ispa)-2d0))
+                    if ( ic1>0 .and. ic2 > 0) then  
+                        fkeq = gamma(ic1,:)*gamma(2,:)/gamma(ic2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(ic1,:)*gamma(2,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*dgamma_dios(2,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*gamma(2,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 > 0) then  
+                        fkeq = gamma(2,:)/gamma(ic2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(2,:)/gamma(ic2,:) &
+                            & + gamma(2,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                            & )
+                    elseif ( ic1>0 .and. ic2 == 0) then  
+                        fkeq = gamma(ic1,:)*gamma(2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(ic1,:)*gamma(2,:) &
+                            & + gamma(ic1,:)*dgamma_dios(2,:) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 == 0) then  
+                        fkeq = gamma(2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(2,:) &
+                            & )
+                    else 
+                        print *, 'something is wrong'
+                        stop
+                    endif 
+                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x/prox**2d0
+                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x/prox**2d0
                     dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
-                        & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(-2d0)/prox**3d0
+                        & + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(-2d0)/prox**3d0
                     dmaqft_dmgas(ispa,ipco2,:) = dmaqft_dmgas(ispa,ipco2,:) &
-                        & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0/prox**2d0
+                        & + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0/prox**2d0
+                    dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + ( & 
+                        & + dfkeq_dios*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x/prox**2d0 & 
+                        & )
                 elseif (ispa_c == 2) then ! with HCO3- ( CO32- + H+)
-                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x/prox
-                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x/prox
+                    ic1 = nint(abs(base_charge(ispa)))
+                    ic2 = nint(abs(base_charge(ispa)-1d0))
+                    if ( ic1>0 .and. ic2 > 0) then  
+                        fkeq = gamma(ic1,:)*gamma(2,:)*gamma(1,:)/gamma(ic2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(ic1,:)*gamma(2,:)*gamma(1,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*dgamma_dios(2,:)*gamma(1,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*gamma(2,:)*dgamma_dios(1,:)/gamma(ic2,:) &
+                            & + gamma(ic1,:)*gamma(2,:)*gamma(1,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 > 0) then  
+                        fkeq = gamma(2,:)*gamma(1,:)/gamma(ic2,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(2,:)*gamma(1,:)/gamma(ic2,:) &
+                            & + gamma(2,:)*dgamma_dios(1,:)/gamma(ic2,:) &
+                            & + gamma(2,:)*gamma(1,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                            & )
+                    elseif ( ic1>0 .and. ic2 == 0) then  
+                        fkeq = gamma(ic1,:)*gamma(2,:)*gamma(1,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(ic1,:)*gamma(2,:)*gamma(1,:) &
+                            & + gamma(ic1,:)*dgamma_dios(2,:)*gamma(1,:) &
+                            & + gamma(ic1,:)*gamma(2,:)*dgamma_dios(1,:) &
+                            & )
+                    elseif ( ic1==0 .and. ic2 == 0) then  
+                        fkeq = gamma(2,:)*gamma(1,:)
+                        dfkeq_dios = ( &
+                            & + dgamma_dios(2,:)*gamma(1,:) &
+                            & + gamma(2,:)*dgamma_dios(1,:) &
+                            & )
+                    else 
+                        print *, 'something is wrong'
+                        stop
+                    endif 
+                    maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x/prox
+                    dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_c(ispa,ispa_c)*1d0*k1*k2*kco2*pco2x/prox
                     dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
-                        & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(-1d0)/prox**2d0
+                        & + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x*(-1d0)/prox**2d0
                     dmaqft_dmgas(ispa,ipco2,:) = dmaqft_dmgas(ispa,ipco2,:) &
-                        & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0/prox
+                        & + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*1d0/prox
+                    dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + ( & 
+                        & + dfkeq_dios*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*pco2x/prox &
+                        & )
                 endif 
             endif 
         enddo 
@@ -12772,54 +13915,152 @@ do ispa = 1, nsp_aq_all
         do ispa_s = 1,2
             rspa_s = real(ispa_s,kind=8)
             if ( keqaq_s(ispa,ispa_s) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s
-                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-2d0*rspa_s))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)*gamma(2,:)**rspa_s/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(2,:)**rspa_s/gamma(ic2,:) &
+                        & + gamma(ic1,:)*rspa_s*gamma(2,:)**(rspa_s-1d0)*dgamma_dios(2,:)/gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(2,:)**rspa_s*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(2,:)**rspa_s/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + rspa_s*gamma(2,:)**(rspa_s-1d0)*dgamma_dios(2,:)/gamma(ic2,:) &
+                        & + gamma(2,:)**rspa_s*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(2,:)**rspa_s
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(2,:)**rspa_s &
+                        & + gamma(ic1,:)*rspa_s*gamma(2,:)**(rspa_s-1d0)*dgamma_dios(2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = gamma(2,:)**rspa_s
+                    dfkeq_dios = ( &
+                        & + rspa_s*gamma(2,:)**(rspa_s-1d0)*dgamma_dios(2,:) &
+                        & )
+                else 
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s
+                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s
                 dmaqft_dmaqf(ispa,iso4,:) = dmaqft_dmaqf(ispa,iso4,:) &
-                    & + keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)
+                    & + fkeq*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0)
+                dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + dfkeq_dios*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s
                 
-                maqft_loc(iso4,:) = maqft_loc(iso4,:) + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s
+                maqft_loc(iso4,:) = maqft_loc(iso4,:) + rspa_s*fkeq*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s
                 dmaqft_dmaqf(iso4,iso4,:) = dmaqft_dmaqf(iso4,iso4,:) + ( &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0) &
+                    & + rspa_s*fkeq*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*rspa_s*so4f**(rspa_s-1d0) &
                     & )
                 dmaqft_dmaqf(iso4,ispa,:) = dmaqft_dmaqf(iso4,ispa,:) + ( &
-                    & + rspa_s*keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s &
+                    & + rspa_s*fkeq*keqaq_s(ispa,ispa_s)*1d0*so4f**rspa_s &
                     & )
+                dmaqft_dios(iso4,:) = dmaqft_dios(iso4,:) + rspa_s*dfkeq_dios*keqaq_s(ispa,ispa_s)*maqf_loc(ispa,:)*so4f**rspa_s
             endif 
         enddo 
         ! account for complexation with free NO3
         do ispa_no3 = 1,2
             rspa_no3 = real(ispa_no3,kind=8)
             if ( keqaq_no3(ispa,ispa_no3) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3
-                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-1d0*rspa_no3))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_no3/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_no3/gamma(ic2,:) &
+                        & + gamma(ic1,:)*rspa_no3*gamma(1,:)**(rspa_no3-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(1,:)**rspa_no3*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(1,:)**rspa_no3/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + rspa_no3*gamma(1,:)**(rspa_no3-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(1,:)**rspa_no3*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_no3
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_no3 &
+                        & + gamma(ic1,:)*rspa_no3*gamma(1,:)**(rspa_no3-1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = gamma(1,:)**rspa_no3
+                    dfkeq_dios = ( &
+                        & + rspa_no3*gamma(1,:)**(rspa_no3-1d0)*dgamma_dios(1,:) &
+                        & )
+                else 
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3
+                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3
                 dmaqft_dmaqf(ispa,ino3,:) = dmaqft_dmaqf(ispa,ino3,:) &
-                    & + keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*rspa_no3*no3f**(rspa_no3-1d0)
+                    & + fkeq*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*rspa_no3*no3f**(rspa_no3-1d0)
+                dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + dfkeq_dios*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3
                 
-                maqft_loc(ino3,:) = maqft_loc(ino3,:) + rspa_no3*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3
+                maqft_loc(ino3,:) = maqft_loc(ino3,:) + rspa_no3*fkeq*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3
                 dmaqft_dmaqf(ino3,ino3,:) = dmaqft_dmaqf(ino3,ino3,:) + ( &
-                    & + rspa_no3*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*rspa_no3*no3f**(rspa_no3-1d0) &
+                    & + rspa_no3*fkeq*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*rspa_no3*no3f**(rspa_no3-1d0) &
                     & )
                 dmaqft_dmaqf(ino3,ispa,:) = dmaqft_dmaqf(ino3,ispa,:) + ( &
-                    & + rspa_no3*keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3 &
+                    & + rspa_no3*fkeq*keqaq_no3(ispa,ispa_no3)*1d0*no3f**rspa_no3 &
                     & )
+                dmaqft_dios(ino3,:) = dmaqft_dios(ino3,:) + ( &
+                    & + rspa_no3*dfkeq_dios*keqaq_no3(ispa,ispa_no3)*maqf_loc(ispa,:)*no3f**rspa_no3 &
+                    & ) 
             endif 
         enddo 
         ! account for complexation with free Cl
         do ispa_cl = 1,2
             rspa_cl = real(ispa_cl,kind=8)
             if ( keqaq_cl(ispa,ispa_cl) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
-                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-1d0*rspa_cl))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_cl/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_cl/gamma(ic2,:) &
+                        & + gamma(ic1,:)*rspa_cl*gamma(1,:)**(rspa_cl-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(1,:)**rspa_cl*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(1,:)**rspa_cl/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + rspa_cl*gamma(1,:)**(rspa_cl-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(1,:)**rspa_cl*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**rspa_cl
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_cl &
+                        & + gamma(ic1,:)*rspa_cl*gamma(1,:)**(rspa_cl-1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then  
+                    fkeq = gamma(1,:)**rspa_cl
+                    dfkeq_dios = ( &
+                        & + rspa_cl*gamma(1,:)**(rspa_cl-1d0)*dgamma_dios(1,:) &
+                        & )
+                else 
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + fkeq*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
+                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + fkeq*keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl
                 dmaqft_dmaqf(ispa,icl,:) = dmaqft_dmaqf(ispa,icl,:) &
-                    & + keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0)
+                    & + fkeq*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0)
+                dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + dfkeq_dios*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
                 
-                maqft_loc(icl,:) = maqft_loc(icl,:) + rspa_cl*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
+                maqft_loc(icl,:) = maqft_loc(icl,:) + rspa_cl*fkeq*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
                 dmaqft_dmaqf(icl,icl,:) = dmaqft_dmaqf(icl,icl,:) + ( &
-                    & + rspa_cl*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0) &
+                    & + rspa_cl*fkeq*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*rspa_cl*clf**(rspa_cl-1d0) &
                     & )
                 dmaqft_dmaqf(icl,ispa,:) = dmaqft_dmaqf(icl,ispa,:) + ( &
-                    & + rspa_cl*keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl &
+                    & + rspa_cl*fkeq*keqaq_cl(ispa,ispa_cl)*1d0*clf**rspa_cl &
                     & )
+                dmaqft_dios(icl,:) = dmaqft_dios(icl,:) + rspa_cl*dfkeq_dios*keqaq_cl(ispa,ispa_cl)*maqf_loc(ispa,:)*clf**rspa_cl
             endif 
         enddo 
         ! account for complexation with HOxa-
@@ -12833,23 +14074,64 @@ do ispa = 1, nsp_aq_all
                 rspa_oxa_3 = 1d0
             endif 
             if ( keqaq_oxa(ispa,ispa_oxa) > 0d0) then 
-                maqft_loc(ispa,:) = maqft_loc(ispa,:) + keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3/prox**rspa_oxa
-                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa_3/prox**rspa_oxa
+                ic1 = nint(abs(base_charge(ispa)))
+                ic2 = nint(abs(base_charge(ispa)-rspa_oxa_2))
+                if ( ic1>0 .and. ic2 > 0) then  
+                    ! fkeq = gamma(ic1,:)*gamma(1,:)**rspa_oxa_3/gamma(ic2,:)/gamma(1,:)**rspa_oxa
+                    fkeq = gamma(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,:) &
+                        & + gamma(ic1,:)*(rspa_oxa_3-rspa_oxa)*gamma(1,:)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,:) &
+                        &       /gamma(ic2,:) &
+                        & + gamma(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 > 0) then  
+                    fkeq = gamma(1,:)**(rspa_oxa_3-rspa_oxa)/gamma(ic2,:)
+                    dfkeq_dios = ( &
+                        & + (rspa_oxa_3-rspa_oxa)*gamma(1,:)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,:)/gamma(ic2,:) &
+                        & + gamma(1,:)**(rspa_oxa_3-rspa_oxa)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                        & )
+                elseif ( ic1>0 .and. ic2 == 0) then  
+                    fkeq = gamma(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa)
+                    dfkeq_dios = ( &
+                        & + dgamma_dios(ic1,:)*gamma(1,:)**(rspa_oxa_3-rspa_oxa) &
+                        & + gamma(ic1,:)*(rspa_oxa_3-rspa_oxa)*gamma(1,:)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,:) &
+                        & )
+                elseif ( ic1==0 .and. ic2 == 0) then
+                    fkeq = gamma(1,:)**(rspa_oxa_3-rspa_oxa)
+                    dfkeq_dios = ( &
+                        & + (rspa_oxa_3-rspa_oxa)*gamma(1,:)**(rspa_oxa_3-rspa_oxa-1d0)*dgamma_dios(1,:) &
+                        & )
+                else 
+                    print *, 'something is wrong'
+                    stop
+                endif 
+                maqft_loc(ispa,:) = maqft_loc(ispa,:) + ( &
+                    & + fkeq*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3/prox**rspa_oxa & 
+                    & )
+                dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:) + ( & 
+                    & + fkeq*keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa_3/prox**rspa_oxa &
+                    & )
                 dmaqft_dmaqf(ispa,ioxa,:) = dmaqft_dmaqf(ispa,ioxa,:) &
-                    & + keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)/prox**rspa_oxa
+                    & + fkeq*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)/prox**rspa_oxa
                 dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:) &
-                    & + keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(-rspa_oxa)/prox**(rspa_oxa+1d0)
+                    & + fkeq*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(-rspa_oxa)/prox**(rspa_oxa+1d0)
+                dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:) + ( &
+                    & + dfkeq_dios*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3/prox**rspa_oxa & 
+                    & )
                 
                 maqft_loc(ioxa,:) = maqft_loc(ioxa,:) &
-                    & + rspa_oxa_2*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3/prox**rspa_oxa
+                    & + rspa_oxa_2*fkeq*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3/prox**rspa_oxa
                 dmaqft_dmaqf(ioxa,ioxa,:) = dmaqft_dmaqf(ioxa,ioxa,:) + ( &
-                    & + rspa_oxa_2*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)/prox**rspa_oxa &
+                    & + rspa_oxa_2*fkeq*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*rspa_oxa_3*oxaf**(rspa_oxa_3-1d0)/prox**rspa_oxa &
                     & )
                 dmaqft_dmaqf(ioxa,ispa,:) = dmaqft_dmaqf(ioxa,ispa,:) + ( &
-                    & + rspa_oxa_2*keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa_3/prox**rspa_oxa &
+                    & + rspa_oxa_2*fkeq*keqaq_oxa(ispa,ispa_oxa)*1d0*oxaf**rspa_oxa_3/prox**rspa_oxa &
                     & )
                 dmaqft_dpro(ioxa,:) = dmaqft_dpro(ioxa,:) &
-                    & + rspa_oxa_2*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(-rspa_oxa)/prox**(rspa_oxa+1d0)
+                    & + rspa_oxa_2*fkeq*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3*(-rspa_oxa)/prox**(rspa_oxa+1d0)
+                dmaqft_dios(ioxa,:) = dmaqft_dios(ioxa,:) &
+                    & + rspa_oxa_2*dfkeq_dios*keqaq_oxa(ispa,ispa_oxa)*maqf_loc(ispa,:)*oxaf**rspa_oxa_3/prox**rspa_oxa
             endif 
         enddo 
     endif 
@@ -12858,6 +14140,7 @@ do ispa = 1, nsp_aq_all
     ! maqft_loc(ispa,:) = maqft_loc(ispa,:)/maqf_loc(ispa,:)
     
     dmaqft_dpro(ispa,:) = dmaqft_dpro(ispa,:)/maqf_loc(ispa,:)
+    dmaqft_dios(ispa,:) = dmaqft_dios(ispa,:)/maqf_loc(ispa,:)
     
     dmaqft_dmaqf(ispa,ispa,:) = dmaqft_dmaqf(ispa,ispa,:)/maqf_loc(ispa,:) + maqft_loc(ispa,:)*(-1d0)/maqf_loc(ispa,:)**2d0
     do ispa2 = 1,nsp_aq_all
@@ -13272,8 +14555,7 @@ do isps = 1, nsp_sld_all
         case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
             ! do nothing 
         case default 
-            ! cycle
-			! do nothing (now allowing cation exchange for whatever phase)
+            cycle
     endselect 
     
     ! equation to be solved:
@@ -13442,8 +14724,7 @@ do ispa=1,nsp_aq_all
                     case('ka','cabd','mgbd','kbd','nabd','g1','g2','g3','inrt')
                         ! do nothing 
                     case default 
-                        ! cycle
-						! do nothing (now allowing cation exchange for whatever phase)
+                        cycle
                 endselect 
                 
                 if (cec_pH_depend(isps)) then
@@ -13921,7 +15202,7 @@ subroutine calc_rxn_ext_dev_3( &
     & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
     & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
     & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
-    & ,rg,tempk_0,tc &!input
+    & ,rg,tempk_0,tc,iosx &!input
     & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
     & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
     & ,rxn_name,sp_name &! input 
@@ -13929,7 +15210,7 @@ subroutine calc_rxn_ext_dev_3( &
     & )
 implicit none
 integer,intent(in)::nz
-real(kind=8),dimension(nz),intent(in):: poro,sat,prox
+real(kind=8),dimension(nz),intent(in):: poro,sat,prox,iosx
 real(kind=8),dimension(nz),intent(out):: drxnext_dmsp
 real(kind=8),dimension(nz),intent(out):: rxn_ext
 character(5),intent(in)::rxn_name,sp_name
@@ -13977,7 +15258,7 @@ real(kind=8),dimension(nz):: po2x,vmax,mo2,fe2x,koxa,vmax2,mom2,komb,beta,omx,om
     & ,mo2g1,mo2g2,mo2g3,kg1,kg2,kg3,g1x,g2x,g3x,pyx,fe3x,koxpy,pnh3x,nh4x,dnh4_dpro,dnh4_dpnh3 &
     & ,no3x,pn2ox,dv_dph_tmp,fe2f,dfe2f_dfe2,dfe2f_dpco2,dfe2f_dpro,dfe2f_dso4f,pco2x,hrpy,oxax &
     & ,vmax_tmp
-real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,maqft_loc,dmaqft_dpro_loc
+real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,maqft_loc,dmaqft_dpro_loc,dmaqft_dios_loc
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz)::dmaqft_dmaqf_loc
 real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz)::dmaqft_dmgas_loc
 real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
@@ -14066,8 +15347,8 @@ call get_maqt_all( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
-    & ,mgasx_loc,maqx_loc,prox &
-    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
+    & ,mgasx_loc,maqx_loc,prox,iosx,tc &
+    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc,dmaqft_dios_loc &! output
     & ,maqft_loc  &! output
     & )
 
@@ -14131,6 +15412,12 @@ select case(trim(adjustl(rxn_name)))
                             & + poro*sat*1d3*0.5d0 &
                             & *maqx_loc(findloc(chraq_all,'oxa',dim=1),:) &
                             & *dmaqft_dpro_loc(findloc(chraq_all,'oxa',dim=1),:) &
+                            & )
+                    case('ios')
+                        drxnext_dmsp = ( &
+                            & + poro*sat*1d3*0.5d0 &
+                            & *maqx_loc(findloc(chraq_all,'oxa',dim=1),:) &
+                            & *dmaqft_dios_loc(findloc(chraq_all,'oxa',dim=1),:) &
                             & ) 
                     case('oxa')
                         drxnext_dmsp = ( &
@@ -14766,6 +16053,31 @@ select case(trim(adjustl(rxn_name)))
                             & ) &
                             & *maqx_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
                             & *dmaqft_dpro_loc(findloc(chraq_all,sp_tmp,dim=1),:) 
+                    case('ios')
+                        drxnext_dmsp = ( &
+                            & + vmax_tmp * g2x  &
+                            & *po2x/(mo2 + po2x)  &
+                            & *km_tmp1  &
+                            & *maqx_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & *dmaqft_dios_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & /( km_tmp2 &
+                            & +maqx_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & *maqft_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & ) &
+                            & ) &
+                            & +  ( &
+                            & + vmax_tmp * g2x  &
+                            & *po2x/(mo2 + po2x)  &
+                            & *km_tmp1  &
+                            & *maqx_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & *maqft_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & *(-1d0)/( km_tmp2 &
+                            & +maqx_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & *maqft_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & )**2d0 &
+                            & ) &
+                            & *maqx_loc(findloc(chraq_all,sp_tmp,dim=1),:) &
+                            & *dmaqft_dios_loc(findloc(chraq_all,sp_tmp,dim=1),:) 
                     case('g2')
                         drxnext_dmsp = ( &
                             & + vmax_tmp * 1d0   &
@@ -15217,20 +16529,21 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     !  old inputs
     & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close & 
+    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios & 
     ! old inout
     & ,dt,flgback,w &    
     ! output 
     & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,maqft & 
-    & ,maqfads,msldf_loc,beta_loc &
+    & ,maqfads,msldf_loc,beta_loc,iosx &
     & )
 ! this is an attempt to calculate mass balance based on specific primary variables for aq. species.  
 implicit none 
 
 integer,intent(in)::nz,nflx
 real(kind=8),intent(in)::w_btm,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi,poroi
-real(kind=8),dimension(nz),intent(in)::poro,z,sat,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf,disp
+real(kind=8),dimension(nz),intent(in)::poro,z,sat,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf,disp,ios
 real(kind=8),dimension(nz),intent(out)::prox
+real(kind=8),dimension(nz),intent(out)::iosx
 real(kind=8),dimension(nz),intent(inout)::w
 integer,intent(inout)::it
 integer iter
@@ -15259,13 +16572,14 @@ real(kind=8),dimension(nsp_sld,nz),intent(in)::msld,msldsupp
 real(kind=8),dimension(nsp_sld,nz),intent(inout)::ksld
 real(kind=8),dimension(nz,nz,nsp_sld),intent(in)::trans
 real(kind=8),dimension(nsp_sld,nz),intent(inout)::msldx,omega,nonprec,rxnsld
-real(kind=8),dimension(nsp_sld,nz)::domega_dpro,dmsld,dksld_dpro,drxnsld_dmsld,dksld_dso4f,domega_dso4f
+real(kind=8),dimension(nsp_sld,nz)::domega_dpro,dmsld,dksld_dpro,drxnsld_dmsld,dksld_dso4f,domega_dso4f,dksld_dios,domega_dios
 real(kind=8),dimension(nsp_sld,nsp_aq,nz)::domega_dmaq,dksld_dmaq,drxnsld_dmaq
 real(kind=8),dimension(nsp_sld,nsp_gas,nz)::domega_dmgas,dksld_dmgas,drxnsld_dmgas
 real(kind=8),dimension(nsp_sld,nflx,nz),intent(out)::flx_sld
 real(kind=8),dimension(nsp_aq,nz),intent(in)::maq,maqsupp,maqft_prev,maqfads_prev
 real(kind=8),dimension(nsp_aq,nz),intent(inout)::maqx,maqft,maqfads 
-real(kind=8),dimension(nsp_aq,nz)::dprodmaq,dmaq,maqf,dmaqft_dpro,dmaqfads_dpro,maqx_save,dmaqx
+real(kind=8),dimension(nsp_aq,nz)::dprodmaq,dmaq,maqf,dmaqft_dpro,dmaqfads_dpro,maqx_save,dmaqx,dmaqft_dios,dmaqfads_dios
+real(kind=8),dimension(nsp_aq,nz)::diosdmaq
 real(kind=8),dimension(nsp_aq,nsp_aq,nz)::dmaqft_dmaqf,dmaqfads_dmaqf
 real(kind=8),dimension(nsp_aq,nsp_gas,nz)::dmaqft_dmgas,dmaqfads_dmgas
 real(kind=8),dimension(nsp_aq,nsp_sld,nz)::dmaqfads_dmsld
@@ -15273,13 +16587,14 @@ real(kind=8),dimension(nsp_aq,nflx,nz),intent(out)::flx_aq
 real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas,mgassupp
 real(kind=8),dimension(nsp_gas,nz),intent(inout)::mgasx 
 real(kind=8),dimension(nsp_gas,nz)::khgasx,khgas,dgas,agasx,agas,rxngas,dkhgas_dpro,dprodmgas,dmgas,dso4fdmgas,dkhgas_dso4f &
-    & ,mgasx_save,dmgasx
+    & ,mgasx_save,dmgasx,dkhgas_dios
+real(kind=8),dimension(nsp_gas,nz)::diosdmgas
 real(kind=8),dimension(nsp_gas,nsp_aq,nz)::dkhgas_dmaq,ddgas_dmaq,dagas_dmaq,drxngas_dmaq 
 real(kind=8),dimension(nsp_gas,nsp_sld,nz)::drxngas_dmsld 
 real(kind=8),dimension(nsp_gas,nsp_gas,nz)::dkhgas_dmgas,ddgas_dmgas,dagas_dmgas,drxngas_dmgas 
 real(kind=8),dimension(nsp_gas,nflx,nz),intent(out)::flx_gas 
 real(kind=8),dimension(nrxn_ext,nz),intent(inout)::rxnext
-real(kind=8),dimension(nrxn_ext,nz)::drxnext_dpro,drxnext_dso4f
+real(kind=8),dimension(nrxn_ext,nz)::drxnext_dpro,drxnext_dso4f,drxnext_dios
 real(kind=8),dimension(nrxn_ext,nsp_gas),intent(in)::stgas_ext,stgas_dext
 real(kind=8),dimension(nrxn_ext,nsp_aq),intent(in)::staq_ext,staq_dext
 real(kind=8),dimension(nrxn_ext,nsp_sld),intent(in)::stsld_ext,stsld_dext
@@ -15316,20 +16631,20 @@ real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::keqiex_all
 logical,dimension(nsp_sld_all),intent(in)::cec_pH_depend
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::msldf_loc,beta_loc
 
-real(kind=8),dimension(nsp_aq_all,nz)::dprodmaq_all,dso4fdmaq_all
-real(kind=8),dimension(nsp_gas_all,nz)::dprodmgas_all,dso4fdmgas_all
+real(kind=8),dimension(nsp_aq_all,nz)::dprodmaq_all,dso4fdmaq_all,diosdmaq_all
+real(kind=8),dimension(nsp_gas_all,nz)::dprodmgas_all,dso4fdmgas_all,diosdmgas_all
 
-real(kind=8),dimension(nz)::domega_dpro_loc,domega_dso4f_loc
+real(kind=8),dimension(nz)::domega_dpro_loc,domega_dso4f_loc,domega_dios_loc
 real(kind=8),dimension(nsp_gas_all,nz)::domega_dmgas_all
 real(kind=8),dimension(nsp_aq_all,nz)::domega_dmaq_all
-real(kind=8),dimension(nsp_aq_all,nz)::maqft_loc,dmaqft_dpro_loc,maqf_loc,maqx_loc,maqx_loc_tmp
+real(kind=8),dimension(nsp_aq_all,nz)::maqft_loc,dmaqft_dpro_loc,maqf_loc,maqx_loc,maqx_loc_tmp,dmaqft_dios_loc
 real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz)::dmaqft_dmaqf_loc
 real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz)::dmaqft_dmgas_loc
 real(kind=8),dimension(nsp_aq_all,nz)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
 real(kind=8),dimension(nsp_aq_cnst,nz)::maqcx
 
 real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
-real(kind=8),dimension(nsp_gas_all,nz)::khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dso4f_all
+real(kind=8),dimension(nsp_gas_all,nz)::khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dso4f_all,dkhgas_dios_all
 real(kind=8),dimension(nsp_gas_all,nsp_aq_all,nz)::dkhgas_dmaq_all
 real(kind=8),dimension(nsp_gas_all,nsp_gas_all,nz)::dkhgas_dmgas_all
 
@@ -15347,7 +16662,7 @@ real(kind=8),dimension(nsp_aq,nsp_sld,nz)::maqfads_sld
 real(kind=8),dimension(nsp_aq,nsp_sld,nsp_aq,nz)::dmaqfads_sld_dmaqf
 real(kind=8),dimension(nsp_aq,nsp_sld,nsp_gas,nz)::dmaqfads_sld_dmgas
 real(kind=8),dimension(nsp_aq,nsp_sld,nz)::dmaqfads_sld_dmsld
-real(kind=8),dimension(nsp_aq,nsp_sld,nz)::dmaqfads_sld_dpro
+real(kind=8),dimension(nsp_aq,nsp_sld,nz)::dmaqfads_sld_dpro,dmaqfads_sld_dios
 
 character(5),dimension(nflx),intent(in)::chrflx
 
@@ -15399,7 +16714,7 @@ real(kind=8),parameter::threshold = 10d0
 ! real(kind=8),parameter::corr = 1.5d0
 real(kind=8),parameter::corr = exp(threshold)
 
-real(kind=8),dimension(nz)::dummy,dummy2,dummy3,kin,dkin_dmsp,dumtest,sporo,prox_save
+real(kind=8),dimension(nz)::dummy,dummy2,dummy3,kin,dkin_dmsp,dumtest,sporo,prox_save,iosx_save
 
 logical print_cb,ph_error,omega_error,rxnext_error
 character(500) print_loc
@@ -15510,6 +16825,7 @@ if (cplprec)then
 endif 
 
 prox = pro
+iosx = ios
 
 dummy = 0d0
 dummy2 = 0d0
@@ -15539,6 +16855,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & sum(dprodmaq(:,iz)*dmaqx(:,iz))/prox_save(iz) &
                 & + sum(dprodmgas(:,iz)*dmgasx(:,iz))/prox_save(iz) &
                 & )
+            iosx(iz) = iosx(iz) * exp( &
+                & sum(diosdmaq(:,iz)*dmaqx(:,iz))/iosx_save(iz) &
+                & + sum(diosdmgas(:,iz)*dmgasx(:,iz))/iosx_save(iz) &
+                & )
         enddo 
     endif 
     
@@ -15548,19 +16868,21 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     
     call calc_pH_v7_4( &
         & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-        & ,poro,sat &! input  
+        & ,poro,sat,tc &! input  
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
         & ,keqaq_oxa,keqaq_cl &! input
         & ,print_cb,print_loc,z &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
+        & ,iosx,diosdmaq_all,diosdmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
         & ) 
     
-    ! stop
     ! print *
     ! print *, -log10(prox)
+    ! print *, iosx
     ! print *
+    ! stop
 
     if (ph_error) then 
         print *, 'error issued from ph calculation: raising flag and return to main' 
@@ -15576,16 +16898,20 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     endif 
     
     dprodmaq = 0d0
+    diosdmaq = 0d0
     do ispa=1,nsp_aq
         if (any (chraq_ph == chraq(ispa))) then 
             dprodmaq(ispa,:)=dprodmaq_all(findloc(chraq_all,chraq(ispa),dim=1),:)
+            diosdmaq(ispa,:)=diosdmaq_all(findloc(chraq_all,chraq(ispa),dim=1),:)
         endif 
     enddo 
     
     dprodmgas = 0d0
+    diosdmgas = 0d0
     do ispg=1,nsp_gas
         if (any (chrgas_ph == chrgas(ispg))) then 
             dprodmgas(ispg,:)=dprodmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+            diosdmgas(ispg,:)=diosdmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
         endif 
     enddo 
     
@@ -15593,6 +16919,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     maqx_save = maqx
     mgasx_save = mgasx
     prox_save = prox
+    iosx_save = iosx
     
     ! getting mgasx_loc & maqx_loc
     call get_maqgasx_all( &
@@ -15607,8 +16934,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         & nz,nsp_aq_all,nsp_gas_all &
         & ,chraq_all,chrgas_all &
         & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
-        & ,mgasx_loc,maqx_loc,prox &
-        & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
+        & ,mgasx_loc,maqx_loc,prox,iosx,tc &
+        & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc,dmaqft_dios_loc &! output
         & ,maqft_loc  &! output
         & )
     ! if (any(isnan(maqft_loc))) then 
@@ -15619,22 +16946,28 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     maqft = 0d0
     
     dmaqft_dpro = 0d0
+    dmaqft_dios = 0d0
     dmaqft_dmaqf = 0d0
     dmaqft_dmgas = 0d0
     do ispa=1,nsp_aq
         maqft(ispa,:)=maqft_loc(findloc(chraq_all,chraq(ispa),dim=1),:)
         
         dmaqft_dpro(ispa,:)=dmaqft_dpro_loc(findloc(chraq_all,chraq(ispa),dim=1),:)
+        dmaqft_dios(ispa,:)=dmaqft_dios_loc(findloc(chraq_all,chraq(ispa),dim=1),:)
         
         do ispa2=1,nsp_aq
-            dmaqft_dmaqf(ispa,ispa2,:) &
-                & = dmaqft_dmaqf_loc(findloc(chraq_all,chraq(ispa),dim=1),findloc(chraq_all,chraq(ispa2),dim=1),:) &
-                &   +  dmaqft_dpro(ispa,:)*dprodmaq(ispa2,:) 
+            dmaqft_dmaqf(ispa,ispa2,:) = ( &
+                & + dmaqft_dmaqf_loc(findloc(chraq_all,chraq(ispa),dim=1),findloc(chraq_all,chraq(ispa2),dim=1),:) &
+                & + dmaqft_dpro(ispa,:)*dprodmaq(ispa2,:) &
+                & + dmaqft_dios(ispa,:)*diosdmaq(ispa2,:) & 
+                & )
         enddo 
         do ispg=1,nsp_gas
-            dmaqft_dmgas(ispa,ispg,:) &
-                & = dmaqft_dmgas_loc(findloc(chraq_all,chraq(ispa),dim=1),findloc(chrgas_all,chrgas(ispg),dim=1),:) &
-                &   +  dmaqft_dpro(ispa,:)*dprodmgas(ispg,:) 
+            dmaqft_dmgas(ispa,ispg,:) = ( &
+                & + dmaqft_dmgas_loc(findloc(chraq_all,chraq(ispa),dim=1),findloc(chrgas_all,chrgas(ispg),dim=1),:) &
+                & + dmaqft_dpro(ispa,:)*dprodmgas(ispg,:) &
+                & + dmaqft_dios(ispa,:)*diosdmgas(ispg,:) &
+                & )
         enddo 
     enddo
     
@@ -15675,6 +17008,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         
         maqfads_sld = 0d0
         dmaqfads_sld_dpro = 0d0
+        dmaqfads_sld_dios = 0d0
         dmaqfads_sld_dmaqf = 0d0
         dmaqfads_sld_dmgas = 0d0
         dmaqfads_sld_dmsld = 0d0
@@ -15709,6 +17043,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     else
         maqfads_sld = 0d0
         dmaqfads_sld_dpro = 0d0
+        dmaqfads_sld_dios = 0d0
         dmaqfads_sld_dmaqf = 0d0
         dmaqfads_sld_dmgas = 0d0
         dmaqfads_sld_dmsld = 0d0
@@ -15716,6 +17051,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         
     maqfads = 0d0
     dmaqfads_dpro = 0d0
+    dmaqfads_dios = 0d0
     dmaqfads_dmaqf = 0d0
     dmaqfads_dmgas = 0d0
     dmaqfads_dmsld = 0d0
@@ -15723,6 +17059,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         do iz=1,nz
             maqfads(ispa,iz) = sum(maqfads_sld(ispa,:,iz))
             dmaqfads_dpro(ispa,iz) = sum(dmaqfads_sld_dpro(ispa,:,iz))
+            dmaqfads_dios(ispa,iz) = sum(dmaqfads_sld_dios(ispa,:,iz))
             do ispa2=1,nsp_aq
                 dmaqfads_dmaqf(ispa,ispa2,iz) = sum(dmaqfads_sld_dmaqf(ispa,:,ispa2,iz))
             enddo 
@@ -15738,6 +17075,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     if (kin_iter) then 
         ksld = 0d0
         dksld_dpro = 0d0
+        dksld_dios = 0d0
         dksld_dmaq = 0d0
         dksld_dmgas = 0d0
         
@@ -15785,6 +17123,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         enddo 
     else 
         dksld_dpro = 0d0
+        dksld_dios = 0d0
         dksld_dmaq = 0d0
         dksld_dmgas = 0d0
     endif 
@@ -15799,6 +17138,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                             & 1d0/kin_sld_spc(isps_kinspc) &
                             & ) 
                         dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                        dksld_dios(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
                         dksld_dmaq(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
                         dksld_dmgas(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
                     case default ! otherwise, usual rate constant [mol/m2/yr]
@@ -15806,6 +17146,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                             & kin_sld_spc(isps_kinspc) &
                             & ) 
                         dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
+                        dksld_dios(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
                         dksld_dmaq(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
                         dksld_dmgas(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
                 end select 
@@ -15839,6 +17180,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     
     omega = 0d0
     domega_dpro = 0d0
+    domega_dios = 0d0
     domega_dmaq = 0d0
     domega_dmgas = 0d0
     
@@ -15846,14 +17188,15 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         
         dummy = 0d0
         domega_dpro_loc = 0d0
+        domega_dios_loc = 0d0
         call calc_omega_v5( &
             & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst & 
             & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &
-            & ,maqx,maqc,mgasx,mgasc,mgasth_all,prox &
+            & ,maqx,maqc,mgasx,mgasc,mgasth_all,prox,iosx,tc &
             & ,keqsld_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
             & ,staq_all,stgas_all &
             & ,chrsld(isps) &
-            & ,domega_dmaq_all,domega_dmgas_all,domega_dpro_loc &! output
+            & ,domega_dmaq_all,domega_dmgas_all,domega_dpro_loc,domega_dios_loc &! output
             & ,dummy,omega_error &! output
             & )
         if (omega_error) then
@@ -15862,12 +17205,14 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         endif 
         omega(isps,:) = dummy
         domega_dpro(isps,:) = domega_dpro_loc
+        domega_dios(isps,:) = domega_dios_loc
         
         do ispa = 1, nsp_aq
             if (any (chraq_ph == chraq(ispa)) .or. staq(isps,ispa)/=0d0 ) then 
             
                 domega_dmaq(isps,ispa,:) = domega_dmaq_all(findloc(chraq_all,chraq(ispa),dim=1),:)+ ( &
-                    & domega_dpro(isps,:)*dprodmaq(ispa,:) &
+                    & + domega_dpro(isps,:)*dprodmaq(ispa,:) &
+                    & + domega_dios(isps,:)*diosdmaq(ispa,:) &
                     & )
                 
                 
@@ -15877,7 +17222,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             if (any (chrgas_ph == chrgas(ispg)) .or. stgas(isps,ispg)/=0d0) then 
             
                 domega_dmgas(isps,ispg,:) = domega_dmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)+ ( &
-                    & domega_dpro(isps,:)*dprodmgas(ispg,:) &
+                    & + domega_dpro(isps,:)*dprodmgas(ispg,:) &
+                    & + domega_dios(isps,:)*diosdmgas(ispg,:) &
                     & )
             endif 
         enddo
@@ -15942,6 +17288,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     ! adding reactions that are not based on dis/prec of minerals
     rxnext = 0d0
     drxnext_dpro = 0d0
+    drxnext_dios = 0d0
     drxnext_dmaq = 0d0
     drxnext_dmgas = 0d0
     drxnext_dmsld = 0d0
@@ -15954,7 +17301,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
             & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
             & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
-            & ,rg,tempk_0,tc &!input
+            & ,rg,tempk_0,tc,iosx &!input
             & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
             & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
             & ,chrrxn_ext(irxn),'pro  ' &! input 
@@ -15967,6 +17314,25 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         rxnext(irxn,:) = dummy
         drxnext_dpro(irxn,:) = dummy2
         
+        dummy = 0d0
+        dummy2 = 0d0
+        call calc_rxn_ext_dev_3( &
+            & nz,nrxn_ext_all,nsp_gas_all,nsp_aq_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst  &!input
+            & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
+            & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
+            & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
+            & ,rg,tempk_0,tc,iosx &!input
+            & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
+            & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
+            & ,chrrxn_ext(irxn),'ios  ' &! input 
+            & ,dummy,dummy2,rxnext_error &! output
+            & )
+        if (rxnext_error) then
+            flgback = .true.
+            return 
+        endif 
+        drxnext_dios(irxn,:) = dummy2
+        
         do ispg=1,nsp_gas
             ! if (stgas_dext(irxn,ispg)==0d0) cycle
             
@@ -15977,7 +17343,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
                 & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
-                & ,rg,tempk_0,tc &!input
+                & ,rg,tempk_0,tc,iosx &!input
                 & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
                 & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
                 & ,chrrxn_ext(irxn),chrgas(ispg) &! input 
@@ -15989,6 +17355,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             endif 
             drxnext_dmgas(irxn,ispg,:) = dummy2 + (&
                 & + drxnext_dpro(irxn,:)*dprodmgas(ispg,:) &
+                & + drxnext_dios(irxn,:)*diosdmgas(ispg,:) &
                 & )
         enddo 
         
@@ -16002,7 +17369,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
                 & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
-                & ,rg,tempk_0,tc &!input
+                & ,rg,tempk_0,tc,iosx &!input
                 & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
                 & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
                 & ,chrrxn_ext(irxn),chraq(ispa) &! input 
@@ -16014,6 +17381,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             endif 
             drxnext_dmaq(irxn,ispa,:) = dummy2 + ( &
                 & + drxnext_dpro(irxn,:)*dprodmaq(ispa,:) &
+                & + drxnext_dios(irxn,:)*diosdmaq(ispa,:) &
                 & )
         enddo 
         
@@ -16027,7 +17395,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
                 & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
                 & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
-                & ,rg,tempk_0,tc &!input
+                & ,rg,tempk_0,tc,iosx &!input
                 & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
                 & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
                 & ,chrrxn_ext(irxn),chrsld(isps) &! input 
@@ -16048,6 +17416,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     dkhgas_dmgas = 0d0
     ! added
     dkhgas_dpro = 0d0
+    dkhgas_dios = 0d0
     
     if (new_gassol) then 
         call calc_khgas_all_v2( &
@@ -16055,23 +17424,28 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             & ,chraq_all,chrgas_all,chraq_cnst,chrgas_cnst,chraq,chrgas &
             & ,maq,mgas,maqx,mgasx,maqc,mgasc &
             & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
-            & ,pro,prox &
-            & ,khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dmaq_all,dkhgas_dmgas_all &!output
+            & ,pro,prox,ios,iosx,tc &
+            & ,khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dmaq_all,dkhgas_dmgas_all,dkhgas_dios_all &!output
             & )
             
         do ispg=1,nsp_gas
             khgas(ispg,:)=khgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
             khgasx(ispg,:)=khgasx_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
             dkhgas_dpro(ispg,:)=dkhgas_dpro_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+            dkhgas_dios(ispg,:)=dkhgas_dios_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
             do ispa=1,nsp_aq
-                dkhgas_dmaq(ispg,ispa,:)= &
-                    & dkhgas_dmaq_all(findloc(chrgas_all,chrgas(ispg),dim=1),findloc(chraq_all,chraq(ispa),dim=1),:) &
-                    & + dkhgas_dpro(ispg,:)*dprodmaq(ispa,:) 
+                dkhgas_dmaq(ispg,ispa,:)= ( &
+                    & + dkhgas_dmaq_all(findloc(chrgas_all,chrgas(ispg),dim=1),findloc(chraq_all,chraq(ispa),dim=1),:) &
+                    & + dkhgas_dpro(ispg,:)*dprodmaq(ispa,:) &
+                    & + dkhgas_dios(ispg,:)*diosdmaq(ispa,:) &
+                    & )
             enddo 
             do ispg2=1,nsp_gas
-                dkhgas_dmgas(ispg,ispg2,:)= &
-                    & dkhgas_dmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),findloc(chrgas_all,chrgas(ispg2),dim=1),:) &
-                    & + dkhgas_dpro(ispg,:)*dprodmgas(ispg2,:) 
+                dkhgas_dmgas(ispg,ispg2,:)= ( &
+                    & + dkhgas_dmgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),findloc(chrgas_all,chrgas(ispg2),dim=1),:) &
+                    & + dkhgas_dpro(ispg,:)*dprodmgas(ispg2,:) & 
+                    & + dkhgas_dios(ispg,:)*diosdmgas(ispg2,:) &
+                    & )
             enddo 
         enddo 
     endif
@@ -16948,14 +18322,14 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & (agasx(ispg,iz) + dagas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/merge(1d0,dt,dt_norm) &
                 & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*merge(0d0,-1d0,iz==nz)/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
                 & +0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-				& + merge( &
-				& 	-0.5d0*(dgasi(ispg)+dgasn(ispg))*(1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-				&	, &
+                & + merge( &
+                &   -0.5d0*(dgasi(ispg)+dgasn(ispg))*(1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+                &   , &
                 & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(1d0)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
                 & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-				&	,iz==1 .and. aq_diff_close &
-				&		) &
-				& 		)/dz(iz)  &
+                &   ,iz==1 .and. aq_diff_close &
+                &       ) &
+                &       )/dz(iz)  &
                 & *merge(dt,1d0,dt_norm) &
                 & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz)*merge(dt,1d0,dt_norm) &
                 & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) *merge(dt,1d0,dt_norm) &
@@ -16969,10 +18343,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
                 &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
                 & - merge( &
-				& 	0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-				&   ,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1))))  &
-				&	,iz==1 .and. aq_diff_close) &
-				& 		)/dz(iz)  &
+                &   0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+                &   ,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1))))  &
+                &   ,iz==1 .and. aq_diff_close) &
+                &       )/dz(iz)  &
                 & *merge(dt,1d0,dt_norm) &
                 & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz)*merge(dt,1d0,dt_norm) &
                 ! & -resp(iz) &
@@ -17094,11 +18468,11 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
                 &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
                 & - merge( &
-				& 	0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-                & 	,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-				&	,iz==1 .and. aq_diff_close &
-				&	) &
-				& )/dz(iz)  &
+                &   0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+                &   ,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+                &   ,iz==1 .and. aq_diff_close &
+                &   ) &
+                & )/dz(iz)  &
                 & )
             flx_gas(ispg,iadv,iz) = ( &
                 & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
@@ -17416,12 +18790,13 @@ flx_co2sp = 0d0
 
 call calc_pH_v7_4( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    & ,poro,sat &! input  
+    & ,poro,sat,tc &! input  
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,keqaq_oxa,keqaq_cl &! input
     & ,print_cb,print_loc,z &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
+    & ,iosx,diosdmaq_all,diosdmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
     & ) 
     
@@ -17438,17 +18813,6 @@ if (any(isnan(prox)) .or. any(prox<=0d0)) then
     print *,prox
     stop
 endif 
-! print_cb = .true. 
-
-! call calc_pH_v7_4( &
-    ! & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
-    ! & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
-    ! & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
-    ! & ,keqaq_oxa &! input
-    ! & ,print_cb,print_loc,z &! input 
-    ! & ,dprodmaq_all,dprodmgas_all &! output
-    ! & ,prox,ph_error,ph_iter &! output
-    ! & ) 
     
 ! getting mgasx_loc & maqx_loc
 call get_maqgasx_all( &
@@ -17464,8 +18828,8 @@ call get_maqt_all( &
     & nz,nsp_aq_all,nsp_gas_all &
     & ,chraq_all,chrgas_all &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
-    & ,mgasx_loc,maqx_loc,prox &
-    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc &! output
+    & ,mgasx_loc,maqx_loc,prox,iosx,tc &
+    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc,dmaqft_dios_loc &! output
     & ,maqft_loc  &! output
     & )
 
@@ -17568,11 +18932,11 @@ do isps =1, nsp_sld
     call calc_omega_v5( &
         & nz,nsp_aq,nsp_gas,nsp_aq_all,nsp_sld_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst & 
         & ,chraq,chraq_cnst,chraq_all,chrsld_all,chrgas,chrgas_cnst,chrgas_all &
-        & ,maqx,maqc,mgasx,mgasc,mgasth_all,prox &
+        & ,maqx,maqc,mgasx,mgasc,mgasth_all,prox,iosx,tc &
         & ,keqsld_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3 &
         & ,staq_all,stgas_all &
         & ,chrsld(isps) &
-        & ,domega_dmaq_all,domega_dmgas_all,domega_dpro_loc &! output
+        & ,domega_dmaq_all,domega_dmgas_all,domega_dpro_loc,domega_dios_loc &! output
         & ,dummy,omega_error &! output
         & )
     omega(isps,:) = dummy
@@ -17614,7 +18978,7 @@ do irxn=1,nrxn_ext
         & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
         & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
         & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
-        & ,rg,tempk_0,tc &!input
+        & ,rg,tempk_0,tc,iosx &!input
         & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
         & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
         & ,chrrxn_ext(irxn),'pro  ' &! input 
@@ -17839,8 +19203,8 @@ if (new_gassol) then
         & ,chraq_all,chrgas_all,chraq_cnst,chrgas_cnst,chraq,chrgas &
         & ,maq,mgas,maqx,mgasx,maqc,mgasc &
         & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
-        & ,pro,prox &
-        & ,khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dmaq_all,dkhgas_dmgas_all &!output
+        & ,pro,prox,ios,iosx,tc &
+        & ,khgas_all,khgasx_all,dkhgas_dpro_all,dkhgas_dmaq_all,dkhgas_dmgas_all,dkhgas_dios_all &!output
         & )
         
     do ispg=1,nsp_gas
@@ -17911,12 +19275,12 @@ do iz = 1, nz
         flx_gas(ispg,idif,iz) = ( &
             & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,min(nz,iz+1)))*(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-			& - merge( &
-			& 	0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-            & 	,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-			&	,iz==1 .and. aq_diff_close &
-			&	) &
-			& )/dz(iz)  &
+            & - merge( &
+            &   0.5d0*(dgasi(ispg)+dgasn(ispg))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+            &   ,0.5d0*(dgas(ispg,iz)+edifn_tmp)*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
+            &   ,iz==1 .and. aq_diff_close &
+            &   ) &
+            & )/dz(iz)  &
             & )
         flx_gas(ispg,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
@@ -17961,7 +19325,7 @@ do iz = 1, nz
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
             & - 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(Iz)*dgasg(ispg) + edifn_tmp) &
             &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-			&  )/dz(iz)  &
+            &  )/dz(iz)  &
             & ) 
         flx_co2sp(1,irxn_ext(:),iz) = -stgas_ext(:,ispg)*rxnext(:,iz)
         flx_co2sp(1,irain,iz) = - mgassupp(ispg,iz)
@@ -17983,12 +19347,12 @@ do iz = 1, nz
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
             & - merge( &
-			&	0d0  &
-			&	,0.5d0*(poro(iz)*sat(iz)*kco2*1d3*(tora(iz)*dgasa(ispg) +disp(iz)) + edifn_tmp) &
+            &   0d0  &
+            &   ,0.5d0*(poro(iz)*sat(iz)*kco2*1d3*(tora(iz)*dgasa(ispg) +disp(iz)) + edifn_tmp) &
             &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-			&	,iz==1 .and.aq_diff_close &
-			&	) &
-			& )/dz(iz)  &
+            &   ,iz==1 .and.aq_diff_close &
+            &   ) &
+            & )/dz(iz)  &
             & ) 
         flx_co2sp(2,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*(kco2*mgasx(ispg,iz)- kco2*pco2n_tmp)/dz(iz) &
@@ -18010,12 +19374,12 @@ do iz = 1, nz
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
             & - merge( &
-			&	0d0 &
-			&	,0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
+            &   0d0 &
+            &   ,0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
             &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-			&	,iz==1 .and.aq_diff_close &
-			&	) &
-			& )/dz(iz)  &
+            &   ,iz==1 .and.aq_diff_close &
+            &   ) &
+            & )/dz(iz)  &
             & ) 
         flx_co2sp(3,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*( &
@@ -18040,12 +19404,12 @@ do iz = 1, nz
             &       *(mgasx(ispg,min(nz,iz+1))-mgasx(ispg,iz)) &
             &       /(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
             & - merge( & 
-			&	0d0 &
-			& 	,0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
+            &   0d0 &
+            &   ,0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) + edifn_tmp) &
             &       *(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))) &
-			&	,iz==1 .and.aq_diff_close &
-			&	) &
-			& )/dz(iz)  &
+            &   ,iz==1 .and.aq_diff_close &
+            &   ) &
+            & )/dz(iz)  &
             & ) 
         flx_co2sp(4,iadv,iz) = ( &
             & +poro(iz)*sat(iz)*v(iz)*1d3*( &
@@ -22277,8 +23641,8 @@ subroutine calc_khgas_all_v2( &
     & ,chraq_all,chrgas_all,chraq_cnst,chrgas_cnst,chraq,chrgas &
     & ,maq,mgas,maqx,mgasx,maqc,mgasc &
     & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3  &
-    & ,pro,prox &
-    & ,khgas,khgasx,dkhgas_dpro,dkhgas_dmaq,dkhgas_dmgas &!output
+    & ,pro,prox,ios,iosx,tc &
+    & ,khgas,khgasx,dkhgas_dpro,dkhgas_dmaq,dkhgas_dmgas,dkhgas_dios &!output
     & )
 implicit none
 
@@ -22290,16 +23654,17 @@ character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
 character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
 character(5),dimension(nsp_aq),intent(in)::chraq
 character(5),dimension(nsp_gas),intent(in)::chrgas
+real(kind=8),intent(in)::tc
 real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx,maq
 real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
 real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx,mgas
 real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
-real(kind=8),dimension(nz),intent(in)::pro,prox
+real(kind=8),dimension(nz),intent(in)::pro,prox,ios,iosx
 real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3
 ! output 
-real(kind=8),dimension(nsp_gas_all,nz),intent(out)::khgas,khgasx,dkhgas_dpro
+real(kind=8),dimension(nsp_gas_all,nz),intent(out)::khgas,khgasx,dkhgas_dpro,dkhgas_dios
 real(kind=8),dimension(nsp_gas_all,nsp_gas_all,nz),intent(out)::dkhgas_dmgas
 real(kind=8),dimension(nsp_gas_all,nsp_aq_all,nz),intent(out)::dkhgas_dmaq
 
@@ -22316,7 +23681,12 @@ integer ispg,ispa,ispa_c,ipco2,ipnh3,io2,in2o,ispa_nh3
 real(kind=8) kco2,k1,k2,knh3,k1nh3,kho,kn2o,rspa_nh3
 real(kind=8),dimension(nz)::pnh3,pnh3x
 
-
+integer icharge,ic1,ic2
+real(kind=8) rcharge
+real(kind=8),dimension(nz)::gamma_tmp,dgamma_dios_tmp
+real(kind=8),dimension(nz)::fkw,fkeq,fkw_prev,fkeq_prev,dfkw_dios,dfkeq_dios
+real(kind=8),dimension(4,nz)::gamma,dgamma_dios,gamma_prev,dgamma_dios_prev
+real(kind=8),dimension(nsp_aq_all)::base_charge
 
 
 ipco2 = findloc(chrgas_all,'pco2',dim=1)
@@ -22339,16 +23709,51 @@ khgas = 0d0
 khgasx = 0d0
 
 dkhgas_dpro = 0d0
+dkhgas_dios = 0d0
 dkhgas_dmgas = 0d0
 dkhgas_dmaq = 0d0
+
+
+
+do icharge=1,4
+    rcharge = 1d0*icharge
+    call calc_gamma_davies(  &
+        & nz,iosx,tc,rcharge &
+        & ,gamma_tmp,dgamma_dios_tmp &
+        & )
+    gamma(icharge,:)=gamma_tmp(:)
+    dgamma_dios(icharge,:)=dgamma_dios_tmp(:)
+    call calc_gamma_davies(  &
+        & nz,ios,tc,rcharge &
+        & ,gamma_tmp,dgamma_dios_tmp &
+        & )
+    gamma_prev(icharge,:)=gamma_tmp(:)
+    dgamma_dios_prev(icharge,:)=dgamma_dios_tmp(:)
+enddo
+    
+call get_base_charge( &
+    & nsp_aq_all & 
+    & ,chraq_all & 
+    & ,base_charge &! output 
+    & )
 
 do ispg = 1, nsp_gas_all
     select case (trim(adjustl(chrgas_all(ispg))))
         case('pco2')
-            khgas(ispg,:) = kco2*(1d0+k1/pro + k1*k2/pro/pro) ! previous value; should not change through iterations 
-            khgasx(ispg,:) = kco2*(1d0+k1/prox + k1*k2/prox/prox)
+            ! Kco2: CO2(g) = CO2(a) assume no correction for activity/fugacity 
+            ! K1  : CO2(a) + H2O = HCO3- + H+ <--> K1 = {HCO3-}{H+}/{CO2(a)} <--> K1/gamma/gamma = [HCO3-][H+]/[CO2(a)]
+            ! K2  : HCO3- = CO32- + H+ <--> K2 = {CO32-}{H+}/{HCO3-} <--> K2*gamma/gamma/gamma2 = [CO32-][H+]/[HCO3-]    
+            fkw = 1d0/gamma(1,:)/gamma(1,:) ! H2O = H+ + OH- <--> Kw = {H+}{OH-} <--> Kw/gamma/gamma = [H+][OH-]
+            fkw_prev = 1d0/gamma_prev(1,:)/gamma_prev(1,:) ! H2O = H+ + OH- <--> Kw = {H+}{OH-} <--> Kw/gamma/gamma = [H+][OH-]
+            dfkw_dios = 1d0*(-2d0)*gamma(1,:)**(-3d0)*dgamma_dios(1,:)
+            fkeq = 1d0/gamma(2,:)
+            fkeq_prev = 1d0/gamma_prev(2,:)
+            dfkeq_dios = -1d0/gamma(2,:)**2d0*dgamma_dios(2,:)
+            khgas(ispg,:) = kco2*(1d0+fkw_prev*k1/pro + fkw_prev*fkeq_prev*k1*k2/pro/pro) ! previous value; should not change through iterations 
+            khgasx(ispg,:) = kco2*(1d0+fkw*k1/prox + fkw*fkeq*k1*k2/prox/prox)
             
-            dkhgas_dpro(ispg,:) = kco2*(k1*(-1d0)/prox**2d0 + k1*k2*(-2d0)/prox**3d0)
+            dkhgas_dpro(ispg,:) = kco2*(fkw*k1*(-1d0)/prox**2d0 + fkw*fkeq*k1*k2*(-2d0)/prox**3d0)
+            dkhgas_dios(ispg,:) = kco2*(dfkw_dios*k1/prox + dfkw_dios*fkeq*k1*k2/prox/prox + fkw*dfkeq_dios*k1*k2/prox/prox)
             
             ! obtain previous data 
             call get_maqgasx_all( &
@@ -22370,32 +23775,104 @@ do ispg = 1, nsp_gas_all
                 do ispa_c = 1,2
                     if ( keqaq_c(ispa,ispa_c) > 0d0) then 
                         if (ispa_c == 1) then ! with CO3--
+                            ic1 = nint(abs(base_charge(ispa)))
+                            ic2 = nint(abs(base_charge(ispa)-2d0))
+                            if ( ic1>0 .and. ic2 > 0) then  
+                                fkeq = gamma(ic1,:)*gamma(2,:)/gamma(ic2,:)
+                                fkeq_prev = gamma_prev(ic1,:)*gamma_prev(2,:)/gamma_prev(ic2,:)
+                                dfkeq_dios = ( &
+                                    & + dgamma_dios(ic1,:)*gamma(2,:)/gamma(ic2,:) &
+                                    & + gamma(ic1,:)*dgamma_dios(2,:)/gamma(ic2,:) &
+                                    & + gamma(ic1,:)*gamma(2,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                                    & )
+                            elseif ( ic1==0 .and. ic2 > 0) then  
+                                fkeq = gamma(2,:)/gamma(ic2,:)
+                                fkeq_prev = gamma_prev(2,:)/gamma_prev(ic2,:)
+                                dfkeq_dios = ( &
+                                    & + dgamma_dios(2,:)/gamma(ic2,:) &
+                                    & + gamma(2,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                                    & )
+                            elseif ( ic1>0 .and. ic2 == 0) then  
+                                fkeq = gamma(ic1,:)*gamma(2,:)
+                                fkeq_prev = gamma_prev(ic1,:)*gamma_prev(2,:)
+                                dfkeq_dios = ( &
+                                    & + dgamma_dios(ic1,:)*gamma(2,:) &
+                                    & + gamma(ic1,:)*dgamma_dios(2,:) &
+                                    & )
+                            elseif ( ic1==0 .and. ic2 == 0) then  
+                                fkeq = gamma(2,:)
+                                fkeq_prev = gamma_prev(2,:)
+                                dfkeq_dios = ( &
+                                    & + dgamma_dios(2,:) &
+                                    & )
+                            endif 
                             khgas(ispg,:) = khgas(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc_prev(ispa,:)*k1*k2*kco2*pro**(-2d0) &
+                                & + fkeq_prev*keqaq_c(ispa,ispa_c)*maqf_loc_prev(ispa,:)*k1*k2*kco2*pro**(-2d0) &
                                 & )
                             khgasx(ispg,:) = khgasx(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-2d0) &
+                                & + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-2d0) &
                                 & )
                             dkhgas_dpro(ispg,:) = dkhgas_dpro(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*(-2d0)*prox**(-3d0) &
+                                & + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*(-2d0)*prox**(-3d0) &
                                 & )
                             dkhgas_dmaq(ispg,ispa,:) = dkhgas_dmaq(ispg,ispa,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
+                                & + fkeq*keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-2d0) &
                                 & *1d0 &
+                                & )
+                            dkhgas_dios(ispg,:) = dkhgas_dios(ispg,:) + ( &
+                                & + dfkeq_dios*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-2d0) &
                                 & )
                         elseif (ispa_c == 2) then ! with HCO3-
+                            ic1 = nint(abs(base_charge(ispa)))
+                            ic2 = nint(abs(base_charge(ispa)-1d0))
+                            if ( ic1>0 .and. ic2 > 0) then  
+                                fkeq = gamma(ic1,:)*gamma(2,:)*gamma(1,:)/gamma(ic2,:)
+                                fkeq_prev = gamma_prev(ic1,:)*gamma_prev(2,:)*gamma_prev(1,:)/gamma_prev(ic2,:)
+                                dfkeq_dios = ( &
+                                    & + dgamma_dios(ic1,:)*gamma(2,:)*gamma(1,:)/gamma(ic2,:) &
+                                    & + gamma(ic1,:)*dgamma_dios(2,:)*gamma(1,:)/gamma(ic2,:) &
+                                    & + gamma(ic1,:)*gamma(2,:)*dgamma_dios(1,:)/gamma(ic2,:) &
+                                    & + gamma(ic1,:)*gamma(2,:)*gamma(1,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                                    & )
+                            elseif ( ic1==0 .and. ic2 > 0) then  
+                                fkeq = gamma(2,:)*gamma(1,:)/gamma(ic2,:)
+                                fkeq_prev = gamma_prev(2,:)*gamma_prev(1,:)/gamma_prev(ic2,:)
+                                dfkeq_dios = ( &
+                                    & + dgamma_dios(2,:)*gamma(1,:)/gamma(ic2,:) &
+                                    & + gamma(2,:)*dgamma_dios(1,:)/gamma(ic2,:) &
+                                    & + gamma(2,:)*gamma(1,:)*(-1d0)/gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                                    & )
+                            elseif ( ic1>0 .and. ic2 == 0) then  
+                                fkeq = gamma(ic1,:)*gamma(2,:)*gamma(1,:)
+                                fkeq_prev = gamma_prev(ic1,:)*gamma_prev(2,:)*gamma_prev(1,:)
+                                dfkeq_dios = ( &
+                                    & + dgamma_dios(ic1,:)*gamma(2,:)*gamma(1,:) &
+                                    & + gamma(ic1,:)*dgamma_dios(2,:)*gamma(1,:) &
+                                    & + gamma(ic1,:)*gamma(2,:)*dgamma_dios(1,:) &
+                                    & )
+                            elseif ( ic1==0 .and. ic2 == 0) then  
+                                fkeq = gamma(2,:)*gamma(1,:)
+                                fkeq_prev = gamma_prev(2,:)*gamma_prev(1,:)
+                                dfkeq_dios = ( &
+                                    & + dgamma_dios(2,:)*gamma(1,:) &
+                                    & + gamma(2,:)*dgamma_dios(1,:) &
+                                    & )
+                            endif 
                             khgas(ispg,:) = khgas(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc_prev(ispa,:)*k1*k2*kco2*pro**(-1d0) & 
+                                & + fkeq_prev*keqaq_c(ispa,ispa_c)*maqf_loc_prev(ispa,:)*k1*k2*kco2*pro**(-1d0) & 
                                 & )
                             khgasx(ispg,:) = khgasx(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-1d0) & 
+                                & + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-1d0) & 
                                 & )
                             dkhgas_dpro(ispg,:) = dkhgas_dpro(ispg,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*(-1d0)*prox**(-2d0) &
+                                & + fkeq*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*(-1d0)*prox**(-2d0) &
                                 & )
                             dkhgas_dmaq(ispg,ispa,:) = dkhgas_dmaq(ispg,ispa,:) + ( &
-                                & + keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
+                                & + fkeq*keqaq_c(ispa,ispa_c)*k1*k2*kco2*prox**(-1d0) & 
                                 & *1d0 &
+                                & )
+                            dkhgas_dios(ispg,:) = dkhgas_dios(ispg,:) + ( &
+                                & + dfkeq_dios*keqaq_c(ispa,ispa_c)*maqf_loc(ispa,:)*k1*k2*kco2*prox**(-1d0) & 
                                 & )
                         endif 
                     endif 
@@ -22435,23 +23912,63 @@ do ispg = 1, nsp_gas_all
                 do ispa_nh3 = 1,2
                     rspa_nh3 = real(ispa_nh3,kind=8)
                     if ( keqaq_nh3(ispa,ispa_nh3) > 0d0) then 
+                        ic1 = nint(abs(base_charge(ispa)))
+                        ic2 = nint(abs(base_charge(ispa)+rspa_nh3))
+                        if ( ic1>0 .and. ic2 > 0) then  
+                            fkeq = gamma(ic1,:)*gamma(1,:)**rspa_nh3/gamma(ic2,:)
+                            fkeq_prev = gamma_prev(ic1,:)*gamma_prev(1,:)**rspa_nh3/gamma_prev(ic2,:)
+                            dfkeq_dios = ( &
+                                & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_nh3/gamma(ic2,:) &
+                                & + gamma(ic1,:)*rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                                &   /gamma(ic2,:) &
+                                & + gamma(ic1,:)*gamma(1,:)**rspa_nh3*(-1d0) &
+                                &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                                & )
+                        elseif ( ic1==0 .and. ic2 > 0) then  
+                            fkeq = gamma(1,:)**rspa_nh3/gamma(ic2,:)
+                            fkeq_prev = gamma_prev(1,:)**rspa_nh3/gamma_prev(ic2,:)
+                            dfkeq_dios = ( &
+                                & + rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                                &   /gamma(ic2,:) &
+                                & + gamma(1,:)**rspa_nh3*(-1d0) &
+                                &   /gamma(ic2,:)**2d0*dgamma_dios(ic2,:) &
+                                & )
+                        elseif ( ic1>0 .and. ic2 == 0) then  
+                            fkeq = gamma(ic1,:)*gamma(1,:)**rspa_nh3
+                            fkeq_prev = gamma_prev(ic1,:)*gamma_prev(1,:)**rspa_nh3
+                            dfkeq_dios = ( &
+                                & + dgamma_dios(ic1,:)*gamma(1,:)**rspa_nh3 &
+                                & + gamma(ic1,:)*rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                                & )
+                        elseif ( ic1==0 .and. ic2 == 0) then  
+                            fkeq = gamma(1,:)**rspa_nh3
+                            fkeq_prev = gamma_prev(1,:)**rspa_nh3
+                            dfkeq_dios = ( &
+                                & + rspa_nh3*gamma(1,:)**(rspa_nh3-1d0)*dgamma_dios(1,:) &
+                                & )
+                        endif 
                         
                         khgas(ispg,:) = khgas(ispg,:) + ( &
-                            & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc_prev(ispa,:)*(knh3/k1nh3*pro)**rspa_nh3*pnh3**(rspa_nh3-1d0) &
+                            & + fkeq_prev*keqaq_nh3(ispa,ispa_nh3) &
+                            &       *maqf_loc_prev(ispa,:)*(knh3/k1nh3*pro)**rspa_nh3*pnh3**(rspa_nh3-1d0) &
                             & )
                         khgasx(ispg,:) = khgasx(ispg,:) + ( &
-                            & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3*prox)**rspa_nh3*pnh3x**(rspa_nh3-1d0) &
+                            & + fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3*prox)**rspa_nh3*pnh3x**(rspa_nh3-1d0) &
                             & )
                         dkhgas_dpro(ispg,:) = dkhgas_dpro(ispg,:) + ( &
-                            & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3)**rspa_nh3*pnh3x**(rspa_nh3-1d0) &
+                            & + fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3)**rspa_nh3*pnh3x**(rspa_nh3-1d0) &
                             & *rspa_nh3*rspa_nh3**(rspa_nh3-1d0) &
                             & )
                         dkhgas_dmaq(ispg,ispa,:) = dkhgas_dmaq(ispg,ispa,:) + ( &
-                            & + keqaq_nh3(ispa,ispa_nh3)*1d0*(knh3/k1nh3*prox)**rspa_nh3*pnh3x**(rspa_nh3-1d0) &
+                            & + fkeq*keqaq_nh3(ispa,ispa_nh3)*1d0*(knh3/k1nh3*prox)**rspa_nh3*pnh3x**(rspa_nh3-1d0) &
                             & )
                         dkhgas_dmgas(ispg,ipnh3,:) = dkhgas_dmgas(ispg,ipnh3,:) + ( &
-                            & + keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3*prox)**rspa_nh3 &
+                            & + fkeq*keqaq_nh3(ispa,ispa_nh3)*maqf_loc(ispa,:)*(knh3/k1nh3*prox)**rspa_nh3 &
                             & *(rspa_nh3-1d0)*pnh3x**(rspa_nh3-2d0) &
+                            & )
+                        dkhgas_dios(ispg,:) = dkhgas_dios(ispg,:) + ( &
+                            & + dfkeq_dios*keqaq_nh3(ispa,ispa_nh3) &
+                            &       *maqf_loc(ispa,:)*(knh3/k1nh3*prox)**rspa_nh3*pnh3x**(rspa_nh3-1d0) &
                             & )
                     endif 
                 enddo 
@@ -22473,19 +23990,28 @@ endsubroutine calc_khgas_all_v2
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine calc_gamma_davies( &
-	& nz,isx,tc,charge &
-	& ,gamma &
-	& )
+    & nz,iosx,tc,charge &
+    & ,gamma,dgamma_dis &
+    & )
 implicit none
 
 integer,intent(in)::nz
-real(kind=8),intent(in)::isx(nz),tc,charge
-real(kind=8),intent(out)::gamma(nz)
-real(kind=8) epsiron,a
+real(kind=8),intent(in)::iosx(nz),tc,charge
+real(kind=8),intent(out)::gamma(nz),dgamma_dis(nz)
+real(kind=8) epsiron,a,b
 
-epsiron = 87.74d0 - 0.40008d0*tc+0.0009398d0*tc**2d0-0.00000141d0*tc**3d0
+epsiron = 87.74d0 - 0.40008d0*tc+0.0009398d0*tc**2d0 - 0.00000141d0*tc**3d0 ! dielectric constant  Malmberg & Maryott 1956
 a = 1.824d6*( epsiron*(tc + 273.15d0 ) )**(-3d0/2d0)
-gamma = -a*charge**2d0*(isx**0.5d0/(1d0+isx**0.5d0) -0.3d0*isx)
+b = 0.3d0
+! b = 0.2d0
+gamma = -a*charge**2d0*(iosx**0.5d0/(1d0+iosx**0.5d0) -b*iosx)
+dgamma_dis = -a*charge**2d0*( &
+    & 0.5d0*iosx**(-0.5d0)/(1d0+iosx**0.5d0)   & 
+    & + iosx**0.5d0*(-1d0)/(1d0+iosx**0.5d0)**2d0*0.5d0*iosx**(-0.5d0)  &
+    & - b &
+    & )
+! dgamma_dis = d( 10d0**gamma ) /d (gamma) * d( gamma )/d( is ) = (log10)*10**gamma * dgamma_dis
+dgamma_dis = log(10d0) * 10d0**gamma * dgamma_dis
 gamma = 10d0**gamma
 
 endsubroutine calc_gamma_davies
