@@ -529,6 +529,9 @@ logical :: ph_limits_dust = .false.
 logical :: aq_close = .false.
 ! logical :: aq_close = .true.
 
+logical :: act_ON = .false.
+! logical :: act_ON = .true.
+
 logical ads_ON_tmp,dust_Off
 
 ! real(kind=8)::z_chk_ph = zsupp
@@ -2596,14 +2599,15 @@ print_cb = .false.
 print_loc = './ph.txt'
 
 pro = 1d0
-ios = 1d-12
+ios = 0d0
+if (act_ON) ios = 1d-12
 call calc_pH_v7_4( &
     & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
     & ,poro,sat,tc &! input 
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,keqaq_oxa,keqaq_cl &! input
-    & ,print_cb,print_loc,z &! input 
+    & ,print_cb,print_loc,z,act_ON &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,ios,diosdmaq_all,diosdmgas_all &! output
     & ,pro,ph_error,ph_iter &! output
@@ -2943,7 +2947,7 @@ if (read_data) then
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
         & ,keqaq_oxa,keqaq_cl &! input
-        & ,print_cb,print_loc,z &! input 
+        & ,print_cb,print_loc,z,act_ON &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
         & ,iosx,diosdmaq_all,diosdmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
@@ -3965,7 +3969,7 @@ do while (it<nt)
         !  old inputs
         & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios &
+        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON &
         ! old inout
         & ,dt,flgback,w &    
         ! output 
@@ -5343,7 +5347,7 @@ do while (it<nt)
             & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
             & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
             & ,keqaq_oxa,keqaq_cl &! input
-            & ,print_cb,print_loc,z &! input 
+            & ,print_cb,print_loc,z,act_ON &! input 
             & ,dprodmaq_all,dprodmgas_all &! output
             & ,iosx,diosdmaq_all,diosdmgas_all &! output
             & ,prox,ph_error,ph_iter &! output
@@ -10233,7 +10237,7 @@ subroutine calc_pH_v7_4( &
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,keqaq_oxa,keqaq_cl &! input
-    & ,print_cb,print_loc,z &! input 
+    & ,print_cb,print_loc,z,act_ON &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,iosx,diosdmaq_all,diosdmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
@@ -10316,7 +10320,7 @@ integer :: nph3 = 15
 
 integer,intent(out)::ph_iter
 
-logical,intent(in)::print_cb
+logical,intent(in)::print_cb,act_ON
 character(500),intent(in)::print_loc
 logical so4_error,print_res
 logical bisec_chk,bisec_chk_ON,bisec_only,mod_ph_order,calc_simple,halley,first_chk_done
@@ -10400,7 +10404,7 @@ so4x = maqx_loc(iso4,:)*maqft_loc(iso4,:)
     
 maqf_loc = maqx_loc ! fixed free concs. 
 
-! iosx = 1d-12
+if (.not.act_ON) iosx = 0d0
 
 nmx = nz*2
 nmx = nz
@@ -10444,26 +10448,38 @@ if (.not. print_cb) then
         
         ! df1 = df1*prox
         
-        if (any(isnan(f1)).or.any(isnan(df1)) .or. any(isnan(f2)).or.any(isnan(df2)) ) then 
+        if (any(isnan(f1)).or.any(isnan(df1))) then 
             print*,'found nan during the course of ph calc: newton'
-            print *,any(isnan(f1)),any(isnan(df1)),any(isnan(f2)),any(isnan(df2))
+            print *,any(isnan(f1)),any(isnan(df1))
             print *,prox
-            print *
-            print *,iosx
             print *
             print *,f1
             print *
-            print *,f2
-            print *
             ! if (any(isnan(f1))) print *, f1
             if (any(isnan(df1))) print *, df1
-            ! if (any(isnan(f2))) print *, f2
-            if (any(isnan(df2))) print *, df2
             ph_error = .true.
             ! stop
             return
             exit
             ! pause 
+        endif 
+        
+        if (act_ON) then
+            if (any(isnan(f2)).or.any(isnan(df2)) ) then 
+                print*,'found nan during the course of ios calc: newton'
+                print *,any(isnan(f2)),any(isnan(df2))
+                print *,iosx
+                print *
+                print *,f2
+                print *
+                ! if (any(isnan(f2))) print *, f2
+                if (any(isnan(df2))) print *, df2
+                ph_error = .true.
+                ! stop
+                return
+                exit
+                ! pause 
+            endif 
         endif 
         
         if (nmx==nz) then 
@@ -10475,9 +10491,14 @@ if (.not. print_cb) then
             endwhere
             error = maxval(dabs(dexp( -f1/df1/prox )-1d0))
             
-            iosx = ios_new
+            if (act_ON) then 
             
-            error = max( error, maxval(dabs(dexp( -f2/df2/iosx )-1d0)) )
+                iosx = ios_new
+                
+                error = max( error, maxval(dabs(dexp( -f2/df2/iosx )-1d0)) )
+            else
+                iosx = 0d0
+            endif 
         endif 
         
         df1 = df1*prox
@@ -10485,16 +10506,26 @@ if (.not. print_cb) then
         df2 = df2*iosx
         df1df2 = df1df2*iosx
         
-        if (any(isnan(f1)).or.any(isnan(f2)).or.any(isnan(df1)).or.any(isnan(df2)) &
-            & .or.any(isnan(df1df2)).or.any(isnan(df2df1))) then 
+        if (any(isnan(f1)).or.any(isnan(df1))) then 
             print*,'found nan during the course of ph calc'
-            print *,any(isnan(f1)),any(isnan(f2)),any(isnan(df1)),any(isnan(df2)) &
-                & ,any(isnan(df1df2)),any(isnan(df2df1))
+            print *,any(isnan(f1)),any(isnan(df1))
             print *,prox
-            print *,iosx
             ph_error = .true.
             exit
             ! pause 
+        endif 
+        
+        if (act_ON) then
+            if (any(isnan(f2)).or.any(isnan(df2)) &
+                & .or.any(isnan(df1df2)).or.any(isnan(df2df1))) then 
+                print*,'found nan during the course of ios calc'
+                print *,any(isnan(f2)),any(isnan(df2)) &
+                    & ,any(isnan(df1df2)),any(isnan(df2df1))
+                print *,iosx
+                ph_error = .true.
+                exit
+                ! pause 
+            endif 
         endif 
         
         
@@ -11047,13 +11078,18 @@ do ispg = 1, nsp_gas_all
     dprodmgas_all(ispg,:) = - df1dmgas(ispg,:) /df1
 enddo 
 
-do ispa = 1, nsp_aq_all
-    diosdmaq_all(ispa,:) = - df2dmaqf(ispa,:) / df2   
-enddo 
+diosdmaq_all = 0d0
+diosdmgas_all = 0d0
 
-do ispg = 1, nsp_gas_all
-    diosdmgas_all(ispg,:) = - df2dmgas(ispg,:) /df2
-enddo 
+if (act_ON) then 
+    do ispa = 1, nsp_aq_all
+        diosdmaq_all(ispa,:) = - df2dmaqf(ispa,:) / df2   
+    enddo 
+
+    do ispg = 1, nsp_gas_all
+        diosdmgas_all(ispg,:) = - df2dmgas(ispg,:) /df2
+    enddo 
+endif 
 
 ! solving two equations analytically:
 ! df1/dmsp + df1/dph * dph/dmsp  = 0  
@@ -16529,7 +16565,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     !  old inputs
     & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios & 
+    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON & 
     ! old inout
     & ,dt,flgback,w &    
     ! output 
@@ -16750,6 +16786,7 @@ logical,intent(in)::sld_enforce != .true.
 
 ! logical::aq_close = .false.
 logical,intent(in)::aq_close != .true.
+logical,intent(in)::act_ON 
 
 character(10),dimension(nsp_sld),intent(in):: precstyle 
 real(kind=8),dimension(nsp_sld,nz),intent(in):: solmod,fkin ! factor to modify solubility used only to implement rxn rate law as defined by Emmanuel and Ague, 2011
@@ -16862,6 +16899,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         enddo 
     endif 
     
+    if (.not.act_ON) iosx = 0d0
+    
     ! pH calculation and its derivative wrt aq and gas species
     
     ! print_cb = .true. 
@@ -16872,7 +16911,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
         & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
         & ,keqaq_oxa,keqaq_cl &! input
-        & ,print_cb,print_loc,z &! input 
+        & ,print_cb,print_loc,z,act_ON &! input 
         & ,dprodmaq_all,dprodmgas_all &! output
         & ,iosx,diosdmaq_all,diosdmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
@@ -16881,7 +16920,9 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     ! print *
     ! print *, -log10(prox)
     ! print *, iosx
+    ! print *,diosdmaq_all
     ! print *
+    ! print *,diosdmgas_all
     ! stop
 
     if (ph_error) then 
@@ -16953,7 +16994,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         maqft(ispa,:)=maqft_loc(findloc(chraq_all,chraq(ispa),dim=1),:)
         
         dmaqft_dpro(ispa,:)=dmaqft_dpro_loc(findloc(chraq_all,chraq(ispa),dim=1),:)
-        dmaqft_dios(ispa,:)=dmaqft_dios_loc(findloc(chraq_all,chraq(ispa),dim=1),:)
+        if (act_ON) dmaqft_dios(ispa,:)=dmaqft_dios_loc(findloc(chraq_all,chraq(ispa),dim=1),:)
         
         do ispa2=1,nsp_aq
             dmaqft_dmaqf(ispa,ispa2,:) = ( &
@@ -17059,7 +17100,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         do iz=1,nz
             maqfads(ispa,iz) = sum(maqfads_sld(ispa,:,iz))
             dmaqfads_dpro(ispa,iz) = sum(dmaqfads_sld_dpro(ispa,:,iz))
-            dmaqfads_dios(ispa,iz) = sum(dmaqfads_sld_dios(ispa,:,iz))
+            if (act_ON) dmaqfads_dios(ispa,iz) = sum(dmaqfads_sld_dios(ispa,:,iz))
             do ispa2=1,nsp_aq
                 dmaqfads_dmaqf(ispa,ispa2,iz) = sum(dmaqfads_sld_dmaqf(ispa,:,ispa2,iz))
             enddo 
@@ -17205,7 +17246,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         endif 
         omega(isps,:) = dummy
         domega_dpro(isps,:) = domega_dpro_loc
-        domega_dios(isps,:) = domega_dios_loc
+        if (act_ON) domega_dios(isps,:) = domega_dios_loc
         
         do ispa = 1, nsp_aq
             if (any (chraq_ph == chraq(ispa)) .or. staq(isps,ispa)/=0d0 ) then 
@@ -17331,7 +17372,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             flgback = .true.
             return 
         endif 
-        drxnext_dios(irxn,:) = dummy2
+        if (act_ON) drxnext_dios(irxn,:) = dummy2
         
         do ispg=1,nsp_gas
             ! if (stgas_dext(irxn,ispg)==0d0) cycle
@@ -17432,7 +17473,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             khgas(ispg,:)=khgas_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
             khgasx(ispg,:)=khgasx_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
             dkhgas_dpro(ispg,:)=dkhgas_dpro_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
-            dkhgas_dios(ispg,:)=dkhgas_dios_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
+            if (act_ON) dkhgas_dios(ispg,:)=dkhgas_dios_all(findloc(chrgas_all,chrgas(ispg),dim=1),:)
             do ispa=1,nsp_aq
                 dkhgas_dmaq(ispg,ispa,:)= ( &
                     & + dkhgas_dmaq_all(findloc(chrgas_all,chrgas(ispg),dim=1),findloc(chraq_all,chraq(ispa),dim=1),:) &
@@ -18794,7 +18835,7 @@ call calc_pH_v7_4( &
     & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
     & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
     & ,keqaq_oxa,keqaq_cl &! input
-    & ,print_cb,print_loc,z &! input 
+    & ,print_cb,print_loc,z,act_ON &! input 
     & ,dprodmaq_all,dprodmgas_all &! output
     & ,iosx,diosdmaq_all,diosdmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
