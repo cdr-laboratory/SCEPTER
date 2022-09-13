@@ -3185,6 +3185,18 @@ do while (it<nt)
     ! end if
     
     ! if (dt/=dt_prev) pre_calc = .true.
+    
+    ! added so that saving time become more consistent
+    if ( time+dt > rectime_prof(irec_prof+1) .and. time+dt > rectime_flx(irec_flx+1) ) then 
+        dt = min( &
+            & rectime_prof(irec_prof+1) - time + tol_step_tau &
+            & ,rectime_flx(irec_flx+1) - time + tol_step_tau &
+            & )
+    elseif ( time+dt > rectime_prof(irec_prof+1) .and. time+dt <= rectime_flx(irec_flx+1)) then 
+        dt = rectime_prof(irec_prof+1) - time + tol_step_tau
+    elseif ( time+dt <= rectime_prof(irec_prof+1) .and. time+dt > rectime_flx(irec_flx+1)) then 
+        dt = rectime_flx(irec_flx+1) - time + tol_step_tau
+    endif 
 
     ! incase temperature&ph change
     
@@ -5267,7 +5279,7 @@ do while (it<nt)
         int_ph(iz) = int_ph(iz) + sum(prox(1:iz)*dz(1:iz))/z(iz) * dt
     enddo 
 
-    if (time > savetime) then 
+    if (time >= savetime) then 
         
         open(isldprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld-save.txt', status='replace')
