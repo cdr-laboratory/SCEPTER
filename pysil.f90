@@ -491,8 +491,8 @@ logical :: regular_grid = .true.
 ! logical :: method_precalc = .false.
 logical :: method_precalc = .true.
 
-! logical :: sld_enforce = .false.
-logical :: sld_enforce = .true.
+logical :: sld_enforce = .false.
+! logical :: sld_enforce = .true.
 
 logical :: poroevol = .false.
 
@@ -1725,7 +1725,7 @@ enddo
 
 call get_switches( &
     & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
+    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,aq_close &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &!
     & )
 
@@ -3445,6 +3445,13 @@ do while (it<nt)
         else 
             msldsupp(isps,1) = rainpowder*rfrc_sld(isps)/dz(1)  &
                 & + rainpowder_2nd*rfrc_sld_2nd(isps)/dz(1)
+            
+            if (  (rainpowder*rfrc_sld(isps) > 0d0)  & 
+                & .and. ( abs(sum(msldsupp(isps,:)*dz(:))-rainpowder*rfrc_sld(isps))/rainpowder*rfrc_sld(isps) > 1d-6) ) then 
+                print *, 'dust error? going to stop',chrsld(isps),sum(msldsupp(isps,:)*dz(:)),rainpowder*rfrc_sld(isps)
+                stop
+            endif 
+            
         endif 
     enddo 
     
@@ -3475,6 +3482,13 @@ do while (it<nt)
     ! when considering static system, dust is given only initial year  
     dust_off = .false.
     if (aq_close) then 
+        ! homogeneously distribute
+        do isps = 1, nsp_sld
+            msldsupp(isps,:) = rainpowder*rfrc_sld(isps)/dz(:)/nz &
+                & + rainpowder_2nd*rfrc_sld_2nd(isps)/dz(:)/nz
+            ! print*,chrsld(isps),sum(msldsupp(isps,:)*dz(:)),rainpowder*rfrc_sld(isps)
+        enddo 
+        ! stop
         if (dust_step .and.  time > step_tau) dust_off = .true.
     endif 
     
@@ -3686,14 +3700,15 @@ do while (it<nt)
                         psu_rain_list = (/ log10(p80), log10(p80),  log10(p80), log10(p80) /)
                         pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
                     else 
-                        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
-                        ! psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
+                        ! psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+                        psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
                         ! psu_rain_list = (/ log10(5d-6), log10(5d-6),  log10(5d-6), log10(5d-6) /)
                         ! psu_rain_list = (/ log10(3d-6), log10(3d-6),  log10(3d-6), log10(3d-6) /)
                         ! psu_rain_list = (/ log10(2d-6), log10(2d-6),  log10(2d-6), log10(2d-6) /)  ! 9 m2/g?
                         ! psu_rain_list = (/ log10(1.9d-6), log10(1.9d-6),  log10(1.9d-6), log10(1.9d-6) /)
                         ! psu_rain_list = (/ log10(1.8d-6), log10(1.8d-6),  log10(1.8d-6), log10(1.8d-6) /)  ! for 9.6 m2/g
                         ! psu_rain_list = (/ log10(1.5d-6), log10(1.5d-6),  log10(1.5d-6), log10(1.5d-6) /)
+                        ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
                         ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
                         ! psu_rain_list = (/ log10(0.1d-6), log10(0.1d-6),  log10(0.1d-6), log10(0.1d-6) /)
                         ! psu_rain_list = (/ log10(0.01d-6), log10(0.01d-6),  log10(0.01d-6), log10(0.01d-6) /)
@@ -6603,14 +6618,14 @@ endsubroutine get_atm
 
 subroutine get_switches( &
     & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &! inout
+    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,aq_close &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &! inout
     & )
 implicit none
 
 character(100) chr_tmp
 logical,intent(inout):: poroiter_in,display,display_lim_in,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,sld_enforce &
+    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,aq_close &
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season
 integer,intent(out) :: imixtype,iwtype
 
@@ -6634,7 +6649,7 @@ read(50,*) al_inhibit,chr_tmp
 read(50,*) timestep_fixed,chr_tmp
 read(50,*) method_precalc,chr_tmp
 read(50,*) regular_grid,chr_tmp
-read(50,*) sld_enforce,chr_tmp
+read(50,*) aq_close,chr_tmp
 read(50,*) poroevol,chr_tmp
 read(50,*) surfevol1,chr_tmp
 read(50,*) surfevol2,chr_tmp
@@ -7504,6 +7519,7 @@ do isps = 1, nsp_sld_all
                         ! the 'activity coefficient' term 10**(2*3.4 * f[X-H]) will be added when calculating f[X-H]
                         keqiex_all(isps,ispa) = 10d0**(-10.47d0) ! log KCa\Na = 0.665  
                         keqiex_all(isps,ispa) = 10d0**( (0.665d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.665  
+                        ! keqiex_all(isps,ispa) = 10d0**( (0.0d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.0 (just for testing)  
                         ! keqiex_all(isps,ispa) = 10d0**( (0.4d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.4 From phreeqc.dat  
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.33d0)
@@ -8700,7 +8716,7 @@ select case(trim(adjustl(mineral)))
         
     case('fe2o','mgo','k2o','cao','na2o')
         kin = ( &
-            & 1d0/1d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
+            & 1d0/0.01d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
             & )
         ! assuming randomly fast dissolution rate for oxides
         dkin_dmsp = 0d0
@@ -14568,6 +14584,11 @@ logical :: gamma_ON = .true.
 !       gamma = 10^(  3.4 * f[X-H] ) 
 !       beta  = 10^( -3.4 * ( 1 - f[X-H] ) ) = 10^-3.4 * gamma
 !       (from Appelo 1994)
+!       *** note that 10^-3.4 for gamma is accounted for in K, i.e., 
+!           log KHX = 2.5 + 3.4( 1 - f(H) ) = 5.9 - 3.4f(H)
+!           and 
+!           log KIH = log KINa - log KHNa 
+!           where  log KHNa = 5.9 in default
 ! f[X-H] ( or msldf_loc) is solved numerically considering Na+, K+, Mg++, Ca++ and Al+++
 
 msldf_loc = 0d0
@@ -14584,6 +14605,11 @@ dgamma_dmaqf = 0d0
 c1_gamma = 3.4d0 ! between 3.1 to 3.7, average 3.4 from Appelo 1994
 ! c1_gamma = 3.1d0
 ! c1_gamma = 3.7d0
+! c1_gamma = 5.0d0
+! c1_gamma = 1.0d0
+! c1_gamma = 0.0d0
+! c1_gamma = 6.0d0
+! c1_gamma = 8.0d0
 ! c1_gamma = 2.0d0
 c0_gamma = 0.005d0
 
@@ -16817,6 +16843,8 @@ real(kind=8):: sat_lim_prec = 1d50 ! maximum value of saturation state for miner
 real(kind=8):: sat_lim_noprec = 2d0 ! maximum value of saturation state for minerals that cannot precipitate 
 
 !-----------------------------------------------
+
+if (aq_close) chkflx = .false.
 
 msld_seed = 1d-20
 
