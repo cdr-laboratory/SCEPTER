@@ -488,8 +488,8 @@ logical :: display = .true.
 ! logical :: regular_grid = .false.
 logical :: regular_grid = .true.
 
-! logical :: method_precalc = .false.
-logical :: method_precalc = .true.
+logical :: method_precalc = .false.
+! logical :: method_precalc = .true.
 
 logical :: sld_enforce = .false.
 ! logical :: sld_enforce = .true.
@@ -1725,7 +1725,7 @@ enddo
 
 call get_switches( &
     & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,aq_close &! inout
+    & ,al_inhibit,timestep_fixed,ads_ON,regular_grid,aq_close &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &!
     & )
 
@@ -6618,14 +6618,14 @@ endsubroutine get_atm
 
 subroutine get_switches( &
     & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,aq_close &! inout
+    & ,al_inhibit,timestep_fixed,ads_ON,regular_grid,aq_close &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &! inout
     & )
 implicit none
 
 character(100) chr_tmp
 logical,intent(inout):: poroiter_in,display,display_lim_in,read_data,incld_rough &
-    & ,al_inhibit,timestep_fixed,method_precalc,regular_grid,aq_close &
+    & ,al_inhibit,timestep_fixed,ads_ON,regular_grid,aq_close &
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season
 integer,intent(out) :: imixtype,iwtype
 
@@ -6647,7 +6647,7 @@ read(50,*) read_data,chr_tmp
 read(50,*) incld_rough,chr_tmp
 read(50,*) al_inhibit,chr_tmp
 read(50,*) timestep_fixed,chr_tmp
-read(50,*) method_precalc,chr_tmp
+read(50,*) ads_ON,chr_tmp
 read(50,*) regular_grid,chr_tmp
 read(50,*) aq_close,chr_tmp
 read(50,*) poroevol,chr_tmp
@@ -17215,9 +17215,13 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             if ( any( chrsld == chrsld_kinspc(isps_kinspc))) then 
                 select case (trim(adjustl(chrsld_kinspc(isps_kinspc))))
                     case('g1','g2','g3') ! for OMs, turn over year needs to be provided [yr]
-                        ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                   
-                            & 1d0/kin_sld_spc(isps_kinspc) &
-                            & ) 
+                        if (kin_sld_spc(isps_kinspc)/=0d0) then  
+                            ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                   
+                                & 1d0/kin_sld_spc(isps_kinspc) &
+                                & ) 
+                        else
+                            ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = kin_sld_spc(isps_kinspc)
+                        endif 
                         dksld_dpro(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
                         dksld_dios(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = 0d0
                         dksld_dmaq(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:,:) = 0d0
@@ -18981,9 +18985,15 @@ if (nsld_kinspc > 0) then
         if ( any( chrsld == chrsld_kinspc(isps_kinspc))) then 
             select case (trim(adjustl(chrsld_kinspc(isps_kinspc))))
                 case('g1','g2','g3') ! for OMs, turn over year needs to be provided [yr]
-                    ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                   
-                        & 1d0/kin_sld_spc(isps_kinspc) &
-                        & ) 
+                    if (kin_sld_spc(isps_kinspc)/=0d0) then  
+                        ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                   
+                            & 1d0/kin_sld_spc(isps_kinspc) &
+                            & ) 
+                    else
+                        ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                            
+                            & kin_sld_spc(isps_kinspc) &
+                            & ) 
+                    endif 
                 case default ! otherwise, usual rate constant [mol/m2/yr]
                     ksld(findloc(chrsld,chrsld_kinspc(isps_kinspc),dim=1),:) = ( &                            
                         & kin_sld_spc(isps_kinspc) &
