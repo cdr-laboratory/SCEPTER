@@ -833,7 +833,7 @@ real(kind=8),dimension(nz)::so4f,no3f,so4fprev
 
 real(kind=8) dt_prev
 
-logical print_cb,ph_error,save_trans
+logical print_cb,ph_error,save_trans,ads_error
 character(500) print_loc
 character(500),intent(in):: sim_name
 
@@ -1841,18 +1841,22 @@ call get_base_charge( &
 ! detault cec
 mcec_all_def = 0d0
 do isps=1,nsp_sld_all
-    select case(trim(adjustl(chrsld_all(isps))))
-        case('ka')
-            mcec_all_def(isps) = 16.2d0 ! 16.2 cmol/kg (from Beerling et al. 2020)
-        case('inrt')
-            mcec_all_def(isps) = 0d0 
-        case('cabd','mgbd','kbd','nabd') 
-            mcec_all_def(isps) = 70d0 !  70 cmol/kg (from Parfitt et al. 1996)
-        case('g1','g2','g3')
-            mcec_all_def(isps) = 330d0 ! 330 cmol/kg (from Parfitt et al. 1996)
-        case default 
-            mcec_all_def(isps) = 0d0
-    endselect
+    ! if not tracked assume zero cec
+    ! for trakced species assign default values 
+    if ( any(chrsld == chrsld_all(isps)) ) then
+        select case(trim(adjustl(chrsld_all(isps))))
+            case('ka')
+                mcec_all_def(isps) = 16.2d0 ! 16.2 cmol/kg (from Beerling et al. 2020)
+            case('inrt')
+                mcec_all_def(isps) = 0d0 
+            case('cabd','mgbd','kbd','nabd') 
+                mcec_all_def(isps) = 70d0 !  70 cmol/kg (from Parfitt et al. 1996)
+            case('g1','g2','g3')
+                mcec_all_def(isps) = 330d0 ! 330 cmol/kg (from Parfitt et al. 1996)
+            case default 
+                mcec_all_def(isps) = 0d0
+        endselect
+    endif 
 enddo 
 
 ! detault logKH\Na
@@ -2653,7 +2657,7 @@ call get_maqads_all_v4( &
     & ,keqcec_all,keqiex_all,cec_pH_depend &
     & ,msldx_loc,maqx_loc,pro &
     & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
-    & ,msldf_loc,maqfads_sld_loc,beta_loc  &! output
+    & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
     & )
 maqfads_sld = 0d0
 do ispa=1,nsp_aq
@@ -2995,7 +2999,7 @@ if (read_data) then
         & ,keqcec_all,keqiex_all,cec_pH_depend &
         & ,msldx_loc,maqx_loc,prox &
         & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
-        & ,msldf_loc,maqfads_sld_loc,beta_loc  &! output
+        & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
         & )
     maqfads_sld = 0d0
     do ispa=1,nsp_aq
@@ -14519,7 +14523,7 @@ subroutine get_maqads_all_v4( &
     & ,keqcec_all,keqiex_all,cec_pH_depend &
     & ,msldx_loc,maqf_loc,prox &
     & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
-    & ,msldf_loc,maqfads_sld_loc,beta_loc  &! output
+    & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
     & )
 ! calculating ratio of adsorbed species relative to maqf_loc
 ! (1) First calculate exposed negatively-charged sites (S-O-) (mol/m3)
@@ -14544,6 +14548,7 @@ real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::maqfads_sld_loc
 real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nsp_aq_all,nz),intent(out)::dmaqfads_sld_dmaqf
 real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::dmaqfads_sld_dmsld
 real(kind=8),dimension(nsp_aq_all,nsp_sld_all,nz),intent(out)::dmaqfads_sld_dpro
+logical,intent(out)::ads_error
 
 ! local
 integer isps,ispa,ispa2,iter
@@ -14614,6 +14619,8 @@ c1_gamma = 3.4d0 ! between 3.1 to 3.7, average 3.4 from Appelo 1994
 c0_gamma = 0.005d0
 
 beta_loc = 0d0
+
+ads_error = .false.
 
 call get_base_charge( &
     & nsp_aq_all & 
@@ -14715,6 +14722,8 @@ do isps = 1, nsp_sld_all
     if (any(x > 1d0) ) then
         print *, 'solution exceeds 1: get_maqads_all_v4 ',chrsld_all(isps)
         print *,x
+        ads_error = .true.
+        exit
         stop
     endif 
     
@@ -14723,6 +14732,8 @@ do isps = 1, nsp_sld_all
     if (any(abs(f_chk)>tol_dum_2)) then 
         print *, 'mass basalnce not satisfied: get_maqads_all_v4 ',chrsld_all(isps)
         print *,f_chk
+        ads_error = .true.
+        exit
         stop
     endif 
     
@@ -14766,6 +14777,8 @@ do isps = 1, nsp_sld_all
     endif
     
 enddo
+
+if ( ads_error ) return
 
 ! (2) Then getting concs of adsorbed ion concs. relative to magf (defined here as maqfads_loc)
 ! adsorbed species concs are: 
@@ -16790,7 +16803,7 @@ real(kind=8),parameter::corr = exp(threshold)
 
 real(kind=8),dimension(nz)::dummy,dummy2,dummy3,kin,dkin_dmsp,dumtest,sporo,prox_save,iosx_save
 
-logical print_cb,ph_error,omega_error,rxnext_error
+logical print_cb,ph_error,omega_error,rxnext_error,ads_error
 character(500) print_loc
 character(20) chrfmt
 
@@ -17079,8 +17092,14 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             & ,keqcec_all,keqiex_all,cec_pH_depend &
             & ,msldx_loc,maqx_loc,prox &
             & ,dmaqfads_sld_dpro_loc,dmaqfads_sld_dmaqf_loc,dmaqfads_sld_dmsld_loc &! output
-            & ,msldf_loc,maqfads_sld_loc,beta_loc  &! output
+            & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
             & )
+
+        if (ads_error) then 
+            print *, 'error issued from adsorption calculation: raising flag and return to main' 
+            flgback = .true.
+            return
+        endif 
         
         ! print *,maqfads_loc(findloc(chraq_all,'na',dim=1),:)
         ! print *,dmaqfads_dpro_loc(findloc(chraq_all,'na',dim=1),:)
@@ -18940,8 +18959,14 @@ if (ads_ON) then
         & ,keqcec_all,keqiex_all,cec_pH_depend &
         & ,msldx_loc,maqx_loc,prox &
         & ,dmaqfads_sld_dpro_loc,dmaqfads_sld_dmaqf_loc,dmaqfads_sld_dmsld_loc &! output
-        & ,msldf_loc,maqfads_sld_loc,beta_loc  &! output
+        & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
         & )
+
+    if (ads_error) then 
+        print *, 'error issued from adsorption calculation: raising flag and return to main' 
+        flgback = .true.
+        return
+    endif 
 
     maqfads_sld = 0d0
     do ispa=1,nsp_aq
