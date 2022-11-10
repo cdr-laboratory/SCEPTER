@@ -53,7 +53,7 @@ runname_field   = simid+'_spintuneup_field'
 runname_lab     = simid+'_spintuneup_lab'
 
 # compile 
-exename = 'weathering'
+exename = 'scepter'
 to = ' '
 where = '/'
 os.system('make')

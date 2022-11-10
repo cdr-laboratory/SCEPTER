@@ -75,7 +75,7 @@ tol = 1e-4
 fdust = 5000
 taudust =0.005
 
-exename = 'weathering'
+exename = 'scepter'
 to = ' '
 where = '/'
 
@@ -208,8 +208,8 @@ while (error > tol):
         file.writelines(data)
         
         
-    print(outdir+runname_field+'/weathering')
-    os.system(outdir+runname_field+'/weathering')
+    print(outdir+runname_field+'/scepter')
+    os.system(outdir+runname_field+'/scepter')
 
 
     phint_field = get_int_prof.get_ph_int_site(outdir,runname_field,dep_sample)
@@ -269,8 +269,8 @@ while (error > tol):
         ,atm_list=atm_list_lab
         )
         
-    print(outdir+runname_lab+'/weathering')
-    os.system(outdir+runname_lab+'/weathering')
+    print(outdir+runname_lab+'/scepter')
+    os.system(outdir+runname_lab+'/scepter')
     
     phint = get_int_prof.get_ph_int_site(outdir,runname_lab,dep_sample)
 

@@ -23,7 +23,7 @@ dense_lab = 2.59296482412060000 # only inertphase
 dep_sample = 0.5
 dep_sample = 0.0
         
-exename = 'weathering'
+exename = 'scepter'
 to = ' '
 where = '/'
         
