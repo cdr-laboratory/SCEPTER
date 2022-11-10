@@ -4,7 +4,7 @@ from shutil import copyfile
 import time
 
 def get_input_frame(**kwargs):
-    outdir      = kwargs.get('outdir',  '/storage/scratch1/0/ykanzaki3/pyweath_output/')
+    outdir      = kwargs.get('outdir',  '/storage/scratch1/0/ykanzaki3/scepter_output/')
     runname     = kwargs.get('runname', 'test_input')
     ztot        = kwargs.get('ztot',    0.5)
     nz          = kwargs.get('nz',      30) 
@@ -99,7 +99,7 @@ def get_input_frame(**kwargs):
     print(input_text)
 
 def get_input_switches(**kwargs):
-    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/pyweath_output/')
+    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
     runname     = kwargs.get('runname',     'test_input')
     w_scheme    = kwargs.get('w_scheme',    1)
     mix_scheme  = kwargs.get('mix_scheme',  1) 
@@ -191,7 +191,7 @@ def get_input_switches(**kwargs):
     print(input_text)
 
 def get_input_tracers(**kwargs):
-    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/pyweath_output/')
+    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
     runname     = kwargs.get('runname',     'test_input')
     sld_list    = kwargs.get('sld_list',    [])
     aq_list     = kwargs.get('aq_list',     []) 
@@ -252,7 +252,7 @@ def get_input_tracers(**kwargs):
     del exrxn_list[0]
 
 def get_input_tracer_bounds(**kwargs):
-    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/pyweath_output/')
+    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
     runname     = kwargs.get('runname',     'test_input')
     pr_list     = kwargs.get('pr_list',     [])
     rain_list   = kwargs.get('rain_list',   []) 
@@ -312,7 +312,7 @@ def get_input_tracer_bounds(**kwargs):
     del atm_list[0]
 
 def get_input_sld_properties(**kwargs):
-    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/pyweath_output/')
+    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
     runname     = kwargs.get('runname',     'test_input')
     sld_varlist = kwargs.get('sld_varlist', [])
     filename    = kwargs.get('filename',    'kinspc.in')
@@ -327,7 +327,7 @@ def get_input_sld_properties(**kwargs):
     elif filename == 'dust.in' or filename == 'dust_2nd.in':
         note = '** dusts wt fraction (if not specified assumed 0)'
     elif filename == 'cec.in':
-        note = '** cec [cmol/kg] and log10(KH-Na) [-] specified by users (e.g., "g2   90   5.9") (if not specified assumed code default values)'
+        note = '** cec [cmol/kg], log10(KH-Na) [-] and beta specified by users (e.g., "g2   90   5.9  3.4") (if not specified assumed code default values)'
     elif filename == 'nopsd.in':
         note = '** list of minerals whose PSDs are not tracked for some reason'
     else:
@@ -351,7 +351,7 @@ def get_input_sld_properties(**kwargs):
                 if filename == 'nopsd.in':
                     input_text += sld_varlist[i][0] + '\n'
                 elif filename == 'cec.in':
-                    input_text += sld_varlist[i][0] + '\t' + str(sld_varlist[i][1])+ '\t' + str(sld_varlist[i][2]) + '\n'
+                    input_text += sld_varlist[i][0] + '\t' + str(sld_varlist[i][1])+ '\t' + str(sld_varlist[i][2])+ '\t' + str(sld_varlist[i][3]) + '\n'
                 else:
                     input_text += sld_varlist[i][0] + '\t' + str(sld_varlist[i][1]) + '\n'
         
@@ -367,7 +367,7 @@ def get_input_sld_properties(**kwargs):
     
 def main():
 
-    outdir = '/storage/scratch1/0/ykanzaki3/pyweath_output/'
+    outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
     runname = 'test_input'
     
     ztot=0.5

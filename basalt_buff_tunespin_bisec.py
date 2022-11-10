@@ -6,19 +6,16 @@ import shutil
 import get_int_prof
 import make_inputs
 
-cec=4
+phnorm_pw = True
+phnorm_pw = False
+
+cec=float(sys.argv[3])
 # targetpH = 6.0
 targetpH = float(sys.argv[1])
-basesat = 75
-acidsat = 25
-z = 2 
-alpha = 3.4
-kh = 10**3.5
-logkh = np.log10(kh)
-ca=35 # uM
 tau = float(sys.argv[2])
 
 dep_sample = 0.18
+dep_sample = 0.25
 # dep_sample = 0.15
 
 catlist = ['ca','mg','k','na']
@@ -30,6 +27,7 @@ spinid = 'test_inert_fert_buff_3v'
 spinid = 'test_inert_fert_buff_3v_v5'
 spinid = 'test_inert_buff_3v_v5_pw'
 # spinid = 'test_inert_buff_3v_v5_sw'
+spinid = sys.argv[5]
 
 # spinup = 'test_iter_excl2nd'
 # spinup = 'test_inert_spintuneup'
@@ -45,6 +43,7 @@ expid = 'test_inert_fert_buff_excl2nd_v2_omx9'
 expid = 'test_inert_fert_buff_excl2nd_3v'
 expid = 'test_inert_fert_buff_excl2nd_3v_v5'
 expid = 'test_inert_buff_excl2nd_3v_v5_pw'
+expid = sys.argv[4]
 # expid = 'test_inert_buff_excl2nd_3v_v5_sw'
 
 # runname_field   = 'test_iter_buff_excl2nd_basalt_field_tpH'+sys.argv[1].replace('.','p')+'_tau'+sys.argv[2].replace('.','p')
@@ -53,7 +52,7 @@ runname_field   = expid+'_basalt_field_tpH'+sys.argv[1].replace('.','p')+'_tau'+
 runname_lab     = expid+'_basalt_lab_tpH'+sys.argv[1].replace('.','p')+'_tau'+sys.argv[2].replace('.','p')
 # runname = 'chk_iter_incl2nd_basalt_tpH'+sys.argv[1].replace('.','p')+'_tau'+sys.argv[2].replace('.','p')
 
-outdir='/storage/scratch1/0/ykanzaki3/pyweath_output/'
+outdir='/storage/scratch1/0/ykanzaki3/scepter_output/'
 datadir='./data/'
 
 # dupricate directories from spinups
@@ -177,6 +176,8 @@ for runname in [runname_field,runname_lab]:
     if not os.path.exists( outdir + runname) : os.system('mkdir -p ' + outdir + runname)
     os.system('cp ' + exename + to + outdir + runname)
 
+maxiter = 50
+
 res_list = []
 cnt = 0
 
@@ -184,6 +185,7 @@ cnt = 0
 phint = get_int_prof.get_ph_int_site(outdir,spinup_lab,dep_sample)
 phint_field = get_int_prof.get_ph_int_site(outdir,spinup_field,dep_sample)
 ymx = phint - targetpH
+if phnorm_pw: ymx = phint_field - targetpH
 res_list.append([cnt, phint_field,phint, targetpH, 0, abs( ymx/targetpH ) ])
 
 cnt += 1
@@ -229,7 +231,7 @@ while (error > tol):
     kint = catsat_list[catlist.index('k')]
     naint = catsat_list[catlist.index('na')]
     ztot = 0.5
-    cec=4
+    # cec=4
     poro_lab = 5./(1./dense_lab+5.)
     fdust_cao_lab   = ztot*(1-poro_lab)*dense_lab*1e3*exchanger/100.*cec*1e-2*caint/100./2. * 56.1 
     fdust_mgo_lab   = ztot*(1-poro_lab)*dense_lab*1e3*exchanger/100.*cec*1e-2*mgint/100./2. * 40.3
@@ -276,8 +278,8 @@ while (error > tol):
     time.sleep(5)
     
 
-    # ymx = phint - targetpH
-    ymx = phint_field - targetpH
+    ymx = phint - targetpH
+    if phnorm_pw: ymx = phint_field - targetpH
     ymx = -ymx
         
 
@@ -307,7 +309,7 @@ while (error > tol):
         data_tmp = np.array(res_list)
         iph = 1 
         idust = 3 
-        # iph = 2
+        if not phnorm_pw: iph = 2
         idust = 4 
         if np.max(data_tmp[:,iph]) < targetpH: 
             fdust = np.max(data_tmp[:,idust])*1.5
@@ -328,7 +330,10 @@ while (error > tol):
     
     time.sleep(5)
     
-    # break
+    if cnt > maxiter: break
+    
+    for runname in [runname_field,runname_lab]:
+        np.savetxt(outdir + runname + where + 'iteration_tmp.res',np.array(res_list))
     
     
 

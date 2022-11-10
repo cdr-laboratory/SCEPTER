@@ -27,7 +27,7 @@ exename = 'weathering'
 to = ' '
 where = '/'
         
-outdir = '/storage/scratch1/0/ykanzaki3/pyweath_output/'
+outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
 
 runname_org   = 'test_inert_fert_buff_excl2nd_3v_v5_basalt_lab_tpH6p8_tau1'
 runname_org   = 'test_inert_fert_buff_excl2nd_3v_v5_basalt_field_tpH6p8_tau1'

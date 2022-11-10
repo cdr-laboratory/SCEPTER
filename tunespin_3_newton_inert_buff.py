@@ -3,15 +3,29 @@ import numpy as np
 import get_int_prof
 import make_inputs
 import time
+import sys
 
+print(sys.argv)
+
+include_N = False
+include_N = True
+
+phnorm_pw = True
+# phnorm_pw = False
+
+iter_max = 120
 
 shell='inert_tune_spinup_newton.sh'
 
 cec=4
+cec=float(sys.argv[2])
 targetpH = 5.8
+targetpH = float(sys.argv[3])
 basesat = 75
 acidsat = 25
+acidsat = float(sys.argv[4])
 targetOM = 5
+targetOM = float(sys.argv[5])
 z = 2 
 alpha = 3.4
 kh = 10**3.5
@@ -21,6 +35,7 @@ ca=35 # uM
 dense_lab = 2.59296482412060000 # only inertphase
 
 dep_sample = 0.18
+dep_sample = 0.25
 
 
 outdir = '/storage/scratch1/0/ykanzaki3/pyweath_output/'
@@ -35,6 +50,7 @@ simid = 'test_inert_fert_buff_3v_v5_chk'
 simid = 'test_inert_fert_buff_3v_v5_chk2'
 simid = 'test_inert_buff_3v_v5_pw'
 simid = 'test_inert_buff_3v_v5_sw'
+simid = sys.argv[1]
 runname_field   = simid+'_spintuneup_field'
 runname_lab     = simid+'_spintuneup_lab'
 
@@ -53,6 +69,7 @@ nz=30
 ttot_field=10000
 ttot_lab=1000
 temp_field=15
+temp_field=18
 temp_lab=25
 fdust_field=0
 fdust_lab=0
@@ -69,7 +86,8 @@ poro_lab=0.928391508
 moistsrf_field=0.5
 moistsrf_lab=1.0
 zwater=100000
-zdust_field=0.18
+# zdust_field=0.18
+zdust_field=0.25
 zdust_lab=0.15
 w_field=100e-5
 w_lab=0
@@ -82,7 +100,8 @@ runid_field=runname_field
 runid_lab=runname_lab
 
 N_rain = 0  # gN/m2/yr
-N_rain = 8.406375  # gN/m2/yr
+N_rain = 8.406375  # gN/m2/yr ( <---> 75 lbs/acre/year)
+N_rain = 24.6587   # gN/m2/yr ( <---> 220 lbs/acre/year)
 N_rain = N_rain/14  # mol N/m2/yr
 N_rain = N_rain*80  # g NH4NO3/m2/yr
 N_rain = N_rain/2.  # only half is required as 1 mol NH4NO3 contains 2 moles of N
@@ -167,8 +186,8 @@ make_inputs.get_input_switches(
 
 sld_list_field=['inrt','g2']
 aq_list_field = ['ca','k','mg','na']
-# sld_list_field =['inrt','g2','amnt']
-# aq_list_field = ['ca','k','mg','na','no3']
+if include_N: sld_list_field =['inrt','g2','amnt']
+if include_N: aq_list_field = ['ca','k','mg','na','no3']
 gas_list_field = ['pco2']
 exrxn_list_field = []
 make_inputs.get_input_tracers(
@@ -203,7 +222,7 @@ make_inputs.get_input_sld_properties(
     )
     
 filename = 'cec.in'
-sld_varlist = [('inrt',4,4.1) ,('g2',4,4.1) ] 
+sld_varlist = [('inrt',4,4.1,alpha) ,('g2',4,4.1,alpha) ] 
 make_inputs.get_input_sld_properties(
     outdir=outdir
     ,runname=runname_field
@@ -213,7 +232,7 @@ make_inputs.get_input_sld_properties(
     
 filename = 'OM_rain.in'
 sld_varlist = [ ('g2',1) ] 
-# sld_varlist = [ ('g2',1), ('amnt',N_rain) ] 
+if include_N: sld_varlist = [ ('g2',1), ('amnt',N_rain) ] 
 make_inputs.get_input_sld_properties(
     outdir=outdir
     ,runname=runname_field
@@ -304,7 +323,7 @@ make_inputs.get_input_sld_properties(
     
 filename = 'cec.in'
 # sld_varlist = [('inrt',4,4.1)  ] 
-sld_varlist = [('inrt',4,4.1) ,('g2',4,4.1) ] 
+sld_varlist = [('inrt',4,4.1,alpha) ,('g2',4,4.1,alpha) ] 
 make_inputs.get_input_sld_properties(
     outdir=outdir
     ,runname=runname_lab
@@ -338,8 +357,6 @@ tol = 1e-4
 cnt = 1
 res_list = []
 
-iter_max = 100
-
 while (error > tol):
 
     ymx = np.zeros(3)
@@ -362,7 +379,7 @@ while (error > tol):
         )
 
     filename = 'cec.in'
-    sld_varlist = [('inrt',cec, np.log10(kh)) ,('g2',cec,np.log10(kh)) ] 
+    sld_varlist = [('inrt',cec, np.log10(kh),alpha) ,('g2',cec,np.log10(kh),alpha) ] 
     make_inputs.get_input_sld_properties(
         outdir=outdir
         ,runname=runname_field
@@ -402,7 +419,7 @@ while (error > tol):
     
     filename = 'OM_rain.in'
     sld_varlist = [ ('g2',1) ] 
-    # sld_varlist = [ ('g2',1), ('amnt',N_rain) ] 
+    if include_N: sld_varlist = [ ('g2',1), ('amnt',N_rain) ] 
     make_inputs.get_input_sld_properties(
         outdir=outdir
         ,runname=runname_field
@@ -466,7 +483,7 @@ while (error > tol):
         )
 
     filename = 'cec.in'
-    sld_varlist = [('inrt',cec, np.log10(kh)),('g2',cec,np.log10(kh))  ] 
+    sld_varlist = [('inrt',cec, np.log10(kh),alpha),('g2',cec,np.log10(kh),alpha)  ] 
     make_inputs.get_input_sld_properties(
         outdir=outdir
         ,runname=runname_lab
@@ -562,9 +579,9 @@ while (error > tol):
     
     
     # dphint_dca = (dphint_field-phint_field)/dca * ca
-    # dphint_dca = (10**-dphint_field-10**-phint_field)/dca * ca
+    if phnorm_pw:       dphint_dca = (10**-dphint_field-10**-phint_field)/dca * ca
     # dphint_dca = (dphint-phint)/dca * ca
-    dphint_dca = (10**-dphint-10**-phint)/dca * ca
+    if not phnorm_pw:   dphint_dca = (10**-dphint-10**-phint)/dca * ca
     dacint_dca = (dacint-acint)/dca * ca
     domint_dca = (domint-omint)/dca * ca
 
@@ -587,7 +604,7 @@ while (error > tol):
         )
 
     filename = 'cec.in'
-    sld_varlist = [('inrt',cec, np.log10(kh+dkh)) ,('g2',cec,np.log10(kh+dkh)) ] 
+    sld_varlist = [('inrt',cec, np.log10(kh+dkh),alpha) ,('g2',cec,np.log10(kh+dkh),alpha) ] 
     make_inputs.get_input_sld_properties(
         outdir=outdir
         ,runname=runname_field
@@ -652,7 +669,7 @@ while (error > tol):
         )
 
     filename = 'cec.in'
-    sld_varlist = [('inrt',cec, np.log10(kh+dkh)),('g2',cec,np.log10(kh+dkh))  ] 
+    sld_varlist = [('inrt',cec, np.log10(kh+dkh),alpha),('g2',cec,np.log10(kh+dkh),alpha)  ] 
     make_inputs.get_input_sld_properties(
         outdir=outdir
         ,runname=runname_lab
@@ -670,9 +687,9 @@ while (error > tol):
     # dphint_dlogkh = (dphint-phint)/dlogkh
     # dacint_dlogkh = (dacint-acint)/dlogkh
     # dphint_dlogkh = (dphint_field-phint_field)/dkh * kh
-    # dphint_dlogkh = (10**-dphint_field-10**-phint_field)/dkh * kh
+    if phnorm_pw:       dphint_dlogkh = (10**-dphint_field-10**-phint_field)/dkh * kh
     # dphint_dlogkh = (dphint-phint)/dkh * kh
-    dphint_dlogkh = (10**-dphint-10**-phint)/dkh * kh
+    if not phnorm_pw:   dphint_dlogkh = (10**-dphint-10**-phint)/dkh * kh
     dacint_dlogkh = (dacint-acint)/dkh * kh
     domint_dlogkh = (domint-omint)/dkh * kh
 
@@ -693,7 +710,7 @@ while (error > tol):
         )
 
     filename = 'cec.in'
-    sld_varlist = [('inrt',cec, np.log10(kh)) ,('g2',cec,np.log10(kh)) ] 
+    sld_varlist = [('inrt',cec, np.log10(kh),alpha) ,('g2',cec,np.log10(kh),alpha) ] 
     make_inputs.get_input_sld_properties(
         outdir=outdir
         ,runname=runname_field
@@ -733,7 +750,7 @@ while (error > tol):
     
     filename = 'OM_rain.in'
     sld_varlist = [ ('g2',1) ] 
-    # sld_varlist = [ ('g2',1), ('amnt',N_rain) ] 
+    if include_N: sld_varlist = [ ('g2',1), ('amnt',N_rain) ] 
     make_inputs.get_input_sld_properties(
         outdir=outdir
         ,runname=runname_field
@@ -798,7 +815,7 @@ while (error > tol):
         )
 
     filename = 'cec.in'
-    sld_varlist = [('inrt',cec, np.log10(kh+dkh)),('g2',cec,np.log10(kh+dkh))  ] 
+    sld_varlist = [('inrt',cec, np.log10(kh),alpha),('g2',cec,np.log10(kh),alpha)  ] 
     make_inputs.get_input_sld_properties(
         outdir=outdir
         ,runname=runname_lab
@@ -816,9 +833,9 @@ while (error > tol):
     # dphint_dlogkh = (dphint-phint)/dlogkh
     # dacint_dlogkh = (dacint-acint)/dlogkh
     # dphint_domrain = (dphint_field-phint_field)/domrain * omrain_field
-    # dphint_domrain = (10**-dphint_field-10**-phint_field)/domrain * omrain_field
+    if phnorm_pw:       dphint_domrain = (10**-dphint_field-10**-phint_field)/domrain * omrain_field
     # dphint_domrain = (dphint-phint)/domrain * omrain_field
-    dphint_domrain = (10**-dphint-10**-phint)/domrain * omrain_field
+    if not phnorm_pw:   dphint_domrain = (10**-dphint-10**-phint)/domrain * omrain_field
     dacint_domrain = (dacint-acint)/domrain * omrain_field
     domint_domrain = (domint-omint)/domrain * omrain_field
 
@@ -831,9 +848,9 @@ while (error > tol):
     # f2 = acint - acidsat = 0
 
     # ymx[0] = phint_field - targetpH
-    # ymx[0] = 10**-phint_field - 10**-targetpH
+    if phnorm_pw:       ymx[0] = 10**-phint_field - 10**-targetpH
     # ymx[0] = phint - targetpH
-    ymx[0] = 10**-phint - 10**-targetpH
+    if not phnorm_pw:   ymx[0] = 10**-phint - 10**-targetpH
     ymx[1] = acint - acidsat 
     ymx[2] = omint - targetOM 
 
@@ -886,8 +903,25 @@ while (error > tol):
 
         # emx[0] = ymx[0]/targetpH
         emx[0] = ymx[0]/10**-targetpH
-        emx[1] = ymx[1]/acidsat 
-        emx[2] = ymx[2]/targetOM 
+        
+        if acidsat!=0: 
+            emx[1] = ymx[1]/acidsat 
+        else:
+            if acint!=0: 
+                emx[1] = ymx[1]/acint
+            else:
+                emx[1] = ymx[1]
+                # emx[1] = ymx[1]*1e2
+                
+                
+        if targetOM!=0:
+            emx[2] = ymx[2]/targetOM 
+        else:
+            if omrain_field!=0:
+                emx[2] = ymx[2]/omrain_field
+            else:
+                emx[2] = ymx[2]
+                # emx[2] = ymx[2]*1e2
 
         error = np.max(np.abs(emx))
     
@@ -908,7 +942,8 @@ while (error > tol):
     
     if cnt > iter_max: break
     
-    # break
+    for runname in [runname_field,runname_lab]:
+        np.savetxt(outdir + runname + where + 'iteration_tmp.res',np.array(res_list))
     
 
 

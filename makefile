@@ -60,53 +60,10 @@ else
   # Not found
 endif
 
-# OBJS          = pysil_dev.o 
-# SRC           = pysil_dev.f90 
-# OBJS          = pysil_sent.o 
-# SRC           = pysil_sent.f90 
-# OBJS          = pysil_dev_PSD.o 
-# SRC           = pysil_dev_PSD.f90 
-# OBJS          = pysil_DEV_AQ.o
-# SRC           = pysil_DEV_AQ.f90
-# OBJS          = pysil_DEV_NO3_ADS.o
-# SRC           = pysil_DEV_NO3_ADS.f90
-# OBJS          = pysil_DEV_NO3.o
-# SRC           = pysil_DEV_NO3.f90
-# OBJS          = pysil_DEV_AQ_ADSH_NO3H.o
-# SRC           = pysil_DEV_AQ_ADSH_NO3H.f90
-# OBJS          = pysil_DEV_AQ_ADSH_NO3_fert.o
-# SRC           = pysil_DEV_AQ_ADSH_NO3_fert.f90
-# OBJS          = pysil_DEV_AQ_ADSH_NO3_fert_DEV.o
-# SRC           = pysil_DEV_AQ_ADSH_NO3_fert_DEV.f90
-# OBJS          = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV.o
-# SRC           = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV.f90
-# OBJS          = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV_DEV.o
-# SRC           = pysil_DEV_AQ_ADSH_NO3_fert_DEVDEV_DEV.f90
-OBJS          = pysil.o 
-SRC           = pysil.f90  
-# OBJS          = pysil_DEV_AQ_ADSH_NO3.o
-# SRC           = pysil_DEV_AQ_ADSH_NO3.f90
-# OBJS          = pysil_DEV_AQ_ADSH.o
-# SRC           = pysil_DEV_AQ_ADSH.f90
-# OBJS          = pysil_DEV_AQ_ADS.o
-# SRC           = pysil_DEV_AQ_ADS.f90
-# OBJS          = pysil_dev_dev_PARPSD_v3.o 
-# SRC           = pysil_dev_dev_PARPSD_v3.f90 
-# OBJS          = pysil_dev_dev_PARPSD.o 
-# SRC           = pysil_dev_dev_PARPSD.f90 
-# OBJS          = pysil_dev_dev_PARPSD_v2c.o 
-# SRC           = pysil_dev_dev_PARPSD_v2c.f90 
-# OBJS          = pysil_dev_dev_PARPSD_v2.o 
-# SRC           = pysil_dev_dev_PARPSD_v2.f90 
-# OBJS          = pysil_main.o pysil_bks.o 
-# SRC           = pysil_main.f90 pysil_bks.f90  
-# OBJS          = pysil_dev_dev.o 
-# SRC           = pysil_dev_dev.f90 
-# OBJS          = pysil_dev_dev_poroiter2.o 
-# SRC           = pysil_dev_dev_poroiter2.f90 
-# OBJS          = pysil_dev_dev_SSV_NOT_WORKING.o 
-# SRC           = pysil_dev_dev_SSV_NOT_WORKING.f90 
-PROGRAM       = weathering
+OBJS          = scepter.o 
+SRC           = scepter.f90  
+                            
+PROGRAM       = scepter
 
 all:            $(PROGRAM)
 
