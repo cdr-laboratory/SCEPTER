@@ -784,6 +784,7 @@ integer nsld_cec
 character(5),dimension(:),allocatable::chrsld_cec
 real(kind=8),dimension(nsp_sld_all):: mcec_all,mcec_all_def
 real(kind=8),dimension(nsp_sld_all):: logkhna_all,logkhna_all_def
+real(kind=8),dimension(nsp_sld_all):: beta_all,beta_all_def
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod,fkin
@@ -1867,6 +1868,9 @@ do isps=1,nsp_sld_all
     endif 
 enddo
 
+! detault beta
+beta_all_def = 3.4d0
+
 
 do ispa = 1, nsp_aq    
     if (any(chraq_all == chraq(ispa))) base_charge(ispa) = base_charge_all(findloc(chraq_all,chraq(ispa),dim=1))
@@ -2294,8 +2298,8 @@ if (allocated(chrsld_cec)) deallocate(chrsld_cec)
 allocate(chrsld_cec(nsld_cec))
 
 call get_cec( &
-    & nsp_sld_all,chrsld_all,mcec_all_def,nsld_cec,logkhna_all_def &! input
-    & ,mcec_all,chrsld_cec,logkhna_all &! output
+    & nsp_sld_all,chrsld_all,mcec_all_def,nsld_cec,logkhna_all_def,beta_all_def &! input
+    & ,mcec_all,chrsld_cec,logkhna_all,beta_all &! output
     & ) 
 
 call get_nopsd_num(nsld_nopsd)
@@ -2654,7 +2658,7 @@ call get_maqads_all_v4( &
 ! call get_maqads_all_v4a( &
     & nz,nsp_aq_all,nsp_sld_all &
     & ,chraq_all,chrsld_all &
-    & ,keqcec_all,keqiex_all,cec_pH_depend &
+    & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
     & ,msldx_loc,maqx_loc,pro &
     & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
     & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
@@ -2996,7 +3000,7 @@ if (read_data) then
     ! call get_maqads_all_v4a( &
         & nz,nsp_aq_all,nsp_sld_all &
         & ,chraq_all,chrsld_all &
-        & ,keqcec_all,keqiex_all,cec_pH_depend &
+        & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
         & ,msldx_loc,maqx_loc,prox &
         & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
         & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
@@ -3705,7 +3709,7 @@ do while (it<nt)
                         pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
                     else 
                         ! psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
-                        psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
+                        ! psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
                         ! psu_rain_list = (/ log10(5d-6), log10(5d-6),  log10(5d-6), log10(5d-6) /)
                         ! psu_rain_list = (/ log10(3d-6), log10(3d-6),  log10(3d-6), log10(3d-6) /)
                         ! psu_rain_list = (/ log10(2d-6), log10(2d-6),  log10(2d-6), log10(2d-6) /)  ! 9 m2/g?
@@ -3713,6 +3717,7 @@ do while (it<nt)
                         ! psu_rain_list = (/ log10(1.8d-6), log10(1.8d-6),  log10(1.8d-6), log10(1.8d-6) /)  ! for 9.6 m2/g
                         ! psu_rain_list = (/ log10(1.5d-6), log10(1.5d-6),  log10(1.5d-6), log10(1.5d-6) /)
                         ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
+                        psu_rain_list = (/ log10(50d-6), log10(50d-6),  log10(50d-6), log10(50d-6) /)
                         ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
                         ! psu_rain_list = (/ log10(0.1d-6), log10(0.1d-6),  log10(0.1d-6), log10(0.1d-6) /)
                         ! psu_rain_list = (/ log10(0.01d-6), log10(0.01d-6),  log10(0.01d-6), log10(0.01d-6) /)
@@ -4000,7 +4005,7 @@ do while (it<nt)
         !  old inputs
         & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON &
+        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON,beta_all &
         ! old inout
         & ,dt,flgback,w &    
         ! output 
@@ -6758,18 +6763,18 @@ endsubroutine get_cec_num
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_cec( &
-    & nsp_sld_all,chrsld_all,mcec_def,nsld_cec,logkhna_def &! input
-    & ,mcec,chrsld_cec_dum,logkhna  &! output
+    & nsp_sld_all,chrsld_all,mcec_def,nsld_cec,logkhna_def,beta_def &! input
+    & ,mcec,chrsld_cec_dum,logkhna,beta  &! output
     & )
 implicit none
 
 integer,intent(in):: nsp_sld_all,nsld_cec
 character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
 character(5),dimension(nsld_cec),intent(out)::chrsld_cec_dum
-real(kind=8),dimension(nsp_sld_all),intent(in)::mcec_def,logkhna_def
-real(kind=8),dimension(nsp_sld_all),intent(out)::mcec,logkhna
+real(kind=8),dimension(nsp_sld_all),intent(in)::mcec_def,logkhna_def,beta_def
+real(kind=8),dimension(nsp_sld_all),intent(out)::mcec,logkhna,beta
 character(5) chr_tmp
-real(kind=8) val_tmp,val_tmp2
+real(kind=8) val_tmp,val_tmp2,val_tmp3
 
 character(500) file_name
 integer i
@@ -6778,17 +6783,19 @@ file_name = './cec.in'
 ! in default 
 mcec = mcec_def
 logkhna = logkhna_def
+beta = beta_def
 
 if (nsld_cec <= 0) return
 
 open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
 read(50,'()')
 do i =1,nsld_cec
-    read(50,*) chr_tmp,val_tmp,val_tmp2
+    read(50,*) chr_tmp,val_tmp,val_tmp2,val_tmp3
     chrsld_cec_dum(i) = chr_tmp
     if (any(chrsld_all == chr_tmp)) then 
         mcec(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp
         logkhna(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp2
+        beta(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp3
     endif 
 enddo 
 close(50)
@@ -14520,7 +14527,7 @@ endsubroutine get_maqads_all_v3
 subroutine get_maqads_all_v4( &
     & nz,nsp_aq_all,nsp_sld_all &
     & ,chraq_all,chrsld_all &
-    & ,keqcec_all,keqiex_all,cec_pH_depend &
+    & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
     & ,msldx_loc,maqf_loc,prox &
     & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
     & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
@@ -14535,7 +14542,7 @@ implicit none
 integer,intent(in)::nz,nsp_aq_all,nsp_sld_all
 character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
-real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all
+real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all,beta_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::keqiex_all
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_sld_all,nz),intent(in)::msldx_loc
@@ -14646,6 +14653,8 @@ do isps = 1, nsp_sld_all
     x = 1d0
     error = 1d4
     iter = 0
+    
+    c1_gamma = beta_all(isps)
     
     do while (error > tol_dum)
     
@@ -16616,7 +16625,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     !  old inputs
     & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON & 
+    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON,beta_all & 
     ! old inout
     & ,dt,flgback,w &    
     ! output 
@@ -16713,7 +16722,7 @@ real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_oxa
 real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_cl
 real(kind=8),dimension(nsp_sld_all),intent(in)::keqsld_all,msldth_all,mv_all
 
-real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all
+real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all,beta_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::keqiex_all
 logical,dimension(nsp_sld_all),intent(in)::cec_pH_depend
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::msldf_loc,beta_loc
@@ -17089,7 +17098,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         ! call get_maqads_all_v4a( &
             & nz,nsp_aq_all,nsp_sld_all &
             & ,chraq_all,chrsld_all &
-            & ,keqcec_all,keqiex_all,cec_pH_depend &
+            & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
             & ,msldx_loc,maqx_loc,prox &
             & ,dmaqfads_sld_dpro_loc,dmaqfads_sld_dmaqf_loc,dmaqfads_sld_dmsld_loc &! output
             & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
@@ -18956,7 +18965,7 @@ if (ads_ON) then
     ! call get_maqads_all_v4a( &
         & nz,nsp_aq_all,nsp_sld_all &
         & ,chraq_all,chrsld_all &
-        & ,keqcec_all,keqiex_all,cec_pH_depend &
+        & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
         & ,msldx_loc,maqx_loc,prox &
         & ,dmaqfads_sld_dpro_loc,dmaqfads_sld_dmaqf_loc,dmaqfads_sld_dmsld_loc &! output
         & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
