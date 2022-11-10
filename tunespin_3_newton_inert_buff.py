@@ -15,8 +15,6 @@ phnorm_pw = True
 
 iter_max = 120
 
-shell='inert_tune_spinup_newton.sh'
-
 cec=4
 cec=float(sys.argv[2])
 targetpH = 5.8
@@ -38,7 +36,7 @@ dep_sample = 0.18
 dep_sample = 0.25
 
 
-outdir = '/storage/scratch1/0/ykanzaki3/pyweath_output/'
+outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
 # runname_field = 'test_inert_buff_spintuneup_field'
 # runname_lab = 'test_inert_buff_spintuneup_lab'
 simid = 'test_inert_fert_buff_3v'
