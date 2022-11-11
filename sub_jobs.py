@@ -2,10 +2,10 @@ import os
 import numpy as np
 import time 
 
-input_dir = './'
+input_dir = './data/'
 input_file = 'friendship.txt'
 
-data = np.loadtxt(input_file)
+data = np.loadtxt(input_dir+input_file)
 
 n_sample = data.shape[0]
 
