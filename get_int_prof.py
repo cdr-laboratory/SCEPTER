@@ -273,3 +273,100 @@ def get_water_site(outdir,runname,dep_sample):
         btmconcs.append(data[idep,isp])
     
     return sps,btmconcs,dep
+
+def get_waterave_site(outdir,runname,dep_sample):
+
+    infile  = outdir+runname+'/prof/prof_aq(tot)-020.txt'
+    data    = np.loadtxt(infile,skiprows=1)
+    print('using prof_aq(tot)-020')
+    
+    infile2  = outdir+runname+'/prof/bsd-020.txt'
+    data2    = np.loadtxt(infile2,skiprows=1)
+    print('using bsd-020')
+    
+    deps = data[:,0]
+    deps_list = [dep for dep in deps]
+    idep = 0
+    for dep in deps:
+        if dep_sample>=dep:
+            idep = deps_list.index(dep)
+    dep = deps[idep]
+    
+    with open(infile) as f:
+        first_line  = f.readline() 
+        sp_list     = first_line.split()
+        
+    with open(infile2) as f:
+        first_line  = f.readline() 
+        prop_list     = first_line.split()
+        
+    sat = data2[:,prop_list.index('sat')]
+    poro = data2[:,prop_list.index('poro')]
+    
+    # print(data2.shape)
+    # print(prop_list,prop_list.index('sat'),prop_list.index('poro'),sat,poro)
+        
+    sps = copy.copy(sp_list)
+    
+    del sps[0]
+    del sps[-1]
+    del sps[-1]
+    
+    btmconcs = []
+    
+    for sp in sps:
+        isp     = sp_list.index(sp)
+        btmconcs.append( 
+            np.average( data[:idep+1,isp]*poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ soil m3
+            /np.average( poro[:idep+1]*sat[:idep+1] )  # mol/ aq m3
+            )
+    
+    return sps,btmconcs,dep
+
+def get_totsave_site(outdir,runname,dep_sample):
+
+    infile  = outdir+runname+'/prof/prof_ex(tot)-020.txt'
+    data    = np.loadtxt(infile,skiprows=1)
+    print('using prof_ex(tot)-020')
+    
+    infile2  = outdir+runname+'/prof/bsd-020.txt'
+    data2    = np.loadtxt(infile2,skiprows=1)
+    print('using bsd-020')
+    
+    deps = data[:,0]
+    deps_list = [dep for dep in deps]
+    idep = 0
+    for dep in deps:
+        if dep_sample>=dep:
+            idep = deps_list.index(dep)
+    dep = deps[idep]
+    
+    with open(infile) as f:
+        first_line  = f.readline() 
+        sp_list     = first_line.split()
+        
+    with open(infile2) as f:
+        first_line  = f.readline() 
+        prop_list     = first_line.split()
+        
+    poro = data2[:,prop_list.index('poro')]
+    
+    # print(data2.shape)
+    # print(prop_list,prop_list.index('sat'),prop_list.index('poro'),sat,poro)
+        
+    sps = copy.copy(sp_list)
+    
+    del sps[0]
+    del sps[-1]
+    del sps[-1]
+    
+    btmconcs = []
+    
+    for sp in sps:
+        isp     = sp_list.index(sp)
+        btmconcs.append( 
+            np.average( data[:idep+1,isp] ) # mol/ soil m3
+            /np.average( (1 - poro[:idep+1]) )   # mol/ solid m3
+            )  
+    
+    return sps,btmconcs,dep

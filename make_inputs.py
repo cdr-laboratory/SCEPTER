@@ -330,6 +330,8 @@ def get_input_sld_properties(**kwargs):
         note = '** cec [cmol/kg], log10(KH-Na) [-] and beta specified by users (e.g., "g2   90   5.9  3.4") (if not specified assumed code default values)'
     elif filename == 'nopsd.in':
         note = '** list of minerals whose PSDs are not tracked for some reason'
+    elif filename == '2ndslds.in':
+        note = '** list of minerals whose precipitation is allowed'
     else:
         print('{} is not supposed to be input file'.format(filename))
     
@@ -348,7 +350,7 @@ def get_input_sld_properties(**kwargs):
             if i==0:
                 input_text += note + '\n'
             else:
-                if filename == 'nopsd.in':
+                if filename == 'nopsd.in' or filename == '2ndslds.in':
                     input_text += sld_varlist[i][0] + '\n'
                 elif filename == 'cec.in':
                     input_text += sld_varlist[i][0] + '\t' + str(sld_varlist[i][1])+ '\t' + str(sld_varlist[i][2])+ '\t' + str(sld_varlist[i][3]) + '\n'
@@ -367,7 +369,8 @@ def get_input_sld_properties(**kwargs):
     
 def main():
 
-    outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
+    # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
+    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
     runname = 'test_input'
     
     ztot=0.5
@@ -491,7 +494,7 @@ def main():
         ,sld_varlist=sld_varlist
         )
     filename = 'cec.in'
-    sld_varlist = [('inrt',4,4.1) ,('g2',4,4.1) ] 
+    sld_varlist = [('inrt',4,4.1,3.4) ,('g2',4,4.1,3.4) ] 
     get_input_sld_properties(
         outdir=outdir
         ,runname=runname
@@ -505,6 +508,17 @@ def main():
         ,runname=runname
         ,filename = filename
         ,sld_varlist=sld_varlist
+        )
+    filename = '2ndslds.in'
+    srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_def.in'
+    srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_rm_al2o3.in'
+    sld_varlist =[]
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,srcfile = srcfile
+        # ,sld_varlist=sld_varlist
         )
     
    

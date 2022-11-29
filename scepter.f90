@@ -609,14 +609,15 @@ integer count_dtunchanged,count_dtunchanged_Max_loc
 integer,intent(in):: count_dtunchanged_Max  
 
 integer,intent(in)::nsp_sld != 5
-#ifdef diss_only
-integer,parameter::nsp_sld_2 = 0
-#else
-integer,parameter::nsp_sld_2 = 25
+! #ifdef diss_only
+! integer,parameter::nsp_sld_2 = 0
+! #else
+integer nsp_sld_2 != 25
+! integer,parameter::nsp_sld_2 = 25
 ! integer,parameter::nsp_sld_2 = 24 ! removing dolomite from secondary minerals
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 ! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
-#endif 
+! #endif 
 integer,parameter::nsp_sld_all = 77
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
@@ -634,7 +635,8 @@ integer :: nflx ! = 5 + nrxn_ext + nsp_sld
 integer,intent(in)::nsld_kinspc_in
 integer :: nsld_kinspc,nsld_kinspc_add
 character(5),dimension(nsp_sld),intent(in)::chrsld
-character(5),dimension(nsp_sld_2)::chrsld_2
+character(5),dimension(:),allocatable::chrsld_2
+! character(5),dimension(nsp_sld_2)::chrsld_2
 character(5),dimension(nsp_sld_all)::chrsld_all
 character(5),dimension(nsp_sld_all - nsp_sld)::chrsld_cnst
 character(5),dimension(nsp_aq),intent(in)::chraq
@@ -952,12 +954,22 @@ chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n2
 ! define solid species which can precipitate
 ! in default, all minerals only dissolve 
 ! should be chosen from the chrsld list
-#ifdef diss_only
-chrsld_2(:) = '     '
-#else
-chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
-    & ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'  &
-    & ,'amal ','amfe3' /) 
+! #ifdef diss_only
+! chrsld_2(:) = '     '
+! #else
+! chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
+    ! & ,'arg  ','dlm  ','qtz  ','mgbd ','nabd ','kbd  ','phsi ','casp ','ksp  ','nasp ','mgsp ','al2o3'  &
+    ! & ,'amal ','amfe3' /) 
+    
+call get_2ndsld_num(nsp_sld_2)
+
+if (allocated(chrsld_2)) deallocate(chrsld_2)
+allocate(chrsld_2(nsp_sld_2))
+
+call get_2ndsld( &
+    & nsp_sld_2 &! input
+    & ,chrsld_2 &! output
+    & )
     
 ! version that removes dolomite from 2ndary minerals
 ! chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','ill  ','anl  ','gps  '  &
@@ -972,7 +984,7 @@ chrsld_2 = (/'cc   ','ka   ','gb   ','ct   ','gt   ','cabd ','amsi ','hm   ','il
 ! chrsld_2 = (/'ka   ','gb   ','ct   ','gt   ','amsi ','hm   ','gps  '  &
     ! & ,'qtz  ','al2o3','amal '  &
     ! & ,'amfe3' /) 
-#endif 
+! #endif 
 ! below are species which are sensitive to pH 
 chraq_ph   = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
     & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
@@ -3717,8 +3729,8 @@ do while (it<nt)
                         ! psu_rain_list = (/ log10(1.9d-6), log10(1.9d-6),  log10(1.9d-6), log10(1.9d-6) /)
                         ! psu_rain_list = (/ log10(1.8d-6), log10(1.8d-6),  log10(1.8d-6), log10(1.8d-6) /)  ! for 9.6 m2/g
                         ! psu_rain_list = (/ log10(1.5d-6), log10(1.5d-6),  log10(1.5d-6), log10(1.5d-6) /)
-                        ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
-                        psu_rain_list = (/ log10(50d-6), log10(50d-6),  log10(50d-6), log10(50d-6) /)
+                        psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
+                        ! psu_rain_list = (/ log10(50d-6), log10(50d-6),  log10(50d-6), log10(50d-6) /)
                         ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
                         ! psu_rain_list = (/ log10(0.1d-6), log10(0.1d-6),  log10(0.1d-6), log10(0.1d-6) /)
                         ! psu_rain_list = (/ log10(0.01d-6), log10(0.01d-6),  log10(0.01d-6), log10(0.01d-6) /)
@@ -6865,6 +6877,61 @@ endsubroutine get_nopsd
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine get_2ndsld_num(nsp_sld_2)
+implicit none
+
+integer,intent(out):: nsp_sld_2
+
+character(500) file_name
+integer n_tmp
+
+file_name = './2ndslds.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+nsp_sld_2 = n_tmp
+
+
+endsubroutine get_2ndsld_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_2ndsld( &
+    & nsp_sld_2 &! input
+    & ,chrsld_2 &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld_2
+character(5),dimension(nsp_sld_2),intent(out)::chrsld_2
+character(5) chr_tmp
+
+character(500) file_name
+integer i
+
+file_name = './2ndslds.in'
+
+if (nsp_sld_2 <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,nsp_sld_2
+    read(50,*) chr_tmp
+    chrsld_2(i) = chr_tmp
+enddo 
+close(50)
+
+
+endsubroutine get_2ndsld
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine Console4(file_name,i)
 
 implicit none
@@ -7761,7 +7828,8 @@ kin = 0d0
 dkin_dmsp = 0d0
 
 select case(trim(adjustl(mineral)))
-    case('ka','al2o3') ! corundum dissolution rate is assumed to be the same as kaolinite (cf., Carroll-Webb and Walther, 1988)
+    ! case('ka','al2o3') ! corundum dissolution rate is assumed to be the same as kaolinite (cf., Carroll-Webb and Walther, 1988)
+    case('ka') ! corundum dissolution rate is assumed to be the same as kaolinite (cf., Carroll-Webb and Walther, 1988)
         mh = 0.777d0
         moh = -0.472d0
         kinn_ref = 10d0**(-13.18d0)*sec2yr
@@ -8726,7 +8794,7 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
         
-    case('fe2o','mgo','k2o','cao','na2o')
+    case('fe2o','mgo','k2o','cao','na2o','al2o3')
         kin = ( &
             & 1d0/0.01d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
             & )
@@ -10860,6 +10928,8 @@ if (.not. print_cb) then
                     ! stop
                     if (error >= tol) then 
                         stop
+                        ! ph_error = .true.
+                        ! return
                     else
                         print *, ' error is small so do not care the above message'
                         prox(iz) = 10d0**(-0.5d0*(ph_max + ph_min))
