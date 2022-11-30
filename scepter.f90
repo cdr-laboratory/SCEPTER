@@ -3693,6 +3693,8 @@ do while (it<nt)
                         & + plant_rain/mwt(isps)*rfrc_sld_plant(isps)/dz(1) ! when plant_rain is in g_(isps)/m2/yr
                 case default
                     ! not doing anything
+                    msldsupp(isps,1) = msldsupp(isps,1) &
+                        & + plant_rain/mwt(isps)*rfrc_sld_plant(isps)/dz(1) ! when plant_rain is in g_(isps)/m2/yr
             endselect
         endif 
     enddo 
