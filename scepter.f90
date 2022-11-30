@@ -10457,8 +10457,10 @@ integer info,nmx
 real(kind=8),parameter :: threshold = 10d0
 real(kind=8),parameter :: corr = exp(threshold)
 
-real(kind=8) ph_tmp,ph_fact,err1,err2,slp,slplog,ph_tmp_min,ph_tmp_max
+real(kind=8) ph_tmp,ph_fact,err1,err2,slp,slplog,ph_tmp_min,ph_tmp_max,slp_save
 real(kind=8) ph_max,ph_min 
+real(kind=8) u
+integer judge
 
 real(kind=8) f1_min_save,ph_f1min_save
 real(kind=8),parameter :: ph_init_min = 1d-20
@@ -10739,7 +10741,7 @@ if (.not. print_cb) then
             prox_tmp1 = prox
             prox_tmp2 = prox
             
-            print *, 'not converged @ ',iz,ph_min,ph_max,error_save(iz)
+            print *, 'not converged @ ',iz,ph_min,ph_max,error_save(iz),-log10(prox_save_newton(iz))
             print *, maqf_loc(findloc(chraq_all,'ca',dim=1),iz) &
                 & ,maqf_loc(findloc(chraq_all,'no3',dim=1),iz) &
                 & ,maqf_loc(findloc(chraq_all,'oxa',dim=1),iz) 
@@ -10754,7 +10756,9 @@ if (.not. print_cb) then
                 ! ph_tmp_max = ph_init_max
                 ph_tmp_min = 10d0**-ph_max
                 ph_tmp_max = 10d0**-ph_min
-                
+
+                ! initially give slp a random negative value to be saved to slp_save
+                slp = -100d0
                 ! print *,'start from alkaline pH'
                 do iph2=1,nph2 ! start from alkaline pH
                     ph_tmp = ph_max + (ph_min - ph_max) &
@@ -10802,6 +10806,7 @@ if (.not. print_cb) then
                         stop
                     endif 
                     
+                    slp_save = slp
                     slp = ( err1 - err2) / (2d0*dconc)
                     slplog = ( err1 - err2) / (-dlog10(prox_tmp1(iz)) - (-dlog10(prox_tmp1(iz)))  )
                     
@@ -10824,9 +10829,10 @@ if (.not. print_cb) then
                         stop
                     endif 
                     
-                    ! print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_min)
+                    print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_min)
                     
-                    if (slp <= 0d0 .and. f1_dum(iz) <= 0d0) ph_tmp_min = max(ph_tmp_min,ph_tmp)
+                    ! if (slp <= 0d0 .and. f1_dum(iz) <= 0d0) ph_tmp_min = max(ph_tmp_min,ph_tmp)
+                    if (slp_save <= 0d0 .and. slp <= 0d0 .and. f1_dum(iz) <= 0d0) ph_tmp_min = max(ph_tmp_min,ph_tmp)
                     
                     if (abs(f1_dum(iz)) < f1_min_save) then
                         f1_min_save = abs(f1_dum(iz))
@@ -10835,6 +10841,8 @@ if (.not. print_cb) then
                 
                 enddo 
                 
+                ! initially give slp a random positive value to be saved to slp_save
+                slp = 100d0
                 ! print *,'start from acidic pH'
                 do iph2=nph2,1,-1 ! start from acidic pH
                     ph_tmp = ph_max + (ph_min - ph_max) &
@@ -10882,6 +10890,7 @@ if (.not. print_cb) then
                         stop
                     endif 
                     
+                    slp_save = slp
                     slp = ( err1 - err2) / (2d0*dconc)
                     slplog = ( err1 - err2) / (-dlog10(prox_tmp1(iz)) - (-dlog10(prox_tmp1(iz)))  )
                     
@@ -10907,9 +10916,10 @@ if (.not. print_cb) then
                         stop
                     endif 
                         
-                    ! print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_max)
+                    print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_max)
                     
-                    if (slp >= 0d0 .and. f1_dum(iz) >= 0d0) ph_tmp_max = min(ph_tmp_max,ph_tmp)
+                    ! if (slp >= 0d0 .and. f1_dum(iz) >= 0d0) ph_tmp_max = min(ph_tmp_max,ph_tmp)
+                    if (slp_save >= 0d0 .and. slp >= 0d0 .and. f1_dum(iz) >= 0d0) ph_tmp_max = min(ph_tmp_max,ph_tmp)
                     
                     ! if (abs(f1_dum(iz)) < f1_min_save) then
                         ! f1_min_save = abs(f1_dum(iz))
@@ -10942,9 +10952,25 @@ if (.not. print_cb) then
                 
                 if (ph_min > ph_max) then 
                     print *, 'ph_min > ph_max detected: something is wrong in bracketing root'
+                    print *, 'Possibility: there could be 2 solutions to charge balance equation'
+                    print *, '--> discard ph_min or ph_max randomly and get a new ph_min or ph_max as a midpoint'
                     ! stop
                     if (error >= tol) then 
-                        stop
+                        ! stop
+                        
+                        ph_tmp = ph_min
+                        ph_min = ph_max
+                        ph_max = ph_tmp
+                        
+                        call random_number(u)
+                        judge = 0 + FLOOR(2*u)
+                        
+                        if (judge ==0) then
+                            ph_min = 0.5d0*(ph_min + ph_max)
+                        else
+                            ph_max = 0.5d0*(ph_min + ph_max)
+                        endif 
+                        
                         ! ph_error = .true.
                         ! return
                     else
