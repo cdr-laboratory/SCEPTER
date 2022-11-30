@@ -246,6 +246,7 @@ real(kind=8),parameter :: mvteas = 149.190d0/1.124d0 ! cm3/mol; from MES monohyd
 real(kind=8),parameter :: mvnaoh = 39.9971d0/2.13d0 ! cm3/mol; from NaOH Molar mass 39.9971 g·mol−1 and Density 2.13 g/cm3 from https://en.wikipedia.org/wiki/Sodium_hydroxide
 real(kind=8),parameter :: mvnaglp = 216.036d0/1.5d0 ! cm3/mol; from sodium glycerophosphate Molar mass 216.036 g·mol−1 and assuming Density 1.5 g/cm3 
 real(kind=8),parameter :: mvcacl2 = 110.98d0/2.15d0 ! cm3/mol; from CaCl2 Molar mass 110.98 g·mol−1 and assuming Density 2.15 g/cm3 both from https://en.wikipedia.org/wiki/Calcium_chloride
+real(kind=8),parameter :: mvnacl = 27.015d0 ! cm3/mol; molar volume of halite; from Robie et al. 1978
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
@@ -343,7 +344,8 @@ real(kind=8),parameter :: mwtims =  68.077d0 ! g/mol; from Imidazole monohydrate
 real(kind=8),parameter :: mwtteas = 149.190d0 ! g/mol; from TEA Molar mass 149.190 g·mol−1 and Density 1.124 g/cm3 from https://en.wikipedia.org/wiki/Triethanolamine
 real(kind=8),parameter :: mwtnaoh = 39.9971d0 ! g/mol; from NaOH Molar mass 39.9971 g·mol−1 and Density 2.13 g/cm3 from https://en.wikipedia.org/wiki/Sodium_hydroxide
 real(kind=8),parameter :: mwtnaglp = 216.036d0 ! g/mol; from NaOH Molar mass 216.036 g·mol−1 from https://en.wikipedia.org/wiki/Sodium_glycerophosphate
-real(kind=8),parameter :: mwtcacl2 = 110.98d0 ! cm3/mol; from CaCl2 Molar mass 110.98 g·mol−1 from https://en.wikipedia.org/wiki/Calcium_chloride
+real(kind=8),parameter :: mwtcacl2 = 110.98d0 ! g/mol; from CaCl2 Molar mass 110.98 g·mol−1 from https://en.wikipedia.org/wiki/Calcium_chloride
+real(kind=8),parameter :: mwtnacl = 58.443d0 ! g/mol; molar weight of halite; Robie et al. 1978 
 
  
 real(kind=8),parameter :: mvgbas = ( &
@@ -618,7 +620,7 @@ integer nsp_sld_2 != 25
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 ! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
 ! #endif 
-integer,parameter::nsp_sld_all = 77
+integer,parameter::nsp_sld_all = 78
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 17
@@ -935,6 +937,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
     & ,'sdn  ','cdr  ','leu  ','amal ','amfe3' &
     & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ','teas ','naoh ','naglp','cacl2' &
+    & ,'nacl ' &
     & ,'inrt '/)
 chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
     & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
@@ -1037,13 +1040,13 @@ mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mv
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
     & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu,mvamal,mvamfe3 &
-    & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh,mvnaglp,mvcacl2  &
+    & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh,mvnaglp,mvcacl2,mvnacl  &
     & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
     & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal,mvamfe3 &
-    & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh,mwtnaglp,mwtcacl2 &
+    & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh,mwtnaglp,mwtcacl2,mwtnacl &
     & ,mwtinrt/)
 
 do isps = 1, nsp_sld 
@@ -1526,6 +1529,10 @@ staq_all(findloc(chrsld_all,'naglp',dim=1), findloc(chraq_all,'glp',dim=1)) = 1d
 staq_all(findloc(chrsld_all,'cacl2',dim=1), findloc(chraq_all,'cl',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'cacl2',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 
+! halite: NaCl
+staq_all(findloc(chrsld_all,'nacl',dim=1), findloc(chraq_all,'cl',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'nacl',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
+
 
 staq = 0d0
 stgas = 0d0
@@ -1823,7 +1830,7 @@ fkin   = 1d0
 
 do isps = 1, nsp_sld
     select case(trim(adjustl(chrsld(isps))))
-        case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2')
+        case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2','nacl')
             precstyle(isps) = 'decay'
         case('cc','arg','dlm') ! added to change solubility 
             precstyle(isps) = 'def'
@@ -8980,7 +8987,7 @@ select case(trim(adjustl(mineral)))
         ! kin = kref
         dkin_dmsp = 0d0
         
-    case('kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2')
+    case('kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2','nacl')
         kin = ( &
             & 1d0/0.01d0 &! just a value assumed; turnover time of 0.1 year for NH4NO3 
             & )
@@ -9388,6 +9395,14 @@ select case(trim(adjustl(mineral)))
         ! Al2O3 +6.0000 H+  =  + 2.0000 Al+++ + 3.0000 H2O
         therm_ref = 10d0**(18.3121d0)
         ha = -258.626d0
+        tc_ref = 25d0
+        ! from llnl.dat
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('nacl')
+        ! Halite
+        ! NaCl  =  + 1.0000 Cl- + 1.0000 Na+
+        therm_ref = 10d0**(1.5855d0)
+        ha = 3.7405d0
         tc_ref = 25d0
         ! from llnl.dat
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
@@ -13442,8 +13457,9 @@ select case(trim(adjustl(mineral)))
         if (.not.act_ON) domega_dios_loc = 0d0
         if (act_ON)      domega_dios_loc = domega_dios_loc*omega
         
-    case('gps') ! sulfates
-    ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O
+    case('gps','nacl') ! salts (sulfates/chlorides)
+    ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O   
+    ! NaCl = Na+ + Cl-
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
         fkeq = 1d0
@@ -13457,9 +13473,17 @@ select case(trim(adjustl(mineral)))
                     & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)/maqf_loc(ispa,:)*1d0 &
                     & )
                     
-                fkeq  = fkeq * gamma(2,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
-                domega_dios_loc = domega_dios_loc &
-                    & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)*dgamma_dios(2,:)/gamma(2,:)
+                selectcase(trim(adjustl(chraq_all(ispa)))) 
+                    case('na','k','cl')
+                        gamma_tmp = gamma(1,:)
+                        fkeq  = fkeq * gamma(1,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                        domega_dios_loc = domega_dios_loc &
+                            & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)*dgamma_dios(1,:)/gamma(1,:)
+                    case('ca','mg','so4')
+                        fkeq  = fkeq * gamma(2,:)**staq_all(findloc(chrsld_all,mineral,dim=1),ispa)
+                        domega_dios_loc = domega_dios_loc &
+                            & + staq_all(findloc(chrsld_all,mineral,dim=1),ispa)*dgamma_dios(2,:)/gamma(2,:)
+                endselect
             endif 
         enddo 
         
