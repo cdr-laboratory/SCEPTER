@@ -3,9 +3,15 @@ import numpy as np
 import time 
 
 input_dir = './data/'
+# input_dir = './'
 input_file = 'friendship.txt'
+input_file = 'GAdata.txt'
+input_file = 'SL004810.txt'
+skip_file = 'GA_fail.txt'
 
-data = np.loadtxt(input_dir+input_file)
+data = np.loadtxt(input_dir+input_file,skiprows=1)
+skipdata = np.loadtxt(skip_file)
+skipdata = [int(i) for i in skipdata]
 
 n_sample = data.shape[0]
 
@@ -22,23 +28,43 @@ for i in range(n_sample):
 
     runtime = '12:20:00'
     soft    = 'python3'
+    
+    if 'friendship' in input_file:
 
-    runid   = data[i,0]
-    soilpH  = data[i,1]
-    om      = data[i,2]
-    cec     = data[i,3]
-    acid    = data[i,4]
-    buffpH  = data[i,5]
+        runid   = data[i,0]
+        soilpH  = data[i,1]
+        om      = data[i,2]
+        cec     = data[i,3]
+        acid    = data[i,4]
+        buffpH  = data[i,5]
+    
+        if acid ==0:acid = 0.1 
+        if soilpH  ==5.6: soilpH  = 5.7 
+    
+    elif 'GAdata' in input_file:
+        runid   = data[i,0]
+        soilpH  = data[i,8]
+        om      = 5  # no data given
+        cec     = data[i,1]
+        acid    = data[i,6]
+        buffpH  = 7  # no data given
+    
+    elif 'SL004810' in input_file:
+
+        runid   = data[i,0]
+        soilpH  = data[i,1]
+        om      = data[i,2]
+        cec     = data[i,3]
+        acid    = data[i,4]
+        buffpH  = 7  # no data given
     
     
     if len(runs_chosen)!=0 and runid not in runs_chosen: continue
     
-    if acid ==0:acid = 0.1 
-    if soilpH  ==5.6: soilpH  = 5.7 
-    
     if runtype == 'spinup':
         
         code    = 'tunespin_3_newton_inert_buff.py'
+        code    = 'tunespin_3_newton_inert_buff_v2.py'
         # code    = 'tunespin_3b_newton_inert_buff.py'
         
         if code == 'tunespin_3b_newton_inert_buff.py' and np.isnan(buffpH): continue
@@ -48,6 +74,10 @@ for i in range(n_sample):
         # runname = 'potato_fert_'+str(int(runid))
         # runname = 'potato_fert_pw_'+str(int(runid))
         runname = 'potato_buff_'+str(int(runid))
+        runname = 'GA_OM5_sph_'+str(int(runid))
+        runname = input_file.replace('.txt','')+'_'+str(int(runid))
+        
+        runname += '_sph'
 
         jobname = runname
 
@@ -81,17 +111,22 @@ for i in range(n_sample):
     elif runtype == 'basalt':
     
         if acid <= 0.1 : continue
+        
+        if 'GAdata' in input_file and int(runid) in skipdata: continue
     
         code    = 'basalt_buff_tunespin_bisec.py'
     
         # runname = 'potato_bas_'+str(int(runid))
         # runname = 'potato_bas_pw_'+str(int(runid))
         # runname = 'potato_bas_fert_50u_'+str(int(runid))
-        runname = 'potato_bas_50u_'+str(int(runid))
+        # runname = 'potato_bas_50u_'+str(int(runid))
+        # runname = 'potato_bas_50u_'+str(int(runid))
+        runname = 'GA_OM5_sph_bas_10u_'+str(int(runid))
         
-        spinname = 'potato_'+str(int(runid))
+        # spinname = 'potato_'+str(int(runid))
         # spinname = 'potato_pw_'+str(int(runid))
         # spinname = 'potato_fert_'+str(int(runid))
+        spinname = 'GA_OM5_sph_'+str(int(runid))
         
         targetpHs = [6.5, 6.8]
         targettaus = [1]

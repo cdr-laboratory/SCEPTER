@@ -52,7 +52,8 @@ runname_field   = expid+'_basalt_field_tpH'+sys.argv[1].replace('.','p')+'_tau'+
 runname_lab     = expid+'_basalt_lab_tpH'+sys.argv[1].replace('.','p')+'_tau'+sys.argv[2].replace('.','p')
 # runname = 'chk_iter_incl2nd_basalt_tpH'+sys.argv[1].replace('.','p')+'_tau'+sys.argv[2].replace('.','p')
 
-outdir='/storage/scratch1/0/ykanzaki3/scepter_output/'
+# outdir='/storage/scratch1/0/ykanzaki3/scepter_output/'
+outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
 datadir='./data/'
 
 # dupricate directories from spinups
@@ -87,6 +88,8 @@ with open(src, 'r') as file:
     data = file.readlines()
 data[2] = '2\tbio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken\n'
 data[7] = 'true\trestart from a previous run\n'
+data[-3] = 'true\tenabling PSD tracking\n'
+data[-2] = 'true\tenabling PSD tracking for individual solid species\n'
 with open(dst, 'w') as file:
     file.writelines(data)
 
@@ -169,6 +172,21 @@ with open(src, 'r') as file:
 data.insert(1, 'gbas\t0\n')
 with open(dst, 'w') as file:
     file.writelines(data)
+    
+filename = '2ndslds.in'
+srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_def.in'
+make_inputs.get_input_sld_properties(
+    outdir=outdir
+    ,runname=runname_field
+    ,filename = filename
+    ,srcfile = srcfile
+    )
+make_inputs.get_input_sld_properties(
+    outdir=outdir
+    ,runname=runname_lab
+    ,filename = filename
+    ,srcfile = srcfile
+    )
     
 # compile 
 os.system('make')

@@ -32,11 +32,13 @@ ca=35 # uM
 
 dense_lab = 2.59296482412060000 # only inertphase
 
-dep_sample = 0.18
-dep_sample = 0.25
+dep_sample = 0.15
+# dep_sample = 0.18
+# dep_sample = 0.25
 
 
-outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
+# outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
+outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
 # runname_field = 'test_inert_buff_spintuneup_field'
 # runname_lab = 'test_inert_buff_spintuneup_lab'
 simid = 'test_inert_fert_buff_3v'
@@ -100,6 +102,7 @@ runid_lab=runname_lab
 N_rain = 0  # gN/m2/yr
 N_rain = 8.406375  # gN/m2/yr ( <---> 75 lbs/acre/year)
 N_rain = 24.6587   # gN/m2/yr ( <---> 220 lbs/acre/year)
+N_rain = 28.0213   # gN/m2/yr ( <---> 250 lbs/acre/year)
 N_rain = N_rain/14  # mol N/m2/yr
 N_rain = N_rain*80  # g NH4NO3/m2/yr
 N_rain = N_rain/2.  # only half is required as 1 mol NH4NO3 contains 2 moles of N
@@ -238,6 +241,16 @@ make_inputs.get_input_sld_properties(
     ,sld_varlist=sld_varlist
     )
     
+filename = '2ndslds.in'
+srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_def.in'
+make_inputs.get_input_sld_properties(
+    outdir=outdir
+    ,runname=runname_field
+    ,filename = filename
+    ,srcfile = srcfile
+    )
+    
+    
 # ============= buffer exp. setup ============= 
 make_inputs.get_input_frame(
     outdir=outdir
@@ -346,6 +359,15 @@ make_inputs.get_input_sld_properties(
     ,filename = filename
     ,sld_varlist=sld_varlist
     )
+    
+filename = '2ndslds.in'
+srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_def.in'
+make_inputs.get_input_sld_properties(
+    outdir=outdir
+    ,runname=runname_lab
+    ,filename = filename
+    ,srcfile = srcfile
+    )
 
 
 
@@ -362,6 +384,7 @@ while (error > tol):
     amx = np.zeros((3,3),dtype=np.float64)
     
     facts = [1e-4]*3
+    # facts = [1e-2]*3
 
     # command = ' {:.8f} {:.8f} {:.8f} {}'.format(cec,np.log10(kh),ca,runname)  
     
@@ -410,6 +433,7 @@ while (error > tol):
         )
 
     N_rain = 8.406375  # gN/m2/yr
+    N_rain = 28.0213   # gN/m2/yr ( <---> 250 lbs/acre/year)
     N_rain = N_rain/14  # mol N/m2/yr
     N_rain = N_rain*80  # g NH4NO3/m2/yr
     N_rain = N_rain/2.  # only half is required as 1 mol NH4NO3 contains 2 moles of N
@@ -576,9 +600,9 @@ while (error > tol):
     dphint = get_int_prof.get_ph_int_site(outdir,runname_lab,dep_sample)
     
     
-    # dphint_dca = (dphint_field-phint_field)/dca * ca
+    # if phnorm_pw:       dphint_dca = (dphint_field-phint_field)/dca * ca
+    # if not phnorm_pw:   dphint_dca = (dphint-phint)/dca * ca
     if phnorm_pw:       dphint_dca = (10**-dphint_field-10**-phint_field)/dca * ca
-    # dphint_dca = (dphint-phint)/dca * ca
     if not phnorm_pw:   dphint_dca = (10**-dphint-10**-phint)/dca * ca
     dacint_dca = (dacint-acint)/dca * ca
     domint_dca = (domint-omint)/dca * ca
@@ -684,9 +708,9 @@ while (error > tol):
 
     # dphint_dlogkh = (dphint-phint)/dlogkh
     # dacint_dlogkh = (dacint-acint)/dlogkh
-    # dphint_dlogkh = (dphint_field-phint_field)/dkh * kh
+    # if phnorm_pw:       dphint_dlogkh = (dphint_field-phint_field)/dkh * kh
+    # if not phnorm_pw:   dphint_dlogkh = (dphint-phint)/dkh * kh
     if phnorm_pw:       dphint_dlogkh = (10**-dphint_field-10**-phint_field)/dkh * kh
-    # dphint_dlogkh = (dphint-phint)/dkh * kh
     if not phnorm_pw:   dphint_dlogkh = (10**-dphint-10**-phint)/dkh * kh
     dacint_dlogkh = (dacint-acint)/dkh * kh
     domint_dlogkh = (domint-omint)/dkh * kh
@@ -741,6 +765,7 @@ while (error > tol):
         )
 
     N_rain = 8.406375  # gN/m2/yr
+    N_rain = 28.0213   # gN/m2/yr ( <---> 250 lbs/acre/year)
     N_rain = N_rain/14  # mol N/m2/yr
     N_rain = N_rain*80  # g NH4NO3/m2/yr
     N_rain = N_rain/2.  # only half is required as 1 mol NH4NO3 contains 2 moles of N
@@ -830,9 +855,9 @@ while (error > tol):
 
     # dphint_dlogkh = (dphint-phint)/dlogkh
     # dacint_dlogkh = (dacint-acint)/dlogkh
-    # dphint_domrain = (dphint_field-phint_field)/domrain * omrain_field
+    # if phnorm_pw:       dphint_domrain = (dphint_field-phint_field)/domrain * omrain_field
+    # if not phnorm_pw:   dphint_domrain = (dphint-phint)/domrain * omrain_field
     if phnorm_pw:       dphint_domrain = (10**-dphint_field-10**-phint_field)/domrain * omrain_field
-    # dphint_domrain = (dphint-phint)/domrain * omrain_field
     if not phnorm_pw:   dphint_domrain = (10**-dphint-10**-phint)/domrain * omrain_field
     dacint_domrain = (dacint-acint)/domrain * omrain_field
     domint_domrain = (domint-omint)/domrain * omrain_field
@@ -845,9 +870,9 @@ while (error > tol):
     # f1 = phint - targetpH = 0
     # f2 = acint - acidsat = 0
 
-    # ymx[0] = phint_field - targetpH
+    # if phnorm_pw:       ymx[0] = phint_field - targetpH
+    # if not phnorm_pw:   ymx[0] = phint - targetpH
     if phnorm_pw:       ymx[0] = 10**-phint_field - 10**-targetpH
-    # ymx[0] = phint - targetpH
     if not phnorm_pw:   ymx[0] = 10**-phint - 10**-targetpH
     ymx[1] = acint - acidsat 
     ymx[2] = omint - targetOM 
@@ -899,8 +924,10 @@ while (error > tol):
             omrain_field = omrain_field*np.exp(dx[2])
         # logkh = logkh+dx[1]    
 
-        # emx[0] = ymx[0]/targetpH
-        emx[0] = ymx[0]/10**-targetpH
+        # if phnorm_pw:       emx[0] = ymx[0]/targetpH
+        # if not phnorm_pw:   emx[0] = ymx[0]/targetpH
+        if phnorm_pw:       emx[0] = ymx[0]/10**-targetpH
+        if not phnorm_pw:   emx[0] = ymx[0]/10**-targetpH
         
         if acidsat!=0: 
             emx[1] = ymx[1]/acidsat 
@@ -922,6 +949,16 @@ while (error > tol):
                 # emx[2] = ymx[2]*1e2
 
         error = np.max(np.abs(emx))
+        
+        
+        # when log10 kh is below 1, calculation can become difficult
+        # if kh < 10**1:
+            # kh = 10**1
+            # error = 100
+        
+        # if omrain_field > 2000:
+            # omrain_field = 2000
+            
     
     print(' ')
     print(' ')
