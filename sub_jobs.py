@@ -8,9 +8,11 @@ input_file = 'friendship.txt'
 input_file = 'GAdata.txt'
 input_file = 'SL004810.txt'
 skip_file = 'GA_fail.txt'
+skip_file = 'SL004810_sph_fail.txt'
+skip_file = 'SL004810_FAIL_sph_N_spintuneup_field.txt'
 
 data = np.loadtxt(input_dir+input_file,skiprows=1)
-skipdata = np.loadtxt(skip_file)
+skipdata = np.loadtxt(input_dir+skip_file)
 skipdata = [int(i) for i in skipdata]
 
 n_sample = data.shape[0]
@@ -21,7 +23,7 @@ runs_chosen = [
     ]
 
 runtype = 'spinup'
-# runtype = 'basalt'
+runtype = 'basalt'
 
 for i in range(n_sample):
 
@@ -77,7 +79,8 @@ for i in range(n_sample):
         runname = 'GA_OM5_sph_'+str(int(runid))
         runname = input_file.replace('.txt','')+'_'+str(int(runid))
         
-        runname += '_sph'
+        # runname += '_sph'
+        runname += '_sph_N'
 
         jobname = runname
 
@@ -112,23 +115,37 @@ for i in range(n_sample):
     
         if acid <= 0.1 : continue
         
-        if 'GAdata' in input_file and int(runid) in skipdata: continue
+        # if 'GAdata' in input_file and int(runid) in skipdata: continue
+        if 'SL004810' in input_file and int(runid) in skipdata: continue
     
         code    = 'basalt_buff_tunespin_bisec.py'
+        code    = 'basalt_buff_tunespin_bisec_v2.py'
     
         # runname = 'potato_bas_'+str(int(runid))
         # runname = 'potato_bas_pw_'+str(int(runid))
         # runname = 'potato_bas_fert_50u_'+str(int(runid))
         # runname = 'potato_bas_50u_'+str(int(runid))
         # runname = 'potato_bas_50u_'+str(int(runid))
-        runname = 'GA_OM5_sph_bas_10u_'+str(int(runid))
+        # runname = 'GA_OM5_sph_bas_10u_'+str(int(runid))
+        runname = input_file.replace('.txt','')+'_'+str(int(runid))
         
         # spinname = 'potato_'+str(int(runid))
         # spinname = 'potato_pw_'+str(int(runid))
         # spinname = 'potato_fert_'+str(int(runid))
         spinname = 'GA_OM5_sph_'+str(int(runid))
+        spinname = input_file.replace('.txt','')+'_'+str(int(runid))
+        
+        # spinname += '_N'
+        # runname  += '_N_10u_bas'
+        # spinname += '_h'
+        # runname  += '_10u_bas'
+        # spinname += '_sph'
+        # runname  += '_sph_10u_bas'
+        spinname += '_sph_N'
+        runname  += '_sph_N_10u_bas'
         
         targetpHs = [6.5, 6.8]
+        targetpHs = [5.4, 5.6, 5.8]
         targettaus = [1]
         
         for targetpH in targetpHs:
