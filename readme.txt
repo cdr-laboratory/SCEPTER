@@ -8,9 +8,9 @@ scripts:
 get_int_prof.py                     - contain functions to get output data 
 make_inputs.py                      - contain functions to make input data
 tunespin_3_newton_inert_buff.py     - run 3 variable iterations (output dir needs to be specified)
-tunespin_3_newton_inert_buff_v2.py  - run 3 variable iterations (output dir needs to be specified)
+tunespin_3_newton_inert_buff_v2.py  - same as above but with an option to use soil pH with CaCl2
 water_amb.py                        - sample porewater and leave it in the beaker in lab (output dir needs to be specified; no use for pipeline?)
 basalt_buff_tunespin_bisec.py       - run basalt application for a target pH etc. (output dir needs to be specified)
-basalt_buff_tunespin_bisec_v2.py    - run basalt application for a target pH etc. (output dir needs to be specified)
+basalt_buff_tunespin_bisec_v2.py    - same as above but with an option to use soil pH with CaCl2
 sub_jobs.py                         - submit multiple jobs (for spinup and basalt exp)
 run_a_shell.sbatch                  - submit a single job (for GT cluster)
