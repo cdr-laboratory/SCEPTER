@@ -413,8 +413,8 @@ real(kind=8),intent(in) :: p80 != 1d-6 ! m
 real(kind=8),dimension(nz):: pro,prox,poroprev,hrb,vprev,torgprev,toraprev,wprev,ssab,int_ph
 real(kind=8),dimension(nz):: ios,iosx
 real(kind=8),dimension(nz):: dummy,up,dwn,cnr,adf
-real(kind=8) :: rough_c0 != 10d0**(3.3d0)
-real(kind=8) :: rough_c1 != 0.33d0
+real(kind=8) :: rough_c0_b = 10d0**(3.3d0)
+real(kind=8) :: rough_c1_b = 0.33d0
 real(kind=8) :: c_disp,c0_disp,c1_disp,zdisp  ! dispersion coefficients 
 real(kind=8),parameter :: disp_FULL = 1d0
 real(kind=8),dimension(nz) :: disp,dispprev  ! dispersion coefficients 
@@ -779,6 +779,8 @@ real(kind=8),dimension(nsp_sld)::minsld
 ! attempting to do surface area calculation for individual sld sp. 
 real(kind=8),dimension(nsp_sld,nz):: hr,ssa,hrprev,rough,hri,ssv,ssav
 real(kind=8),dimension(nsp_sld):: hrii
+real(kind=8),dimension(nsp_sld) :: rough_c0 != 10d0**(3.3d0)
+real(kind=8),dimension(nsp_sld) :: rough_c1 != 0.33d0
 integer nsld_sa
 character(5),dimension(:),allocatable::chrsld_sa
 real(kind=8) time_pbe,dt_pbe,dt_save
@@ -2343,7 +2345,8 @@ rough_c1 = 0.33d0
 if (incld_rough) then 
     ! rough = 10d0**(3.3d0)*p80**0.33d0 ! from Navarre-Sitchler and Brantley (2007)
     do isps=1,nsp_sld
-        rough(isps,:) = rough_c0*(1d0/hri(isps,:))**rough_c1 ! from Navarre-Sitchler and Brantley (2007)
+        ! rough(isps,:) = rough_c0*(1d0/hri(isps,:))**rough_c1 ! from Navarre-Sitchler and Brantley (2007)
+        rough(isps,:) = rough_c0(isps)*(1d0/hri(isps,:))**rough_c1(isps) ! from Navarre-Sitchler and Brantley (2007)
     enddo 
 endif 
 
@@ -2431,9 +2434,9 @@ if (do_psd) then
             else 
                 do iz=1,nz
                     ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 &
-                        & *rough_c0*(10d0**ps(:))**rough_c1*mpsd(isps,:,iz)*dps(:))
+                        & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
                     ssav(isps,iz) = sum( 3d0/(10d0**ps(:)) & 
-                        & *rough_c0*(10d0**ps(:))**rough_c1*mpsd(isps,:,iz)*dps(:))
+                        & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
                 enddo 
             endif 
             do iz=1,nz
@@ -2477,8 +2480,8 @@ if (do_psd) then
             enddo 
         else 
             do iz=1,nz
-                ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))
-                ssav(:,iz) = sum( 3d0/(10d0**ps(:)) *rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))
+                ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 *rough_c0_b*(10d0**ps(:))**rough_c1_b*psd(:,iz)*dps(:))
+                ssav(:,iz) = sum( 3d0/(10d0**ps(:)) *rough_c0_b*(10d0**ps(:))**rough_c1_b*psd(:,iz)*dps(:))
             enddo 
         endif 
         do iz=1,nz
@@ -2893,7 +2896,7 @@ if (read_data) then
     if (incld_rough) then 
         ! rough = 10d0**(3.3d0)*p80**0.33d0 ! from Navarre-Sitchler and Brantley (2007)
         do isps=1,nsp_sld
-            rough(isps,:) = rough_c0*(1d0/hri(isps,:))**rough_c1 ! from Navarre-Sitchler and Brantley (2007)
+            rough(isps,:) = rough_c0(isps)*(1d0/hri(isps,:))**rough_c1(isps) ! from Navarre-Sitchler and Brantley (2007)
         enddo 
     endif 
     
@@ -2950,9 +2953,9 @@ if (read_data) then
             else 
                 do iz=1,nz
                     ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 &
-                        & *rough_c0*(10d0**ps(:))**rough_c1*mpsd(isps,:,iz)*dps(:))
+                        & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
                     ssav(isps,iz) = sum( 3d0/(10d0**ps(:)) & 
-                        & *rough_c0*(10d0**ps(:))**rough_c1*mpsd(isps,:,iz)*dps(:))
+                        & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
                 enddo 
             endif 
             do iz=1,nz
@@ -3714,10 +3717,10 @@ do while (it<nt)
     ! do PSD for raining dust & OM 
     if (do_psd) then 
 
-        open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_rain.txt',status = 'replace')
+        if (dust_norm>0d0) open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_rain.txt',status = 'replace')
         
         if (do_psd_full) then 
-            write(ipsd,*) ' sldsp\log10(radius) ', (ps(ips),ips=1,nps), 'time'
+            if (dust_norm>0d0) write(ipsd,*) ' sldsp\log10(radius) ', (ps(ips),ips=1,nps), 'time'
         
             do iz = 1,nz
 
@@ -3730,7 +3733,7 @@ do while (it<nt)
                         psu_rain_list = (/ log10(p80), log10(p80),  log10(p80), log10(p80) /)
                         pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
                     else 
-                        ! psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+                        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
                         ! psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
                         ! psu_rain_list = (/ log10(5d-6), log10(5d-6),  log10(5d-6), log10(5d-6) /)
                         ! psu_rain_list = (/ log10(3d-6), log10(3d-6),  log10(3d-6), log10(3d-6) /)
@@ -3738,7 +3741,9 @@ do while (it<nt)
                         ! psu_rain_list = (/ log10(1.9d-6), log10(1.9d-6),  log10(1.9d-6), log10(1.9d-6) /)
                         ! psu_rain_list = (/ log10(1.8d-6), log10(1.8d-6),  log10(1.8d-6), log10(1.8d-6) /)  ! for 9.6 m2/g
                         ! psu_rain_list = (/ log10(1.5d-6), log10(1.5d-6),  log10(1.5d-6), log10(1.5d-6) /)
-                        psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
+                        ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)  ! 3.7 ?
+                        psu_rain_list = (/ log10(5d-6), log10(5d-6),  log10(5d-6), log10(5d-6) /)  ! 5.7?
+                        ! psu_rain_list = (/ log10(1d-6), log10(2d-6),  log10(5d-6), log10(20d-6) /)  ! 5.7?
                         ! psu_rain_list = (/ log10(50d-6), log10(50d-6),  log10(50d-6), log10(50d-6) /)
                         ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
                         ! psu_rain_list = (/ log10(0.1d-6), log10(0.1d-6),  log10(0.1d-6), log10(0.1d-6) /)
@@ -3788,11 +3793,11 @@ do while (it<nt)
                     endif 
                     mpsd_rain(isps,:,iz) = psd_rain(:,iz)
             
-                    if (iz==1) write(ipsd,*) chrsld(isps),(mpsd_rain(isps,ips,iz),ips=1,nps), time
+                    if ((dust_norm>0d0) .and. (iz==1)) write(ipsd,*) chrsld(isps),(mpsd_rain(isps,ips,iz),ips=1,nps), time
                 enddo 
             enddo 
         else
-            write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'time'
+            if (dust_norm>0d0) write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'time'
             
             psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
             ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
@@ -3845,12 +3850,12 @@ do while (it<nt)
                     stop
                 endif 
             
-                write(ipsd,*) z(iz),(psd_rain(ips,iz),ips=1,nps), time
+                if (dust_norm>0d0) write(ipsd,*) z(iz),(psd_rain(ips,iz),ips=1,nps), time
             enddo 
             
         endif 
         
-        close(ipsd)
+        if (dust_norm>0d0) close(ipsd)
     endif 
     
     
@@ -4365,7 +4370,7 @@ do while (it<nt)
                     call psd_diss_pbe( &
                         & nz,nps &! in
                         & ,z,DV,dt,pi,tol_dvd,poro &! in 
-                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
                         & ,psd,ps,dps,ps_min,ps_max &! in 
                         & ,chrsld(isps) &! in 
                         & ,dpsd,psd_error_flg &! inout
@@ -4482,7 +4487,7 @@ do while (it<nt)
                 call psd_diss_pbe( &
                     & nz,nps &! in
                     & ,z,DV,dt,pi,tol,poro &! in 
-                    & ,incld_rough,rough_c0,rough_c1 &! in
+                    & ,incld_rough,rough_c0_b,rough_c1_b &! in
                     & ,psd,ps,dps,ps_min,ps_max &! in 
                     & ,' blk ' &! in 
                     & ,dpsd,psd_error_flg &! inout
@@ -4562,7 +4567,7 @@ do while (it<nt)
                         call psd_implicit_all_v2( &
                             & nz,nsp_sld,nps,nflx_psd &! in
                             & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                            & ,incld_rough,rough_c0,rough_c1 &! in
+                            & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
                             & ,trans &! in
                             & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm &! in  
                             & ,chrsld(isps) &! in 
@@ -4574,7 +4579,7 @@ do while (it<nt)
                         call psd_implicit_all_v4( &
                             & nz,nsp_sld,nps,nflx_psd &! in
                             & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                            & ,incld_rough,rough_c0,rough_c1 &! in
+                            & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
                             & ,trans &! in
                             & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm,DV,psd_norm_fact &! in  
                             & ,chrsld(isps) &! in 
@@ -4644,7 +4649,7 @@ do while (it<nt)
                     call psd_implicit_all_v2( &
                         & nz,nsp_sld,nps,nflx_psd &! in
                         & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,incld_rough,rough_c0_b,rough_c1_b &! in
                         & ,trans &! in
                         & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm &! in    
                         & ,' blk ' &! in 
@@ -4655,7 +4660,7 @@ do while (it<nt)
                     call psd_implicit_all_v4( &
                         & nz,nsp_sld,nps,nflx_psd &! in
                         & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,incld_rough,rough_c0_b,rough_c1_b &! in
                         & ,trans &! in
                         & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm,DV,psd_norm_fact &! in    
                         & ,' blk ' &! in 
@@ -4736,7 +4741,7 @@ do while (it<nt)
                         call psd_implicit_all_v2( &
                             & nz,nsp_sld,nps,nflx_psd &! in
                             & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                            & ,incld_rough,rough_c0,rough_c1 &! in
+                            & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
                             & ,trans &! in
                             & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in    
                             & ,chrsld(isps) &! in 
@@ -4749,7 +4754,7 @@ do while (it<nt)
                         call psd_implicit_all_v4( &
                             & nz,nsp_sld,nps,nflx_psd &! in
                             & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                            & ,incld_rough,rough_c0,rough_c1 &! in
+                            & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
                             & ,trans &! in
                             & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in    
                             & ,chrsld(isps) &! in
@@ -4794,7 +4799,7 @@ do while (it<nt)
                     call psd_implicit_all_v2( &
                         & nz,nsp_sld,nps,nflx_psd &! in
                         & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,incld_rough,rough_c0_b,rough_c1_b &! in
                         & ,trans &! in
                         & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in    
                         & ,' blk ' &! in 
@@ -4806,7 +4811,7 @@ do while (it<nt)
                     call psd_implicit_all_v4( &
                         & nz,nsp_sld,nps,nflx_psd &! in
                         & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0,rough_c1 &! in
+                        & ,incld_rough,rough_c0_b,rough_c1_b &! in
                         & ,trans &! in
                         & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in    
                         & ,' blk ' &! in 
@@ -5031,9 +5036,9 @@ do while (it<nt)
                 else 
                     do iz=1,nz
                         ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0  &
-                            & *rough_c0*(10d0**ps(:))**rough_c1*mpsd(isps,:,iz)*dps(:))
+                            & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
                         ssav(isps,iz) = sum( 3d0/(10d0**ps(:))  &
-                            & *rough_c0*(10d0**ps(:))**rough_c1*mpsd(isps,:,iz)*dps(:))
+                            & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
                     enddo 
                 endif
                 do iz=1,nz
@@ -5048,8 +5053,8 @@ do while (it<nt)
                 enddo 
             else 
                 do iz=1,nz
-                    ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))
-                    ssav(:,iz) = sum( 3d0/(10d0**ps(:))*rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))
+                    ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0_b*(10d0**ps(:))**rough_c1_b*psd(:,iz)*dps(:))
+                    ssav(:,iz) = sum( 3d0/(10d0**ps(:))*rough_c0_b*(10d0**ps(:))**rough_c1_b*psd(:,iz)*dps(:))
                 enddo 
             endif
             do iz=1,nz
@@ -5542,8 +5547,8 @@ do while (it<nt)
                                 & ,ips=1,nps), time 
                         else
                             write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0 &
-                                & *rough_c0*(10d0**ps(ips))**rough_c1*mpsd(isps,ips,iz)*dps(ips) &
-                                ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))  * 1d2 &
+                                & *rough_c0(isps)*(10d0**ps(ips))**rough_c1(isps)*mpsd(isps,ips,iz)*dps(ips) &
+                                ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*psd(:,iz)*dps(:))  * 1d2 &
                                 & / ssa(isps,iz)  * 1d2 &
                                 ! & /( poro(iz)/(1d0 - poro(iz) ))  &
                                 & ,ips=1,nps), time 
@@ -5596,8 +5601,9 @@ do while (it<nt)
                             ! & /( poro(iz)/(1d0 - poro(iz) ))  &
                             & ,ips=1,nps), time 
                     else
-                        write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0*rough_c0*(10d0**ps(ips))**rough_c1*psd(ips,iz)*dps(ips) &
-                            ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))  * 1d2 &
+                        write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0 &
+                            & *rough_c0_b*(10d0**ps(ips))**rough_c1_b*psd(ips,iz)*dps(ips) &
+                            ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0_b*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))  * 1d2 &
                             & / ssab(iz)  * 1d2 &
                             ! & /( poro(iz)/(1d0 - poro(iz) ))  &
                             & ,ips=1,nps), time 
@@ -10829,7 +10835,7 @@ if (.not. print_cb) then
                         stop
                     endif 
                     
-                    print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_min)
+                    ! print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_min)
                     
                     ! if (slp <= 0d0 .and. f1_dum(iz) <= 0d0) ph_tmp_min = max(ph_tmp_min,ph_tmp)
                     if (slp_save <= 0d0 .and. slp <= 0d0 .and. f1_dum(iz) <= 0d0) ph_tmp_min = max(ph_tmp_min,ph_tmp)
@@ -10916,7 +10922,7 @@ if (.not. print_cb) then
                         stop
                     endif 
                         
-                    print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_max)
+                    ! print *,-log10(ph_tmp),slp,f1_dum(iz),-log10(ph_tmp_max)
                     
                     ! if (slp >= 0d0 .and. f1_dum(iz) >= 0d0) ph_tmp_max = min(ph_tmp_max,ph_tmp)
                     if (slp_save >= 0d0 .and. slp >= 0d0 .and. f1_dum(iz) >= 0d0) ph_tmp_max = min(ph_tmp_max,ph_tmp)
@@ -16491,6 +16497,9 @@ endselect
 rxnext_error = .false.
 if (any(isnan(rxn_ext)) .or. any(isnan(drxnext_dmsp))) then 
     print *,'nan in calc_rxn_ext_dev_3'
+    print *,'any(isnan(rxn_ext)) | any(isnan(drxnext_dmsp))'
+    print *,rxn_name,sp_name,any(isnan(rxn_ext)),any(isnan(drxnext_dmsp)) &
+        & ,any(isnan(dmaqft_dios_loc(findloc(chraq_all,sp_tmp,dim=1),:) ))
     rxnext_error = .true.
     ! stop
 endif 
@@ -16640,8 +16649,8 @@ do isp=1,nsp_sld
     transtill = 0d0
     probh = 0.010d0
     probh = 0.10d0
-    probh = 1.00d0
-    probh = 10.0d0
+    ! probh = 1.00d0
+    ! probh = 10.0d0
     do iz=1,izml  ! when i = j, transition matrix contains probabilities with which particles are moved from other layers of sediment   
         ! transtill(iz,iz)=-probh*dz(iz)/dz(izml+1-iz) !*(iz - izml*0.5d0)**2d0/(izml**2d0*0.25d0)
         ! transtill(izml+1-iz,iz)=probh*dz(iz)/dz(izml+1-iz) ! *(iz - izml*0.5d0)**2d0/(izml**2d0*0.25d0)
@@ -17552,24 +17561,26 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         rxnext(irxn,:) = dummy
         drxnext_dpro(irxn,:) = dummy2
         
-        dummy = 0d0
-        dummy2 = 0d0
-        call calc_rxn_ext_dev_3( &
-            & nz,nrxn_ext_all,nsp_gas_all,nsp_aq_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst  &!input
-            & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
-            & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
-            & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
-            & ,rg,tempk_0,tc,iosx &!input
-            & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
-            & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
-            & ,chrrxn_ext(irxn),'ios  ' &! input 
-            & ,dummy,dummy2,rxnext_error &! output
-            & )
-        if (rxnext_error) then
-            flgback = .true.
-            return 
+        if (act_ON) then 
+            dummy = 0d0
+            dummy2 = 0d0
+            call calc_rxn_ext_dev_3( &
+                & nz,nrxn_ext_all,nsp_gas_all,nsp_aq_all,nsp_gas,nsp_aq,nsp_aq_cnst,nsp_gas_cnst  &!input
+                & ,chrrxn_ext_all,chrgas,chrgas_all,chrgas_cnst,chraq,chraq_all,chraq_cnst &! input
+                & ,poro,sat,maqx,maqc,mgasx,mgasc,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &! input
+                & ,nsp_sld,nsp_sld_cnst,chrsld,chrsld_cnst,msldx,msldc,rho_grain,kw &!input
+                & ,rg,tempk_0,tc,iosx &!input
+                & ,nsp_sld_all,chrsld_all,msldth_all,mv_all,hr,prox,keqgas_h,keqaq_h,keqaq_c,keqaq_s &! input
+                & ,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &! input 
+                & ,chrrxn_ext(irxn),'ios  ' &! input 
+                & ,dummy,dummy2,rxnext_error &! output
+                & )
+            if (rxnext_error) then
+                flgback = .true.
+                return 
+            endif 
+            drxnext_dios(irxn,:) = dummy2
         endif 
-        if (act_ON) drxnext_dios(irxn,:) = dummy2
         
         do ispg=1,nsp_gas
             ! if (stgas_dext(irxn,ispg)==0d0) cycle
