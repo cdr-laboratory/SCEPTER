@@ -7,7 +7,7 @@ import sys
 
 print(sys.argv)
 
-# include_N = False
+include_N = False
 include_N = True
 
 include_Al = False
@@ -16,11 +16,14 @@ include_Al = False
 alphase = 'gb'
 alphase = 'amal'
 
-# use_CaCl2 = False
-use_CaCl2 = True
+use_CaCl2 = False
+# use_CaCl2 = True
 
-# phnorm_pw = True
+phnorm_pw = True
 phnorm_pw = False
+
+water_frac = 5.
+water_frac = 1.
 
 iter_max = 120
 
@@ -79,6 +82,7 @@ ttot_field=10000
 ttot_lab=1000
 temp_field=15
 temp_field=18
+temp_field=float(sys.argv[6])
 temp_lab=25
 fdust_field=0
 fdust_lab=0
@@ -93,14 +97,17 @@ zom=0.5
 poro_field=0.5
 poro_lab=0.928391508
 moistsrf_field=0.5
+moistsrf_field=float(sys.argv[7])
 moistsrf_lab=1.0
 zwater=100000
 # zdust_field=0.18
 zdust_field=0.25
 zdust_lab=0.15
 w_field=100e-5
+w_field=float(sys.argv[9])
 w_lab=0
 q_field=1200e-3
+q_field=float(sys.argv[8])
 q_lab=0
 p=10e-6
 nstep=10
@@ -111,6 +118,7 @@ runid_lab=runname_lab
 N_rain = 0  # gN/m2/yr
 N_rain = 8.406375  # gN/m2/yr ( <---> 75 lbs/acre/year)
 N_rain = 24.6587   # gN/m2/yr ( <---> 220 lbs/acre/year)
+N_rain = float(sys.argv[10])   # gN/m2/yr ( <---> 220 lbs/acre/year)
 N_rain = N_rain/14  # mol N/m2/yr
 N_rain = N_rain*80  # g NH4NO3/m2/yr
 N_rain = N_rain/2.  # only half is required as 1 mol NH4NO3 contains 2 moles of N
@@ -150,10 +158,10 @@ restart ='false'
 rough_field      ='true'
 al_inhib ='false'
 dt_fix='false'
-precalc='false'
-precalc='true'
+cec_on='false'
+cec_on='true'
 dz_fix='true'
-sld_fix_field='false'
+close_aq_field='false'
 poro_evol='true'
 sa_evol_1 ='true'
 sa_evol_2='false'
@@ -165,7 +173,7 @@ w_scheme_lab=0
 mix_scheme_lab=0 
 poro_iter_lab='true' 
 rough_lab      ='false'
-sld_fix_lab='true'
+close_aq_lab='true'
 psd_bulk_lab='false'
 psd_full_lab ='false'
     
@@ -182,9 +190,9 @@ make_inputs.get_input_switches(
     ,rough=rough_field
     ,al_inhib=al_inhib 
     ,dt_fix=dt_fix
-    ,precalc=precalc
+    ,cec_on=cec_on
     ,dz_fix=dz_fix
-    ,sld_fix=sld_fix_field
+    ,close_aq=close_aq_field
     ,poro_evol=poro_evol
     ,sa_evol_1=sa_evol_1 
     ,sa_evol_2=sa_evol_2
@@ -304,9 +312,9 @@ make_inputs.get_input_switches(
     ,rough=rough_lab
     ,al_inhib=al_inhib 
     ,dt_fix=dt_fix
-    ,precalc=precalc
+    ,cec_on=cec_on
     ,dz_fix=dz_fix
-    ,sld_fix=sld_fix_lab
+    ,close_aq=close_aq_lab
     ,poro_evol=poro_evol
     ,sa_evol_1=sa_evol_1 
     ,sa_evol_2=sa_evol_2
@@ -460,7 +468,8 @@ while (error > tol):
         ,runid=runname_field
         )
 
-    N_rain = 8.406375  # gN/m2/yr
+    # N_rain = 8.406375  # gN/m2/yr
+    N_rain = float(sys.argv[10])  # gN/m2/yr
     N_rain = N_rain/14  # mol N/m2/yr
     N_rain = N_rain*80  # g NH4NO3/m2/yr
     N_rain = N_rain/2.  # only half is required as 1 mol NH4NO3 contains 2 moles of N
@@ -500,8 +509,6 @@ while (error > tol):
     print(aqsps,btmconcs,dep)
     
     # =========== lab sim (1st) =========== 
-    water_frac = 5.
-    water_frac = 1.
     poro_lab = water_frac/(1./dense_lab+water_frac)
     # fdust_lab = ztot*(1-poro_lab)*dense_lab*1e3*exchanger/100*cec*1e-2*(1.-acint/100.)/2. * 56.1 
     
@@ -929,7 +936,8 @@ while (error > tol):
         ,runid=runname_field
         )
 
-    N_rain = 8.406375  # gN/m2/yr
+    # N_rain = 8.406375  # gN/m2/yr
+    N_rain = float(sys.argv[10])  # gN/m2/yr
     N_rain = N_rain/14  # mol N/m2/yr
     N_rain = N_rain*80  # g NH4NO3/m2/yr
     N_rain = N_rain/2.  # only half is required as 1 mol NH4NO3 contains 2 moles of N
@@ -1076,15 +1084,15 @@ while (error > tol):
     # if not phnorm_pw:   ymx[0] = phint - targetpH
     if phnorm_pw:       ymx[0] = 10**-phint_field - 10**-targetpH
     if not phnorm_pw:   ymx[0] = 10**-phint - 10**-targetpH
-    ymx[1] = acint - acidsat 
+    ymx[1] = 1e5*(acint - acidsat) 
     ymx[2] = omint - targetOM 
 
     amx[0,0] = dphint_dca
     amx[0,1] = dphint_dlogkh
     amx[0,2] = dphint_domrain
-    amx[1,0] = dacint_dca
-    amx[1,1] = dacint_dlogkh
-    amx[1,2] = dacint_domrain
+    amx[1,0] = 1e5*dacint_dca
+    amx[1,1] = 1e5*dacint_dlogkh
+    amx[1,2] = 1e5*dacint_domrain
     amx[2,0] = domint_dca
     amx[2,1] = domint_dlogkh
     amx[2,2] = domint_domrain
@@ -1174,22 +1182,68 @@ while (error > tol):
     
     time.sleep(5)
     
-    res_list.append([cnt,phint_field,phint,error])
+    res_list.append([cnt,phint_field,phint,omint,acint,error,targetpH,targetOM,acidsat,ca,omrain_field,np.log10(kh)])
     cnt += 1
     
     if cnt > iter_max: break
     
+    name_list = [
+        'iter.'
+        ,'porewater_pH[-]'
+        ,'soil_pHw[-]'
+        ,'OM[wt%]'
+        ,'exchangeable_acidity[%CEC]'
+        ,'error'
+        ,'target_pH[-]'
+        ,'target_OM[wt%]'
+        ,'target_exchangeable_acidity[%CEC]'
+        ,'Ca[uM]'
+        ,'OM_rain[gC/m2/yr]'
+        ,'log10(KH/Na)'
+        ]
     for runname in [runname_field,runname_lab]:
-        np.savetxt(outdir + runname + where + 'iteration_tmp.res',np.array(res_list))
-    
+        # np.savetxt(outdir + runname + where + 'iteration_tmp.res',np.array(res_list))
+        dst = outdir + runname + where + 'iteration_tmp.res'
+
+        with open(dst, 'w') as file:
+            for item in name_list:
+                if name_list.index(item)==len(name_list)-1:
+                    file.write('{}\n'.format(item))
+                else:
+                    file.write('{}\t'.format(item))
+            for j in range(len(res_list)):
+                item_list = res_list[j]
+                for i in range(len(item_list)):
+                    item = item_list[i]
+                    if i==0:
+                        file.write('{:d}\t'.format(item))
+                    elif i==len(item_list)-1:
+                        file.write('{:.6e}\n'.format(item))
+                    else:
+                        file.write('{:.6e}\t'.format(item))
+                
+        print(res_list)
 
 
-
+# name_list = [
+    # 'iter.'
+    # ,'porewater_pH[-]'
+    # ,'soil_pHw[-]'
+    # ,'error'
+    # ]
 name_list = [
     'iter.'
     ,'porewater_pH[-]'
     ,'soil_pHw[-]'
+    ,'OM[wt%]'
+    ,'exchangeable_acidity[%CEC]'
     ,'error'
+    ,'target_pH[-]'
+    ,'target_OM[wt%]'
+    ,'target_exchangeable_acidity[%CEC]'
+    ,'Ca[uM]'
+    ,'OM_rain[gC/m2/yr]'
+    ,'log10(KH/Na)'
     ]
     
 for runname in [runname_field,runname_lab]:

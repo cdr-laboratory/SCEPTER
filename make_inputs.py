@@ -111,9 +111,9 @@ def get_input_switches(**kwargs):
     rough       = kwargs.get('rough',       'true')      
     al_inhib    = kwargs.get('al_inhib',    'false') 
     dt_fix      = kwargs.get('dt_fix',      'false')
-    precalc     = kwargs.get('precalc',     'false')
+    cec_on      = kwargs.get('cec_on',     'false')
     dz_fix      = kwargs.get('dz_fix',      'true')
-    sld_fix     = kwargs.get('sld_fix',     'false')
+    close_aq    = kwargs.get('close_aq',     'false')
     poro_evol   = kwargs.get('poro_evol',   'true')
     sa_evol_1   = kwargs.get('sa_evol_1',   'true') 
     sa_evol_2   = kwargs.get('sa_evol_2',   'false')
@@ -158,9 +158,9 @@ def get_input_switches(**kwargs):
         ,rough      
         ,al_inhib 
         ,dt_fix
-        ,precalc
+        ,cec_on
         ,dz_fix
-        ,sld_fix
+        ,close_aq
         ,poro_evol
         ,sa_evol_1 
         ,sa_evol_2
