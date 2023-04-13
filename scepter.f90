@@ -3480,18 +3480,21 @@ do while (it<nt)
     mgassupp = 0d0
     do isps = 1, nsp_sld
         if (no_biot) then 
-            msldsupp(isps,:) = rainpowder*rfrc_sld(isps)*exp(-z/zsupp)/zsupp &
-                & + rainpowder_2nd*rfrc_sld_2nd(isps)*exp(-z/zsupp)/zsupp
+            ! msldsupp(isps,:) = rainpowder*rfrc_sld(isps)*exp(-z/zsupp)/zsupp &
+                ! & + rainpowder_2nd*rfrc_sld_2nd(isps)*exp(-z/zsupp)/zsupp
+            ! modify to homogeneously distribute (04-10-2023)
+            msldsupp(isps,:) = rainpowder*rfrc_sld(isps)/sum(dz(:)) &
+                & + rainpowder_2nd*rfrc_sld_2nd(isps)/sum(dz(:))
         else 
             msldsupp(isps,1) = rainpowder*rfrc_sld(isps)/dz(1)  &
                 & + rainpowder_2nd*rfrc_sld_2nd(isps)/dz(1)
             
-            if (  (rainpowder*rfrc_sld(isps) > 0d0)  & 
-                & .and. ( abs(sum(msldsupp(isps,:)*dz(:))-rainpowder*rfrc_sld(isps))/rainpowder*rfrc_sld(isps) > 1d-6) ) then 
-                print *, 'dust error? going to stop',chrsld(isps),sum(msldsupp(isps,:)*dz(:)),rainpowder*rfrc_sld(isps)
-                stop
-            endif 
-            
+        endif 
+        ! checking mass balance
+        if (  (rainpowder*rfrc_sld(isps) > 0d0)  & 
+            & .and. ( abs(sum(msldsupp(isps,:)*dz(:))-rainpowder*rfrc_sld(isps))/rainpowder*rfrc_sld(isps) > 1d-6) ) then 
+            print *, 'dust error? going to stop',chrsld(isps),sum(msldsupp(isps,:)*dz(:)),rainpowder*rfrc_sld(isps)
+            stop
         endif 
     enddo 
     
