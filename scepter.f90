@@ -151,7 +151,6 @@ parameter(fr_si_cbas=def_bas_si_fr, fr_al_cbas=def_bas_al_fr, fr_na_cbas=def_bas
 #endif
 
 real(kind=8),parameter :: mvka = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
-real(kind=8),parameter :: mvinrt = 99.52d0 ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 real(kind=8),parameter :: mvfo = 43.79d0 ! cm3/mol; molar volume of Fo; Robie et al. 1978
 real(kind=8),parameter :: mvab_0 = 100.07d0 ! cm3/mol; molar volume of Ab(NaAlSi3O8); Robie et al. 1978 
 real(kind=8),parameter :: mvan_0 = 100.79d0 ! cm3/mol; molar volume of An (CaAl2Si2O8); Robie et al. 1978
@@ -249,10 +248,11 @@ real(kind=8),parameter :: mvnaglp = 216.036d0/1.5d0 ! cm3/mol; from sodium glyce
 real(kind=8),parameter :: mvcacl2 = 110.98d0/2.15d0 ! cm3/mol; from CaCl2 Molar mass 110.98 g·mol−1 and assuming Density 2.15 g/cm3 both from https://en.wikipedia.org/wiki/Calcium_chloride
 real(kind=8),parameter :: mvnacl = 27.015d0 ! cm3/mol; molar volume of halite; from Robie et al. 1978
 real(kind=8),parameter :: mvcaso4 = 45.94d0 ! cm3/mol; molar volume of anhydrite; from Robie et al. 1978
+real(kind=8),parameter :: mvinrt = mvka ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
+! real(kind=8),parameter :: mvinrt = mvqtz ! cm3/mol; molar volume of quartz; Robie et al. 1978
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
-real(kind=8),parameter :: mwtinrt = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
 real(kind=8),parameter :: mwtfo = 140.694d0 ! g/mol; formula weight of Fo; Robie et al. 1978
 real(kind=8),parameter :: mwtab_0 = 262.225d0 ! g/mol; formula weight of Ab; Robie et al. 1978
 real(kind=8),parameter :: mwtan_0 = 278.311d0 ! g/mol; formula weight of An; Robie et al. 1978
@@ -327,14 +327,6 @@ real(kind=8),parameter :: mwtcao = 56.079d0 ! g/mol; molar weight of calcium oxi
 real(kind=8),parameter :: mwtna2o = 61.979d0 ! g/mol; molar weight of disodium monoxide; Robie et al. 1978 
 real(kind=8),parameter :: mwtal2o3 = 101.962d0 ! g/mol; molar weight of corundum; Robie et al. 1978 
 real(kind=8),parameter :: mwtsio2 = mwtqtz ! g/mol; molar weight of SiO2
-real(kind=8),parameter :: mwtgbas = ( &
-                                & fr_si_gbas*mwtamsi + fr_al_gbas/2d0*mwtal2o3 + fr_na_gbas/2d0*mwtna2o &
-                                & + fr_k_gbas/2d0*mwtk2o + fr_ca_gbas*mwtcao + fr_mg_gbas*mwtmgo + fr_fe2_gbas*mwtfe2o &
-                                & ) ! assuming simply mixing molar weight?
-real(kind=8),parameter :: mwtcbas = ( &
-                                & fr_si_cbas*mwtamsi + fr_al_cbas/2d0*mwtal2o3 + fr_na_cbas/2d0*mwtna2o &
-                                & + fr_k_cbas/2d0*mwtk2o + fr_ca_cbas*mwtcao + fr_mg_cbas*mwtmgo + fr_fe2_cbas*mwtfe2o &
-                                & ) ! assuming simply mixing molar weight?
 real(kind=8),parameter :: mwtep = 483.22675d0 ! g/mol; molar weight of epidote; Ca2FeAl2Si3O12OH; calculated from elemental molar weight
 real(kind=8),parameter :: mwtclch = 555.79754d0 ! g/mol; molar weight of clinochlore; Mg5Al2Si3O10(OH)8; calculated from elemental molar weight
 real(kind=8),parameter :: mwtsdn = 278.333d0 ! cm3/mol; molar weight of sanidine; Robie et al. 1978
@@ -350,6 +342,8 @@ real(kind=8),parameter :: mwtnaglp = 216.036d0 ! g/mol; from NaOH Molar mass 216
 real(kind=8),parameter :: mwtcacl2 = 110.98d0 ! g/mol; from CaCl2 Molar mass 110.98 g·mol−1 from https://en.wikipedia.org/wiki/Calcium_chloride
 real(kind=8),parameter :: mwtnacl = 58.443d0 ! g/mol; molar weight of halite; Robie et al. 1978 
 real(kind=8),parameter :: mwtcaso4 = 136.138d0 ! g/mol; molar weight of halite; Robie et al. 1978 
+real(kind=8),parameter :: mwtinrt = mwtka ! g/mol; formula weight of Ka; Robie et al. 1978
+! real(kind=8),parameter :: mwtinrt = mwtqtz ! g/mol; formula weight of quartz; Robie et al. 1978
 
  
 real(kind=8),parameter :: mvgbas = ( &
@@ -360,7 +354,35 @@ real(kind=8),parameter :: mvcbas = ( &
                                 & fr_si_cbas*mwtamsi + fr_al_cbas/2d0*mwtal2o3 + fr_na_cbas/2d0*mwtna2o &
                                 & + fr_k_cbas/2d0*mwtk2o + fr_ca_cbas*mwtcao + fr_mg_cbas*mwtmgo + fr_fe2_cbas*mwtfe2o &
                                 & )/3.0d0 ! assuming 3.0 g/cm3 particle density
+
+real(kind=8),parameter :: mwtgbas = ( &
+                                & fr_si_gbas*mwtamsi + fr_al_gbas/2d0*mwtal2o3 + fr_na_gbas/2d0*mwtna2o &
+                                & + fr_k_gbas/2d0*mwtk2o + fr_ca_gbas*mwtcao + fr_mg_gbas*mwtmgo + fr_fe2_gbas*mwtfe2o &
+                                & ) ! assuming simply mixing molar weight?
+real(kind=8),parameter :: mwtcbas = ( &
+                                & fr_si_cbas*mwtamsi + fr_al_cbas/2d0*mwtal2o3 + fr_na_cbas/2d0*mwtna2o &
+                                & + fr_k_cbas/2d0*mwtk2o + fr_ca_cbas*mwtcao + fr_mg_cbas*mwtmgo + fr_fe2_cbas*mwtfe2o &
+                                & ) ! assuming simply mixing molar weight?
  
+! cation molar weight from PHREEQC.DAT
+real(kind=8),parameter :: mwtaqna   = 22.9898d0  
+real(kind=8),parameter :: mwtaqk    = 39.102d0  
+real(kind=8),parameter :: mwtaqca   = 40.08d0  
+real(kind=8),parameter :: mwtaqmg   = 24.312d0  
+real(kind=8),parameter :: mwtaqal   = 26.9815d0  
+real(kind=8),parameter :: mwtaqsi   = 28.0843d0  
+real(kind=8),parameter :: mwtaqfe2  = 55.847d0  
+real(kind=8),parameter :: mwtaqfe3  = 55.847d0  
+! anions 
+real(kind=8),parameter :: mwtaqno3  = 14.0067d0 + 3*16.0d0
+real(kind=8),parameter :: mwtaqso4  = 32.064d0 + 4*16.0d0
+real(kind=8),parameter :: mwtaqcl   = 35.453d0  
+real(kind=8),parameter :: mwtaqoxa  = 1.008d0 + 2*12.0111d0 + 4*16.0d0  ! tracer of oxalate: OxaH- = HC2O4-
+real(kind=8),parameter :: mwtaqac   = 3*1.008d0 + 2*12.0111d0 + 3*16.0d0  ! tracer of acetate: AcO- = C₂H₃O⁻₂
+real(kind=8),parameter :: mwtaqmes  = 12*1.008d0 + 6*12.0111d0 + 14.0067d0 + 4*16.0d0 + 32.064d0  ! tracer of MES: MESH- = C6H12NO4S-
+real(kind=8),parameter :: mwtaqim   = 4*1.008d0 + 3*12.0111d0 + 2*14.0067d0   ! tracer of Imidazole: C3H4N2
+real(kind=8),parameter :: mwtaqtea  = 15*1.008d0 + 6*12.0111d0 + 14.0067d0 + 3*16.0d0   ! tracer of Triethanolamine: C6H15NO3
+real(kind=8),parameter :: mwtaqglp  = 8*1.008d0 + 3*12.0111d0 + 14.0067d0 + 6*16.0d0 + 30.9738d0 !  tracer of glycerophosphate: HL- = C3H8NO6P-
  
 real(kind=8) :: rho_grain = 2.7d0 ! g/cm3 as soil grain density 
 real(kind=8) :: rho_grain_calc,rho_grain_calcx != 2.7d0 ! g/cm3 as soil grain density 
@@ -415,7 +437,8 @@ real(kind=8),intent(in) :: p80 != 1d-6 ! m
 
 ! real(kind=8) ssa_cmn,mvab_save,mvan_save,mvcc_save,mvfo_save,mvka_save,mvgb_save
 real(kind=8),dimension(nz):: pro,prox,poroprev,hrb,vprev,torgprev,toraprev,wprev,ssab,int_ph
-real(kind=8),dimension(nz):: ios,iosx
+real(kind=8),dimension(nz):: ios,iosx,gamma,gamma_tmp,dgamma_dios_tmp
+real(kind=8) :: rcharge
 real(kind=8),dimension(nz):: dummy,up,dwn,cnr,adf
 real(kind=8) :: rough_c0_b = 10d0**(3.3d0)
 real(kind=8) :: rough_c1_b = 0.33d0
@@ -663,8 +686,8 @@ real(kind=8),dimension(nsp_sld,nsp_gas)::stgas
 real(kind=8),dimension(nsp_sld,nz)::msldx,msld,ksld,omega,msldsupp,nonprec,rxnsld
 real(kind=8),dimension(nsp_sld,5 + nrxn_ext + nsp_sld,nz)::flx_sld
 real(kind=8),dimension(nsp_sld,5 + nrxn_ext + nsp_sld)::int_flx_sld
-real(kind=8),dimension(nsp_aq)::maqi,maqth,daq
-real(kind=8),dimension(nsp_aq,nz)::maqx,maq,rxnaq,maqsupp,cecaq,cecaqr
+real(kind=8),dimension(nsp_aq)::maqi,maqth,daq,mwtaq
+real(kind=8),dimension(nsp_aq,nz)::maqx,maq,rxnaq,maqsupp,cecaq,cecaqr,cecaqwt
 real(kind=8),dimension(nsp_aq,5 + nrxn_ext + nsp_sld,nz)::flx_aq
 real(kind=8),dimension(nsp_aq,5 + nrxn_ext + nsp_sld)::int_flx_aq
 real(kind=8),dimension(nsp_gas)::mgasi,mgasth,dgasa,dgasg,dmgas,khgasi,dgasi
@@ -678,7 +701,7 @@ real(kind=8),dimension(nrxn_ext,nsp_sld)::stsld_ext,stsld_dext
 real(kind=8),dimension(nsld_kinspc_in),intent(in)::kin_sld_spc_in
 real(kind=8),dimension(:),allocatable::kin_sld_spc
 
-real(kind=8),dimension(nsp_aq_all)::daq_all,maqi_all,maqth_all
+real(kind=8),dimension(nsp_aq_all)::daq_all,maqi_all,maqth_all,mwtaq_all
 real(kind=8),dimension(nsp_gas_all)::dgasa_all,dgasg_all,mgasi_all,mgasth_all
 real(kind=8),dimension(nsp_gas_all,3)::keqgas_h
 real(kind=8),dimension(nsp_aq_all,4)::keqaq_h
@@ -794,7 +817,7 @@ character(5),dimension(:),allocatable::chrsld_nopsd ! minerals whose PSDs tracki
 integer nsld_cec
 character(5),dimension(:),allocatable::chrsld_cec
 real(kind=8),dimension(nsp_sld_all):: mcec_all,mcec_all_def
-real(kind=8),dimension(nsp_sld_all):: logkhna_all,logkhna_all_def
+real(kind=8),dimension(nsp_sld_all,nsp_aq_all):: logkhaq_all,logkhaq_all_def
 real(kind=8),dimension(nsp_sld_all):: beta_all,beta_all_def
 
 character(10),dimension(nsp_sld)::precstyle
@@ -831,7 +854,7 @@ character(5),dimension(nsp_saveall)::chrsp_saveall
 
 integer,parameter::idust = 15
 integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx  &
-    & ,isa,iaqprof2,iaqprof3,iaqprof4,iaqprof5
+    & ,isa,iaqprof2,iaqprof3,iaqprof4,iaqprof5,iaqprof6
 
 logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
 real(kind=8),dimension(nz,nz,nsp_sld)::trans
@@ -897,15 +920,16 @@ iaqprof2    = idust + nsp_sld + nsp_gas + nsp_aq + 5
 iaqprof3    = idust + nsp_sld + nsp_gas + nsp_aq + 6
 iaqprof4    = idust + nsp_sld + nsp_gas + nsp_aq + 7
 iaqprof5    = idust + nsp_sld + nsp_gas + nsp_aq + 8
-igasprof    = idust + nsp_sld + nsp_gas + nsp_aq + 9
-isldsat     = idust + nsp_sld + nsp_gas + nsp_aq + 10
-ibsd        = idust + nsp_sld + nsp_gas + nsp_aq + 11
-irate       = idust + nsp_sld + nsp_gas + nsp_aq + 12
-ipsd        = idust + nsp_sld + nsp_gas + nsp_aq + 13
-ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 14
-ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 15
-ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 16
-isa         = idust + nsp_sld + nsp_gas + nsp_aq + 17
+iaqprof6    = idust + nsp_sld + nsp_gas + nsp_aq + 9
+igasprof    = idust + nsp_sld + nsp_gas + nsp_aq + 10
+isldsat     = idust + nsp_sld + nsp_gas + nsp_aq + 11
+ibsd        = idust + nsp_sld + nsp_gas + nsp_aq + 12
+irate       = idust + nsp_sld + nsp_gas + nsp_aq + 13
+ipsd        = idust + nsp_sld + nsp_gas + nsp_aq + 14
+ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 15
+ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 16
+ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 17
+isa         = idust + nsp_sld + nsp_gas + nsp_aq + 18
 
 ! species whose flux is saved all time
 ! chrsp_saveall = (/'pco2 '/)
@@ -1059,6 +1083,14 @@ do isps = 1, nsp_sld
     mv(isps) = mv_all(findloc(chrsld_all,chrsld(isps),dim=1))
     mwt(isps) = mwt_all(findloc(chrsld_all,chrsld(isps),dim=1))
 enddo 
+
+mwtaq_all = (/ mwtaqmg,mwtaqsi,mwtaqna,mwtaqca,mwtaqal,mwtaqfe2,mwtaqfe3,mwtaqso4,mwtaqk,mwtaqno3,mwtaqoxa  &
+    & ,mwtaqcl,mwtaqac,mwtaqmes,mwtaqim,mwtaqtea,mwtaqglp /)
+    
+do ispa = 1, nsp_aq 
+    mwtaq(ispa) = mwtaq_all(findloc(chraq_all,chraq(ispa),dim=1))
+enddo 
+
 
 ! maqi_all = 0d0
     
@@ -1892,10 +1924,23 @@ do isps=1,nsp_sld_all
 enddo 
 
 ! detault logKH\Na
-logkhna_all_def = 0d0
+logkhaq_all_def = 0d0
 do isps=1,nsp_sld_all
     if (mcec_all_def(isps)>0d0) then 
-        logkhna_all_def(isps) = 5.9d0
+        do ispa=1,nsp_aq_all
+            select case( trim(adjustl(chraq_all(ispa))) )
+                case('na')
+                    logkhaq_all_def(isps,ispa) = 5.9d0
+                case('k')
+                    logkhaq_all_def(isps,ispa) = 4.8d0
+                case('ca')
+                    logkhaq_all_def(isps,ispa) = 10.47d0
+                case('mg')
+                    logkhaq_all_def(isps,ispa) = 10.786d0
+                case('al')
+                    logkhaq_all_def(isps,ispa) = 16.47d0
+            endselect
+        enddo
     endif 
 enddo
 
@@ -2329,8 +2374,8 @@ if (allocated(chrsld_cec)) deallocate(chrsld_cec)
 allocate(chrsld_cec(nsld_cec))
 
 call get_cec( &
-    & nsp_sld_all,chrsld_all,mcec_all_def,nsld_cec,logkhna_all_def,beta_all_def &! input
-    & ,mcec_all,chrsld_cec,logkhna_all,beta_all &! output
+    & nsp_sld_all,chrsld_all,mcec_all_def,nsld_cec,nsp_aq_all,chraq_all,logkhaq_all_def,beta_all_def &! input
+    & ,mcec_all,chrsld_cec,logkhaq_all,beta_all &! output
     & ) 
 
 call get_nopsd_num(nsld_nopsd)
@@ -2585,7 +2630,7 @@ do iph = 1,nph
     pro = 10d0**(0d0 + (iph-1d0)/(nph-1d0)*(-14d0))
     
     call coefs_v2( &
-        & nz,rg,rg2,25d0,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
+        & nz,rg,rg2,25d0,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhaq_all &! input
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -2624,7 +2669,7 @@ chrsld_kinspc = chrsld_kinspc_in
 kin_sld_spc = kin_sld_spc_in
     
 call coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhaq_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -2785,7 +2830,7 @@ if (read_data) then
         read (isldprof,*) z(iz),(msld_save(isps,iz),isps=1,nsp_sld_save),time
         read (iaqprof,*) z(iz),(maq_save(ispa,iz),ispa=1,nsp_aq_save),pro(iz),time
         read (igasprof,*) z(iz),(mgas_save(ispg,iz),ispg=1,nsp_gas_save),time
-        read (ibsd,*) z(iz),poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),mblk(iz),time
+        read (ibsd,*) z(iz),poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz),mblk(iz),cec(iz),time
         read (ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
         read (isa,*) z(iz), (hr_save(isps,iz),isps=1,nsp_sld_save), time 
         mblk(iz) = mblk(iz)/ ( mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6) )
@@ -3086,7 +3131,7 @@ if (read_data) then
 endif
     
 call coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhaq_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -3370,7 +3415,7 @@ do while (it<nt)
     endif 
         
     call coefs_v2( &
-        & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
+        & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhaq_all &! input
         & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -5092,6 +5137,17 @@ do while (it<nt)
         print *, '***| ... and no more reasonable simulation ... ! '
         stop
     endif 
+    
+    ! activity coefficient for H+
+    gamma = 1d0
+    if (act_ON) then         
+        rcharge = 1d0
+        call calc_gamma_davies(  &
+            & nz,iosx,tc,rcharge &
+            & ,gamma_tmp,dgamma_dios_tmp &
+            & )
+        gamma = gamma_tmp
+    endif 
 
     if (display  .and. (.not. display_lim)) then 
         write(chrfmt,'(i0)') nz_disp
@@ -5129,7 +5185,7 @@ do while (it<nt)
             enddo 
         endif 
         print *,' < pH >'
-        print trim(adjustl(chrfmt)), 'ph', (-log10(prox(iz)),iz=1,nz, nz/nz_disp)
+        print trim(adjustl(chrfmt)), 'ph', (-log10(gamma(iz)*prox(iz)),iz=1,nz, nz/nz_disp)
         
         
         
@@ -5300,6 +5356,7 @@ do while (it<nt)
         do ispa=1,nsp_aq
             cecaq(ispa,iz)  = maqx(ispa,iz)*maqfads(ispa,iz)*1d5/ucvsld1/(rho_grain_z(iz)*1d6) ! converting mol/m3 to mol/g then to cmol/kg
             cecaqr(ispa,iz) = cecaq(ispa,iz)*base_charge(ispa) / cec(iz) 
+            cecaqwt(ispa,iz)  = mwtaq(ispa)*10d0*cecaq(ispa,iz) ! converting cmol/kg to ppm
         enddo 
     enddo 
     
@@ -5339,7 +5396,7 @@ do while (it<nt)
     enddo 
     
     do iz=1,nz
-        int_ph(iz) = int_ph(iz) + sum(prox(1:iz)*dz(1:iz))/z(iz) * dt
+        int_ph(iz) = int_ph(iz) + sum(gamma(1:iz)*prox(1:iz)*dz(1:iz))/z(iz) * dt
     enddo 
 
     if (time >= savetime) then 
@@ -5359,7 +5416,7 @@ do while (it<nt)
         write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
         write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
         write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' , ' w[m/yr] '  &
-            & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ',' time '
+            & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ',' cec[cmol/kg] ',' time '
         write(isa,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
 
         do iz = 1, Nz
@@ -5369,7 +5426,7 @@ do while (it<nt)
             write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
             write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz) &
-                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6), time
+                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6), cec(iz), time
             write(isa,*) z(iz),(hr(isps,iz),isps = 1, nsp_sld),time
         end do
 
@@ -5427,6 +5484,17 @@ do while (it<nt)
             & ,iosx,diosdmaq_all,diosdmgas_all &! output
             & ,prox,ph_error,ph_iter &! output
             & ) 
+
+        ! activity coefficient for H+
+        gamma = 1d0
+        if (act_ON) then         
+            rcharge = 1d0
+            call calc_gamma_davies(  &
+                & nz,iosx,tc,rcharge &
+                & ,gamma_tmp,dgamma_dios_tmp &
+                & )
+            gamma = gamma_tmp
+        endif 
         
         open(isldprof,file=trim(adjustl(profdir))//'/' &
             & //'prof_sld-'//chr//'.txt', status='replace')
@@ -5448,6 +5516,8 @@ do while (it<nt)
             & //'prof_aq(ads%cec)-'//chr//'.txt', status='replace')
         open(iaqprof5,file=trim(adjustl(profdir))//'/' &
             & //'prof_ex(tot)-'//chr//'.txt', status='replace')
+        open(iaqprof6,file=trim(adjustl(profdir))//'/' &
+            & //'prof_aq(adsppm)-'//chr//'.txt', status='replace')
         open(ibsd, file=trim(adjustl(profdir))//'/'  &
             & //'bsd-'//chr//'.txt', status='replace')
         open(irate, file=trim(adjustl(profdir))//'/'  &
@@ -5464,17 +5534,18 @@ do while (it<nt)
         write(chrfmt,'(i0)') nsp_aq+3
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(iaqprof,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'ph','time'
-        write(iaqprof2,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'ph','time'
+        write(iaqprof2,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'aph','time'
         write(iaqprof3,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
         write(iaqprof4,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
         write(iaqprof5,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
+        write(iaqprof6,trim(adjustl(chrfmt))) 'z',(chraq(isps),isps=1,nsp_aq),'h','time'
         write(chrfmt,'(i0)') nsp_gas+2
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(igasprof,trim(adjustl(chrfmt))) 'z',(chrgas(isps),isps=1,nsp_gas),'time'
-        write(chrfmt,'(i0)') 10
-        chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a11))'
+        write(chrfmt,'(i0)') 11
+        chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a12))'
         write(ibsd,trim(adjustl(chrfmt))) 'z','poro', 'sat', 'v[m/yr]', 'm2/m3' , 'w[m/yr]' &
-            & , 'vol[m3/m3]','dens[g/cm3]','blk[wt%]','time'
+            & , 'vol[m3/m3]','dens[g/cm3]','blk[wt%]','cec[cmol/kg]','time'
         write(chrfmt,'(i0)') 2 + nsp_sld + nrxn_ext
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(irate,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),(chrrxn_ext(irxn),irxn=1,nrxn_ext),'time'
@@ -5492,14 +5563,15 @@ do while (it<nt)
             write(isldsat,*) z(iz),(omega(isps,iz),isps = 1, nsp_sld),time
             write(igasprof,*) z(iz),(mgasx(ispg,iz),ispg = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(ispa,iz),ispa = 1, nsp_aq),-log10(prox(iz)),time
-            write(iaqprof2,*) z(iz),(maqx(ispa,iz)*maqft(ispa,iz),ispa = 1, nsp_aq),-log10(prox(iz)),time
+            write(iaqprof2,*) z(iz),(maqx(ispa,iz)*maqft(ispa,iz),ispa = 1, nsp_aq),-log10(gamma(iz)*prox(iz)),time
             write(iaqprof3,*) z(iz),(cecaq(ispa,iz),ispa = 1, nsp_aq) ,proxads(iz),time
             write(iaqprof4,*) z(iz),(cecaqr(ispa,iz)*1d2,ispa = 1, nsp_aq) ,bs(iz)*1d2,time
             write(iaqprof5,*) z(iz),(poro(iz)*sat(iz)*1d3*maqx(ispa,iz)*maqft(ispa,iz) &
                 & + maqx(ispa,iz)*maqfads(ispa,iz),ispa = 1, nsp_aq) &
                 & ,poro(iz)*sat(iz)*1d3*prox(iz) + proxads(iz) / (1d5/ucvsld1/(rho_grain_z(iz)*1d6)) ,time
+            write(iaqprof6,*) z(iz),(cecaqwt(ispa,iz),ispa = 1, nsp_aq) ,1d0*10d0*proxads(iz),time
             write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  &
-                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
+                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),cec(iz),time
             write(irate,*) z(iz), (rxnsld(isps,iz),isps=1,nsp_sld),(rxnext(irxn,iz),irxn=1,nrxn_ext), time 
             write(isa,*) z(iz),(hr(isps,iz),isps = 1, nsp_sld),time
         end do
@@ -5513,6 +5585,7 @@ do while (it<nt)
         close(iaqprof3)
         close(iaqprof4)
         close(iaqprof5)
+        close(iaqprof6)
         close(igasprof)
         close(ibsd)
         close(irate)
@@ -5757,7 +5830,7 @@ do while (it<nt)
         close(iphint)
         
         open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
-        write(iphint2,*) time,(-log10(prox(iz)),iz=1,nz)
+        write(iphint2,*) time,(-log10(gamma(iz)*prox(iz)),iz=1,nz)
         close(iphint2)
         
 #endif 
@@ -5780,7 +5853,7 @@ do while (it<nt)
         write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
         write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
         write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] '  &
-            & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ', ' time '
+            & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ', ' cec[cmol/kg] ' , ' time '
         write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
         write(isa,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
 
@@ -5791,7 +5864,7 @@ do while (it<nt)
             write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
             write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
             write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz) &
-                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
+                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),cec(iz),time
             write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
             write(isa,*) z(iz),(hr(isps,iz),isps = 1, nsp_sld),time
         end do
@@ -5909,7 +5982,7 @@ do while (it<nt)
             close(iphint)
         
             open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
-            write(iphint2,*) time,(-log10(prox(iz)),iz=1,nz)
+            write(iphint2,*) time,(-log10(gamma(iz)*prox(iz)),iz=1,nz)
             close(iphint2)
             
             
@@ -6037,7 +6110,7 @@ write(isldprof,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
 write(iaqprof,*) ' z ',(chraq(isps),isps=1,nsp_aq),' ph ',' time '
 write(igasprof,*) ' z ',(chrgas(isps),isps=1,nsp_gas),' time '
 write(ibsd,*) ' z ',' poro ', ' sat ', ' v[m/yr] ', ' m2/m3 ' ,' w[m/yr] ' &
-    & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ',' time '
+    & , ' vol[m3/m3] ',' dens[g/cm3] ', ' blk[wt%] ',' cec[cmol/kg] ', ' time '
 write(ipsd,*) ' z[m]\log10(r[m]) ',(ps(ips),ips=1,nps),' time '
 write(isa,*) ' z ',(chrsld(isps),isps=1,nsp_sld),' time '
 
@@ -6048,7 +6121,7 @@ do iz = 1, Nz
     write(igasprof,*) z(iz),(mgasx(isps,iz),isps = 1, nsp_gas),time
     write(iaqprof,*) z(iz),(maqx(isps,iz),isps = 1, nsp_aq),-log10(prox(iz)),time
     write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  &
-        & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),time
+        & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),cec(iz),time
     write(ipsd,*) z(iz), (psd(ips,iz),ips=1,nps), time 
     write(isa,*) z(iz),(hr(isps,iz),isps = 1, nsp_sld),time
 end do
@@ -6803,18 +6876,22 @@ endsubroutine get_cec_num
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_cec( &
-    & nsp_sld_all,chrsld_all,mcec_def,nsld_cec,logkhna_def,beta_def &! input
-    & ,mcec,chrsld_cec_dum,logkhna,beta  &! output
+    & nsp_sld_all,chrsld_all,mcec_def,nsld_cec,nsp_aq_all,chraq_all,logkhaq_def,beta_def &! input
+    & ,mcec,chrsld_cec_dum,logkhaq,beta  &! output
     & )
 implicit none
 
-integer,intent(in):: nsp_sld_all,nsld_cec
+integer,intent(in):: nsp_sld_all,nsld_cec,nsp_aq_all
 character(5),dimension(nsp_sld_all),intent(in)::chrsld_all
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
 character(5),dimension(nsld_cec),intent(out)::chrsld_cec_dum
-real(kind=8),dimension(nsp_sld_all),intent(in)::mcec_def,logkhna_def,beta_def
-real(kind=8),dimension(nsp_sld_all),intent(out)::mcec,logkhna,beta
+real(kind=8),dimension(nsp_sld_all),intent(in)::mcec_def,beta_def
+real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::logkhaq_def
+real(kind=8),dimension(nsp_sld_all),intent(out)::mcec,beta
+real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(out)::logkhaq
 character(5) chr_tmp
-real(kind=8) val_tmp,val_tmp2,val_tmp3
+real(kind=8) val_tmp,val_tmp3
+real(kind=8),dimension(5):: val_tmp2
 
 character(500) file_name
 integer i
@@ -6822,7 +6899,7 @@ integer i
 file_name = './cec.in'
 ! in default 
 mcec = mcec_def
-logkhna = logkhna_def
+logkhaq = logkhaq_def
 beta = beta_def
 
 if (nsld_cec <= 0) return
@@ -6830,11 +6907,15 @@ if (nsld_cec <= 0) return
 open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
 read(50,'()')
 do i =1,nsld_cec
-    read(50,*) chr_tmp,val_tmp,val_tmp2,val_tmp3
+    read(50,*) chr_tmp,val_tmp,val_tmp2(:),val_tmp3
     chrsld_cec_dum(i) = chr_tmp
     if (any(chrsld_all == chr_tmp)) then 
         mcec(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp
-        logkhna(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp2
+        logkhaq(findloc(chrsld_all,chr_tmp,dim=1),findloc(chraq_all,'na',dim=1)) = val_tmp2(1) ! Na
+        logkhaq(findloc(chrsld_all,chr_tmp,dim=1),findloc(chraq_all,'k',dim=1))  = val_tmp2(2) ! K
+        logkhaq(findloc(chrsld_all,chr_tmp,dim=1),findloc(chraq_all,'ca',dim=1)) = val_tmp2(3) ! Ca
+        logkhaq(findloc(chrsld_all,chr_tmp,dim=1),findloc(chraq_all,'mg',dim=1)) = val_tmp2(4) ! Mg
+        logkhaq(findloc(chrsld_all,chr_tmp,dim=1),findloc(chraq_all,'al',dim=1)) = val_tmp2(5) ! Al
         beta(findloc(chrsld_all,chr_tmp,dim=1)) = val_tmp3
     endif 
 enddo 
@@ -7020,7 +7101,7 @@ endsubroutine makegrid
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine coefs_v2( &
-    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhna_all &! input
+    & nz,rg,rg2,tc,sec2yr,tempk_0,pro,cec_pH_depend,mcec_all,logkhaq_all &! input
     & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nrxn_ext_all &! input
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
@@ -7058,7 +7139,8 @@ real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_nh3
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_oxa
 real(kind=8),dimension(nsp_aq_all,2),intent(out)::keqaq_cl
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::ksld_all
-real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all,mwt_all,mcec_all,logkhna_all
+real(kind=8),dimension(nsp_sld_all),intent(in)::mv_all,mwt_all,mcec_all
+real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::logkhaq_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::staq_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(out)::keqiex_all
 real(kind=8),dimension(nsp_sld_all),intent(out)::keqsld_all,keqcec_all
@@ -7247,7 +7329,7 @@ keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h1) = (10d0**-4.266d0) ! from Lawre
 keqaq_h(findloc(chraq_all,'oxa',dim=1),ieqaq_h2) = 1d0/(10d0**-1.25d0) ! from Lawrence et al., GCA, 2014
 
 ! Sikora buffer (consts from Goldberg et al., 2002)
-
+#ifdef Goldberg_Sikora
 ! AcO- + H+ = AcOH  
 keqaq_h(findloc(chraq_all,'ac',dim=1),ieqaq_h1) =  &
     & k_arrhenius(10d0**(4.756d0),25d0+tempk_0,tc+tempk_0,0.41d0,rg)  
@@ -7266,7 +7348,7 @@ keqaq_h(findloc(chraq_all,'tea',dim=1),ieqaq_h1) =  &
 
 
 ! Sikora buffer (consts at 25oC from Sikora 2006 with temperature dependence remaining from Goldberg)
-
+#else
 ! AcO- + H+ = AcOH  
 keqaq_h(findloc(chraq_all,'ac',dim=1),ieqaq_h1) =  &
     & k_arrhenius(10d0**(4.48d0),25d0+tempk_0,tc+tempk_0,0.41d0,rg)  
@@ -7282,6 +7364,7 @@ keqaq_h(findloc(chraq_all,'im',dim=1),ieqaq_h1) =  &
 ! TEA + H+ = TEA+  
 keqaq_h(findloc(chraq_all,'tea',dim=1),ieqaq_h1) =  &
     & k_arrhenius(10d0**(8.09d0),25d0+tempk_0,tc+tempk_0,-33.6d0,rg)  
+#endif 
     
 ! Mehlich buffer (consts from Goldberg et al., 2002)
 
@@ -7520,7 +7603,7 @@ do isps = 1, nsp_sld_all
             ! keqiex_prona = keqiex_prona + keqiex_prona *0.5d0* mcec_all(isps)/200d0 ! assume log KH\Na decreases with CEC
         endif 
         
-        keqiex_prona = logkhna_all(isps)
+        ! keqiex_prona = logkhna_all(isps)
         
         ! 
         do ispa=1,nsp_aq_all
@@ -7536,7 +7619,8 @@ do isps = 1, nsp_sld_all
                         keqiex_all(isps,ispa) = 10d0**(-5.883d0)
                         ! from log KH\Na = 5.883 in Appeolo (1994)
                         ! keqiex_all(isps,ispa) = 10d0**(-5.9d0)
-                        keqiex_all(isps,ispa) = 10d0**(-keqiex_prona)
+                        ! keqiex_all(isps,ispa) = 10d0**(-keqiex_prona)
+                        keqiex_all(isps,ispa) = 10d0**(-logkhaq_all(isps,ispa))
                         ! from log KH\Na = 5.9 - 3.4 * f[X-H] in Appeolo (1994)
                         ! log KNa\H = 3.4 * f[X-H] - 5.9 
                         ! the 'activity coefficient' term 10**(3.4 * f[X-H]) will be added when calculating f[X-H]
@@ -7571,6 +7655,7 @@ do isps = 1, nsp_sld_all
                         keqiex_all(isps,ispa) = 10d0**(-6.9d0) ! assuming Na in seawater
                         keqiex_all(isps,ispa) = 10d0**(-4.8d0) ! log KK\Na = 1.10 
                         keqiex_all(isps,ispa) = 10d0**(1.1d0 - keqiex_prona)  ! log KK\Na = 1.10 
+                        keqiex_all(isps,ispa) = 10d0**(-logkhaq_all(isps,ispa))
                         ! keqiex_all(isps,ispa) = 10d0**(0.9d0 - keqiex_prona)  ! log KK\Na = 0.90 
                         ! keqiex_all(isps,ispa) = 10d0**(0.7d0 - keqiex_prona)  ! log KK\Na = 0.70 From phreeqc.dat
                     else 
@@ -7599,6 +7684,7 @@ do isps = 1, nsp_sld_all
                         ! the 'activity coefficient' term 10**(2*3.4 * f[X-H]) will be added when calculating f[X-H]
                         keqiex_all(isps,ispa) = 10d0**(-10.786d0)  ! log KMg\Na = 0.507 
                         keqiex_all(isps,ispa) = 10d0**( (0.507d0 - keqiex_prona)*2d0)  ! log KMg\Na = 0.507 
+                        keqiex_all(isps,ispa) = 10d0**(-logkhaq_all(isps,ispa))
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.014d0)
                         keqiex_all(isps,ispa) = 10d0**(0.614d0)
@@ -7626,7 +7712,8 @@ do isps = 1, nsp_sld_all
                         keqiex_all(isps,ispa) = 10d0**(-10.47d0) ! log KCa\Na = 0.665  
                         keqiex_all(isps,ispa) = 10d0**( (0.665d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.665  
                         ! keqiex_all(isps,ispa) = 10d0**( (0.0d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.0 (just for testing)  
-                        ! keqiex_all(isps,ispa) = 10d0**( (0.4d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.4 From phreeqc.dat  
+                        ! keqiex_all(isps,ispa) = 10d0**( (0.4d0 - keqiex_prona)*2d0)  ! log KCa\Na = 0.4 From phreeqc.dat 
+                        keqiex_all(isps,ispa) = 10d0**(-logkhaq_all(isps,ispa)) 
                     else 
                         keqiex_all(isps,ispa) = 10d0**(1.33d0)
                         keqiex_all(isps,ispa) = 10d0**(0.93d0)
@@ -7652,7 +7739,8 @@ do isps = 1, nsp_sld_all
                         ! X = 0.41 - 5.9*3 = -17.29
                         keqiex_all(isps,ispa) = 10d0**(-17.29d0)
                         ! the 'activity coefficient' term 10**(3*3.4 * f[X-H]) will be added when calculating f[X-H]
-                        keqiex_all(isps,ispa) = 10d0**( (0.41d0 - keqiex_prona)*3d0 )  ! log KAl\Na = 0.41  
+                        keqiex_all(isps,ispa) = 10d0**( (0.41d0 - keqiex_prona)*3d0 )  ! log KAl\Na = 0.41 
+                        keqiex_all(isps,ispa) = 10d0**(-logkhaq_all(isps,ispa)) 
                     else 
                         ! keqiex_all(isps,ispa) = 10d0**(1.569d0)
                         keqiex_all(isps,ispa) = 10d0**(0.41d0)
