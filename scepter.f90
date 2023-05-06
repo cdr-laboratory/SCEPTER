@@ -608,6 +608,12 @@ integer,parameter :: imixtype_turbo2 = 2
 integer,parameter :: imixtype_till = 3
 integer,parameter :: imixtype_labs = 4
 
+integer iroughtype 
+integer,parameter :: iroughtype_smooth = 0
+integer,parameter :: iroughtype_NSB07 = 1
+integer,parameter :: iroughtype_BM00 = 2
+integer,parameter :: iroughtype_Letal21 = 3
+
 logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
 logical poroiter_in !  true if porosity (or w) is iteratively checked  (input from input file swtiches.in)
 logical lim_minsld_in !  true if minimum sld conc. is enforced  (input from input file swtiches.in)
@@ -768,12 +774,15 @@ real(kind=8),dimension(nps,nz)::psd,dVd,psd_old,dpsd,psdx,psd_save,ddpsd,dpsd_sa
 real(kind=8),dimension(nps,nz)::psd_rain
 real(kind=8),dimension(nps,nz)::psd_norm,psdx_norm,dpsd_norm,psd_rain_norm
 real(kind=8),dimension(nps)::psd_tmp,dvd_tmp
-real(kind=8),dimension(nps)::psd_pr,dps
-real(kind=8),dimension(nps)::psd_pr_norm,psd_norm_fact,psd_rain_tmp
+real(kind=8),dimension(nps)::psd_pr,dps,rough_ps_b
+real(kind=8),dimension(nps)::psd_pr_norm,psd_norm_fact,psd_rain_tmp,intpsd,intpsd_tmp,intpsd_sum_tmp
 real(kind=8),dimension(nz)::DV
-integer,parameter :: nps_rain_char = 4
-real(kind=8),dimension(nps_rain_char)::pssigma_rain_list,psu_rain_list 
-real(kind=8) psu_pr,pssigma_pr,psu_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd,volsld,flx_max_max,psd_th_flex
+! integer,parameter :: nps_rain_char = 4
+integer nps_rain_char_in,nps_rain_char != 4
+real(kind=8),dimension(:),allocatable::pssigma_rain_list,psu_rain_list,psw_rain_list
+real(kind=8),dimension(:),allocatable::pssigma_rain_list_in,psu_rain_list_in,psw_rain_list_in
+real(kind=8) psu_pr,pssigma_pr,psu_rain,psw_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd,volsld,flx_max_max,psd_th_flex
+real(kind=8) p80_tmp
 real(kind=8) :: ps_sigma_std = 1d0
 ! real(kind=8) :: ps_sigma_std = 0.5d0
 ! real(kind=8) :: ps_sigma_std = 0.2d0
@@ -800,14 +809,16 @@ logical :: psd_loop = .true.
 ! logical :: psd_enable_skip = .false.
 logical :: psd_enable_skip = .true.
 real(kind=8),dimension(nsp_sld,nps,nz)::mpsd,mpsd_rain,dmpsd,mpsdx,mpsd_old,mpsd_save_2
-real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th
+real(kind=8),dimension(nsp_sld,nps)::mpsd_pr,mpsd_th,rough_ps
 real(kind=8),dimension(nsp_sld,nps,nflx_psd,nz) :: flx_mpsd ! itflx,iadv,idif,irain,irxn,ires
 real(kind=8),dimension(nsp_sld)::minsld
 ! attempting to do surface area calculation for individual sld sp. 
-real(kind=8),dimension(nsp_sld,nz):: hr,ssa,hrprev,rough,hri,ssv,ssav
+real(kind=8),dimension(nsp_sld,nz):: hr,ssa,hrprev,rough,hri,ssv,ssav,ssas
 real(kind=8),dimension(nsp_sld):: hrii
-real(kind=8),dimension(nsp_sld) :: rough_c0 != 10d0**(3.3d0)
-real(kind=8),dimension(nsp_sld) :: rough_c1 != 0.33d0
+real(kind=8):: rough_c0 != 10d0**(3.3d0)
+real(kind=8):: rough_c1 != 0.33d0
+character(10),dimension(nsp_sld)::roughref 
+character(10)::roughref_b
 integer nsld_sa
 character(5),dimension(:),allocatable::chrsld_sa
 real(kind=8) time_pbe,dt_pbe,dt_save
@@ -822,6 +833,9 @@ real(kind=8),dimension(nsp_sld_all):: beta_all,beta_all_def
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod,fkin
+
+! logical:: anealing_dust = .true.
+logical:: anealing_dust = .false.
 
 logical,dimension(nsp_sld_all)::cec_pH_depend
 
@@ -854,7 +868,7 @@ character(5),dimension(nsp_saveall)::chrsp_saveall
 
 integer,parameter::idust = 15
 integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx  &
-    & ,isa,iaqprof2,iaqprof3,iaqprof4,iaqprof5,iaqprof6
+    & ,isa,isa2,iaqprof2,iaqprof3,iaqprof4,iaqprof5,iaqprof6
 
 logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
 real(kind=8),dimension(nz,nz,nsp_sld)::trans
@@ -930,6 +944,7 @@ ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 15
 ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 16
 ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 17
 isa         = idust + nsp_sld + nsp_gas + nsp_aq + 18
+isa2        = idust + nsp_sld + nsp_gas + nsp_aq + 19
 
 ! species whose flux is saved all time
 ! chrsp_saveall = (/'pco2 '/)
@@ -2352,6 +2367,8 @@ do iz=1,nz
 enddo 
 #endif 
 
+! getting user-defined SA
+
 call get_sa_num(nsld_sa)
 
 if (allocated(chrsld_sa)) deallocate(chrsld_sa)
@@ -2365,6 +2382,54 @@ call get_sa( &
 do isps = 1, nsp_sld
     hri(isps,:) = 1d0/hrii(isps)
 enddo
+
+! getting user-defined PSD for dust
+
+call get_psdrain_num(nps_rain_char_in)
+
+if (nps_rain_char_in <= 0) then
+    ! random default used in GMD paper
+    nps_rain_char = 4
+    
+    if (allocated(pssigma_rain_list_in)) deallocate(pssigma_rain_list_in)
+    if (allocated(psu_rain_list_in)) deallocate(psu_rain_list_in)
+    if (allocated(psw_rain_list_in)) deallocate(psw_rain_list_in)
+    allocate(pssigma_rain_list_in(nps_rain_char),psu_rain_list_in(nps_rain_char),psw_rain_list_in(nps_rain_char))
+    
+    psu_rain_list_in        = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
+    pssigma_rain_list_in(:) = 0.2d0
+    psw_rain_list_in(:)     = 1d0
+    
+    
+else
+
+    nps_rain_char = nps_rain_char_in
+    
+    if (allocated(pssigma_rain_list_in)) deallocate(pssigma_rain_list_in)
+    if (allocated(psu_rain_list_in)) deallocate(psu_rain_list_in)
+    if (allocated(psw_rain_list_in)) deallocate(psw_rain_list_in)
+    allocate(pssigma_rain_list_in(nps_rain_char),psu_rain_list_in(nps_rain_char),psw_rain_list_in(nps_rain_char))
+
+    call get_psdrain( &
+        & nps_rain_char &! input
+        & ,psu_rain_list_in,pssigma_rain_list_in,psw_rain_list_in &! output
+        & )
+        
+    do ips = 1, nps_rain_char
+        psu_rain_list_in(ips) = log10( psu_rain_list_in(ips) )
+    enddo
+endif 
+    
+if (allocated(pssigma_rain_list)) deallocate(pssigma_rain_list)
+if (allocated(psu_rain_list)) deallocate(psu_rain_list)
+if (allocated(psw_rain_list)) deallocate(psw_rain_list)
+allocate(pssigma_rain_list(nps_rain_char),psu_rain_list(nps_rain_char),psw_rain_list(nps_rain_char))
+
+! print*,'printing psd inputs',nps_rain_char_in,nps_rain_char
+! print*,psu_rain_list
+! print*,pssigma_rain_list
+! print*,psw_rain_list
+! stop
 
 ! getting user-defined cec
 
@@ -2390,17 +2455,25 @@ call get_nopsd( &
 
 
 rough = 1d0
+rough_ps = 1d0
+rough_ps_b = 1d0
+! roughness factor parameterization references
+roughref_b = 'NSB07'      ! Navarre-Sitchler and Brantley (2007)
+! roughref_b  = 'BM00'       ! Brantley and Mellott (2000)
+! roughref_b  = 'Letal21'    ! Lewis et al. (2021) (assuming sphere)
+! roughref_b  = 'smooth'     ! smooth surface 
+
+roughref = roughref_b 
 ! from Navarre-Sitchler and Brantley (2007)
-rough_c0 = 10d0**(3.3d0)
-rough_c1 = 0.33d0
+! rough_c0 = 10d0**(3.3d0)
+! rough_c1 = 0.33d0
 ! from Brantley and Mellott (2000)
 ! rough_c0 = 10d0**(0.7d0)
 ! rough_c1 = -0.1d0
 if (incld_rough) then 
     ! rough = 10d0**(3.3d0)*p80**0.33d0 ! from Navarre-Sitchler and Brantley (2007)
     do isps=1,nsp_sld
-        ! rough(isps,:) = rough_c0*(1d0/hri(isps,:))**rough_c1 ! from Navarre-Sitchler and Brantley (2007)
-        rough(isps,:) = rough_c0(isps)*(1d0/hri(isps,:))**rough_c1(isps) ! from Navarre-Sitchler and Brantley (2007)
+        rough(isps,:) = rough_f( roughref(isps), nz, 1d0/hri(isps,:) )
     enddo 
 endif 
 
@@ -2459,7 +2532,9 @@ if (do_psd) then
     
     if (do_psd_full) then ! do psd for every mienral
         open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_pr.txt',status = 'replace')
+        open(ipsdv,file = trim(adjustl(profdir))//'/'//'intpsd_pr.txt',status = 'replace')
         write(ipsd,*) ' sldsp\log10(radius) ', (ps(ips),ips=1,nps), 'time'
+        write(ipsdv,*) ' sldsp\diameter(um) ', (10d0**ps(ips)*1d6*2d0,ips=1,nps), 'p80(um)'
         do isps = 1, nsp_sld
             volsld = msldi(isps)*mv(isps)*1d-6
             call calc_psd_pr( &
@@ -2470,9 +2545,20 @@ if (do_psd) then
                 & ,psd_pr &! output 
                 & )
             mpsd_pr(isps,:) = psd_pr(:)
+            intpsd_tmp(:) = psd_pr(:)*(10d0**ps(:))**3d0
+            intpsd = intpsd_tmp
+            do ips = 1, nps
+                intpsd(ips) = sum(intpsd_tmp(1:ips))/sum(intpsd_tmp)
+            enddo
+            call calc_p80( &
+                & nps,ps,intpsd &! input 
+                & ,p80_tmp &! output
+                & )
             write(ipsd,*) chrsld(isps),(psd_pr(ips),ips=1,nps), 0d0
+            write(ipsdv,*) chrsld(isps),(intpsd(ips),ips=1,nps), p80_tmp
         enddo 
         close(ipsd)
+        close(ipsdv)
 
         ! initially particle is distributed as in parent rock 
         do isps=1,nsp_sld
@@ -2481,19 +2567,14 @@ if (do_psd) then
             enddo 
         
             if (.not.incld_rough) then 
-                do iz=1,nz
-                    ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*mpsd(isps,:,iz)*dps(:))
-                    ssav(isps,iz) = sum( 3d0/(10d0**ps(:))*mpsd(isps,:,iz)*dps(:))
-                enddo 
+                rough_ps(isps,:) = rough_f( 'smooth', nps, 10d0**ps(:) )
             else 
-                do iz=1,nz
-                    ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 &
-                        & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
-                    ssav(isps,iz) = sum( 3d0/(10d0**ps(:)) & 
-                        & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
-                enddo 
+                rough_ps(isps,:) = rough_f( roughref(isps), nps, 10d0**ps(:) )
             endif 
+
             do iz=1,nz
+                ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_ps(isps,:)*mpsd(isps,:,iz)*dps(:) )
+                ssav(isps,iz) = sum( 3d0/(10d0**ps(:))*rough_ps(isps,:)*mpsd(isps,:,iz)*dps(:) )
                 ssv(isps,iz) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*mpsd(isps,:,iz)*dps(:))
             enddo 
         enddo 
@@ -2514,10 +2595,24 @@ if (do_psd) then
             & ,msldunit &! input
             & ,psd_pr &! output 
             & )
+        intpsd_tmp(:) = psd_pr(:)*(10d0**ps(:))**3d0
+        intpsd = intpsd_tmp
+        do ips = 1, nps
+            intpsd(ips) = sum(intpsd_tmp(1:ips))/sum(intpsd_tmp)
+        enddo
+        call calc_p80( &
+            & nps,ps,intpsd &! input 
+            & ,p80_tmp &! output
+            & )
         open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_pr.txt',status = 'replace')
         write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'time'
         write(ipsd,*) ztot,(psd_pr(ips),ips=1,nps), 0d0
         close(ipsd)
+        
+        open(ipsdv,file = trim(adjustl(profdir))//'/'//'intpsd_pr.txt',status = 'replace')
+        write(ipsdv,*) ' sldsp\diameter(um) ', (10d0**ps(ips)*1d6*2d0,ips=1,nps), 'p80(um)'
+        write(ipsdv,*) chrsld(isps),(intpsd(ips),ips=1,nps), p80_tmp
+        close(ipsdv)
 
         ! initially particle is distributed as in parent rock 
         do iz = 1, nz
@@ -2528,17 +2623,14 @@ if (do_psd) then
         ! so hr = sum (psd(:)*dps(:)*S(:) ) where S in units m2/m3 and simplest way 1/r 
         ! in this case hr = sum(  psd(:)*dps(:)*1d0/(10d0**(-ps(:))) )
         if (.not.incld_rough) then 
-            do iz=1,nz
-                ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*psd(:,iz)*dps(:))
-                ssav(:,iz) = sum( 3d0/(10d0**ps(:))*psd(:,iz)*dps(:))
-            enddo 
+            rough_ps_b(:) = rough_f( roughref_b, nps, 10d0**ps(:) )
         else 
-            do iz=1,nz
-                ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 *rough_c0_b*(10d0**ps(:))**rough_c1_b*psd(:,iz)*dps(:))
-                ssav(:,iz) = sum( 3d0/(10d0**ps(:)) *rough_c0_b*(10d0**ps(:))**rough_c1_b*psd(:,iz)*dps(:))
-            enddo 
+            rough_ps_b(:) = rough_f( roughref_b, nps, 10d0**ps(:) )
         endif 
+        
         do iz=1,nz
+            ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 *rough_ps_b(:)*psd(:,iz)*dps(:))
+            ssav(:,iz) = sum( 3d0/(10d0**ps(:)) *rough_ps_b(:)*psd(:,iz)*dps(:))
             ssv(:,iz) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*psd(:,iz)*dps(:))
         enddo 
         ! hr = ssa *(1-poro)/poro ! converting m2/sld-m3 to m2/pore-m3
@@ -2945,12 +3037,12 @@ if (read_data) then
     do isps = 1, nsp_sld
         hri(isps,:) = 1d0/hrii(isps)
     enddo
-
-    rough = 1d0
+    
+    ! calculating roughness based on newly defined reference (not reflecting old reference)
+    rough = 1d0 
     if (incld_rough) then 
-        ! rough = 10d0**(3.3d0)*p80**0.33d0 ! from Navarre-Sitchler and Brantley (2007)
         do isps=1,nsp_sld
-            rough(isps,:) = rough_c0(isps)*(1d0/hri(isps,:))**rough_c1(isps) ! from Navarre-Sitchler and Brantley (2007)
+            rough(isps,:) = rough_f( roughref(isps), nz, 1d0/hri(isps,:) ) 
         enddo 
     endif 
     
@@ -2958,7 +3050,9 @@ if (read_data) then
         ! updating parentrock psd if hrii has been loaded from a previous run 
         if (nsld_sa_save > 0) then 
             open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_pr.txt',status = 'replace')
+            open(ipsdv,file = trim(adjustl(profdir))//'/'//'intpsd_pr.txt',status = 'replace')
             write(ipsd,*) ' sldsp\log10(radius) ', (ps(ips),ips=1,nps), 'time'
+            write(ipsdv,*) ' sldsp\diameter(um) ', (10d0**ps(ips)*1d6*2d0,ips=1,nps), 'p80(um)'
             do isps = 1, nsp_sld
                 volsld = msldi(isps)*mv(isps)*1d-6
                 call calc_psd_pr( &
@@ -2969,9 +3063,20 @@ if (read_data) then
                     & ,psd_pr &! output 
                     & )
                 mpsd_pr(isps,:) = psd_pr(:)
+                intpsd_tmp(:) = psd_pr(:)*(10d0**ps(:))**3d0
+                intpsd = intpsd_tmp
+                do ips = 1, nps
+                    intpsd(ips) = sum(intpsd_tmp(1:ips))/sum(intpsd_tmp)
+                enddo
+                call calc_p80( &
+                    & nps,ps,intpsd &! input 
+                    & ,p80_tmp &! output
+                    & )
                 write(ipsd,*) chrsld(isps),(psd_pr(ips),ips=1,nps), 0d0
+                write(ipsdv,*) chrsld(isps),(intpsd(ips),ips=1,nps), p80_tmp
             enddo 
             close(ipsd)
+            close(ipsdv)
             do isps=1,nsp_sld
                 do iz = 1, nz
                     mpsd(isps,:,iz) = mpsd_pr(isps,:) 
@@ -2999,21 +3104,10 @@ if (read_data) then
         enddo
         
         do isps=1,nsp_sld ! SA properties calc with updated PSDs
-            if (.not.incld_rough) then 
-                do iz=1,nz
-                    ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*mpsd(isps,:,iz)*dps(:))
-                    ssav(isps,iz) = sum( 3d0/(10d0**ps(:))*mpsd(isps,:,iz)*dps(:))
-                enddo 
-            else 
-                do iz=1,nz
-                    ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0 &
-                        & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
-                    ssav(isps,iz) = sum( 3d0/(10d0**ps(:)) & 
-                        & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
-                enddo 
-            endif 
             do iz=1,nz
-                ssv(isps,iz) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*mpsd(isps,:,iz)*dps(:))
+                ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_ps(isps,:)*mpsd(isps,:,iz)*dps(:) )
+                ssav(isps,iz) = sum( 3d0/(10d0**ps(:))*rough_ps(isps,:)*mpsd(isps,:,iz)*dps(:) )
+                ssv(isps,iz) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*mpsd(isps,:,iz)*dps(:) )
             enddo 
         enddo 
         
@@ -3479,6 +3573,15 @@ do while (it<nt)
         endif 
     endif 
     
+    ! time dependent kinetic inhibition
+    if (anealing_dust) then
+        do isps=1,nsp_sld
+            if ( (rainpowder*rfrc_sld(isps)>0d0) .or. (rainpowder_2nd*rfrc_sld_2nd(isps)>0d0) ) then 
+                fkin(isps,:) = min(1d0,1d0/time)
+            endif 
+        enddo
+    endif 
+    
     ! nobio = .true.
     save_trans = .false.
     zml = zsupp
@@ -3775,9 +3878,11 @@ do while (it<nt)
     if (do_psd) then 
 
         if (dust_norm>0d0) open(ipsd,file = trim(adjustl(profdir))//'/'//'psd_rain.txt',status = 'replace')
+        if (dust_norm>0d0) open(ipsdv,file = trim(adjustl(profdir))//'/'//'intpsd_rain.txt',status = 'replace')
         
         if (do_psd_full) then 
             if (dust_norm>0d0) write(ipsd,*) ' sldsp\log10(radius) ', (ps(ips),ips=1,nps), 'time'
+            if (dust_norm>0d0) write(ipsdv,*) ' sldsp\diameter(um) ', (10d0**ps(ips)*1d6*2d0,ips=1,nps), 'p80(um)'
         
             do iz = 1,nz
 
@@ -3786,40 +3891,29 @@ do while (it<nt)
                 ! where psd is number / bulk m3 / log r
                 do isps = 1, nsp_sld
                 
-                    if ( rfrc_sld_plant(isps) > 0d0 ) then 
-                        psu_rain_list = (/ log10(p80), log10(p80),  log10(p80), log10(p80) /)
-                        pssigma_rain_list = (/ ps_sigma_std, ps_sigma_std,  ps_sigma_std, ps_sigma_std /)
-                    else 
-                        psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
-                        ! psu_rain_list = (/ log10(5.5d-6), log10(5.5d-6),  log10(5.5d-6), log10(5.5d-6) /) ! 4.56 m2/g ?
-                        ! psu_rain_list = (/ log10(5d-6), log10(5d-6),  log10(5d-6), log10(5d-6) /)
-                        ! psu_rain_list = (/ log10(3d-6), log10(3d-6),  log10(3d-6), log10(3d-6) /)
-                        ! psu_rain_list = (/ log10(2d-6), log10(2d-6),  log10(2d-6), log10(2d-6) /)  ! 9 m2/g?
-                        ! psu_rain_list = (/ log10(1.9d-6), log10(1.9d-6),  log10(1.9d-6), log10(1.9d-6) /)
-                        ! psu_rain_list = (/ log10(1.8d-6), log10(1.8d-6),  log10(1.8d-6), log10(1.8d-6) /)  ! for 9.6 m2/g
-                        ! psu_rain_list = (/ log10(1.5d-6), log10(1.5d-6),  log10(1.5d-6), log10(1.5d-6) /)
-                        ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)  ! 3.7 ?
-                        psu_rain_list = (/ log10(5d-6), log10(5d-6),  log10(5d-6), log10(5d-6) /)  ! 5.7?
-                        ! psu_rain_list = (/ log10(1d-6), log10(2d-6),  log10(5d-6), log10(20d-6) /)  ! 5.7?
-                        ! psu_rain_list = (/ log10(50d-6), log10(50d-6),  log10(50d-6), log10(50d-6) /)
-                        ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
-                        ! psu_rain_list = (/ log10(0.1d-6), log10(0.1d-6),  log10(0.1d-6), log10(0.1d-6) /)
-                        ! psu_rain_list = (/ log10(0.01d-6), log10(0.01d-6),  log10(0.01d-6), log10(0.01d-6) /)
-                        pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
+                    if ( rfrc_sld_plant(isps) > 0d0 ) then ! those rain with OM 
+                        psu_rain_list(:)        = log10(p80)
+                        pssigma_rain_list(:)    = ps_sigma_std
+                        psw_rain_list(:)        = 1d0
+                    else  ! dust except for OM associates
+                        psu_rain_list           = psu_rain_list_in
+                        pssigma_rain_list       = pssigma_rain_list_in
+                        psw_rain_list           = psw_rain_list_in
                     endif 
             
                     ! rained particle distribution 
-                    if (read_data) then 
+                    if (read_data) then !!! only to indicate the case when dust is added (usually restart experiment)
                         psd_rain(:,iz) = 0d0
                         do ips = 1, nps_rain_char
+                            psw_rain = psw_rain_list(ips)
                             psu_rain = psu_rain_list(ips)
                             pssigma_rain = pssigma_rain_list(ips)
                             psd_rain(:,iz) = psd_rain(:,iz) &
-                                & + 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
+                                & + psw_rain*1d0/pssigma_rain/sqrt(2d0*pi) &
+                                &   *exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
                         enddo 
                     else
                         psu_rain = log10(p80)
-                        pssigma_rain = 1d0
                         pssigma_rain = ps_sigma_std
                         psd_rain(:,iz) = 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
                     endif 
@@ -3851,27 +3945,40 @@ do while (it<nt)
                     mpsd_rain(isps,:,iz) = psd_rain(:,iz)
             
                     if ((dust_norm>0d0) .and. (iz==1)) write(ipsd,*) chrsld(isps),(mpsd_rain(isps,ips,iz),ips=1,nps), time
+                    if ((dust_norm>0d0) .and. (iz==1))  then                         
+                        intpsd_tmp = psd_rain_tmp*(10d0**ps)**3d0
+                        intpsd = intpsd_tmp
+                        do ips = 1, nps
+                            intpsd(ips) = sum(intpsd_tmp(1:ips))/sum(intpsd_tmp)
+                        enddo
+                        call calc_p80( &
+                            & nps,ps,intpsd &! input 
+                            & ,p80_tmp &! output
+                            & )
+                        write(ipsdv,*) chrsld(isps),(intpsd(ips),ips=1,nps), p80_tmp
+                    endif 
                 enddo 
             enddo 
         else
             if (dust_norm>0d0) write(ipsd,*) ' depth\log10(radius) ', (ps(ips),ips=1,nps), 'time'
-            
-            psu_rain_list = (/ log10(5d-6), log10(20d-6),  log10(50d-6), log10(70d-6) /)
-            ! psu_rain_list = (/ log10(10d-6), log10(10d-6),  log10(10d-6), log10(10d-6) /)
-            ! psu_rain_list = (/ log10(1d-6), log10(1d-6),  log10(1d-6), log10(1d-6) /)
-            ! pssigma_rain_list = (/ 0.5d0,  0.5d0, 0.5d0 /)
-            pssigma_rain_list = (/ 0.2d0, 0.2d0,  0.2d0, 0.2d0 /)
+            if (dust_norm>0d0) write(ipsdv,*) ' sldsp\diameter(um) ', (10d0**ps(ips)*1d6*2d0,ips=1,nps), 'p80(um)'
         
+            psu_rain_list           = psu_rain_list_in
+            pssigma_rain_list       = pssigma_rain_list_in
+            psw_rain_list           = psw_rain_list_in
+                        
             do iz = 1,nz
             
                 ! rained particle distribution 
                 if (read_data) then 
                     psd_rain(:,iz) = 0d0
                     do ips = 1, nps_rain_char
+                        psw_rain = psw_rain_list(ips)
                         psu_rain = psu_rain_list(ips)
                         pssigma_rain = pssigma_rain_list(ips)
                         psd_rain(:,iz) = psd_rain(:,iz) &
-                            & + 1d0/pssigma_rain/sqrt(2d0*pi)*exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
+                            & + psw_rain*1d0/pssigma_rain/sqrt(2d0*pi) &
+                            &   *exp( -0.5d0*( (ps(:) - psu_rain)/pssigma_rain )**2d0 )
                     enddo 
                 else
                     psu_rain = log10(p80)
@@ -3908,11 +4015,24 @@ do while (it<nt)
                 endif 
             
                 if (dust_norm>0d0) write(ipsd,*) z(iz),(psd_rain(ips,iz),ips=1,nps), time
+                if (dust_norm>0d0) then
+                    intpsd_tmp = psd_rain_tmp*(10d0**ps)**3d0
+                    intpsd = intpsd_tmp
+                    do ips = 1, nps
+                        intpsd(ips) = sum(intpsd_tmp(1:ips))/sum(intpsd_tmp)
+                    enddo
+                    call calc_p80( &
+                        & nps,ps,intpsd &! input 
+                        & ,p80_tmp &! output
+                        & )
+                    write(ipsdv,*) chrsld(isps),(intpsd(ips),ips=1,nps), p80_tmp
+                endif 
             enddo 
             
         endif 
         
         if (dust_norm>0d0) close(ipsd)
+        if (dust_norm>0d0) close(ipsdv)
     endif 
     
     
@@ -4427,7 +4547,7 @@ do while (it<nt)
                     call psd_diss_pbe( &
                         & nz,nps &! in
                         & ,z,DV,dt,pi,tol_dvd,poro &! in 
-                        & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
+                        & ,incld_rough,roughref(isps) &! in
                         & ,psd,ps,dps,ps_min,ps_max &! in 
                         & ,chrsld(isps) &! in 
                         & ,dpsd,psd_error_flg &! inout
@@ -4544,7 +4664,7 @@ do while (it<nt)
                 call psd_diss_pbe( &
                     & nz,nps &! in
                     & ,z,DV,dt,pi,tol,poro &! in 
-                    & ,incld_rough,rough_c0_b,rough_c1_b &! in
+                    & ,incld_rough,roughref_b &! in
                     & ,psd,ps,dps,ps_min,ps_max &! in 
                     & ,' blk ' &! in 
                     & ,dpsd,psd_error_flg &! inout
@@ -4623,8 +4743,7 @@ do while (it<nt)
                     if (.not.psd_impfull) then 
                         call psd_implicit_all_v2( &
                             & nz,nsp_sld,nps,nflx_psd &! in
-                            & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                            & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
+                            & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in
                             & ,trans &! in
                             & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm &! in  
                             & ,chrsld(isps) &! in 
@@ -4636,7 +4755,7 @@ do while (it<nt)
                         call psd_implicit_all_v4( &
                             & nz,nsp_sld,nps,nflx_psd &! in
                             & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                            & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
+                            & ,incld_rough,roughref(isps) &! in
                             & ,trans &! in
                             & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm,DV,psd_norm_fact &! in  
                             & ,chrsld(isps) &! in 
@@ -4705,8 +4824,7 @@ do while (it<nt)
                 if (.not.psd_impfull) then 
                     call psd_implicit_all_v2( &
                         & nz,nsp_sld,nps,nflx_psd &! in
-                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0_b,rough_c1_b &! in
+                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in
                         & ,trans &! in
                         & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm &! in    
                         & ,' blk ' &! in 
@@ -4717,7 +4835,7 @@ do while (it<nt)
                     call psd_implicit_all_v4( &
                         & nz,nsp_sld,nps,nflx_psd &! in
                         & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0_b,rough_c1_b &! in
+                        & ,incld_rough,roughref_b &! in
                         & ,trans &! in
                         & ,psd_norm,psd_pr_norm,ps,dps,dpsd_norm,psd_rain_norm,DV,psd_norm_fact &! in    
                         & ,' blk ' &! in 
@@ -4797,8 +4915,7 @@ do while (it<nt)
                     if (.not.psd_impfull) then 
                         call psd_implicit_all_v2( &
                             & nz,nsp_sld,nps,nflx_psd &! in
-                            & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                            & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
+                            & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in
                             & ,trans &! in
                             & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in    
                             & ,chrsld(isps) &! in 
@@ -4811,7 +4928,7 @@ do while (it<nt)
                         call psd_implicit_all_v4( &
                             & nz,nsp_sld,nps,nflx_psd &! in
                             & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                            & ,incld_rough,rough_c0(isps),rough_c1(isps) &! in
+                            & ,incld_rough,roughref(isps) &! in
                             & ,trans &! in
                             & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in    
                             & ,chrsld(isps) &! in
@@ -4855,8 +4972,7 @@ do while (it<nt)
                 if (.not.psd_impfull) then 
                     call psd_implicit_all_v2( &
                         & nz,nsp_sld,nps,nflx_psd &! in
-                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0_b,rough_c1_b &! in
+                        & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in
                         & ,trans &! in
                         & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in    
                         & ,' blk ' &! in 
@@ -4868,7 +4984,7 @@ do while (it<nt)
                     call psd_implicit_all_v4( &
                         & nz,nsp_sld,nps,nflx_psd &! in
                         & ,z,dz,dt,pi,tol,w_btm,w,poro,poroi,poroprev &! in 
-                        & ,incld_rough,rough_c0_b,rough_c1_b &! in
+                        & ,incld_rough,roughref_b &! in
                         & ,trans &! in
                         & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in    
                         & ,' blk ' &! in 
@@ -5085,36 +5201,16 @@ do while (it<nt)
     if (do_psd) then 
         if (do_psd_full) then  
             do isps=1,nsp_sld
-                if (.not. incld_rough) then 
-                    do iz=1,nz
-                        ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*mpsd(isps,:,iz)*dps(:))
-                        ssav(isps,iz) = sum( 3d0/(10d0**ps(:))*mpsd(isps,:,iz)*dps(:))
-                    enddo 
-                else 
-                    do iz=1,nz
-                        ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0  &
-                            & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
-                        ssav(isps,iz) = sum( 3d0/(10d0**ps(:))  &
-                            & *rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*mpsd(isps,:,iz)*dps(:))
-                    enddo 
-                endif
                 do iz=1,nz
-                    ssv(isps,iz) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*mpsd(isps,:,iz)*dps(:))
+                    ssa(isps,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_ps(isps,:)*mpsd(isps,:,iz)*dps(:))
+                    ssav(isps,iz) = sum( 3d0/(10d0**ps(:))*rough_ps(isps,:)*mpsd(isps,:,iz)*dps(:))
+                    ssv(isps,iz) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*mpsd(isps,:,iz)*dps(:))   ! solid m3/bulk m3
                 enddo 
             enddo 
         else 
-            if (.not. incld_rough) then 
-                do iz=1,nz
-                    ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*psd(:,iz)*dps(:))
-                    ssav(:,iz) = sum( 3d0/(10d0**ps(:))*psd(:,iz)*dps(:))
-                enddo 
-            else 
-                do iz=1,nz
-                    ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0_b*(10d0**ps(:))**rough_c1_b*psd(:,iz)*dps(:))
-                    ssav(:,iz) = sum( 3d0/(10d0**ps(:))*rough_c0_b*(10d0**ps(:))**rough_c1_b*psd(:,iz)*dps(:))
-                enddo 
-            endif
             do iz=1,nz
+                ssa(:,iz) = sum( 4d0*pi*(10d0**ps(:))**2d0*rough_ps_b(:)*psd(:,iz)*dps(:))
+                ssav(:,iz) = sum( 3d0/(10d0**ps(:))*rough_ps_b(:)*psd(:,iz)*dps(:))
                 ssv(:,iz) = sum( 4d0/3d0*pi*(10d0**ps(:))**3d0*psd(:,iz)*dps(:))
             enddo 
         endif 
@@ -5124,8 +5220,8 @@ do while (it<nt)
             if (do_psd_full) then 
                 ! hr(isps,:) = ssa(isps,:)/poro/(msldx(isps,:)*mv(isps)*1d-6) ! so that poro * hr * mv * msld becomes porosity independent
                 ! hr(isps,:) = ssa(isps,:) ! so that poro * hr * mv * msld becomes porosity independent
-                hr(isps,:) = ssa(isps,:)/ssv(isps,:)/poro 
-                ! hr(isps,:) = ssav(isps,:)/poro 
+                hr(isps,:) = ssa(isps,:)/ssv(isps,:)/poro    !!! better for conversion?
+                ! hr(isps,:) = ssav(isps,:)/poro                ! should be this? noted in 4-24-2023
             else 
                 hr(isps,:) = ssa(isps,:)/poro ! so that poro * hr * mv * msld becomes porosity independent
             endif 
@@ -5137,6 +5233,17 @@ do while (it<nt)
         print *, '***| ... and no more reasonable simulation ... ! '
         stop
     endif 
+    
+    ! calculating specific surface area (m2/g)
+    ssas = 0d0
+    do isps=1,nsp_sld
+        if (do_psd_full) then 
+            ssas(isps,:) = hr(isps,:)*poro*ssv(isps,:)/ ( msldx(isps,:)*mwt(isps) )
+            ! ssas(isps,:) = hr(isps,:)*poro/( msldx(isps,:)*mwt(isps) )
+        else
+            ssas(isps,:) = hr(isps,:)*poro/( msldx(isps,:)*mwt(isps) )
+        endif 
+    enddo
     
     ! activity coefficient for H+
     gamma = 1d0
@@ -5524,6 +5631,8 @@ do while (it<nt)
             & //'rate-'//chr//'.txt', status='replace')
         open(isa,file=trim(adjustl(profdir))//'/' &
             & //'sa-'//chr//'.txt', status='replace')
+        open(isa2,file=trim(adjustl(profdir))//'/' &
+            & //'ssa-'//chr//'.txt', status='replace')
             
         write(chrfmt,'(i0)') nsp_sld+2
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
@@ -5552,6 +5661,7 @@ do while (it<nt)
         write(chrfmt,'(i0)') nsp_sld+2
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(isa,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),'time'
+        write(isa2,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),'time'
 
         do iz = 1, Nz
             ucvsld1 = 1d0
@@ -5574,6 +5684,7 @@ do while (it<nt)
                 & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),cec(iz),time
             write(irate,*) z(iz), (rxnsld(isps,iz),isps=1,nsp_sld),(rxnext(irxn,iz),irxn=1,nrxn_ext), time 
             write(isa,*) z(iz),(hr(isps,iz),isps = 1, nsp_sld),time
+            write(isa2,*) z(iz),(ssas(isps,iz),isps = 1, nsp_sld),time
         end do
 
         close(isldprof)
@@ -5590,6 +5701,7 @@ do while (it<nt)
         close(ibsd)
         close(irate)
         close(isa)
+        close(isa2)
         
         if (do_psd) then 
             
@@ -5624,20 +5736,12 @@ do while (it<nt)
                             & / (  msld(isps,iz)*mv(isps)*1d-6  ) * 1d2 &
                             & /ucvsld2  &
                             & ,ips=1,nps), time 
-                        if (.not.incld_rough) then 
-                            write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0*mpsd(isps,ips,iz)*dps(ips) &
-                                ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*psd(:,iz)*dps(:))  * 1d2 &
-                                & / ssa(isps,iz)  * 1d2 &
-                                ! & /( poro(iz)/(1d0 - poro(iz) ))  &
-                                & ,ips=1,nps), time 
-                        else
-                            write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0 &
-                                & *rough_c0(isps)*(10d0**ps(ips))**rough_c1(isps)*mpsd(isps,ips,iz)*dps(ips) &
-                                ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*psd(:,iz)*dps(:))  * 1d2 &
-                                & / ssa(isps,iz)  * 1d2 &
-                                ! & /( poro(iz)/(1d0 - poro(iz) ))  &
-                                & ,ips=1,nps), time 
-                        endif 
+                        write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0 &
+                            & *rough_ps(isps,ips)*mpsd(isps,ips,iz)*dps(ips) &
+                            ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0(isps)*(10d0**ps(:))**rough_c1(isps)*psd(:,iz)*dps(:))  * 1d2 &
+                            & / ssa(isps,iz)  * 1d2 &
+                            ! & /( poro(iz)/(1d0 - poro(iz) ))  &
+                            & ,ips=1,nps), time 
                     end do
                     
                     do ips=1,nps
@@ -5679,20 +5783,12 @@ do while (it<nt)
                         & / ( sum( msld(:,iz)*mv(:)*1d-6) + mblk(iz)*mvblk*1d-6 ) * 1d2 &
                         & /ucvsld2  &
                         & ,ips=1,nps), time 
-                    if (.not.incld_rough) then 
-                        write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0*psd(ips,iz)*dps(ips) &
-                            ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*psd(:,iz)*dps(:))  * 1d2 &
-                            & / ssab(iz)  * 1d2 &
-                            ! & /( poro(iz)/(1d0 - poro(iz) ))  &
-                            & ,ips=1,nps), time 
-                    else
-                        write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0 &
-                            & *rough_c0_b*(10d0**ps(ips))**rough_c1_b*psd(ips,iz)*dps(ips) &
-                            ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0_b*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))  * 1d2 &
-                            & / ssab(iz)  * 1d2 &
-                            ! & /( poro(iz)/(1d0 - poro(iz) ))  &
-                            & ,ips=1,nps), time 
-                    endif 
+                    write(ipsds,*) z(iz), (4d0*pi*(10d0**ps(ips))**2d0 &
+                        & *rough_ps_b(ips)*psd(ips,iz)*dps(ips) &
+                        ! & /sum( 4d0*pi*(10d0**ps(:))**2d0*rough_c0_b*(10d0**ps(:))**rough_c1*psd(:,iz)*dps(:))  * 1d2 &
+                        & / ssab(iz)  * 1d2 &
+                        ! & /( poro(iz)/(1d0 - poro(iz) ))  &
+                        & ,ips=1,nps), time 
                 end do
                 
                 do ips=1,nps
@@ -6847,6 +6943,63 @@ close(50)
 
 
 endsubroutine get_sa
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_psdrain_num(nps_rain_char)
+implicit none
+
+integer,intent(out):: nps_rain_char
+
+character(500) file_name
+integer n_tmp
+
+file_name = './psdrain.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+nps_rain_char = n_tmp
+
+
+endsubroutine get_psdrain_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_psdrain( &
+    & nps_rain_char &! input
+    & ,psu_rain_list,pssigma_rain_list,psw_rain_list &! output
+    & )
+implicit none
+
+integer,intent(in):: nps_rain_char
+real(kind=8),dimension(nps_rain_char),intent(out)::psu_rain_list,pssigma_rain_list,psw_rain_list
+real(kind=8),dimension(3)::val_tmp
+
+character(500) file_name
+integer i
+
+file_name = './psdrain.in'
+
+if (nps_rain_char <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,nps_rain_char
+    read(50,*) val_tmp(:)
+    psu_rain_list(i)        = val_tmp(1)
+    pssigma_rain_list(i)    = val_tmp(2)
+    psw_rain_list(i)        = val_tmp(3)
+enddo 
+close(50)
+
+
+endsubroutine get_psdrain
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -20649,6 +20802,49 @@ endsubroutine calc_psd_pr
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine calc_p80( &
+    & nps,ps,intpsd &! input 
+    & ,p80_tmp &! output
+    & )
+
+implicit none
+! input 
+integer,intent(in)::nps
+real(kind=8),dimension(nps),intent(in)::ps,intpsd
+! output 
+real(kind=8),intent(out)::p80_tmp
+! local
+real(kind=8),dimension(nps)::dm
+real(kind=8) slp
+integer ips
+logical found_p80
+
+dm = 10d0**ps*1d6*2d0 ! diameter in um
+
+p80_tmp = 0d0
+found_p80 = .false.
+do ips=1,nps-1
+    if ( (intpsd(ips)<=0.80d0) .and. (intpsd(ips+1)>=0.80d0) ) then
+        slp = ( intpsd(ips+1) - intpsd(ips) ) / ( dm(ips+1) - dm(ips) )
+        p80_tmp = dm(ips) + ( 0.80d0 - intpsd(ips) ) / slp
+        found_p80 = .true.
+    endif 
+enddo
+
+if (.not. found_p80) then 
+    print*,'p80 could not be found'
+    print*,dm
+    print*,intpsd
+    stop
+endif 
+
+endsubroutine calc_p80
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine psd_diss( &
     & nz,nps &! in
     & ,z,DV,dt,pi,tol,poro &! in 
@@ -20989,7 +21185,7 @@ endsubroutine psd_diss
 subroutine psd_diss_iz( &
     & nz,nps,iz &! in
     & ,z,DV,dt,pi,tol,poro &! in 
-    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,incld_rough,roughref &! in
     & ,psd,ps,dps,ps_min,ps_max &! in 
     & ,chrsp &! in 
     & ,dpsd,psd_error_flg &! inout
@@ -20997,18 +21193,19 @@ subroutine psd_diss_iz( &
 implicit none 
 
 integer,intent(in)::nz,nps,iz
-real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol,rough_c0,rough_c1 
+real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol 
 real(kind=8),dimension(nz),intent(in)::z,poro
 real(kind=8),dimension(nps),intent(in)::ps,dps
 real(kind=8),dimension(nz),intent(in)::DV
 real(kind=8),dimension(nps,nz),intent(in)::psd
 character(5),intent(in)::chrsp
+character(10),intent(in)::roughref
 logical,intent(in)::incld_rough
 real(kind=8),dimension(nps,nz),intent(inout)::dpsd
 logical,intent(inout)::psd_error_flg
 ! local 
 real(kind=8),dimension(nps,nz)::dVd,psd_old,psd_new,dpsd_tmp
-real(kind=8),dimension(nps)::psd_tmp,dvd_tmp
+real(kind=8),dimension(nps)::psd_tmp,dvd_tmp,rough_tmp
 real(kind=8) ps_new,ps_newp,dvd_res
 integer ips,iips,ips_new,isps
 logical :: safe_mode = .false.
@@ -21054,11 +21251,13 @@ enddo
 
 ! correct one?
 dVd = 0d0
+rough_tmp = 1d0
 if (.not.incld_rough) then 
-    dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 )
+    rough_tmp(:) = rough_f( 'smooth', nps, (10d0**ps(:)) )
 else
-    dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1)
+    rough_tmp(:) = rough_f( roughref, nps, (10d0**ps(:)) )
 endif 
+dVd(:,iz) = ( psd (:,iz) * (10d0**ps(:))**2d0 *rough_tmp(:) )
 
 if (all(dVd == 0d0)) then 
     print *,chrsp,'all dissolved loc1?'
@@ -21113,11 +21312,12 @@ do ips = 1, nps
                 
                 ! correct one?
                 dVd_tmp = 0d0
-                if (.not.incld_rough) then 
-                    dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 )
-                else
-                    dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 *rough_c0*(10d0**ps(ips+1:))**rough_c1 )
-                endif 
+                ! if (.not.incld_rough) then 
+                    ! dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 )
+                ! else
+                    ! dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 *rough_c0*(10d0**ps(ips+1:))**rough_c1 )
+                ! endif 
+                dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 *rough_tmp(ips+1:) )
                 
                 if (all(dVd_tmp == 0d0)) then 
                     print *,chrsp,'all dissolved loc2?',ips, psd(ips+1:,iz)
@@ -21187,19 +21387,21 @@ do ips = 1, nps
             
             ! correct one?
             dVd_tmp = 0d0
-            if (.not.incld_rough) then 
-                ! dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 )
-                do iips=1,nps
-                    if (iips == ips) cycle
-                    dVd_tmp(iips) = ( psd (iips,iz) * (10d0**ps(iips))**2d0 )
-                enddo 
-            else
-                ! dVd_tmp(ips+1:) = ( psd (ips+1:,iz) * (10d0**ps(ips+1:))**2d0 * rough_c0*(10d0**ps(ips+1:))**rough_c1 )
-                do iips = 1,nps
-                    if (iips == ips) cycle
-                    dVd_tmp(iips) = ( psd (iips,iz) * (10d0**ps(iips))**2d0 * rough_c0*(10d0**ps(iips))**rough_c1 )
-                enddo 
-            endif 
+            ! if (.not.incld_rough) then 
+                ! do iips=1,nps
+                    ! if (iips == ips) cycle
+                    ! dVd_tmp(iips) = ( psd (iips,iz) * (10d0**ps(iips))**2d0 )
+                ! enddo 
+            ! else
+                ! do iips = 1,nps
+                    ! if (iips == ips) cycle
+                    ! dVd_tmp(iips) = ( psd (iips,iz) * (10d0**ps(iips))**2d0 * rough_c0*(10d0**ps(iips))**rough_c1 )
+                ! enddo 
+            ! endif 
+            do iips = 1,nps
+                if (iips == ips) cycle
+                dVd_tmp(iips) = ( psd (iips,iz) * (10d0**ps(iips))**2d0 * rough_tmp(iips) )
+            enddo 
             
             if (all(dVd_tmp == 0d0)) then 
                 print *,chrsp,'all dissolved loc3?',ips, psd(:,iz)
@@ -21326,7 +21528,7 @@ endsubroutine psd_diss_iz
 subroutine psd_diss_pbe( &
     & nz,nps &! in
     & ,z,DV,dt,pi,tol,poro &! in 
-    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,incld_rough,roughref &! in
     & ,psd,ps,dps,ps_min,ps_max &! in 
     & ,chrsp &! in 
     & ,dpsd,psd_error_flg &! inout
@@ -21335,12 +21537,13 @@ subroutine psd_diss_pbe( &
 implicit none 
 
 integer,intent(in)::nz,nps
-real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol,rough_c0,rough_c1 
+real(kind=8),intent(in)::dt,ps_min,ps_max,pi,tol 
 real(kind=8),dimension(nz),intent(in)::z,poro
 real(kind=8),dimension(nps),intent(in)::ps,dps
 real(kind=8),dimension(nz),intent(in)::DV
 real(kind=8),dimension(nps,nz),intent(in)::psd
 character(5),intent(in)::chrsp
+character(10),intent(in)::roughref
 logical,intent(in)::incld_rough
 real(kind=8),dimension(nps,nz),intent(inout)::dpsd
 logical,intent(inout)::psd_error_flg
@@ -21427,7 +21630,7 @@ endif
 
 ! roughness factor as functin of radius
 lambda = 1d0
-if (incld_rough)  lambda = rough_c0*(10d0**ps(:))**rough_c1 
+if (incld_rough)  lambda = rough_f( roughref, nps, (10d0**ps(:)) )
 
 ! R = log10 r 
 ! dR/dr =  1/(r * log10)
@@ -21501,7 +21704,7 @@ do iz = 1, nz
         call psd_diss_iz( &
             & nz,nps,iz &! in
             & ,z,DV,dt,pi,tol,poro &! in 
-            & ,incld_rough,rough_c0,rough_c1 &! in
+            & ,incld_rough,roughref &! in
             & ,psd,ps,dps,ps_min,ps_max &! in 
             & ,chrsp &! in 
             & ,dpsd_tmp,psd_error_flg &! inout
@@ -22658,8 +22861,7 @@ endsubroutine psd_diss_pbe_expall
 
 subroutine psd_implicit_all_v2( &
     & nz,nsp_sld,nps,nflx_psd &! in
-    & ,z,dz,dt,pi,tol,w0,w,poro,poroi,poroprev &! in 
-    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,z,dz,dt,pi,tol,w0,w,poro,poroi,poroprev &! in
     & ,trans &! in
     & ,psd,psd_pr,ps,dps,dpsd,psd_rain &! in   
     & ,chrsp &! in 
@@ -22669,11 +22871,10 @@ subroutine psd_implicit_all_v2( &
 implicit none 
 
 integer,intent(in)::nz,nsp_sld,nps,nflx_psd
-real(kind=8),intent(in)::dt,pi,tol,w0,rough_c0,rough_c1,poroi
+real(kind=8),intent(in)::dt,pi,tol,w0,poroi
 real(kind=8),dimension(nz),intent(in)::z,dz,w,poro,poroprev
 real(kind=8),dimension(nz,nz,nsp_sld),intent(in)::trans
 real(kind=8),dimension(nps),intent(in)::ps,dps,psd_pr
-logical,intent(in)::incld_rough
 logical,intent(inout)::flgback
 real(kind=8),intent(inout)::flx_max_max
 character(5),intent(in)::chrsp
@@ -23140,7 +23341,7 @@ endsubroutine psd_implicit_all_v2
 subroutine psd_implicit_all_v4( &
     & nz,nsp_sld,nps,nflx_psd &! in
     & ,z,dz,dt,pi,tol,w0,w,poro,poroi,poroprev &! in 
-    & ,incld_rough,rough_c0,rough_c1 &! in
+    & ,incld_rough,roughref &! in
     & ,trans &! in
     & ,psd,psd_pr,ps,dps,dpsd,psd_rain,DV,psd_norm_fact &! in   
     & ,chrsp &! in 
@@ -23150,7 +23351,7 @@ subroutine psd_implicit_all_v4( &
 implicit none 
 
 integer,intent(in)::nz,nsp_sld,nps,nflx_psd
-real(kind=8),intent(in)::dt,pi,tol,w0,rough_c0,rough_c1,poroi
+real(kind=8),intent(in)::dt,pi,tol,w0,poroi
 real(kind=8),dimension(nz),intent(in)::z,dz,w,poro,poroprev,DV
 real(kind=8),dimension(nz,nz,nsp_sld),intent(in)::trans
 real(kind=8),dimension(nps),intent(in)::ps,dps,psd_pr,psd_norm_fact
@@ -23158,11 +23359,13 @@ logical,intent(in)::incld_rough
 logical,intent(inout)::flgback
 real(kind=8),intent(inout)::flx_max_max
 character(5),intent(in)::chrsp
+character(10),intent(in)::roughref
 real(kind=8),dimension(nps,nz),intent(in)::psd,dpsd,psd_rain
 real(kind=8),dimension(nps,nz),intent(out)::psdx
 ! local 
 real(kind=8),dimension(nps,nz)::psd_old,dpsd_tmp
 real(kind=8),dimension(nz)::kpsd,sporo,kpsdx
+real(kind=8),dimension(nps)::rough_tmp
 integer iz,isps,ips,iiz,row,col,ie,ie2,iips
 real(kind=8) vol,surf,m_tmp,mp_tmp,mi_tmp,mprev_tmp,rxn_tmp,drxn_tmp,w_tmp,wp_tmp,trans_tmp,msupp_tmp  &
     & ,sporo_tmp, sporop_tmp,sporoprev_tmp,dtinv,dzinv,drxndk_tmp
@@ -23229,10 +23432,11 @@ kpsd = 0d0
 ! dV = 0d0
 do iz = 1, nz
     if (.not. incld_rough) then 
-        kpsd(iz) = sum( psd_norm_fact(:) * psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) ! available surface area
+        rough_tmp(:) = rough_f( 'smooth', nps, (10d0**ps(:)) )
     else
-        kpsd(iz) = sum( psd_norm_fact(:) * psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) ! available surface area
+        rough_tmp(:) = rough_f( roughref, nps, (10d0**ps(:)) )
     endif 
+    kpsd(iz) = sum( psd_norm_fact(:) * psd(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 *rough_tmp(:) ) ! available surface area
     kpsd(iz) = dV(iz)/kpsd(iz) 
     ! kpsd(iz) = abs(dV(iz))/kpsd(iz) 
 enddo 
@@ -23274,10 +23478,7 @@ do while (error > 1d0)
             row =  iz !+ (ips - 1)*nz
             
             vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
-            surf = 4d0*pi*(10d0**ps(ips))**2d0
-            if (incld_rough) then 
-                surf = 4d0*pi*(10d0**ps(ips))**2d0 *rough_c0*(10d0**ps(ips))**rough_c1
-            endif 
+            surf = 4d0*pi*(10d0**ps(ips))**2d0*rough_tmp(ips)
                     
             m_tmp = vol * psdx(ips,iz) * dps(ips)
             mprev_tmp = vol * psd(ips,iz) * dps(ips)        
@@ -23524,37 +23725,20 @@ if (explicit) exit
 kpsd = kpsdx
 
 do iz = 1, nz
-    if (.not. incld_rough) then 
-        kpsdx(iz) = dV(iz)/sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) ! available surface area
-    else
-        kpsdx(iz) = dV(iz)/sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
-            & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) ! available surface area
-    endif 
+    kpsdx(iz) = dV(iz)/sum( psd_norm_fact(:) * psdx(:,iz) * dps(:)* 4d0*pi*(10d0**ps(:))**2d0 *rough_tmp(:) ) ! available surface area
     ! kpsdx(iz) = dV(iz)/kpsdx(iz) 
     ! kpsd(iz) = abs(dV(iz))/kpsd(iz) 
 enddo 
 
 do iz = 1, nz
-    if (.not. incld_rough) then 
-        if ( abs(DV(iz)) > tol  &
-            & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) &
-            &  - DV(iz) ) / DV(iz) ) > tol ) then  
-            print *, chrsp,'checking the vol. balance within do-loop and failed ... ' &
-                & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 )  &
-                &  - DV(iz) ) / DV(iz) )
-            ! flgback = .true.
-        endif 
-    else
-        if ( abs(DV(iz)) > tol  &
-            & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
-            & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
-            &  - DV(iz) ) / DV(iz) ) > tol ) then  
-            print *, chrsp,'checking the vol. balance within do-loop and failed ... ' &
-                & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
-                & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
-                &  - DV(iz) ) / DV(iz) )
-            ! flgback = .true.
-        endif 
+    if ( abs(DV(iz)) > tol  &
+        & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+        & * 4d0*pi*(10d0**ps(:))**2d0 *rough_tmp(:) ) &
+        &  - DV(iz) ) / DV(iz) ) > tol ) then  
+        print *, chrsp,'checking the vol. balance within do-loop and failed ... ' &
+            & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+            & * 4d0*pi*(10d0**ps(:))**2d0 *rough_tmp(:) ) &
+            &  - DV(iz) ) / DV(iz) )
     endif 
 enddo 
 
@@ -23589,26 +23773,15 @@ if (flgback) exit
 
 if (.not.explicit) then 
     do iz = 1, nz
-        if (.not. incld_rough) then 
-            if ( abs(DV(iz)) > tol  &
-                & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 ) &
-                &  - DV(iz) ) / DV(iz) ) > tol ) then  
-                print *, chrsp,'checking the vol. balance and failed ... ' &
-                    & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) * 4d0*pi*(10d0**ps(:))**2d0 )  &
-                    &  - DV(iz) ) / DV(iz) )
-                flgback = .true.
-            endif 
-        else
-            if ( abs(DV(iz)) > tol  &
-                & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
-                & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
-                &  - DV(iz) ) / DV(iz) ) > tol ) then  
-                print *, chrsp,'checking the vol. balance and failed ... ' &
-                    & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
-                    & * 4d0*pi*(10d0**ps(:))**2d0 *rough_c0*(10d0**ps(:))**rough_c1 ) &
-                    &  - DV(iz) ) / DV(iz) )
-                flgback = .true.
-            endif 
+        if ( abs(DV(iz)) > tol  &
+            & .and. abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+            & * 4d0*pi*(10d0**ps(:))**2d0 *rough_tmp(:) ) &
+            &  - DV(iz) ) / DV(iz) ) > tol ) then  
+            print *, chrsp,'checking the vol. balance and failed ... ' &
+                & , abs ( ( kpsdx(iz) * sum( psd_norm_fact(:) * psdx(:,iz) * dps(:) &
+                & * 4d0*pi*(10d0**ps(:))**2d0 *rough_tmp(:) ) &
+                &  - DV(iz) ) / DV(iz) )
+            flgback = .true.
         endif 
     enddo 
 endif 
@@ -23622,10 +23795,7 @@ do ips = 1, nps
         row =  iz   
         
         vol  = 4d0/3d0*pi*(10d0**ps(ips))**3d0
-        surf = 4d0*pi*(10d0**ps(ips))**2d0
-        if (incld_rough) then 
-            surf = 4d0*pi*(10d0**ps(ips))**2d0 *rough_c0*(10d0**ps(ips))**rough_c1
-        endif 
+        surf = 4d0*pi*(10d0**ps(ips))**2d0 * rough_tmp(ips)
                 
         m_tmp = vol * psdx(ips,iz) * dps(ips)
         mprev_tmp = vol * psd(ips,iz) * dps(ips)        
@@ -24539,6 +24709,31 @@ implicit none
 real(kind=8) k_q10,kref,tc_ref,tc,q10
 k_q10 = kref*q10**( (tc - tc_ref)/10d0  )
 endfunction k_q10
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+function rough_f(ref_dummy,n_dummy,r_dummy)
+implicit none
+integer n_dummy
+real(kind=8),dimension(n_dummy):: rough_f,r_dummy
+character(10) ref_dummy
+selectcase(trim(adjustl(ref_dummy)))
+    case('NSB07')       ! Navarre-Sitchler and Brantley (2007)
+        rough_f = 10d0**3.3d0*r_dummy**0.33d0
+    case('BM00')        ! Brantley and Mellott (2000)
+        rough_f = 10d0**0.7d0*r_dummy**(-0.1d0)
+    case('Letal21')     ! Lewis et al. (2021) 
+        ! rough_f = 10d0**(   154.25d0 * exp( 1.0219d0 * log10( r_dummy ) ) ) ! (assuming sphere)
+        ! rough_f = 10d0**(   113.41d0 * exp( 1.0219d0 * log10( r_dummy ) ) ) ! (assuming cube)
+        ! rough_f = 10d0**(   max( 2.02d0*log10( r_dummy ) + 10.734d0, 1d0 ) )  ! (assuming sphere)
+        rough_f = 10d0**(   max( 2.02d0*log10( r_dummy ) + 10.126d0, 1d0 ) )  ! (assuming cube)
+    case('smooth')
+        rough_f = 1d0
+    case default 
+        print*, '*** error in rough_f --> stop'
+        stop
+endselect
+endfunction rough_f
 !ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 #ifdef no_intr_findloc
