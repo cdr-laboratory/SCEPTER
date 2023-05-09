@@ -238,14 +238,14 @@ real(kind=8),parameter :: mvclch = 211.470d0 ! cm3/mol; molar volume of clinochl
 real(kind=8),parameter :: mvsdn = 109.05d0 ! cm3/mol; molar volume of sanidine; Robie et al. 1978
 real(kind=8),parameter :: mvcdr = 584.95d0 /2.65d0  ! cm3/mol; molar volume of cordierite Mg2Al4Si5O18 from molar weight and density from http://www.webmineral.com/data/Cordierite.shtml#.YZtITrqIaUk
 real(kind=8),parameter :: mvleu =  88.39d0 ! cm3/mol; molar volume of leucite KAlSi206; Robie et al. 1978
-real(kind=8),parameter :: mvkcl =  74.555d0/1.984d0 ! cm3/mol; from KCl Molar mass 74.555 g·mol−1 and Density 1.984 g/cm3 from Wikipedea https://en.wikipedia.org/wiki/Potassium_chloride
+real(kind=8),parameter :: mvkcl =  37.524d0 ! cm3/mol; molar volume of sylvite; from Robie et al. 1978
 real(kind=8),parameter :: mvgac =  60.052d0/1.27d0 ! cm3/mol; from CH3COOH Molar mass 60.052 g·mol−1 and Density 1.27 g/cm3 from Wikipedea https://en.wikipedia.org/wiki/Acetic_acid
 real(kind=8),parameter :: mvmesmh =  213.25d0/0.56d0 ! cm3/mol; from MES monohydrate Molar mass 213.25 g·mol−1 and Density 0.56 g/cm3 from https://www.emdmillipore.com/US/en/product/2-Morpholinoethanesulfonic-acid-monohydrate,MDA_CHEM-106126
 real(kind=8),parameter :: mvims =  68.077d0/1.23d0 ! cm3/mol; from MES monohydrate Molar mass 68.077 g·mol−1 and Density 1.23 g/cm3 from https://en.wikipedia.org/wiki/Imidazole
 real(kind=8),parameter :: mvteas = 149.190d0/1.124d0 ! cm3/mol; from MES monohydrate Molar mass 149.190 g·mol−1 and Density 1.124 g/cm3 from https://en.wikipedia.org/wiki/Triethanolamine
 real(kind=8),parameter :: mvnaoh = 39.9971d0/2.13d0 ! cm3/mol; from NaOH Molar mass 39.9971 g·mol−1 and Density 2.13 g/cm3 from https://en.wikipedia.org/wiki/Sodium_hydroxide
 real(kind=8),parameter :: mvnaglp = 216.036d0/1.5d0 ! cm3/mol; from sodium glycerophosphate Molar mass 216.036 g·mol−1 and assuming Density 1.5 g/cm3 
-real(kind=8),parameter :: mvcacl2 = 110.98d0/2.15d0 ! cm3/mol; from CaCl2 Molar mass 110.98 g·mol−1 and assuming Density 2.15 g/cm3 both from https://en.wikipedia.org/wiki/Calcium_chloride
+real(kind=8),parameter :: mvcacl2 = 50.75d0 ! cm3/mol; molar volume of hydrophilite; from Robie et al. 1978
 real(kind=8),parameter :: mvnacl = 27.015d0 ! cm3/mol; molar volume of halite; from Robie et al. 1978
 real(kind=8),parameter :: mvcaso4 = 45.94d0 ! cm3/mol; molar volume of anhydrite; from Robie et al. 1978
 real(kind=8),parameter :: mvinrt = mvka ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
@@ -332,14 +332,14 @@ real(kind=8),parameter :: mwtclch = 555.79754d0 ! g/mol; molar weight of clinoch
 real(kind=8),parameter :: mwtsdn = 278.333d0 ! cm3/mol; molar weight of sanidine; Robie et al. 1978
 real(kind=8),parameter :: mwtcdr = 584.95d0 ! cm3/mol; from molar weight of cordierite Mg2Al4Si5O18 from http://www.webmineral.com/data/Cordierite.shtml#.YZtITrqIaUk
 real(kind=8),parameter :: mwtleu =  218.248d0 ! cm3/mol; molar volume of leucite KAlSi206; Robie et al. 1978
-real(kind=8),parameter :: mwtkcl =  74.555d0 ! g·mol−1; from KCl Molar mass 74.555 g·mol−1 and Density 1.984 g/cm3 from Wikipedea https://en.wikipedia.org/wiki/Potassium_chloride
+real(kind=8),parameter :: mwtkcl =  74.551d0 ! g·mol−1; molar weight of sylvite; Robie et al. 1978
 real(kind=8),parameter :: mwtgac =  60.052d0 ! g·mol−1; from CH3COOH Molar mass 60.052 g·mol−1 and Density 1.27 g/cm3 from Wikipedea https://en.wikipedia.org/wiki/Acetic_acid
 real(kind=8),parameter :: mwtmesmh =  213.25d0 ! g·mol−1; from MES monohydrate Molar mass 213.25 g·mol−1 and Density 0.56 g/cm3 from https://www.emdmillipore.com/US/en/product/2-Morpholinoethanesulfonic-acid-monohydrate,MDA_CHEM-106126
 real(kind=8),parameter :: mwtims =  68.077d0 ! g/mol; from Imidazole monohydrate Molar mass 68.077 g·mol−1 and Density 1.23 g/cm3 from https://en.wikipedia.org/wiki/Imidazole
 real(kind=8),parameter :: mwtteas = 149.190d0 ! g/mol; from TEA Molar mass 149.190 g·mol−1 and Density 1.124 g/cm3 from https://en.wikipedia.org/wiki/Triethanolamine
 real(kind=8),parameter :: mwtnaoh = 39.9971d0 ! g/mol; from NaOH Molar mass 39.9971 g·mol−1 and Density 2.13 g/cm3 from https://en.wikipedia.org/wiki/Sodium_hydroxide
 real(kind=8),parameter :: mwtnaglp = 216.036d0 ! g/mol; from NaOH Molar mass 216.036 g·mol−1 from https://en.wikipedia.org/wiki/Sodium_glycerophosphate
-real(kind=8),parameter :: mwtcacl2 = 110.98d0 ! g/mol; from CaCl2 Molar mass 110.98 g·mol−1 from https://en.wikipedia.org/wiki/Calcium_chloride
+real(kind=8),parameter :: mwtcacl2 = 110.986d0 ! g/mol; molar weight of hydrophilite; Robie et al. 1978
 real(kind=8),parameter :: mwtnacl = 58.443d0 ! g/mol; molar weight of halite; Robie et al. 1978 
 real(kind=8),parameter :: mwtcaso4 = 136.138d0 ! g/mol; molar weight of halite; Robie et al. 1978 
 real(kind=8),parameter :: mwtinrt = mwtka ! g/mol; formula weight of Ka; Robie et al. 1978
@@ -1583,7 +1583,7 @@ staq_all(findloc(chrsld_all,'naoh',dim=1), findloc(chraq_all,'na',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'naglp',dim=1), findloc(chraq_all,'na',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'naglp',dim=1), findloc(chraq_all,'glp',dim=1)) = 1d0
 
-! CaCl2 solid
+! hydrophilite: CaCl2 
 staq_all(findloc(chrsld_all,'cacl2',dim=1), findloc(chraq_all,'cl',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'cacl2',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0
 
@@ -9698,6 +9698,22 @@ select case(trim(adjustl(mineral)))
         tc_ref = 25d0
         ! from llnl.dat
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('kcl')
+        ! Sylvite
+        ! KCl  =  + 1.0000 Cl- + 1.0000 K+
+        therm_ref = 10d0**(0.8459d0)
+        ha = 17.4347d0
+        tc_ref = 25d0
+        ! from llnl.dat
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('cacl2')
+        ! Hydrophilite
+        ! CaCl2  =  + 1.0000 Ca++ + 2.0000 Cl-
+        therm_ref = 10d0**(11.7916d0)
+        ha = -81.4545d0
+        tc_ref = 25d0
+        ! from llnl.dat
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('la','ab','an','by','olg','and')
         ! CaxNa(1-x)Al(1+x)Si(3-x)O8 + (4x + 4) = xCa+2 + (1-x)Na+ + (1+x)Al+++ + (3-x)SiO2(aq) 
         ! obtaining Anorthite 
@@ -9884,7 +9900,7 @@ select case(trim(adjustl(mineral)))
         therm = 0.121d0 ! mo2 Michaelis, Davidson et al. (2012)
     case('amnt')
         therm = 0.121d0 ! mo2 Michaelis for fertilizer
-    case('kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2')
+    case('gac','mesmh','ims','teas','naoh','naglp')
         therm = 1d0 ! reacting in any case
     case('inrt')
         therm = 1d0 ! not reacting in any case
@@ -13844,9 +13860,11 @@ select case(trim(adjustl(mineral)))
         if (.not.act_ON) domega_dios_loc = 0d0
         if (act_ON)      domega_dios_loc = domega_dios_loc*omega
         
-    case('gps','nacl','caso4') ! salts (sulfates/chlorides)
+    case('gps','nacl','caso4','cacl2','kcl') ! salts (sulfates/chlorides)
     ! CaSO4*2H2O = Ca+2 + SO4-2 + 2H2O   
     ! NaCl = Na+ + Cl-
+    ! KCl = K+ + Cl-
+    ! CaCl2  =  Ca2+ + 2 Cl-
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
         fkeq = 1d0
@@ -13911,7 +13929,7 @@ select case(trim(adjustl(mineral)))
             & - po2x*(-1d0)/(po2x+mo2_tmp)**2d0*merge(0d0,1d0,po2x < po2th*thon) &
             & )
     
-    case('kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2') ! reacting in any case
+    case('gac','mesmh','ims','teas','naoh','naglp') ! reacting in any case
         omega = 0d0
     
     case('inrt') ! not reacting in any case
