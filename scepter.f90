@@ -476,9 +476,6 @@ real(kind=8) :: maxdt = 0.2d0 ! for basalt exp?
 real(kind=8) :: maxdt_max = 1d2  ! default   
 ! real(kind=8) :: maxdt_max = 1d0   ! when time step matters a reduced value might work 
 
-logical :: pre_calc = .false.
-! logical :: pre_calc = .true.
-
 logical :: read_data = .false.
 ! logical :: read_data = .true.
 
@@ -497,29 +494,11 @@ logical :: al_inhibit = .false.
 logical :: timestep_fixed = .false.
 ! logical :: timestep_fixed = .true.
 
-! logical :: no_biot = .false.
-logical :: no_biot = .true.
-
-logical :: biot_fick = .false.
-! logical :: biot_fick = .true.
-
-logical :: biot_turbo2 = .false.
-! logical :: biot_turbo2 = .true.
-
-logical :: biot_labs = .false.
-! logical :: biot_labs = .true.
-
-logical :: biot_till = .false.
-! logical :: biot_till = .true.
-
 ! logical :: display = .false.
 logical :: display = .true.
 
 ! logical :: regular_grid = .false.
 logical :: regular_grid = .true.
-
-logical :: method_precalc = .false.
-! logical :: method_precalc = .true.
 
 logical :: sld_enforce = .false.
 ! logical :: sld_enforce = .true.
@@ -602,6 +581,14 @@ integer,parameter :: iwtype_spwcnst = 2
 integer,parameter :: iwtype_flex = 3
 
 integer imixtype 
+integer imixtype_background
+integer imixtype_OM
+#ifndef imixtype_background_in 
+#define imixtype_background_in  1
+#endif 
+#ifndef imixtype_OM_in 
+#define imixtype_OM_in  1
+#endif 
 integer,parameter :: imixtype_nobio = 0
 integer,parameter :: imixtype_fick = 1
 integer,parameter :: imixtype_turbo2 = 2
@@ -870,12 +857,12 @@ integer,parameter::idust = 15
 integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx  &
     & ,isa,isa2,iaqprof2,iaqprof3,iaqprof4,iaqprof5,iaqprof6
 
-logical,dimension(nsp_sld)::turbo2,labs,nonlocal,nobio,fick,till
+integer,dimension(nsp_sld)::imix
 real(kind=8),dimension(nz,nz,nsp_sld)::trans
 real(kind=8),dimension(nsp_sld)::zml
 real(kind=8),intent(in)::zml_ref
+real(kind=8) zml_background,zml_OM,zml_dust
 real(kind=8) dbl_ref
-integer izml
 integer :: nz_disp = 10
 
 real(kind=8),dimension(nz)::so4f,no3f,so4fprev
@@ -1808,37 +1795,30 @@ call get_switches( &
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &!
     & )
 
-! if (zml_ref == 0d0) then 
-    ! print*,'***| because zml = 0 specified in frame.in'
-    ! print*,'***| no bioturbation is assumed regardless of the mixing type put in switch.in'
-    ! imixtype=imixtype_nobio
-! endif 
-
-no_biot = .false.
-biot_turbo2 = .false.
-biot_fick = .false.
-biot_labs = .false.
-biot_till = .false.
-
 select case(imixtype)
     case(imixtype_nobio)
-        no_biot = .true.
+        print*, 'no bioturbation'
     case(imixtype_fick)
-        biot_fick = .true.
+        print*, 'Fickian mixing'
     case(imixtype_turbo2)
-        biot_turbo2 = .true.
+        print*, 'homogeneous mixing'
     case(imixtype_till)
-        biot_till = .true.
+        print*, 'tilling'
     case(imixtype_labs)
-        biot_labs = .true.
+        print*, 'LABS mixing'
     case default 
         print *, '***| chosen number is not available for mixing styles (choose between 0 to 4)'
         print *, '***| thus choose default |---- > no mixing'
-        no_biot = .true.
+        imixtype = imixtype_nobio
 endselect 
 
-print *, 'no_biot,biot_fick,biot_turbo2,biot_till,biot_labs'
-print *, no_biot,biot_fick,biot_turbo2,biot_till,biot_labs
+imix                = imixtype
+imixtype_OM         = imixtype_OM_in
+imixtype_background = imixtype_background_in     ! in default it is fickian assuming driver of background mixing is the same as driver of OM mixing
+
+zml_background  = zsupp                 ! assume background mixing is equivalent as the driver of OM mixing
+zml_OM          = zsupp                 ! zsupp is mixing depth for OM 
+zml_dust        = zml_ref               ! zml_ref is mixing depth for dust
 
 select case(iwtype)
     case(iwtype_cnst)
@@ -3236,27 +3216,14 @@ call coefs_v2( &
     & ,keqcec_all,keqiex_all &! output 
     & ) 
     
-! zml_ref = 1.5d0 ! mixed layer depth [m]
-! zml_ref = 0.5d0 ! mixed layer depth [m]
-dbl_ref = 0d0  
-labs = .false.
-turbo2 = .false.
-nobio = .false.
-till = .false.
-fick = .false.
-    
-if (no_biot) nobio = .true.
-if (biot_turbo2) turbo2 = .true.
-if (biot_fick) fick = .true.
-if (biot_labs) labs = .true.
-if (biot_till) till = .true.
+dbl_ref = 0d0   ! diffuse boundary at the top
 
 save_trans = .true.
 save_trans = .false.
-zml = zsupp
+zml = zml_background
 call make_transmx(  &
-    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
-    & ,trans,nonlocal,izml  &! output 
+    & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
+    & ,trans  &! output 
     & )
     
 ! --------- loop -----
@@ -3362,8 +3329,6 @@ do while (it<nt)
     ! if (iter > 300) then
         ! dt = dt/10d0
     ! end if
-    
-    ! if (dt/=dt_prev) pre_calc = .true.
     
     ! added so that saving time become more consistent
     if ( time+dt > rectime_prof(irec_prof+1) .and. time+dt > rectime_flx(irec_flx+1) ) then 
@@ -3582,12 +3547,11 @@ do while (it<nt)
         enddo
     endif 
     
-    ! nobio = .true.
     save_trans = .false.
-    zml = zsupp
+    zml = zml_background
     call make_transmx(  &
-        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
-        & ,trans,nonlocal,izml  &! output 
+        & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
+        & ,trans  &! output 
         & )
 
 
@@ -3627,7 +3591,7 @@ do while (it<nt)
     maqsupp = 0d0
     mgassupp = 0d0
     do isps = 1, nsp_sld
-        if (no_biot) then 
+        if (imixtype==imixtype_nobio) then 
             ! msldsupp(isps,:) = rainpowder*rfrc_sld(isps)*exp(-z/zsupp)/zsupp &
                 ! & + rainpowder_2nd*rfrc_sld_2nd(isps)*exp(-z/zsupp)/zsupp
             ! modify to homogeneously distribute (04-10-2023)
@@ -3686,7 +3650,7 @@ do while (it<nt)
     ! if defined wave function is imposed on dust 
     if (dust_wave) then 
         do isps = 1, nsp_sld
-            if (no_biot) then 
+            if (imixtype==imixtype_nobio) then 
                 msldsupp(isps,:) = msldsupp(isps,:)*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
             else 
                 msldsupp(isps,1) = msldsupp(isps,1)*merge(2d0,0d0,nint(time/wave_tau)==floor(time/wave_tau))
@@ -3752,11 +3716,7 @@ do while (it<nt)
 
             ! an attempt to use fickian mixing when applying rock powder
             ! when not applying the powder use the chosen mixing (can be fickian)
-            labs = .false.
-            turbo2 = .false.
-            nobio = .false.
-            till = .false.
-            fick = .false.   
+            
             ! if (time - floor(time) >= step_tau) then 
             ! if (time - floor(time) > step_tau) then 
             ! if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
@@ -3764,9 +3724,10 @@ do while (it<nt)
                 ! print *, 'no dust time', time 
                 msldsupp = 0d0
                 dust_norm = 0d0
-                ! only implement fickian mixing 
-                fick = .true. 
-                zml = zsupp ! mixed layer depth is common to all solid sp. 
+                ! only implement background mixing (fickian mixing as default)
+                imix    = imixtype_background
+                ! zml     = zsupp ! mixed layer depth is common to all solid sp. 
+                zml     = zml_background ! mixed layer depth is common to all solid sp. 
             ! else 
             ! elseif (0d0 + floor(time) <= time  .and.  time + dt <= step_tau + floor(time)) then 
             elseif (0d0 + floor(time) <= time  .and.  time <= step_tau + floor(time)) then 
@@ -3774,23 +3735,10 @@ do while (it<nt)
                 msldsupp = msldsupp/step_tau
                 dust_norm = 1d0/step_tau
                 ! only implement chosen mixing 
-                if (no_biot) nobio = .true.
-                if (biot_turbo2) turbo2 = .true.
-                if (biot_fick) fick = .true.
-                if (biot_labs) labs = .true.
-                if (biot_till) till = .true.
-                zml = zml_ref ! mixed layer depth is the value specified for dust  
-                ! OM is mixed in fickian
-                do isps = 1, nsp_sld
-                    if ( rfrc_sld_plant(isps) > 0d0 ) then 
-                        fick(isps) = .true.
-                        nobio(isps) = .false.
-                        labs(isps) = .false.
-                        turbo2(isps) = .false.
-                        till(isps) = .false.
-                        zml(isps) = zsupp
-                    endif 
-                enddo
+                imix    = imixtype
+                ! zml     = zml_ref ! mixed layer depth is the value specified for dust  
+                zml     = zml_dust ! mixed layer depth is the value specified for dust  
+                ! OM is mixed in fickian (implemented later)
             else 
                 print *, 'Fatale error in dusting?',time,floor(time),dt,step_tau
                 stop
@@ -3799,23 +3747,28 @@ do while (it<nt)
         ! not dusting if ph is too high
         ! if (dust_off) then 
         elseif (dust_off) then 
-            labs = .false.
-            turbo2 = .false.
-            nobio = .false.
-            till = .false.
-            fick = .false. 
             msldsupp = 0d0
             dust_norm = 0d0
-            ! only implement fickian mixing 
-            fick = .true. 
-            zml = zsupp ! mixed layer depth is common to all solid sp. 
+            ! only implement background mixing (default Fickian)
+            imix    = imixtype_background 
+            ! zml     = zsupp ! mixed layer depth is common to all solid sp. 
+            zml     = zml_background ! mixed layer depth is common to all solid sp. 
         endif 
+
+        ! new 5/18/2023 YK
+        ! OM is mixed in fickian regardless of dust implementation
+        do isps = 1, nsp_sld
+            if ( rfrc_sld_plant(isps) > 0d0 ) then 
+                imix(isps)  = imixtype_OM
+                zml(isps)   = zml_OM
+            endif 
+        enddo
         
         ! mixing reload
         save_trans = .false.
         call make_transmx(  &
-            & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
-            & ,trans,nonlocal,izml  &! output 
+            & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
+            & ,trans  &! output 
             & )
         
         ! if ( dust_norm /= dust_norm_prev ) then
@@ -3830,7 +3783,7 @@ do while (it<nt)
     
     ! overload with OM rain 
     do isps = 1, nsp_sld
-        if (no_biot) then 
+        if (imixtype==imixtype_nobio) then 
             selectcase(trim(adjustl(chrsld(isps))))
                 case('g1','g2','g3')
                     ! msldsupp(isps,:) = msldsupp(isps,:) &
@@ -4034,117 +3987,6 @@ do while (it<nt)
         if (dust_norm>0d0) close(ipsd)
         if (dust_norm>0d0) close(ipsdv)
     endif 
-    
-    
-    ! if (it==0) pre_calc = .true.
-    if (method_precalc) pre_calc = .true.
-    
-    if (pre_calc) then 
-    ! if (pre_calc .and. it ==0) then 
-        pre_calc = .false.
-        ! call precalc_po2_v2( &
-            ! & nz,po2th,dt,ucv,kho,dz,dgaso,daqo,po2i,poro,sat,po2,torg,tora,v &! input 
-            ! & ,po2x &! output 
-            ! & )
-        
-        ! call precalc_pco2_v2( &
-            ! & nz,pco2th,dt,ucv,khco2,dz,dgasc,daqc,pco2i,poro,sat,pco2,torg,tora,v,resp &! input 
-            ! & ,pco2x &! output 
-            ! & )
-
-        ! mgas(findloc(chrgas,'pco2',dim=1),:)=pco2(:)
-        ! mgas(findloc(chrgas,'po2',dim=1),:)=po2(:)
-        
-        call precalc_gases( &
-            & nz,dt,ucv,dz,poro,sat,torg,tora,v,prox &! input 
-            & ,nsp_gas,nsp_gas_all,chrgas,chrgas_all,keqgas_h,mgasi,mgasth,mgas &! input
-            & ,nrxn_ext,chrrxn_ext,rxnext,dgasa,dgasg,stgas_ext &! input
-            & ,mgasx &! output 
-            & )
-            
-        ! call precalc_gases_v2( &
-            ! & nz,dt,ucv,dz,poro,sat,torg,tora,v,prox,hr &! input 
-            ! & ,nsp_gas,nsp_gas_all,chrgas,chrgas_all,keqgas_h,mgasi,mgasth,mgas &! input
-            ! & ,nrxn_ext,chrrxn_ext,rxnext,dgasa,dgasg,stgas_ext &! input
-            ! & ,nsp_sld,stgas,mv,ksld,msld,omega,nonprec &! input
-            ! & ,mgasx &! output 
-            ! & )
-        
-        ! call precalc_slds( &
-            ! & nz,msth,dt,w,dz,msili,msi,mfoi,mabi,mani,mcci,msilth,mabth,manth,mfoth,mccth   &! input
-            ! & ,ms,msil,msilsupp,mfo,mfosupp,mab,mabsupp,mansupp,man,mcc,mccsupp,kcc,omega_cc,mvcc &! input
-            ! & ,poro,hr,kcca,omega_cca,authig,sat,kka,mkai,mkath,omega_ka,mvka,mkasupp,mka &! input
-            ! & ,msx,msilx,mfox,mabx,manx,mccx,mkax &! output
-            ! & )
-        
-        ! msld(findloc(chrsld,'fo',dim=1),:)=mfo(:)
-        ! msld(findloc(chrsld,'ab',dim=1),:)=mab(:)
-        ! msld(findloc(chrsld,'an',dim=1),:)=man(:)
-        ! msld(findloc(chrsld,'cc',dim=1),:)=mcc(:)
-        ! msld(findloc(chrsld,'ka',dim=1),:)=mka(:)
-        
-        ! call precalc_slds_v2( &
-            ! & nz,dt,w,dz,poro,hr,sat &! input
-            ! & ,nsp_sld,nsp_sld_2,chrsld,chrsld_2,msldth,msldi,mv,msld,msldsupp,ksld,omega &! input
-            ! & ,nrxn_ext,rxnext,stsld_ext &!input
-            ! & ,msldx &! output
-            ! & )
-            
-        call precalc_slds_v2_1( &
-            & nz,dt,w0,dz,poro,hr,sat &! input
-            & ,nsp_sld,nsp_sld_2,chrsld,chrsld_2,msldth,msldi,mv,msld,msldsupp,ksld,omega &! input
-            & ,nrxn_ext,rxnext,stsld_ext &!input
-            & ,labs,turbo2,trans &! input
-            & ,msldx &! output
-            & )
-            
-        ! call precalc_slds_v3( &
-            ! & nz,dt,w,dz,poro,hr,sat &! input
-            ! & ,nsp_sld,msldth,msldi,mv,msld,msldsupp,ksld,omega,nonprec &! input
-            ! & ,msldx &! output
-            ! & )
-            
-        ! call precalc_slds_v3_1( &
-            ! & nz,dt,w,dz,poro,hr,sat &! input
-            ! & ,nsp_sld,msldth,msldi,mv,msld,msldsupp,ksld,omega,nonprec &! input
-            ! & ,labs,turbo2,trans &! input
-            ! & ,msldx &! output
-            ! & )
-
-        ! pause
-        
-        ! call precalc_pw_sil_v2( &
-            ! & nz,nath,mgth,cath,sith,dt,v,na,ca,mg,si,dz,dna,dsi,dmg,dca,tora,poro,sat,nai,mgi,cai,sii &! input 
-            ! & ,kab,kan,kcc,kfo,hr,mvab,mvan,mvfo,mvcc,mabx,manx,mfox,mccx,alth,al,dal,ali,kka,mvka,mkax &! input 
-            ! & ,nax,six,cax,mgx,alx &! output
-            ! & )
-
-        ! maq(findloc(chraq,'mg',dim=1),:)=mg(:)
-        ! maq(findloc(chraq,'si',dim=1),:)=si(:)
-        ! maq(findloc(chraq,'na',dim=1),:)=na(:)
-        ! maq(findloc(chraq,'ca',dim=1),:)=ca(:)
-        ! maq(findloc(chraq,'al',dim=1),:)=al(:)
-
-        call precalc_aqs( &
-            & nz,dt,v,dz,tora,poro,sat,hr &! input 
-            & ,nsp_aq,nsp_sld,daq,maqth,maqi,maq,mv,msldx,ksld,staq &! input
-            & ,nrxn_ext,staq_ext,rxnext &! input
-            & ,maqx &! output
-            & )
-            
-        ! call precalc_aqs_v2( &
-            ! & nz,dt,v,dz,tora,poro,sat,hr &! input 
-            ! & ,nsp_aq,nsp_sld,daq,maqth,maqi,maq,mv,msldx,ksld,staq,omega,nonprec &! input
-            ! & ,nrxn_ext,staq_ext,rxnext &! input
-            ! & ,maqx &! output
-            ! & )
-
-        if (any(isnan(mgasx)).or.any(isnan(msldx)).or.any(isnan(maqx))) then 
-            print*, 'error in precalc'
-            stop
-        endif
-
-    end if
 
     ! if ((.not.read_data) .and. it == 0 .and. iter == 0) then 
         ! do ispa = 1, nsp_aq
@@ -4168,26 +4010,6 @@ do while (it<nt)
     porox = poro
     wx = w
     
-    ! call alsilicate_aq_gas_1D_v3_1( &
-        ! & nz,nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext &
-        ! & ,chrsld,chrsld_2,chraq,chraq_ph,chrgas_ph,chrgas,chrrxn_ext  &
-        ! & ,msldi,msldth,mv,maqi,maqth,daq,mgasi,mgasth,dgasa,dgasg,khgasi &
-        ! & ,staq,stgas,msld,ksld,msldsupp,maq,maqsupp,mgas,mgassupp &
-        ! & ,stgas_ext,stgas_dext,staq_ext,stsld_ext,staq_dext,stsld_dext &
-        ! & ,nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst &
-        ! & ,chraq_cnst,chraq_all,chrgas_cnst,chrgas_all,chrsld_all &
-        ! & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3 &
-        ! & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
-        ! & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
-        ! & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
-        ! & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
-        ! & ,precstyle,solmod &! in 
-        ! & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,so4fprev,disp & 
-        ! & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-        ! & ,dt,flgback,w &    
-        ! & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,so4f & 
-        ! & )
-    
     ads_ON_tmp = .false.
     if (ads_ON) ads_ON_tmp = .true.
         
@@ -4203,7 +4025,7 @@ do while (it<nt)
         & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
         & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
         & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
-        & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
+        & ,trans,display,chrflx,sld_enforce &! input
         & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
         & ,precstyle,solmod,fkin &! in 
         !  old inputs
@@ -4223,8 +4045,8 @@ do while (it<nt)
     
     save_trans = .false.
     call make_transmx(  &
-        & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
-        & ,trans,nonlocal,izml  &! output 
+        & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
+        & ,trans  &! output 
         & )
         
     ! sum(msldx*mv*1d-6) + mblkx*mvblk*1d-6 = 1d0 - poro
@@ -9909,753 +9731,6 @@ select case(trim(adjustl(mineral)))
 endselect 
 
 endsubroutine sld_therm
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine precalc_gases( &
-    & nz,dt,ucv,dz,poro,sat,torg,tora,v,prox &! input 
-    & ,nsp_gas,nsp_gas_all,chrgas,chrgas_all,keqgas_h,mgasi,mgasth,mgas &! input
-    & ,nrxn_ext,chrrxn_ext,rxnext,dgasa,dgasg,stgas_ext &! input
-    & ,mgasx &! output 
-    & )
-implicit none 
-integer,intent(in)::nz
-real(kind=8),intent(in)::dt,ucv
-real(kind=8)::pco2th,pco2i,kco2,k1,k2,kho
-real(kind=8),dimension(nz),intent(in)::poro,sat,torg,tora,v,dz,prox
-real(kind=8),dimension(nz)::khco2,pco2,resp,pco2x
-
-integer iz,ispg,irxn
-real(kind=8) pco2tmp,edifi,ediftmp
-real(kind=8),dimension(nz)::alpha,edif
-
-integer,intent(in)::nsp_gas,nsp_gas_all,nrxn_ext
-character(5),dimension(nsp_gas),intent(in)::chrgas
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-character(5),dimension(nrxn_ext),intent(in)::chrrxn_ext
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_gas),intent(in)::mgasi,mgasth,dgasa,dgasg
-real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas
-real(kind=8),dimension(nrxn_ext,nz),intent(in)::rxnext
-real(kind=8),dimension(nrxn_ext,nsp_gas),intent(in)::stgas_ext
-real(kind=8),dimension(nsp_gas,nz),intent(inout)::mgasx
-
-
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-if (nsp_gas == 0) return
-
-kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
-k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
-k2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)
-
-khco2 = kco2*(1d0+k1/prox + k1*k2/prox/prox)
-
-kho = keqgas_h(findloc(chrgas_all,'po2',dim=1),ieqgas_h0)
-
-do ispg = 1, nsp_gas
-
-    select case(trim(adjustl(chrgas(ispg))))
-        case('pco2')
-            alpha = ucv*poro*(1.0d0-sat)*1d3+poro*sat*khco2*1d3
-            ! if (any(chrrxn_ext=='resp')) then 
-                ! resp = rxnext(findloc(chrrxn_ext,'resp',dim=1),:)
-            ! else 
-                ! resp = 0d0
-            ! endif 
-        case('po2')
-            alpha = ucv*poro*(1.0d0-sat)*1d3+poro*sat*kho*1d3
-            ! resp = 0d0
-    endselect 
-    
-    resp = 0d0
-    do irxn = 1, nrxn_ext
-        if (stgas_ext(irxn,ispg)>0d0) then 
-            resp = resp + stgas_ext(irxn,ispg)*rxnext(irxn,:)
-        endif 
-    enddo 
-    
-    edif = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg) +poro*sat*khco2*1d3*tora*dgasa(ispg)
-    edifi = edif(1)
-    edifi = ucv*1d3*dgasg(ispg) 
-
-    pco2x = mgasx(ispg,:)
-    pco2 = mgas(ispg,:)
-    
-    pco2i = mgasi(ispg)
-    pco2th = mgasth(ispg)
-    
-    do iz = 1, nz
-
-        ! if (pco2x(iz)>=pco2th) cycle
-
-        pco2tmp = pco2(max(1,iz-1))
-        ediftmp = edif(max(1,iz-1))
-        if (iz==1) pco2tmp = pco2i
-        if (iz==1) ediftmp = edifi
-
-        pco2x(iz) = max(0.0d0 &
-            & ,dt/alpha(iz)* &
-            & ( &
-            & alpha(iz)*pco2(iz)/dt &
-            & +(0.5d0*(edif(iz)+edif(min(nz,iz+1)))*(pco2(min(nz,iz+1))-pco2(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(edif(iz)+ediftmp)*(pco2(iz)-pco2tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
-            & - poro(iz)*sat(iz)*v(iz)*khco2(iz)*1d3*(pco2(iz)-pco2tmp)/dz(iz)  &
-            & + resp(iz) & 
-            & ) &
-            & )
-
-    end do 
-    
-    mgasx(ispg,:) = pco2x
-    
-enddo
-
-endsubroutine precalc_gases
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine precalc_gases_v2( &
-    & nz,dt,ucv,dz,poro,sat,torg,tora,v,prox,hr &! input 
-    & ,nsp_gas,nsp_gas_all,chrgas,chrgas_all,keqgas_h,mgasi,mgasth,mgas &! input
-    & ,nrxn_ext,chrrxn_ext,rxnext,dgasa,dgasg,stgas_ext &! input
-    & ,nsp_sld,stgas,mv,ksld,msld,omega,nonprec &! input
-    & ,mgasx &! output 
-    & )
-implicit none 
-integer,intent(in)::nz
-real(kind=8),intent(in)::dt,ucv
-real(kind=8)::pco2th,pco2i,kco2,k1,k2,kho
-real(kind=8),dimension(nz),intent(in)::poro,sat,torg,tora,v,dz,prox,hr
-real(kind=8),dimension(nz)::khco2,pco2,resp,pco2x
-
-integer iz,ispg,irxn,isps
-real(kind=8) pco2tmp,edifi,ediftmp
-real(kind=8),dimension(nz)::alpha,edif
-
-integer,intent(in)::nsp_gas,nsp_gas_all,nrxn_ext
-character(5),dimension(nsp_gas),intent(in)::chrgas
-character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
-character(5),dimension(nrxn_ext),intent(in)::chrrxn_ext
-real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
-real(kind=8),dimension(nsp_gas),intent(in)::mgasi,mgasth,dgasa,dgasg
-real(kind=8),dimension(nsp_gas,nz),intent(in)::mgas
-real(kind=8),dimension(nrxn_ext,nz),intent(in)::rxnext
-real(kind=8),dimension(nrxn_ext,nsp_gas),intent(in)::stgas_ext
-real(kind=8),dimension(nsp_gas,nz),intent(inout)::mgasx
-
-integer,intent(in)::nsp_sld
-real(kind=8),dimension(nsp_sld),intent(in)::mv
-real(kind=8),dimension(nsp_sld,nz),intent(in)::ksld,msld,omega,nonprec
-real(kind=8),dimension(nsp_sld,nsp_gas),intent(in)::stgas
-
-integer ieqgas_h0,ieqgas_h1,ieqgas_h2
-data ieqgas_h0,ieqgas_h1,ieqgas_h2/1,2,3/
-
-if (nsp_gas == 0) return
-
-kco2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h0)
-k1 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h1)
-k2 = keqgas_h(findloc(chrgas_all,'pco2',dim=1),ieqgas_h2)
-
-khco2 = kco2*(1d0+k1/prox + k1*k2/prox/prox)
-
-kho = keqgas_h(findloc(chrgas_all,'po2',dim=1),ieqgas_h0)
-
-do ispg = 1, nsp_gas
-
-    select case(trim(adjustl(chrgas(ispg))))
-        case('pco2')
-            alpha = ucv*poro*(1.0d0-sat)*1d3+poro*sat*khco2*1d3
-            ! if (any(chrrxn_ext=='resp')) then 
-                ! resp = rxnext(findloc(chrrxn_ext,'resp',dim=1),:)
-            ! else 
-                ! resp = 0d0
-            ! endif 
-        case('po2')
-            alpha = ucv*poro*(1.0d0-sat)*1d3+poro*sat*kho*1d3
-            ! resp = 0d0
-    endselect 
-    
-    resp = 0d0
-    do irxn = 1, nrxn_ext
-        resp = resp + stgas_ext(irxn,ispg)*rxnext(irxn,:)
-    enddo 
-    
-    do isps = 1,nsp_sld
-        resp = resp + ( &
-            & stgas(isps,ispg)*ksld(isps,:)*poro*hr*mv(isps)*1d-6*msld(isps,:)*(1d0-omega(isps,:)) &
-            & *merge(0d0,1d0,1d0-omega(isps,:)*nonprec(isps,:) < 0d0) &
-            & )
-    enddo 
-    
-    edif = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg) +poro*sat*khco2*1d3*tora*dgasa(ispg)
-    edifi = edif(1)
-    edifi = ucv*1d3*dgasg(ispg) 
-
-    pco2x = mgasx(ispg,:)
-    pco2 = mgas(ispg,:)
-    
-    pco2i = mgasi(ispg)
-    pco2th = mgasth(ispg)
-    
-    do iz = 1, nz
-
-        ! if (pco2x(iz)>=pco2th) cycle
-
-        pco2tmp = pco2(max(1,iz-1))
-        ediftmp = edif(max(1,iz-1))
-        if (iz==1) pco2tmp = pco2i
-        if (iz==1) ediftmp = edifi
-
-        pco2x(iz) = max(pco2th*0.1d0 &
-            & ,dt/alpha(iz)* &
-            & ( &
-            & alpha(iz)*pco2(iz)/dt &
-            & +(0.5d0*(edif(iz)+edif(min(nz,iz+1)))*(pco2(min(nz,iz+1))-pco2(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(edif(iz)+ediftmp)*(pco2(iz)-pco2tmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
-            & - poro(iz)*sat(iz)*v(iz)*khco2(iz)*1d3*(pco2(iz)-pco2tmp)/dz(iz)  &
-            & + resp(iz) & 
-            & ) &
-            & )
-
-    end do 
-    
-    mgasx(ispg,:) = pco2x
-    
-enddo
-
-endsubroutine precalc_gases_v2
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine precalc_slds_v2( &
-    & nz,dt,w,dz,poro,hr,sat &! input
-    & ,nsp_sld,nsp_sld_2,chrsld,chrsld_2,msldth,msldi,mv,msld,msldsupp,ksld,omega &! input
-    & ,nrxn_ext,rxnext,stsld_ext &!input
-    & ,msldx &! output
-    & )
-implicit none
-
-integer,intent(in)::nz
-real(kind=8),intent(in)::dt,w
-real(kind=8)::mfoi,mfoth
-real(kind=8),dimension(nz),intent(in)::dz,poro,hr,sat
-real(kind=8),dimension(nz)::mfo,mfosupp,mfox,rxn_tmp
-
-integer iz,isps,irxn
-
-integer,intent(in)::nsp_sld,nsp_sld_2
-character(5),dimension(nsp_sld),intent(in)::chrsld
-character(5),dimension(nsp_sld_2),intent(in)::chrsld_2
-real(kind=8),dimension(nsp_sld),intent(in)::msldth,msldi,mv
-real(kind=8),dimension(nsp_sld,nz),intent(in)::msld,msldsupp,ksld,omega
-real(kind=8),dimension(nsp_sld,nz),intent(inout)::msldx
-
-integer,intent(in)::nrxn_ext
-real(kind=8),dimension(nrxn_ext,nz),intent(in)::rxnext
-real(kind=8),dimension(nrxn_ext,nsp_sld),intent(in)::stsld_ext
-
-if (nsp_sld == 0) return
-
-do isps = 1,nsp_sld
-
-    mfox = msldx(isps,:)
-    mfo = msld(isps,:)
-    mfoth = msldth(isps)
-    mfoi = msldi(isps)
-    mfosupp = msldsupp(isps,:)
-    
-    rxn_tmp = 0d0
-    do irxn = 1, nrxn_ext
-        if (stsld_ext(irxn,isps)>0d0) then 
-            rxn_tmp = rxn_tmp + stsld_ext(irxn,isps)*rxnext(irxn,:)
-        endif  
-    enddo 
-    
-    if (any(chrsld_2 ==chrsld(isps))) then 
-        do iz = 1, nz
-            if (mfox(iz)>=mfoth) cycle
-
-            if (iz/=nz) then 
-                mfox(iz) = max(0d0, &
-                    & mfo(iz) +dt*(w*(mfo(iz+1)-mfo(iz))/dz(iz) + mfosupp(iz)) &
-                    & +ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*mfox(iz)*(omega(isps,iz) - 1d0) &
-                    & *merge(1d0,0d0,omega(isps,iz) - 1d0 > 0d0) &
-                    & +rxn_tmp(iz) &
-                    & )
-            else 
-                mfox(iz) = max(0d0, &
-                    & mfo(iz) + dt*(w*(mfoi-mfo(iz))/dz(iz)+ mfosupp(iz)) &
-                    & +ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*mfox(iz)*(omega(isps,iz) - 1d0) &
-                    & *merge(1d0,0d0,omega(isps,iz) - 1d0 > 0d0) &
-                    & +rxn_tmp(iz) &
-                    & )
-            endif 
-        enddo
-    else
-        do iz = 1, nz
-            if (mfox(iz)>=mfoth) cycle
-
-            if (iz/=nz) then 
-                mfox(iz) = max(0d0, &
-                    & mfo(iz) +dt*(w*(mfo(iz+1)-mfo(iz))/dz(iz) + mfosupp(iz)) &
-                    & +rxn_tmp(iz) &
-                    & )
-            else 
-                mfox(iz) = max(0d0, &
-                    & mfo(iz) + dt*(w*(mfoi-mfo(iz))/dz(iz)+ mfosupp(iz)) &
-                    & +rxn_tmp(iz) &
-                    & )
-            endif 
-        enddo
-    endif 
-    
-    msldx(isps,:) = mfox
-    
-enddo 
-
-endsubroutine precalc_slds_v2
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine precalc_slds_v2_1( &
-    & nz,dt,w,dz,poro,hr,sat &! input
-    & ,nsp_sld,nsp_sld_2,chrsld,chrsld_2,msldth,msldi,mv,msld,msldsupp,ksld,omega &! input
-    & ,nrxn_ext,rxnext,stsld_ext &!input
-    & ,labs,turbo2,trans &! input
-    & ,msldx &! output
-    & )
-implicit none
-
-integer,intent(in)::nz
-integer,intent(in)::nsp_sld,nsp_sld_2                      
-real(kind=8),intent(in)::dt,w
-real(kind=8)::mfoi,mfoth
-real(kind=8),dimension(nz),intent(in)::dz,poro,sat
-real(kind=8),dimension(nsp_sld,nz),intent(in)::hr
-real(kind=8),dimension(nz)::mfo,mfosupp,mfox,rxn_tmp
-
-integer iz,isps,irxn,iiz
-
-character(5),dimension(nsp_sld),intent(in)::chrsld
-character(5),dimension(nsp_sld_2),intent(in)::chrsld_2
-real(kind=8),dimension(nsp_sld),intent(in)::msldth,msldi,mv
-real(kind=8),dimension(nsp_sld,nz),intent(in)::msld,msldsupp,ksld,omega
-real(kind=8),dimension(nsp_sld,nz),intent(inout)::msldx
-
-integer,intent(in)::nrxn_ext
-real(kind=8),dimension(nrxn_ext,nz),intent(in)::rxnext
-real(kind=8),dimension(nrxn_ext,nsp_sld),intent(in)::stsld_ext
-
-logical,dimension(nsp_sld),intent(in)::labs,turbo2
-real(kind=8),dimension(nz,nz,nsp_sld),intent(in)::trans
-
-real(kind=8) trans_tmp(nz)
-
-if (nsp_sld == 0) return
-
-do isps = 1,nsp_sld
-
-    mfox = msldx(isps,:)
-    mfo = msld(isps,:)
-    mfoth = msldth(isps)
-    mfoi = msldi(isps)
-    mfosupp = msldsupp(isps,:)
-    
-    rxn_tmp = 0d0
-    do irxn = 1, nrxn_ext
-        if (stsld_ext(irxn,isps)>0d0) then 
-            rxn_tmp = rxn_tmp + stsld_ext(irxn,isps)*rxnext(irxn,:)
-        endif  
-    enddo 
-    
-    trans_tmp = 0d0
-    do iz=1,nz
-        do iiz=1,nz
-            if (turbo2(isps) .or. labs(isps)) then 
-                if (trans(iiz,iz,isps) >0d0) then 
-                    trans_tmp(iz) = trans_tmp(iz)+ trans(iiz,iz,isps)/dz(iz)*dz(iiz)*mfo(iiz)
-                endif 
-            else
-                if (trans(iiz,iz,isps) >0d0) then 
-                    trans_tmp(iz) = trans_tmp(iz) + trans(iiz,iz,isps)/dz(iz)*mfo(iiz)
-                endif 
-            endif 
-        enddo 
-    enddo 
-    
-    if (any(chrsld_2 ==chrsld(isps))) then 
-        do iz = 1, nz
-            if (mfox(iz)>=mfoth) cycle
-
-            if (iz/=nz) then 
-                mfox(iz) = max(0d0, &
-                    & mfo(iz) +dt*(w*(mfo(iz+1)-mfo(iz))/dz(iz) + mfosupp(iz)) &
-                    & +ksld(isps,iz)*poro(iz)*hr(isps,iz)*mv(isps)*1d-6*mfox(iz)*(omega(isps,iz) - 1d0) &
-                    & *merge(1d0,0d0,omega(isps,iz) - 1d0 > 0d0) &
-                    & +rxn_tmp(iz) &
-                    & + trans_tmp(iz) &
-                    & )
-            else 
-                mfox(iz) = max(0d0, &
-                    & mfo(iz) + dt*(w*(mfoi-mfo(iz))/dz(iz)+ mfosupp(iz)) &
-                    & +ksld(isps,iz)*poro(iz)*hr(isps,iz)*mv(isps)*1d-6*mfox(iz)*(omega(isps,iz) - 1d0) &
-                    & *merge(1d0,0d0,omega(isps,iz) - 1d0 > 0d0) &
-                    & +rxn_tmp(iz) &
-                    & + trans_tmp(iz) &
-                    & )
-            endif 
-        enddo
-    else
-        do iz = 1, nz
-            if (mfox(iz)>=mfoth) cycle
-
-            if (iz/=nz) then 
-                mfox(iz) = max(0d0, &
-                    & mfo(iz) +dt*(w*(mfo(iz+1)-mfo(iz))/dz(iz) + mfosupp(iz)) &
-                    & +rxn_tmp(iz) &
-                    & + trans_tmp(iz) &
-                    & )
-            else 
-                mfox(iz) = max(0d0, &
-                    & mfo(iz) + dt*(w*(mfoi-mfo(iz))/dz(iz)+ mfosupp(iz)) &
-                    & +rxn_tmp(iz) &
-                    & + trans_tmp(iz) &
-                    & )
-            endif 
-        enddo
-    endif 
-    
-    msldx(isps,:) = mfox
-    
-enddo 
-
-endsubroutine precalc_slds_v2_1
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine precalc_slds_v3( &
-    & nz,dt,w,dz,poro,hr,sat &! input
-    & ,nsp_sld,msldth,msldi,mv,msld,msldsupp,ksld,omega,nonprec &! input
-    & ,msldx &! output
-    & )
-implicit none
-
-integer,intent(in)::nz
-real(kind=8),intent(in)::dt,w
-real(kind=8)::mfoi,mfoth
-real(kind=8),dimension(nz),intent(in)::dz,poro,hr,sat
-real(kind=8),dimension(nz)::mfo,mfosupp,mfox
-
-integer iz,isps
-
-integer,intent(in)::nsp_sld
-real(kind=8),dimension(nsp_sld),intent(in)::msldth,msldi,mv
-real(kind=8),dimension(nsp_sld,nz),intent(in)::msld,msldsupp,ksld,omega,nonprec
-real(kind=8),dimension(nsp_sld,nz),intent(inout)::msldx
-
-if (nsp_sld == 0) return
-
-do isps = 1,nsp_sld
-
-    mfox = msldx(isps,:)
-    mfo = msld(isps,:)
-    mfoth = msldth(isps)
-    mfoi = msldi(isps)
-    mfosupp = msldsupp(isps,:)
-    
-    do iz = 1, nz
-        ! if (mfox(iz)>=mfoth) cycle
-
-        if (iz/=nz) then 
-            mfox(iz) = max(mfoth*0.1d0, &
-                & mfo(iz) +dt*(w*(mfo(iz+1)-mfo(iz))/dz(iz) + mfosupp(iz)) &
-                & -ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*mfox(iz)*(1d0-omega(isps,iz)) &
-                & *merge(0d0,1d0,1d0-omega(isps,iz)*nonprec(isps,iz) < 0d0) &
-                & )
-        else 
-            mfox(iz) = max(mfoth*0.1d0, &
-                & mfo(iz) + dt*(w*(mfoi-mfo(iz))/dz(iz)+ mfosupp(iz)) &
-                & -ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*mfox(iz)*(1d0-omega(isps,iz)) &
-                & *merge(0d0,1d0,1d0-omega(isps,iz)*nonprec(isps,iz) < 0d0) &
-                & )
-        endif 
-    enddo
-    
-    msldx(isps,:) = mfox
-    
-enddo 
-
-endsubroutine precalc_slds_v3
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine precalc_slds_v3_1( &
-    & nz,dt,w,dz,poro,hr,sat &! input
-    & ,nsp_sld,msldth,msldi,mv,msld,msldsupp,ksld,omega,nonprec &! input
-    & ,labs,turbo2,trans &! input
-    & ,msldx &! output
-    & )
-implicit none
-
-integer,intent(in)::nz
-real(kind=8),intent(in)::dt,w
-real(kind=8)::mfoi,mfoth
-real(kind=8),dimension(nz),intent(in)::dz,poro,hr,sat
-real(kind=8),dimension(nz)::mfo,mfosupp,mfox
-
-integer iz,isps,iiz
-
-integer,intent(in)::nsp_sld
-real(kind=8),dimension(nsp_sld),intent(in)::msldth,msldi,mv
-real(kind=8),dimension(nsp_sld,nz),intent(in)::msld,msldsupp,ksld,omega,nonprec
-real(kind=8),dimension(nsp_sld,nz),intent(inout)::msldx
-logical,dimension(nsp_sld)::labs,turbo2
-real(kind=8),dimension(nz,nz,nsp_sld)::trans
-
-real(kind=8) swnonloc
-
-if (nsp_sld == 0) return
-
-do isps = 1,nsp_sld
-
-    mfox = msldx(isps,:)
-    mfo = msld(isps,:)
-    mfoth = msldth(isps)
-    mfoi = msldi(isps)
-    mfosupp = msldsupp(isps,:)
-    
-    swnonloc = 0d0
-    if (turbo2(isps).or.labs(isps)) swnonloc = 1d0
-    
-    do iz = 1, nz
-        ! if (mfox(iz)>=mfoth) cycle
-
-        if (iz/=nz) then 
-            mfox(iz) = max(mfoth*0.1d0, &
-                & mfo(iz) +dt*(w*(mfo(iz+1)-mfo(iz))/dz(iz) + mfosupp(iz)) &
-                & -ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*mfox(iz)*(1d0-omega(isps,iz)) &
-                & *merge(0d0,1d0,1d0-omega(isps,iz)*nonprec(isps,iz) < 0d0) &
-                & - sum(trans(:,iz,isps)/dz(iz)*mfo(:))*(1d0-swnonloc) &
-                & - sum(trans(:,iz,isps)/dz(iz)*dz*mfo(:))*swnonloc &
-                & )
-        else 
-            mfox(iz) = max(mfoth*0.1d0, &
-                & mfo(iz) + dt*(w*(mfoi-mfo(iz))/dz(iz)+ mfosupp(iz)) &
-                & -ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*mfox(iz)*(1d0-omega(isps,iz)) &
-                & *merge(0d0,1d0,1d0-omega(isps,iz)*nonprec(isps,iz) < 0d0) &
-                & - sum(trans(:,iz,isps)/dz(iz)*mfo(:))*(1d0-swnonloc) &
-                & - sum(trans(:,iz,isps)/dz(iz)*dz*mfo(:))*swnonloc &
-                & )
-        endif 
-    enddo
-    
-    msldx(isps,:) = mfox
-    
-enddo 
-
-endsubroutine precalc_slds_v3_1
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine precalc_aqs( &
-    & nz,dt,v,dz,tora,poro,sat,hr &! input 
-    & ,nsp_aq,nsp_sld,daq,maqth,maqi,maq,mv,msldx,ksld,staq &! input
-    & ,nrxn_ext,staq_ext,rxnext &! input
-    & ,maqx &! output
-    & )
-implicit none
-
-integer,intent(in)::nz
-integer,intent(in)::nsp_aq,nsp_sld,nrxn_ext
-real(kind=8),intent(in)::dt
-real(kind=8)::nath,dna,nai,rxn_tmp
-real(kind=8),dimension(nz),intent(in)::v,tora,poro,sat,dz
-real(kind=8),dimension(nsp_sld,nz),intent(in)::hr
-real(kind=8),dimension(nz)::na,nax
-
-integer iz,ispa,isps,irxn
-real(kind=8) ctmp,edifi,ediftmp
-real(kind=8),dimension(nz)::edif
-
-real(kind=8),dimension(nsp_aq),intent(in)::daq,maqth,maqi
-real(kind=8),dimension(nsp_aq,nz),intent(in)::maq
-real(kind=8),dimension(nsp_sld),intent(in)::mv
-real(kind=8),dimension(nsp_sld,nz),intent(in)::msldx,ksld
-real(kind=8),dimension(nsp_sld,nsp_aq),intent(in)::staq
-real(kind=8),dimension(nsp_aq,nz),intent(inout)::maqx
-real(kind=8),dimension(nrxn_ext,nz),intent(in)::rxnext
-real(kind=8),dimension(nrxn_ext,nsp_aq),intent(in)::staq_ext
-
-if (nsp_aq == 0 ) return
-
-do ispa = 1, nsp_aq
-
-    dna = daq(ispa)
-    nath = maqth(ispa)
-    nai = maqi(ispa)
-    
-    na = maq(ispa,:)
-    nax = maqx(ispa,:)
-
-    edif = poro*sat*1d3*dna*tora
-    edifi = edif(1)
-
-    do iz = 1, nz
-
-        if (nax(iz)>=nath) cycle
-
-        ctmp = na(max(1,iz-1))
-        ediftmp = edif(max(1,iz-1))
-        if (iz==1) ctmp = nai
-        if (iz==1) ediftmp = edifi
-    
-        rxn_tmp = 0d0
-        
-        do isps = 1, nsp_sld
-            if (staq(isps,ispa)>0d0) then 
-                rxn_tmp = rxn_tmp  &
-                    & + staq(isps,ispa)*ksld(isps,iz)*poro(iz)*hr(isps,iz)*mv(isps)*1d-6*msldx(isps,iz)
-            endif 
-        enddo 
-        
-        do irxn = 1, nrxn_ext
-            if (staq(irxn,ispa)>0d0) then 
-                rxn_tmp = rxn_tmp  &
-                    & + staq_ext(irxn,ispa)*rxnext(irxn,iz)
-            endif 
-        enddo 
-        
-        nax(iz) = max(0.0d0, &
-            & na(iz) +dt/(poro(iz)*sat(iz)*1d3)*( &
-            & -poro(iz)*sat(iz)*1d3*v(iz)*(na(iz)-ctmp)/dz(iz) &
-            & +(0.5d0*(edif(iz)+edif(min(nz,iz+1)))*(na(min(nz,iz+1))-na(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(edif(iz)+ediftmp)*(na(iz)-ctmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
-            & +rxn_tmp &
-            & ) &
-            & )
-            
-    enddo
-    
-    maqx(ispa,:) = nax 
-
-enddo 
-
-endsubroutine precalc_aqs
-
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-subroutine precalc_aqs_v2( &
-    & nz,dt,v,dz,tora,poro,sat,hr &! input 
-    & ,nsp_aq,nsp_sld,daq,maqth,maqi,maq,mv,msldx,ksld,staq,omega,nonprec &! input
-    & ,nrxn_ext,staq_ext,rxnext &! input
-    & ,maqx &! output
-    & )
-implicit none
-
-integer,intent(in)::nz
-real(kind=8),intent(in)::dt
-real(kind=8)::nath,dna,nai,rxn_tmp
-real(kind=8),dimension(nz),intent(in)::v,tora,poro,sat,hr,dz
-real(kind=8),dimension(nz)::na,nax
-
-integer iz,ispa,isps,irxn
-real(kind=8) ctmp,edifi,ediftmp
-real(kind=8),dimension(nz)::edif
-
-integer,intent(in)::nsp_aq,nsp_sld,nrxn_ext
-real(kind=8),dimension(nsp_aq),intent(in)::daq,maqth,maqi
-real(kind=8),dimension(nsp_aq,nz),intent(in)::maq
-real(kind=8),dimension(nsp_sld),intent(in)::mv
-real(kind=8),dimension(nsp_sld,nz),intent(in)::msldx,ksld,omega,nonprec
-real(kind=8),dimension(nsp_sld,nsp_aq),intent(in)::staq
-real(kind=8),dimension(nsp_aq,nz),intent(inout)::maqx
-real(kind=8),dimension(nrxn_ext,nz),intent(in)::rxnext
-real(kind=8),dimension(nrxn_ext,nsp_aq),intent(in)::staq_ext
-
-if (nsp_aq == 0 ) return
-
-do ispa = 1, nsp_aq
-
-    dna = daq(ispa)
-    nath = maqth(ispa)
-    nai = maqi(ispa)
-    
-    na = maq(ispa,:)
-    nax = maqx(ispa,:)
-
-    edif = poro*sat*1d3*dna*tora
-    edifi = edif(1)
-
-    do iz = 1, nz
-
-        ! if (nax(iz)>=nath) cycle
-
-        ctmp = na(max(1,iz-1))
-        ediftmp = edif(max(1,iz-1))
-        if (iz==1) ctmp = nai
-        if (iz==1) ediftmp = edifi
-    
-        rxn_tmp = 0d0
-        
-        do isps = 1, nsp_sld
-            if (staq(isps,ispa)/=0d0) then 
-                rxn_tmp = rxn_tmp  &
-                    & + staq(isps,ispa)*ksld(isps,iz)*poro(iz)*hr(iz)*mv(isps)*1d-6*msldx(isps,iz)*(1d0-omega(isps,iz)) &
-                    & *merge(0d0,1d0,1d0-omega(isps,iz)*nonprec(isps,iz) < 0d0) 
-            endif 
-        enddo 
-        
-        do irxn = 1, nrxn_ext
-            if (staq(irxn,ispa)/=0d0) then 
-                rxn_tmp = rxn_tmp  &
-                    & + staq_ext(irxn,ispa)*rxnext(irxn,iz)
-            endif 
-        enddo 
-        
-        nax(iz) = max(nath*0.1d0, &
-            & na(iz) +dt/(poro(iz)*sat(iz)*1d3)*( &
-            & -poro(iz)*sat(iz)*1d3*v(iz)*(na(iz)-ctmp)/dz(iz) &
-            & +(0.5d0*(edif(iz)+edif(min(nz,iz+1)))*(na(min(nz,iz+1))-na(iz))/(0.5d0*(dz(iz)+dz(min(nz,iz+1)))) &
-            & - 0.5d0*(edif(iz)+ediftmp)*(na(iz)-ctmp)/(0.5d0*(dz(iz)+dz(max(1,iz-1)))))/dz(iz) &
-            & +rxn_tmp &
-            & ) &
-            & )
-            
-    enddo
-    
-    maqx(ispa,:) = nax 
-
-enddo 
-
-endsubroutine precalc_aqs_v2
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -16883,26 +15958,32 @@ endsubroutine calc_rxn_ext_dev_3
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine make_transmx(  &
-    & labs,nsp_sld,turbo2,nobio,dz,poro,nz,z,zml,dbl_ref,fick,till,tol,save_trans  &! input
-    & ,trans,nonlocal,izml  &! output 
+    & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
+    & ,trans  &! output 
     & )
 implicit none
 integer,intent(in)::nsp_sld,nz
+integer,dimension(nsp_sld),intent(in)::imix
 real(kind=8),intent(in)::dz(nz),poro(nz),z(nz),zml(nsp_sld),dbl_ref,tol
 real(kind=8)::sporo(nz)
-logical,intent(in)::labs(nsp_sld),turbo2(nsp_sld),nobio(nsp_sld),fick(nsp_sld),till(nsp_sld),save_trans
+logical,intent(in)::save_trans
 real(kind=8),intent(out)::trans(nz,nz,nsp_sld)
-logical,intent(out)::nonlocal(nsp_sld)
-integer,intent(out)::izml
+integer izml
 integer iz,isp,iiz,izdbl
 real(kind=8) :: translabs(nz,nz),dbio(nz),transdbio(nz,nz),transturbo2(nz,nz),transtill(nz,nz)
 real(kind=8) :: probh,dbl
 character(10) chr
+! following must synch with main 
+integer,parameter :: imixtype_nobio     = 0
+integer,parameter :: imixtype_fick      = 1
+integer,parameter :: imixtype_turbo2    = 2
+integer,parameter :: imixtype_till      = 3
+integer,parameter :: imixtype_labs      = 4
 
 sporo = 1d0 - poro
 trans = 0d0
 !~~~~~~~~~~~~ loading transition matrix from LABS ~~~~~~~~~~~~~~~~~~~~~~~~
-if (any(labs)) then
+if (any(imix==imixtype_labs)) then
     translabs = 0d0
 
     open(unit=88,file='../input/labs-mtx.txt',action='read',status='unknown')
@@ -16924,9 +16005,7 @@ endif
 
 dbl = dbl_ref
 
-nonlocal = .false. ! initial assumption 
 do isp=1,nsp_sld
-    if (turbo2(isp) .or. labs(isp)) nonlocal(isp)=.true. ! if mixing is made by turbo2 or labs, then nonlocal 
     
     dbio=0d0
     izdbl=0
@@ -17054,21 +16133,21 @@ do isp=1,nsp_sld
     
     trans(:,:,isp) = 0d0 
     
-    if (nobio(isp)) cycle
+    if ( imix(isp)==imixtype_nobio ) cycle
     
-    if (fick(isp)) then 
+    if ( imix(isp)==imixtype_fick ) then 
         trans(:,:,isp) = trans(:,:,isp) + transdbio(:,:)
     endif 
     
-    if (turbo2(isp)) then 
+    if ( imix(isp)==imixtype_turbo2 ) then 
         trans(:,:,isp) = trans(:,:,isp) + transturbo2(:,:)
     endif 
     
-    if (labs(isp)) then 
+    if ( imix(isp)==imixtype_labs ) then 
         trans(:,:,isp) = trans(:,:,isp) + translabs(:,:)
     endif 
     
-    if (till(isp)) then 
+    if ( imix(isp)==imixtype_till ) then 
         trans(:,:,isp) = trans(:,:,isp) + transtill(:,:)
     endif 
     
@@ -17097,13 +16176,6 @@ do isp=1,nsp_sld
     ! if (nonlocal(isp)) trans(:,:,isp) = translabs(:,:)  ! if nonlocal, replaced by either turbo2 mixing or labs mixing 
     ! if (nobio(isp)) trans(:,:,isp) = 0d0  ! if assuming no bioturbation, transition matrix is set at zero  
 enddo
-! even when all are local Fickian mixing, mixing treatment must be the same as in case of nonlocal 
-! if mixing intensity and depths are different between different species  
-if (all(.not.nonlocal)) then  
-    do isp=1,nsp_sld-1
-        if (any(trans(:,:,isp+1)/=trans(:,:,isp))) nonlocal=.true.
-    enddo
-endif 
 
 endsubroutine make_transmx
 
@@ -17124,7 +16196,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     & ,maqc,mgasc,keqgas_h,keqaq_h,keqaq_c,keqsld_all,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
     & ,nrxn_ext_all,chrrxn_ext_all,mgasth_all,maqth_all,krxn1_ext_all,krxn2_ext_all &
     & ,nsp_sld_cnst,chrsld_cnst,msldc,rho_grain,msldth_all,mv_all,staq_all,stgas_all &
-    & ,turbo2,labs,trans,method_precalc,display,chrflx,sld_enforce &! input
+    & ,trans,display,chrflx,sld_enforce &! input
     & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
     & ,precstyle,solmod,fkin &! input
     !  old inputs
@@ -17148,7 +16220,7 @@ real(kind=8),dimension(nz),intent(out)::iosx
 real(kind=8),dimension(nz),intent(inout)::w
 integer,intent(inout)::it
 integer iter
-logical,intent(in)::cplprec,method_precalc,display
+logical,intent(in)::cplprec,display
 logical,intent(inout)::flgback
 character(3),intent(in)::msldunit
 real(kind=8),intent(in)::dt
@@ -17203,7 +16275,6 @@ real(kind=8),dimension(nrxn_ext,nsp_gas,nz)::drxnext_dmgas
 real(kind=8),dimension(nrxn_ext,nsp_aq,nz)::drxnext_dmaq
 real(kind=8),dimension(nrxn_ext,nsp_sld,nz)::drxnext_dmsld
 real(kind=8),dimension(nsld_kinspc),intent(in)::kin_sld_spc
-logical,dimension(nsp_sld),intent(in)::labs,turbo2
 
 integer,intent(in)::nsp_aq_all,nsp_gas_all,nsp_sld_all,nsp_aq_cnst,nsp_gas_cnst,nsp_sld_cnst
 character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
@@ -17402,7 +16473,6 @@ else
 endif 
 
 sw_red = 1d0
-if (.not.method_precalc) sw_red = -1d100
 sw_red = -1d100
 
 do isps=1,nsp_sld
@@ -19387,7 +18457,6 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     iter = iter + 1 
 
     if (iter > iter_Max ) then
-    ! if (iter > iter_Max .or. (method_precalc .and. error > infinity)) then
         ! dt = dt/1.01d0
         ! dt = dt/10d0
         if (dt==0d0) then 
@@ -23198,7 +22267,6 @@ do while (error > 1d0)
     iter = iter + 1 
     
     if (iter > iter_Max ) then
-    ! if (iter > iter_Max .or. (method_precalc .and. error > infinity)) then
         ! dt = dt/1.01d0
         ! dt = dt/10d0
         if (dt==0d0) then 
@@ -23711,7 +22779,6 @@ do while (error > 1d0)
     iter = iter + 1 
     
     if (iter > iter_Max ) then
-    ! if (iter > iter_Max .or. (method_precalc .and. error > infinity)) then
         ! dt = dt/1.01d0
         ! dt = dt/10d0
         if (dt==0d0) then 
@@ -23772,7 +22839,6 @@ print *, '----- kpsd iteration', iter_k, error_k
 iter_k = iter_k + 1 
 
 if (iter_k > iter_Max ) then
-! if (iter > iter_Max .or. (method_precalc .and. error > infinity)) then
     ! dt = dt/1.01d0
     ! dt = dt/10d0
     if (dt==0d0) then 
