@@ -14145,8 +14145,10 @@ real(kind=8),dimension(nz)::gamma,dgamma,beta,dbeta
 real(kind=8),dimension(nsp_aq_all,nz)::da_dmaqf
 real(kind=8),dimension(nsp_aq_all)::base_charge
 real(kind=8) c1_gamma,c0_gamma 
-real(kind=8) :: tol_dum = 1d-9
+! real(kind=8) :: tol_dum = 1d-9
+real(kind=8) :: tol_dum = 1d-12 ! desparate for convergence 6/8/2023
 real(kind=8) :: tol_dum_2 = 1d-8
+! real(kind=8) :: tol_dum_2 = 1d-6 ! desparate for convergence 6/8/2023
 ! real(kind=8) :: tol_dum = 1d-12   ! when beta_ON = .true.
 ! real(kind=8) :: tol_dum_2 = 1d-8  ! when beta_ON = .true.
 real(kind=8) :: low_lim = 1d-20 
