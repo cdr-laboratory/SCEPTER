@@ -109,11 +109,11 @@ def get_input_switches(**kwargs):
     disp_lim    = kwargs.get('disp_lim',    'true')
     restart     = kwargs.get('restart',     'false') 
     rough       = kwargs.get('rough',       'true')      
-    al_inhib    = kwargs.get('al_inhib',    'false') 
+    act_ON      = kwargs.get('act_ON',      'false') 
     dt_fix      = kwargs.get('dt_fix',      'false')
-    cec_on      = kwargs.get('cec_on',     'false')
+    cec_on      = kwargs.get('cec_on',      'false')
     dz_fix      = kwargs.get('dz_fix',      'true')
-    close_aq    = kwargs.get('close_aq',     'false')
+    close_aq    = kwargs.get('close_aq',    'false')
     poro_evol   = kwargs.get('poro_evol',   'true')
     sa_evol_1   = kwargs.get('sa_evol_1',   'true') 
     sa_evol_2   = kwargs.get('sa_evol_2',   'false')
@@ -131,12 +131,10 @@ def get_input_switches(**kwargs):
         ,'limited results display'
         ,'restart from a previous run'
         ,'include roughness in mineral surface area'
-        ,'include Al-inhibition in mineral reaction kinetics'
+        ,'enabling activity coefficients'
         ,'time step fixed'
-        # ,'pre-calculation before attempting to obtain flly coupled results'
         ,'enabling adsorption for cation exchange'
         ,'adopting a regular grid'
-        # ,'enforcing solid profile (only aq and gas are explicitly simulated)'
         ,'closing system for aq phases'
         ,'enabling porosity evolution'
         ,'enabling SA evolution 1 (SA decreases as porosity increases)'
@@ -156,7 +154,7 @@ def get_input_switches(**kwargs):
         ,disp_lim
         ,restart 
         ,rough      
-        ,al_inhib 
+        ,act_ON 
         ,dt_fix
         ,cec_on
         ,dz_fix
@@ -327,11 +325,13 @@ def get_input_sld_properties(**kwargs):
     elif filename == 'dust.in' or filename == 'dust_2nd.in':
         note = '** dusts wt fraction (if not specified assumed 0)'
     elif filename == 'cec.in':
-        note = '** cec [cmol/kg], log10(KH-Na) [-] and beta specified by users (e.g., "g2   90   5.9  3.4") (if not specified assumed code default values)'
+        note = '** cec [cmol/kg], log10(KH-X) [-] (X=Na,K,Ca,Mg,Al) and beta specified by users (e.g., "g2   90   5.9   4.8   10.47   10.786   16.47   3.4") (if not specified assumed code default values)'
     elif filename == 'nopsd.in':
         note = '** list of minerals whose PSDs are not tracked for some reason'
     elif filename == '2ndslds.in':
         note = '** list of minerals whose precipitation is allowed'
+    elif filename == 'psdrain.in':
+        note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define dust psd (e.g., 1e-5    0.2    1)'
     else:
         print('{} is not supposed to be input file'.format(filename))
     
@@ -353,7 +353,19 @@ def get_input_sld_properties(**kwargs):
                 if filename == 'nopsd.in' or filename == '2ndslds.in':
                     input_text += sld_varlist[i][0] + '\n'
                 elif filename == 'cec.in':
-                    input_text += sld_varlist[i][0] + '\t' + str(sld_varlist[i][1])+ '\t' + str(sld_varlist[i][2])+ '\t' + str(sld_varlist[i][3]) + '\n'
+                    for j in range(len(sld_varlist[i])):
+                        if j==0:
+                            input_text += sld_varlist[i][j] + '\t' 
+                        elif j==len(sld_varlist[i])-1:
+                            input_text += str(sld_varlist[i][j]) + '\n' 
+                        else:
+                            input_text += str(sld_varlist[i][j]) + '\t'
+                elif filename == 'psdrain.in':
+                    for j in range(len(sld_varlist[i])):
+                        if j==len(sld_varlist[i])-1:
+                            input_text += str(sld_varlist[i][j]) + '\n' 
+                        else:
+                            input_text += str(sld_varlist[i][j]) + '\t'
                 else:
                     input_text += sld_varlist[i][0] + '\t' + str(sld_varlist[i][1]) + '\n'
         
@@ -367,6 +379,73 @@ def get_input_sld_properties(**kwargs):
     
     del sld_varlist[0]
     
+    
+    
+def get_input_climate_temp(**kwargs):
+    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
+    runname     = kwargs.get('runname',     'test_input')
+    T_ave       = kwargs.get('T_ave',       15)
+    T_amp       = kwargs.get('T_amp',       0.3)
+    moist_ave   = kwargs.get('moist_ave',   0.5)
+    moist_amp   = kwargs.get('moist_amp',   0.3)
+    q_ave       = kwargs.get('q_ave',       0.5)
+    q_amp       = kwargs.get('q_amp',       0.3)
+    tau         = kwargs.get('tau',         1.)
+    timeline    = kwargs.get('timeline',    np.linspace(0,1,12,endpoint=False))
+
+    N = timeline.shape[0]
+    T = T_ave + T_ave * T_amp * np.sin(timeline/tau*2.*np.pi)
+    q = q_ave + q_ave * q_amp * np.sin(timeline/tau*2.*np.pi)
+    moist = moist_ave + moist_ave * moist_amp * np.sin(timeline/tau*2.*np.pi)
+    
+
+    notes = [
+        '# time(yr) / runoff(mm/month)',
+        '# time(yr) / T(oC)',
+        '# time(yr) / moisture(mm/m)',
+        ]
+        
+    filenames = [
+        'q_temp.in',
+        'T_temp.in',
+        'Wet_temp.in',
+        ]
+        
+    values_lists = [
+        q,
+        T,
+        moist,
+        ]
+        
+    factors = [
+        1e3/12.,  # converting m/y to mm/month
+        1,
+        1e3,  # converting m/m to mm/m
+        ]
+    
+    nn = 3
+    
+    if not os.path.exists(outdir + runname): os.makedirs(outdir + runname)
+    
+    for k in range(nn):
+        values = values_lists[k]
+        filename = filenames[k]
+        factor = factors[k]
+        input_text = ''
+        input_text += '{}\n'.format(notes[k])
+        for i in range(N):
+            input_text += '{:f}\t{:f}\n'.format(timeline[i], values[i]*factor) 
+        
+        input_file = outdir + runname + '/' + filename
+        
+        with open(input_file, 'w') as file:
+            file.write(input_text)
+        
+        print(input_text)
+        
+        
+        
+        
 def main():
 
     # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
@@ -425,7 +504,7 @@ def main():
     disp_lim='true'
     restart ='false'
     rough      ='true'
-    al_inhib ='false'
+    act_ON ='false'
     dt_fix='false'
     precalc='false'
     dz_fix='true'
@@ -448,7 +527,7 @@ def main():
         ,disp_lim=disp_lim
         ,restart=restart 
         ,rough=rough      
-        ,al_inhib=al_inhib 
+        ,act_ON=act_ON 
         ,dt_fix=dt_fix
         ,precalc=precalc
         ,dz_fix=dz_fix
@@ -494,7 +573,7 @@ def main():
         ,sld_varlist=sld_varlist
         )
     filename = 'cec.in'
-    sld_varlist = [('inrt',4,4.1,3.4) ,('g2',4,4.1,3.4) ] 
+    sld_varlist = [('inrt',4,  5.9, 4.8, 10.47, 10.786, 16.47,  3.4) ,('g2',4,  5.9, 4.8, 10.47, 10.786, 16.47,  3.4) ] 
     get_input_sld_properties(
         outdir=outdir
         ,runname=runname
@@ -520,7 +599,24 @@ def main():
         ,srcfile = srcfile
         # ,sld_varlist=sld_varlist
         )
+    filename = 'psdrain.in'
+    srcfile = './data/psdrain_100um.in'
+    sld_varlist = [ (5e-6,0.2,1), (20e-6,0.2,1), (50e-6,0.2,1), (70e-6,0.2,1) ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        # ,srcfile = srcfile
+        )
     
+    get_input_climate_temp(
+        outdir=outdir,
+        runname=runname,
+        tau = 1,
+        T_amp = 0,
+        moist_amp = 0,
+        )
    
 if __name__ == '__main__':
     main()
