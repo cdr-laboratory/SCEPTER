@@ -5,7 +5,7 @@ import shutil
 def run_closed_inert_cec(cec,act_ON_IN,data):
 
     use_local_storage = True
-    # use_local_storage = False
+    use_local_storage = False
     
     # cec = 0
     
@@ -17,7 +17,7 @@ def run_closed_inert_cec(cec,act_ON_IN,data):
     
     alpha = 3.4
     
-    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir = '../scepter_output/'
     if use_local_storage:  outdir = os.environ['TMPDIR'] + '/scepter_output/'
     # runname = 'test_inert_spinup_cec_{:d}'.format(cec) 
     if act_ON_IN: runname = 'test_inert_spinup_act_cec_{:d}'.format(cec) + '_'+ data
@@ -25,11 +25,12 @@ def run_closed_inert_cec(cec,act_ON_IN,data):
 
     # compile 
     exename = 'scepter'
-    exename_src = 'scepter_test'
+    exename_src = 'scepter'
+    # exename_src = 'scepter_test'
     to = ' '
     where = '/'
-    # os.system('make')
-    os.system('make --file=makefile_test')
+    os.system('make')
+    # os.system('make --file=makefile_test')
     if not os.path.exists( outdir + runname) : os.system('mkdir -p ' + outdir + runname)
     os.system('cp ' + exename_src + to + outdir + runname + where + exename)
     
@@ -154,7 +155,7 @@ def run_closed_inert_cec(cec,act_ON_IN,data):
         )
         
     filename = 'dust.in'
-    srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/dust_gbasalt.in'
+    srcfile = './data/dust_gbasalt.in'
     sld_varlist =[]
     make_inputs.get_input_sld_properties(
         outdir=outdir
@@ -188,7 +189,7 @@ def run_closed_inert_cec(cec,act_ON_IN,data):
         
     if use_local_storage:
         src = outdir + runname 
-        dst = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/' + runname 
+        dst = '../scepter_output/' + runname 
         
         if not os.path.exists(dst): 
             shutil.copytree(src, dst)
@@ -198,13 +199,11 @@ def run_closed_inert_cec(cec,act_ON_IN,data):
    
 def main():
     
-    # cec_list = [0,1,2,4,8,16,32,64]
     cec_list = list(range(21))
     act_ON_IN = False
     act_ON_IN = True
     
     data = 'Sikora'
-    # data = 'Goldberg'
     
     for cec in cec_list:
         run_closed_inert_cec(cec,act_ON_IN,data)

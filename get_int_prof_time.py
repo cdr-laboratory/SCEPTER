@@ -26,11 +26,6 @@ def linave(dep,phdep,ztot):
     return a
 
 def get_ph_int_site(outdir,runname,dep_sample,i):
-    # outdir = '../pyweath_output/'
-    # runname = ''
-    # runname = 'Sheldon_A_fick_noiter_test_psdfullpbe_w1_fit_r2000_sig0p2_loop_q0p2_chkall'
-
-    # dep_sample = float(sys.argv[1])
 
     infile = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
     data = np.loadtxt(infile,skiprows=1)
@@ -49,11 +44,6 @@ def get_ph_int_site(outdir,runname,dep_sample,i):
     return phintval
 
 def get_ac_int_site(outdir,runname,dep_sample):
-    # outdir = '../pyweath_output/'
-    # runname = ''
-    # runname = 'Sheldon_A_fick_noiter_test_psdfullpbe_w1_fit_r2000_sig0p2_loop_q0p2_chkall'
-
-    # dep_sample = float(sys.argv[1])
 
     infile = outdir+runname+'/prof/prof_aq(ads%cec)-020.txt'
     data = np.loadtxt(infile,skiprows=1)

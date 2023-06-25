@@ -26,7 +26,7 @@ phnorm_pw = True
 phnorm_pw = False
 
 use_local_storage = True
-# use_local_storage = False
+use_local_storage = False
 
 cec=float(sys.argv[3])
 # targetpH = 6.0
@@ -38,12 +38,12 @@ dep_sample = 0.25
 dep_sample = 0.15
 
 added_sp = 'gbas'
-added_sp = 'cc'
+# added_sp = 'cc'
 
 # mxing style
 
 imix = 2 # homogeneous
-# imix = 3 # tilling
+imix = 3 # tilling
 
     
 ztot_lab = 0.5
@@ -54,7 +54,7 @@ ttot_lab = 100
 
 water_frac = 5.
 water_frac = 1.
-water_frac = 2.5
+# water_frac = 2.5
 
 catlist = ['ca','mg','k','na']
 
@@ -90,10 +90,9 @@ runname_field   = expid+'_'+added_sp+'_field_tpH'+sys.argv[1].replace('.','p')+'
 runname_lab     = expid+'_'+added_sp+'_lab_tpH'+sys.argv[1].replace('.','p')+'_tau'+sys.argv[2].replace('.','p')
 # runname = 'chk_iter_incl2nd_basalt_tpH'+sys.argv[1].replace('.','p')+'_tau'+sys.argv[2].replace('.','p')
 
-# outdir='/storage/scratch1/0/ykanzaki3/scepter_output/'
-outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+outdir = '../scepter_output/'
 if use_local_storage:  
-    outdir_src = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir_src = '../scepter_output/'
     outdir = os.environ['TMPDIR'] + '/scepter_output/'
     for runname in [spinup_field,spinup_lab]:
 
@@ -131,7 +130,8 @@ taudust =0.005
     # fdust = 10000
 
 exename = 'scepter'
-exename_src = 'scepter_test'
+# exename_src = 'scepter_test'
+exename_src = 'scepter'
 to = ' '
 where = '/'
 
@@ -148,8 +148,8 @@ data[-2] = 'true\tenabling PSD tracking for individual solid species\n'
 with open(dst, 'w') as file:
     file.writelines(data)
 
-if added_sp == 'gbas': dustsrc = 'dust_gbasalt.in'
-if added_sp == 'cc': dustsrc = 'dust_lime.in'
+if added_sp == 'gbas': dustsrc = './data/dust_gbasalt.in'
+if added_sp == 'cc': dustsrc = './data/dust_lime.in'
 dustdst = 'dust.in'
 
 os.system('cp ' + dustsrc + to + outdir + runname_field + where + dustdst) 
@@ -229,7 +229,7 @@ with open(dst, 'w') as file:
     file.writelines(data)
     
 filename = '2ndslds.in'
-srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_def.in'
+srcfile = './data/2ndslds_def.in'
 make_inputs.get_input_sld_properties(
     outdir=outdir
     ,runname=runname_field
@@ -245,11 +245,11 @@ make_inputs.get_input_sld_properties(
     
 # compile 
 # os.system('make')
-os.system('make --file=makefile_test')
-for runname in [runname_field,runname_lab]:
-    if not os.path.exists( outdir + runname) : os.system('mkdir -p ' + outdir + runname)
-    # os.system('cp ' + exename + to + outdir + runname)
-    os.system('cp ' + exename_src + to + outdir + runname + where + exename)
+# os.system('make --file=makefile_test')
+# for runname in [runname_field,runname_lab]:
+    # if not os.path.exists( outdir + runname) : 
+        # os.system('mkdir -p ' + outdir + runname)
+        # os.system('cp ' + exename_src + to + outdir + runname + where + exename)
 
 maxiter = 50
 

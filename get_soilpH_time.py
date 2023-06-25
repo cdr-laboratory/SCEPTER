@@ -62,8 +62,7 @@ def calc_soilpH(outdir, runname_field, dep_sample, itime, **kwargs):
     temp_lab=25
 
 
-    # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
-    # outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    # outdir = '../scepter_output/'
 
     exename = 'scepter'
     to = ' '
@@ -485,7 +484,7 @@ def calc_soilpH(outdir, runname_field, dep_sample, itime, **kwargs):
 
 def timeseries_soilpH():
     
-    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir = '../scepter_output/'
     runname_field   = 'US_cropland_297_sph_N_DIC_v2_spintuneup_field'
     runname_field   = 'US_cropland_311_sph_N_DIC_v2_spintuneup_field'
     runname_field   = 'US_cropland_311_sph_N_DIC_cacl2_2p5_all_spintuneup_field'
@@ -526,7 +525,7 @@ def CECseries_bufferpH(act_ON,database_name):
     cec_list = list(range(21))
     cec_list = list(range(13))
     
-    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir = '../scepter_output/'
     
     res_list = []
     
@@ -575,7 +574,7 @@ def S2006_bufferpH(
     use_local_storage,
     ):
     
-    # outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    # outdir = '../scepter_output/'
     # runname_field   = 'US_cropland_297_sph_N_DIC_v2_spintuneup_field'
     # runname_field   = 'US_cropland_311_sph_N_DIC_v2_spintuneup_field'
     # runname_field   = 'US_cropland_297_sph_N_DIC_act_all_spintuneup_field'
@@ -643,7 +642,7 @@ def MK2010_series_soilpH(
     use_local_storage,
     ):
     
-    # outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    # outdir = '../scepter_output/'
     # runname_field   = 'US_cropland_297_sph_N_DIC_v2_spintuneup_field'
     # runname_field   = 'US_cropland_311_sph_N_DIC_v2_spintuneup_field'
     # runname_field   = 'US_cropland_297_sph_N_DIC_act_all_spintuneup_field'
@@ -752,7 +751,7 @@ def MK2010_series_soilpH_2(
     use_local_storage,
     ):
     
-    # outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    # outdir = '../scepter_output/'
     # runname_field   = 'US_cropland_297_sph_N_DIC_v2_spintuneup_field'
     # runname_field   = 'US_cropland_311_sph_N_DIC_v2_spintuneup_field'
     # runname_field   = 'US_cropland_297_sph_N_DIC_act_all_spintuneup_field'
@@ -844,12 +843,11 @@ def main():
 
 
     # timeseries_soilpH()
+    # exit("end run")
     
     
-    # act_ON = False
     # act_ON = True
     # database_name = 'Sikora'
-    # database_name = 'Goldberg'
     # CECseries_bufferpH(act_ON,database_name)
     # exit("end run")
     
@@ -857,10 +855,10 @@ def main():
     
     
     
-    i_parallel = int(sys.argv[1])
-    n_parallel = int(sys.argv[2])
+    # i_parallel = int(sys.argv[1])
+    # n_parallel = int(sys.argv[2])
     
-    name_base  = sys.argv[3]
+    # name_base  = sys.argv[3]
     # name_base  = 'test_Pot7_25C_v2_alpha'
     name_base  = 'test_Pot7_25C_v2_poro0p4_alpha'
     name_base  = 'test_Pot7_25C_v2_densqrtz_alpha'
@@ -885,8 +883,9 @@ def main():
     
     name_base  = 'test_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
     name_base  = 'chk_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
+    name_base  = 'chk2_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
     
-    outdir  = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir  = '../scepter_output/'
     
     alpha_list = list(np.linspace(0.1,5.5,19))
     alpha_list = [3.4]
@@ -897,7 +896,7 @@ def main():
     alpha_list = [1.1]
     alpha_list = [1.2]
     alpha_list = [1.3]
-    alpha_list = [1.4]
+    # alpha_list = [1.4]
     # alpha_list = [1.7]
     # alpha_list = [5.5]
     # alpha_list = [(0, 6)]
@@ -988,122 +987,6 @@ def main():
     exit("end run")
     
     
-    
-    
-    
-    outdir  = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
-    runname_field_list = ['US_cropland_{:d}_sph_N_DIC_act_DA_1p1_spintuneup_field'.format(i) for i in [296,297,311,371]]
-    dep_sample = 0.15
-    include_N = True
-    include_Cl  = False
-    include_Al  = False
-    use_local_storage  = True
-    
-    cnt = 0
-    for runname_field in runname_field_list:
-        for include_DIC in [False,True]:                
-            if cnt%n_parallel!=i_parallel: 
-                cnt += 1
-                continue
-            else:
-                cnt += 1
-                
-            MK2010_series_soilpH_2(
-                outdir,
-                runname_field,
-                dep_sample,
-                include_N,
-                include_Cl,
-                include_Al,
-                include_DIC,
-                use_local_storage,
-                )
-                
-    
-    exit("end run")
-    
-    i_parallel = int(sys.argv[1])
-    n_parallel = int(sys.argv[2])
-    
-    name_base  = sys.argv[3]
-    
-    outdir  = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
-    omrain_list = [100,300,600,900]
-    # ca_list = [1e-5,1e-4,1e-3,1e-2]
-    ca_list = [1e-6,1e-5,1e-4,1e-3]
-    cec_list = [5,10,20,30]
-    # cec_list = [0.01,0.1,1]
-    logkh_list = [5,6,7]
-    nacl_list = [1e-4,1e-3,1e-2,1e-1]
-    nacl_list = [1e-3,1e-2,1e-1,1e0]  # 0.01 0.1 1 10 kg/ha -->  1e-3, 1e-2, 1e-1, 1e0  g/m2
-    q_list = [1e-6,1e-4,1e-2,1e-1,1e0]
-    cnt = 0
-    for omrain in omrain_list:
-        for ca in ca_list:
-            for cec in cec_list:
-                # for logkh in logkh_list:
-                # for nacl in nacl_list:
-                for q in q_list:
-                
-                    if cnt%n_parallel!=i_parallel: 
-                        cnt += 1
-                        continue
-                    else:
-                        cnt += 1
-                        
-                    # runname_field = 'test_inrt-g2-nacl-pco2_{:d}resp_{:d}lognacl_{:d}cec_{:d}logkh'.format(  
-                    # runname_field = 'test_inrt-g2-ca-pco2_{:d}resp_{:d}logca_{:d}cec_{:d}logkh'.format(   
-                        # int(omrain),
-                        # int(-np.log10(ca)),
-                        # int(cec),
-                        # int(logkh),
-                        # )
-                    
-                    # if cec == int(cec):
-                        # runname_field = 'test_inrt-g2-ca-pco2_{:d}resp_{:d}logca_{:d}cec_{:d}logkh'.format(  
-                            # int(omrain),
-                            # int(-np.log10(ca)),
-                            # int(cec),
-                            # int(logkh),
-                            # )  
-                    # else :
-                        # runname_field = 'test_inrt-g2-ca-pco2_{:d}resp_{:d}logca_{}cec_{:d}logkh'.format(  
-                            # int(omrain),
-                            # int(-np.log10(ca)),
-                            # str(cec).replace('.','p'),
-                            # int(logkh),
-                            # )
-                        
-                    # runname_field = name_base + '_{:d}resp_{:d}logca_{:d}lognacl_{:d}cec'.format( 
-                        # int(omrain),
-                        # int(-np.log10(ca)),
-                        # int(-np.log10(nacl)),
-                        # int(cec),
-                        # )
-                        
-                    runname_field = name_base + '_{:d}resp_{:d}logca_{:d}logq_{:d}cec'.format( 
-                        int(omrain),
-                        int(-np.log10(ca)),
-                        int(-np.log10(q)),
-                        int(cec),
-                        )
-                        
-                    dep_sample = 0.15
-                    include_N = False
-                    include_Cl  = True
-                    include_Al  = False
-                    use_local_storage  = True
-                    for include_DIC in [False,True]:
-                        MK2010_series_soilpH(
-                            outdir,
-                            runname_field,
-                            dep_sample,
-                            include_N,
-                            include_Cl,
-                            include_Al,
-                            include_DIC,
-                            use_local_storage,
-                            )
     
     
                 

@@ -15,7 +15,6 @@ def spin_inert(outdir_src,runname,
     act_ON,
     ):
 
-    # outdir_src = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
     # runname = 'test'
     
     # cec     = 10.0
@@ -157,7 +156,7 @@ def spin_inert(outdir_src,runname,
         
         
 def main():
-    outdir_src = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir_src = '../scepter_output/'
     
     runname = 'test_Pot7_25C_alpha0p0'
     runname = 'test_Pot7_25C_alpha3p1'
@@ -188,7 +187,7 @@ def main():
     cl_tmp = 2.9e-4  # double CEC OM - 120, pwpH=6.1, alpha = 1.1 
     cl_tmp = 2.8e-4  # double CEC OM - 120, pwpH=6.1, alpha = 1.2 
     cl_tmp = 2.68e-4  # double CEC OM - 120, pwpH=6.1, alpha = 1.3 
-    cl_tmp = 2.55e-4  # double CEC OM - 120, pwpH=6.1, alpha = 1.4 
+    # cl_tmp = 2.55e-4  # double CEC OM - 120, pwpH=6.1, alpha = 1.4 
     
     ph_pw = 6.68
     ph_pw = 6.3
@@ -269,16 +268,17 @@ def main():
     if cec_1<0: exit("cec_1<0")
     
     
-    i_parallel = int(sys.argv[1])
-    n_parallel = int(sys.argv[2])
+    # i_parallel = int(sys.argv[1])
+    # n_parallel = int(sys.argv[2])
     
-    name_base  = sys.argv[3]
+    # name_base  = sys.argv[3]
     # name_base  = 'test_Pot7_25C_v2_CEC10p0'
     name_base  = 'test_Pot7_25C_v2_noact_alpha'
     name_base  = 'test_Pot7_25C_v2_act_alpha'
     name_base  = 'test_Pot7_25C_v2_act_2alpha'
     name_base  = 'test_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
     name_base  = 'chk_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
+    name_base  = 'chk2_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
     # name_base  = 'test_Pot7_25C_v3_noact_alpha'
     
     act_ON = 'true'
@@ -291,7 +291,7 @@ def main():
     alpha_list = [(1.1, 1.1)]
     alpha_list = [(1.2, 1.2)]
     alpha_list = [(1.3, 1.3)]
-    alpha_list = [(1.4, 1.4)]
+    # alpha_list = [(1.4, 1.4)]
     
     for i in range(len(alpha_list)):
                    

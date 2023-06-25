@@ -25,7 +25,7 @@ alphase = 'gb'
 alphase = 'amal'
 
 use_CaCl2 = False
-use_CaCl2 = True
+# use_CaCl2 = True
 
 phnorm_pw = True
 phnorm_pw = False
@@ -37,10 +37,10 @@ use_local_storage = True
 use_local_storage = False
 
 make_initial_geuss = True
-# make_initial_geuss = False
+make_initial_geuss = False
 
 liming = True
-# liming = False
+liming = False
 
 limesp = 'cao'
 limemwt = 56.079
@@ -50,7 +50,7 @@ limemwt = 100.089
 
 water_frac = 5.
 water_frac = 1.
-water_frac = 2.5
+# water_frac = 2.5
 
 iter_max = 120
 iter_max = 3000
@@ -83,7 +83,7 @@ else:
     make_initial_geuss = True
 
 if make_initial_geuss:
-    outdir_guess = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir_guess = '../scepter_output/'
     
     try:
         # filename = '/iteration_tmp.res'
@@ -145,8 +145,6 @@ dep_sample = 0.15
 # dep_sample = 0.25
 
 
-outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
-outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
 outdir = '../scepter_output/'
 if use_local_storage:  outdir = os.environ['TMPDIR'] + '/scepter_output/'
 simid = sys.argv[1]
@@ -155,11 +153,12 @@ runname_lab     = simid+'_spintuneup_lab'
 
 # compile 
 exename = 'scepter'
-exename_src = 'scepter_test'
+exename_src = 'scepter'
+# exename_src = 'scepter_test'
 to = ' '
 where = '/'
-# os.system('make')
-os.system('make --file=makefile_test')
+os.system('make')
+# os.system('make --file=makefile_test')
 prev_iter_exist = False
 if not os.path.exists( outdir + runname_field) : 
     os.system('mkdir -p ' + outdir + runname_field)
@@ -383,10 +382,13 @@ make_inputs.get_input_sld_properties(
     
 filename = 'psdrain.in'
 srcfile = './data/psdrain_320um.in'
+sld_varlist = [ (5e-6,0.2,1), (5e-6,0.2,1), (5e-6,0.2,1), (5e-6,0.2,1), ] 
+# sld_varlist = [ (1e-6,0.2,1), (2e-6,0.2,1), (5e-6,0.2,1), (20e-6,0.2,1), ] 
 make_inputs.get_input_sld_properties(
     outdir=outdir
     ,runname=runname_field
     ,filename = filename
+    # ,sld_varlist=sld_varlist
     ,srcfile = srcfile
     )
     
@@ -551,6 +553,7 @@ make_inputs.get_input_sld_properties(
 error = 1e4
 tol = 1e-4
 tol = 1e-3
+# tol = 1e-2
 
 cnt = 1
 res_list = []
@@ -1081,7 +1084,7 @@ for runname in [runname_field,runname_lab]:
 if use_local_storage:
     for runname in [runname_field,runname_lab]:
         src = outdir + runname 
-        dst = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/' + runname 
+        dst = '../scepter_output/' + runname 
         
         if not os.path.exists(dst): 
             shutil.copytree(src, dst)

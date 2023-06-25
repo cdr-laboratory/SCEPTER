@@ -38,8 +38,7 @@ def calc_soilpH(inputlist):
     temp_lab=25
 
 
-    # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
-    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir = '../scepter_output/'
 
     exename = 'scepter'
     to = ' '
@@ -297,7 +296,7 @@ def main():
     
     field_dir = sys.argv[1]
     
-    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir = '../scepter_output/'
     
     for itime in range(n_time):
         file = outdir + field_dir + '/prof/soil_ph_{:03d}.txt'.format(itime+1)

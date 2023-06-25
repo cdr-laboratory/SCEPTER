@@ -78,11 +78,12 @@ def run_a_scepter_run(
     
     # compile 
     exename = 'scepter'
-    exename_src = 'scepter_test'
+    exename_src = 'scepter'
+    # exename_src = 'scepter_test'
     to = ' '
     where = '/'
-    # os.system('make')
-    os.system('make --file=makefile_test')
+    os.system('make')
+    # os.system('make --file=makefile_test')
     if not os.path.exists( outdir + runname) : os.system('mkdir -p ' + outdir + runname)
     os.system('cp ' + exename_src + to + outdir + runname + where + exename)
 
@@ -208,7 +209,7 @@ def run_a_scepter_run(
         
 def main():
 
-    outdir_src = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir_src = '../scepter_output/'
     runname = 'test'
     
     #  >>>> input variables of interests 
