@@ -1,0 +1,3 @@
+** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define dust psd (e.g., 1e-5    0.2    1)
+5e-6  0.5 1
+5e-7  0.5 1
