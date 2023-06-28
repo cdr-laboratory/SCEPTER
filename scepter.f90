@@ -410,6 +410,7 @@ real(kind=8),intent(in)::rainpowder_2nd != 30d2 !  g/m2/yr
 real(kind=8),intent(in)::zsupp != 0.3d0 !  e-folding decrease
 
 real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz), tc, satup
+character(10)::tor_ref
 
 ! real(kind=8) :: poroi = 0.1d0 !*** default
 real(kind=8),intent(in) :: poroi != 0.5d0
@@ -2464,8 +2465,23 @@ do isps=1,nsp_sld
 enddo 
 v = qin/poroi/sat
 poro = poroi
-torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
-tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+
+! tortuosity references (= tor_ref) include:
+! 'Aetal03','Aetal00','P40','Mi59','Ma59','B1904','MQ60','MQ61','GDC', 
+! 'WLR_P','WLR_Mi','WLR_Ma','WLR_B','SWLR_m','SWLR_h','SWLR_l' 
+
+! tor_ref = 'Aetal03'     ! Archer et al. 2003
+! tor_ref = 'M59'         ! Millington 1959 | Millington and Quirk 1961 | Steefel et al. 2015 | Wu et al. 2015
+! tor_ref = 'SWLR_m'      ! Structure-dependent Water-induced Linear Reduction model by Moldrup et al. (2013) with cementation factor = 2.1
+! tor_ref = 'SWLR_l'      ! cementation factor = 3 (highest tortuosity)
+! tor_ref = 'SWLR_h'      ! cementation factor = 1 (lowest tortuosity)
+tor_ref = 'WLR_B'       ! good for intact soil? according to Moldrup et al. 2013
+
+! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
+! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+
+torg = tor_f( tor_ref, nz, poro, 1d0-sat )
+tora = tor_f( tor_ref, nz, poro, sat )
 
 w_btm = w0
 w = w_btm
@@ -2922,8 +2938,11 @@ if (read_data) then
     
     pro = 10d0**(-pro) ! read data is -log10 (pro)
     
-    torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
-    tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+    ! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
+    ! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+
+    torg = tor_f( tor_ref, nz, poro, 1d0-sat )
+    tora = tor_f( tor_ref, nz, poro, sat )
         
     c_disp = c0_disp*zdisp**c1_disp
     disp = c_disp * v
@@ -3463,8 +3482,11 @@ do while (it<nt)
             if (z(iz)>=zsat) sat(iz)=1d0
         enddo 
         v = qin/poroi/sat
-        torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
-        tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+        ! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
+        ! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+
+        torg = tor_f( tor_ref, nz, poro, 1d0-sat )
+        tora = tor_f( tor_ref, nz, poro, sat )
         
         c_disp = c0_disp*zdisp**c1_disp
         disp = c_disp * v
@@ -4183,8 +4205,11 @@ do while (it<nt)
         ! mvka = mwtka 
 ! #endif 
         v = qin/poro/sat
-        torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
-        tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+        ! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
+        ! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+
+        torg = tor_f( tor_ref, nz, poro, 1d0-sat )
+        tora = tor_f( tor_ref, nz, poro, sat )
         
         c_disp = c0_disp*zdisp**c1_disp
         disp = c_disp * v
@@ -15973,7 +15998,7 @@ real(kind=8),intent(out)::trans(nz,nz,nsp_sld)
 integer izml
 integer iz,isp,iiz,izdbl
 real(kind=8) :: translabs(nz,nz),dbio(nz),transdbio(nz,nz),transturbo2(nz,nz),transtill(nz,nz)
-real(kind=8) :: probh,dbl
+real(kind=8) :: probh,dbl,dbio_ref
 character(10) chr
 ! following must synch with main 
 integer,parameter :: imixtype_nobio     = 0
@@ -16007,6 +16032,17 @@ endif
 
 dbl = dbl_ref
 
+! dbio_ref =  0.15d-4   !  within mixed layer 150 cm2/kyr (Emerson, 1985) 
+dbio_ref =  2d-4   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
+! dbio_ref =  3d-5   !  within mixed layer (Jarvis et al., 2010) 
+! dbio_ref =  2d-4*exp(z(iz)/0.1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
+! dbio_ref =  2d-7*exp(z(iz)/1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
+! dbio_ref =  2d-10   !  just a small value 
+! dbio_ref =  2d-3   !  just a value changed by x10 
+dbio_ref =  2d-2   !  just a value changed by x100 
+! dbio_ref =  1d-1   !  just a value changed by x500 
+! dbio_ref =  2d-1   !  just a value changed by x1000
+
 do isp=1,nsp_sld
     
     dbio=0d0
@@ -16016,13 +16052,7 @@ do isp=1,nsp_sld
             dbio(iz) = 0d0
             izdbl = iz
         elseif (dbl < z(iz) .and. z(iz) <=zml(isp)) then
-            ! dbio(iz) =  0.15d-4   !  within mixed layer 150 cm2/kyr (Emerson, 1985) 
-            dbio(iz) =  2d-4   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
-            ! dbio(iz) =  3d-5   !  within mixed layer (Jarvis et al., 2010) 
-            ! dbio(iz) =  2d-4*exp(z(iz)/0.1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
-            ! dbio(iz) =  2d-7*exp(z(iz)/1d0)   !  within mixed layer ~5-6e-7 m2/day (Astete et al., 2016) 
-            ! dbio(iz) =  2d-10   !  just a small value 
-            ! dbio(iz) =  2d-3   !  just a value changed 
+            dbio(iz) =  dbio_ref
             izml = iz   ! determine grid of bottom of mixed layer 
         else
             dbio(iz) =  0d0 ! no biodiffusion in deeper depths 
@@ -16086,6 +16116,7 @@ do isp=1,nsp_sld
     ! probh = 5d0 ! strong mixing
     ! probh = 10d0 ! strong mixing
     probh = 20d0 ! strong mixing
+    ! probh = 100d0 ! strong mixing ! added/tested 6-22-2023 
     ! probh = 0.0005d0 ! just testing smaller mixing (used for tuning)
     ! probh = 0.0001d0 ! just testing smaller mixing for PSDs
     do iz=1,izml 
@@ -23820,6 +23851,115 @@ selectcase(trim(adjustl(ref_dummy)))
         stop
 endselect
 endfunction rough_f
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+function tor_f(ref_dummy,n_dummy,poro_dummy,sat_dummy)
+implicit none
+integer n_dummy
+real(kind=8),dimension(n_dummy):: tor_f,poro_dummy,sat_dummy ! sat_dummy means 1 - sat for gas phases
+real(kind=8),dimension(n_dummy):: a_tmp, b_tmp, c_tmp
+real(kind=8),dimension(n_dummy):: cm,p,xexp,Ta
+character(10) ref_dummy
+! tortuosity = a_tmp * poro_dummy**(b_tmp)*(sat_dummy)**(c_tmp)
+! a_tmp = P; b_tmp = X-1; c_tmp = Ta + X - 1 
+! where P, X and Ta are given in Table 1 of Moldrup et al. 2013
+! De/Do = tortuosity not corrected for epsilon
+! tortuosity = 1/epsilon * De/Do = P * epsilon^(X-1) * (epsilon/phi)^Ta
+! epsilon is air content in soil = phi*S ; phi is total porosity 
+selectcase(trim(adjustl(ref_dummy)))
+    case('Aetal03')       
+        ! --- Aachiv et al. 2003
+        ! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0) 
+        ! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+        a_tmp = 1d0
+        b_tmp = (3.4d0-2.0d0)
+        c_tmp = (3.4d0-1.0d0)
+    case( &
+        & 'Aetal00','P40','Mi59','Ma59','B1904','MQ60','MQ61','GDC', &
+        & 'WLR_P','WLR_Mi','WLR_Ma','WLR_B','SWLR_m','SWLR_h','SWLR_l' &
+        & )            
+        if ( trim(adjustl(ref_dummy)) == 'Aetal00') then 
+            p       = 1d0/2d0
+            xexp    = 1d0
+            Ta      = 0d0
+        elseif ( trim(adjustl(ref_dummy)) == 'P40') then 
+            p       = 2d0/3d0
+            xexp    = 1d0
+            Ta      = 0d0
+        elseif ( trim(adjustl(ref_dummy)) == 'Mi59') then 
+            p       = 1d0
+            xexp    = 4d0/3d0
+            Ta      = 0d0
+        elseif ( trim(adjustl(ref_dummy)) == 'Ma59') then 
+            p       = 1d0
+            xexp    = 3d0/2d0
+            Ta      = 0d0
+        elseif ( trim(adjustl(ref_dummy)) == 'B1904') then 
+            p       = 1d0
+            xexp    = 2d0
+            Ta      = 0d0
+        elseif ( trim(adjustl(ref_dummy)) == 'MQ60') then 
+            p       = 1d0
+            xexp    = 4d0/3d0
+            Ta      = 2d0/3d0
+        elseif ( trim(adjustl(ref_dummy)) == 'MQ61') then 
+            p       = 1d0
+            xexp    = 4d0/3d0
+            Ta      = 2d0
+        elseif ( trim(adjustl(ref_dummy)) == 'GDC') then 
+            p       = 0.5d0*poro_dummy
+            xexp    = 0d0
+            Ta      = 2d0 + 2.75d0* p
+        elseif ( trim(adjustl(ref_dummy)) == 'WLR_P') then 
+            p       = 2d0/3d0
+            xexp    = 1d0
+            Ta      = 1d0
+        elseif ( trim(adjustl(ref_dummy)) == 'WLR_Mi') then 
+            p       = 1d0
+            xexp    = 4d0/3d0
+            Ta      = 1d0
+        elseif ( trim(adjustl(ref_dummy)) == 'WLR_Ma') then 
+            p       = 1d0
+            xexp    = 3d0/2d0
+            Ta      = 1d0
+        elseif ( trim(adjustl(ref_dummy)) == 'WLR_B') then 
+            p       = 1d0
+            xexp    = 2d0
+            Ta      = 1d0
+        elseif ( trim(adjustl(ref_dummy)) == 'SWLR_m') then 
+            cm = 2.1d0 ! best/medium value 
+            p       = 1d0
+            xexp    = 1d0 + cm * poro_dummy
+            Ta      = 1d0
+        elseif ( trim(adjustl(ref_dummy)) == 'SWLR_h') then
+            cm = 1.0d0 ! upper constraint  
+            p       = 1d0
+            xexp    = 1d0 + cm * poro_dummy
+            Ta      = 1d0
+        elseif ( trim(adjustl(ref_dummy)) == 'SWLR_m') then
+            cm = 3.0d0 ! lower constraint  
+            p       = 1d0
+            xexp    = 1d0 + cm * poro_dummy
+            Ta      = 1d0
+        else
+            print*, '*** error in tor_f --> stop'
+            stop
+        endif 
+        ! --- Millington & Quirk 1961 cited by Wu et al. 2015 | Millington 1959 cited by Steefel et al. 2015 |
+        ! torg = poro**(1.0d0/3.0d0)*(1.0d0-sat)**(7d0/3d0) 
+        ! tora = poro**(1.0d0/3.0d0)*(sat)**(7d0/3d0)
+        a_tmp = p
+        b_tmp = xexp - 1d0 
+        c_tmp = Ta + xexp - 1d0 
+    case default 
+        print*, '*** error in tor_f --> stop'
+        stop
+endselect
+
+tor_f = a_tmp * poro_dummy**(b_tmp)*(sat_dummy)**(c_tmp)
+
+endfunction tor_f
 !ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 #ifdef no_intr_findloc
