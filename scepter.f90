@@ -69,7 +69,7 @@ contains
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
  
 subroutine weathering_main( &
-    & nz,ztot,rainpowder,zsupp,poroi,satup0,zsat,zml_ref,w0,q0,p80,ttot,plant_rain,rainpowder_2nd  &! input
+    & nz,ztot,rainpowder_in,zsupp,poroi,satup0,zsat,zml_ref,w0,q0,p80,ttot,plant_rain,rainpowder_2nd  &! input
     & ,nsp_aq,nsp_sld,nsp_gas,nrxn_ext,chraq,chrgas,chrsld,chrrxn_ext,sim_name,runname_save &! input
     & ,count_dtunchanged_Max,tcin,step_tau &! input 
     & ,nsld_kinspc_in,chrsld_kinspc_in,kin_sld_spc_in &! input 
@@ -402,9 +402,9 @@ real(kind=8)::zsupp_plant = 0.3d0 !  e-folding decrease
 
 ! real(kind=8)::rainpowder = 40d2 !  g/m2/yr corresponding to 40 t/ha/yr (40x1e3x1e3/1e4)
 ! real(kind=8)::rainpowder = 0.5d2 !  g/m2/yr corresponding to 0.5 t/ha/yr (0.5x1e3x1e3/1e4)
-real(kind=8),intent(in)::rainpowder != 30d2 !  g/m2/yr 
+real(kind=8),intent(in)::rainpowder_in != 30d2 !  g/m2/yr 
 real(kind=8),intent(in)::rainpowder_2nd != 30d2 !  g/m2/yr 
-! real(kind=8)::rainpowder = 10d2 !  g/m2/yr corresponding to 10 t/ha/yr (0.5x1e3x1e3/1e4)
+real(kind=8) rainpowder,rainpowder_prev 
 
 
 real(kind=8),intent(in)::zsupp != 0.3d0 !  e-folding decrease
@@ -518,9 +518,6 @@ logical :: display_lim = .false. ! limiting display fluxes and concs.
 ! logical :: dust_step = .false.
 logical :: dust_step = .true.
 
-logical,dimension(3) :: climate != .false.
-! logical,dimension(3) :: climate != .true.
-
 logical :: season = .false.
 ! logical :: season = .true.
 
@@ -563,12 +560,19 @@ real(kind=8) :: dust_norm = 0d0
 real(kind=8) :: dust_norm_prev = 0d0
 logical :: dust_change 
 
-real(kind=8),dimension(:,:),allocatable :: clim_T,clim_q,clim_sat
-real(kind=8),dimension(3) :: dct,ctau
+! parameter to reflect full seasonal change
+integer,parameter :: n_seasonpar = 4
+real(kind=8),dimension(:,:),allocatable :: clim_T,clim_q,clim_sat,clim_dust
+real(kind=8),dimension(n_seasonpar) :: dct,ctau,dctmin
 integer iclim,ict
-integer,dimension(3)::nclim,ict_prev
-logical,dimension(3)::ict_change
-character(50),dimension(3) :: clim_file
+integer,dimension(n_seasonpar)::nclim,ict_prev
+logical,dimension(n_seasonpar)::ict_change,climate 
+character(50),dimension(n_seasonpar) :: clim_file
+#ifdef debug_season
+logical :: season_debug = .true.
+#else
+logical :: season_debug = .false.
+#endif
 
 ! type of uplift vs porosity relationship
 ! #ifndef iwtypein 
@@ -1742,6 +1746,8 @@ do irxn = 1, nrxn_ext
     endif 
 enddo 
 
+rainpowder = rainpowder_in
+
 
 def_dust = 0d0
     
@@ -2237,7 +2243,11 @@ enddo
 
 open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
     & status='replace')
-write(idust,*) ' time ', ' dust(relative_to_average) '
+if (dust_wave .or. dust_step) then 
+    write(idust,*) ' time ', ' dust(relative_to_average) '
+else
+    write(idust,*) ' time ', ' dust(g/m2/yr) '
+endif 
 close(idust)
 
 climate(:) = .false.
@@ -2245,12 +2255,12 @@ if (season) climate(:) = .true.
 
 open(idust, file=trim(adjustl(flxdir))//'/'//'climate.txt', &
     & status='replace')
-write(idust,*) ' time ', ' T(oC) ', ' q(m/yr) ', ' Wet(-) '
+write(idust,*) ' time ', ' T(oC) ', ' q(m/yr) ', ' Wet(-) ', ' Dust(g/m2/yr) '
 close(idust)
 
-clim_file = (/'T_temp.in  ','q_temp.in  ','Wet_temp.in'/)
+clim_file = (/'T_temp.in   ','q_temp.in   ','Wet_temp.in ','Dust_temp.in'/)
 
-do iclim = 1,3
+do iclim = 1,n_seasonpar
     if (climate(iclim)) then 
         call get_clim_num( &
             & clim_file(iclim) &! in 
@@ -2273,7 +2283,16 @@ do iclim = 1,3
                     ! print *, clim_T(:,ict)
                 ! enddo 
                 dct(iclim) = clim_T(1,2) - clim_T(1,1)
-                ctau(iclim) = clim_T(1,nclim(iclim)) + dct(iclim)
+                ! ctau(iclim) = clim_T(1,nclim(iclim)) + dct(iclim)
+                ctau(iclim) = ceiling( clim_T(1,nclim(iclim)) )
+                dctmin(iclim) = 1d10
+                do ict = 1, nclim(iclim)
+                    if (ict /= nclim(iclim)) then 
+                        dctmin(iclim) = min( dctmin(iclim), clim_T(1,ict+1) - clim_T(1,ict) )
+                    elseif (ict == nclim(iclim)) then
+                        dctmin(iclim) = min( dctmin(iclim), ctau(iclim) - clim_T(1,ict) )
+                    endif 
+                enddo 
             case(2)
                 if ( allocated(clim_q) ) deallocate(clim_q)
                 allocate(clim_q(2,nclim(iclim)))
@@ -2292,7 +2311,16 @@ do iclim = 1,3
                     ! print *, clim_q(:,ict)
                 ! enddo 
                 dct(iclim) = clim_q(1,2) - clim_q(1,1)
-                ctau(iclim) = clim_q(1,nclim(iclim)) + dct(iclim)
+                ! ctau(iclim) = clim_q(1,nclim(iclim)) + dct(iclim)
+                ctau(iclim) = ceiling( clim_q(1,nclim(iclim)) )
+                dctmin(iclim) = 1d10
+                do ict = 1, nclim(iclim)
+                    if (ict /= nclim(iclim)) then 
+                        dctmin(iclim) = min( dctmin(iclim), clim_q(1,ict+1) - clim_q(1,ict) )
+                    elseif (ict == nclim(iclim)) then
+                        dctmin(iclim) = min( dctmin(iclim), ctau(iclim) - clim_q(1,ict) )
+                    endif 
+                enddo 
             case(3)
                 if ( allocated(clim_sat) ) deallocate(clim_sat)
                 allocate(clim_sat(2,nclim(iclim)))
@@ -2311,7 +2339,45 @@ do iclim = 1,3
                     ! print *, clim_sat(:,ict)
                 ! enddo 
                 dct(iclim) = clim_sat(1,2) - clim_sat(1,1)
-                ctau(iclim) = clim_sat(1,nclim(iclim)) + dct(iclim)
+                ! ctau(iclim) = clim_sat(1,nclim(iclim)) + dct(iclim)
+                ctau(iclim) = ceiling( clim_sat(1,nclim(iclim)) )
+                dctmin(iclim) = 1d10
+                do ict = 1, nclim(iclim)
+                    if (ict /= nclim(iclim)) then 
+                        dctmin(iclim) = min( dctmin(iclim), clim_sat(1,ict+1) - clim_sat(1,ict) )
+                    elseif (ict == nclim(iclim)) then
+                        dctmin(iclim) = min( dctmin(iclim), ctau(iclim) - clim_sat(1,ict) )
+                    endif 
+                enddo 
+            case(4)
+                if ( allocated(clim_dust) ) deallocate(clim_dust)
+                allocate(clim_dust(2,nclim(iclim)))
+                open(idust,file=trim(adjustl(workdir))//'/'//trim(adjustl(clim_file(iclim))),  &
+                    & status ='old',action='read')
+                read (idust,'()')
+                clim_dust = 0d0
+                do ict = 1, nclim(iclim)
+                    read (idust,*) clim_dust(1,ict),clim_dust(2,ict)
+                enddo 
+                close(idust)
+                if (season_debug) then
+                    print *
+                    do ict = 1, nclim(iclim)
+                        print *, clim_dust(:,ict)
+                    enddo 
+                    ! pause
+                endif 
+                dct(iclim) = clim_dust(1,2) - clim_dust(1,1)
+                ! ctau(iclim) = clim_dust(1,nclim(iclim)) + dct(iclim)
+                ctau(iclim) = ceiling( clim_dust(1,nclim(iclim)) )
+                dctmin(iclim) = 1d10
+                do ict = 1, nclim(iclim)
+                    if (ict /= nclim(iclim)) then 
+                        dctmin(iclim) = min( dctmin(iclim), clim_dust(1,ict+1) - clim_dust(1,ict) )
+                    elseif (ict == nclim(iclim)) then
+                        dctmin(iclim) = min( dctmin(iclim), ctau(iclim) - clim_dust(1,ict) )
+                    endif 
+                enddo 
             case default
                 print*, 'error in obtaining climate'
                 stop
@@ -3251,7 +3317,7 @@ it = 0
 irec_prof = 0
 irec_flx = 0
 
-ict = 0
+ict = 1
 ict_prev = ict
 ict_change = .false.
 
@@ -3280,6 +3346,8 @@ do while (it<nt)
     dt_prev = dt
     ! only relevant when doing non-continuous dusting    
     if (dust_step) dust_norm_prev = dust_norm
+    ! non-continuous implemented as seasonality
+    if (climate(4)) rainpowder_prev = rainpowder
     
     if (time>rectime_prof(nrec_prof)) exit
     
@@ -3361,16 +3429,51 @@ do while (it<nt)
         dt = rectime_flx(irec_flx+1) - time + tol_step_tau
     endif 
 
+
+    error = 1d4
+    ! iter=0
+
+100 continue
+
+    mgasx = mgas
+    msldx = msld
+    maqx = maq
+    
+    prox = pro  
+    iosx = ios  
+    
+    ! so4f = so4fprev
+    maqft = maqft_prev
+    maqfads = maqfads_prev
+    
+    poroprev = poro
+    hrprev = hr
+    vprev = v
+    torgprev = torg
+    toraprev = tora
+    wprev = w 
+    
+    dispprev = disp
+    
+    mblkx = mblk
+    
+    ! whether or not you are using psd
+    psd_old = psd
+    mpsd_old = mpsd
+    psd_error_flg = .false.
+    
+    
+
     ! incase temperature&ph change
     
     ! if climate is changing in the model 
     if (any(climate)) then 
         ict_change = .false.
-        do iclim = 1,3
+        do iclim = 1,n_seasonpar
             if (climate(iclim)) then
                 select case(iclim)
                     case(1)
-                        if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
+                    
                         do ict = 1, nclim(iclim)
                             if (ict /= nclim(iclim)) then 
                                 dct(iclim) = clim_T(1,ict+1) - clim_T(1,ict)
@@ -3394,6 +3497,7 @@ do while (it<nt)
                                 exit 
                             endif 
                         enddo 
+                        !  linear interpolation
                         if (ict /= nclim(iclim)) then
                             tc = ( clim_T(2,ict+1) - clim_T(2,ict) ) /( clim_T(1,ict+1) - clim_T(1,ict) ) &
                                 & * ( mod(time,ctau(iclim)) - clim_T(1,ict) ) + clim_T(2,ict)
@@ -3402,8 +3506,9 @@ do while (it<nt)
                                 & * ( mod(time,ctau(iclim)) - clim_T(1,ict) ) + clim_T(2,ict)
                         endif 
                         
-                    case(2)
                         if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
+                        
+                    case(2)
                         do ict = 1, nclim(iclim)
                             if (ict /= nclim(iclim)) then 
                                 dct(iclim) = clim_q(1,ict+1) - clim_q(1,ict)
@@ -3427,6 +3532,7 @@ do while (it<nt)
                                 exit 
                             endif 
                         enddo 
+                        !  linear interpolation
                         if (ict /= nclim(iclim)) then 
                             qin = ( clim_q(2,ict+1) - clim_q(2,ict) ) /( clim_q(1,ict+1) - clim_q(1,ict) ) &
                                 & * ( mod(time,ctau(iclim)) - clim_q(1,ict) ) + clim_q(2,ict)
@@ -3435,8 +3541,9 @@ do while (it<nt)
                                 & * ( mod(time,ctau(iclim)) - clim_q(1,ict) ) + clim_q(2,ict)
                         endif 
                         
-                    case(3)
                         if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
+                        
+                    case(3)
                         do ict = 1, nclim(iclim)
                             if (ict /= nclim(iclim)) then 
                                 dct(iclim) = clim_sat(1,ict+1) - clim_sat(1,ict)
@@ -3460,6 +3567,7 @@ do while (it<nt)
                                 exit 
                             endif 
                         enddo 
+                        !  linear interpolation
                         if (ict /= nclim(iclim)) then 
                             satup = ( clim_sat(2,ict+1) - clim_sat(2,ict) ) /( clim_sat(1,ict+1) - clim_sat(1,ict) ) &
                                 & * ( mod(time,ctau(iclim)) - clim_sat(1,ict) ) + clim_sat(2,ict)
@@ -3467,13 +3575,88 @@ do while (it<nt)
                             satup = ( clim_sat(2,1) - clim_sat(2,ict) ) /( dct(iclim)  ) &
                                 & * ( mod(time,ctau(iclim)) - clim_sat(1,ict) ) + clim_sat(2,ict)
                         endif 
+                        
+                        if (dt > dct(iclim)/10d0) dt = dct(iclim)/10d0
+                        
+                    case(4)
+                        
+                        do ict = 1, nclim(iclim)
+                            if (ict /= nclim(iclim)) then 
+                                dct(iclim) = clim_dust(1,ict+1) - clim_dust(1,ict)
+                            elseif (ict == nclim(iclim)) then 
+                                dct(iclim) = ctau(iclim) - clim_dust(1,ict)
+                            endif 
+                            ! print *, clim_dust(1,ict),mod(time,ctau(iclim)),clim_dust(1,ict) + dct(iclim)
+                            if ( &
+                                & clim_dust(1,ict) <= mod(time,ctau(iclim)) & 
+                                & .and. clim_dust(1,ict) + dct(iclim) >= mod(time,ctau(iclim)) &
+                                & ) then 
+                                ! if (  &
+                                    ! & mod(time,ctau(iclim)) + dt - clim_dust(1,ict) + dct(iclim) &
+                                    ! & > ctau(iclim) * tol_step_tau &
+                                    ! & ) then 
+                                    ! dt = clim_dust(1,ict) + dct(iclim) - mod(time,ctau(iclim))
+                                ! endif 
+                                ! print *, ict
+                                if (ict /= ict_prev(iclim)) ict_change(iclim) = .true.
+                                ict_prev(iclim) = ict
+                                exit 
+                            endif 
+                        enddo 
+                        !  linear interpolation
+                        if (ict /= nclim(iclim)) then 
+                            rainpowder = ( clim_dust(2,ict+1) - clim_dust(2,ict) ) /( clim_dust(1,ict+1) - clim_dust(1,ict) ) &
+                                & * ( mod(time,ctau(iclim)) - clim_dust(1,ict) ) + clim_dust(2,ict)
+                        elseif (ict == nclim(iclim)) then 
+                            rainpowder = ( clim_dust(2,1) - clim_dust(2,ict) ) /( dct(iclim)  ) &
+                                & * ( mod(time,ctau(iclim)) - clim_dust(1,ict) ) + clim_dust(2,ict)
+                        endif 
+                        
+                        ! step function ( just use clim_dust(2,ict)
+                        rainpowder = clim_dust(2,ict)
+                        
+                        ict_change(iclim) = .false.
+                        if (ict /= nclim(iclim)) then 
+                            if ( mod(time,ctau(iclim)) + dt < clim_dust(1,ict+1) ) then 
+                                ! the same regime until the next step 
+                                continue 
+                            elseif ( mod(time,ctau(iclim)) + dt >= clim_dust(1,ict+1) ) then  
+                                ! the regime change in the next step 
+                                dt = clim_dust(1,ict+1) - mod(time,ctau(iclim)) + dctmin(iclim)*tol_step_tau
+                                if (dt > dct(iclim)/10d0) then 
+                                    dt = dct(iclim)/10d0
+                                endif
+                                if ( mod(time,ctau(iclim)) + dt >= clim_dust(1,ict+1) ) then  
+                                    ict_change(iclim) = .true.
+                                endif 
+                            endif 
+                        elseif (ict == nclim(iclim)) then 
+                            if ( mod(time,ctau(iclim)) + dt < ctau(iclim) ) then 
+                                ! the same regime until the next step 
+                                continue 
+                            elseif ( mod(time,ctau(iclim)) + dt >= ctau(iclim) ) then  
+                                ! the regime change in the next step  
+                                dt = ctau(iclim) - mod(time,ctau(iclim)) + dctmin(iclim)*tol_step_tau
+                                if (dt > dct(iclim)/10d0) then 
+                                    dt = dct(iclim)/10d0
+                                endif
+                                if ( mod(time,ctau(iclim)) + dt >= ctau(iclim) ) then  
+                                    ict_change(iclim) = .true.
+                                endif 
+                            endif 
+                        endif 
+                        
+                        if (season_debug) then
+                            print*,ict,clim_dust(1,ict),mod(time,ctau(iclim)),clim_dust(1,ict) + dct(iclim),time,dt,rainpowder
+                        endif 
+                        
                 endselect
             endif 
         enddo 
         if (dt >= minval(dct)/10d0 .or. any (ict_change) ) then 
             open(idust, file=trim(adjustl(flxdir))//'/'//'climate.txt', &
                 & status='old',action='write',position='append')
-            write(idust,*) time,tc,qin,satup
+            write(idust,*) time,tc,qin,satup,rainpowder
             close(idust)
         endif 
         
@@ -3492,6 +3675,8 @@ do while (it<nt)
         disp = c_disp * v
 
         if (disp_FULL_ON) disp = disp_FULL
+        
+        
         
     endif 
         
@@ -3575,39 +3760,7 @@ do while (it<nt)
         & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
         & ,trans  &! output 
         & )
-
-
-    error = 1d4
-    ! iter=0
-
-100 continue
-
-    mgasx = mgas
-    msldx = msld
-    maqx = maq
     
-    prox = pro  
-    iosx = ios  
-    
-    ! so4f = so4fprev
-    maqft = maqft_prev
-    maqfads = maqfads_prev
-    
-    poroprev = poro
-    hrprev = hr
-    vprev = v
-    torgprev = torg
-    toraprev = tora
-    wprev = w 
-    
-    dispprev = disp
-    
-    mblkx = mblk
-    
-    ! whether or not you are using psd
-    psd_old = psd
-    mpsd_old = mpsd
-    psd_error_flg = .false.
 
     !  raining dust & OM 
     maqsupp = 0d0
@@ -3703,15 +3856,22 @@ do while (it<nt)
             endif 
             
             if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
-                continue
+                ! not the dust time and dt is small enough
+                continue 
             elseif (step_tau + floor(time) < time  .and.  time + dt >= 1d0 + floor(time)) then 
+                ! currently not the dust time BUT dt or time is large enough that next time step is the dust time
+                ! dt is re-defined so that time in the next step is only slightly larger (step_tau*tol_step_tau) than the dust start time 
                 dt = 1d0 + floor(time) - time + step_tau * tol_step_tau 
                 dust_change = .true.
             elseif (0d0 + floor(time) <= time  .and.  time +dt <= step_tau + floor(time)) then 
+                ! currently the dust time AND dt or time is small enough that next time step is also the dust time
+                ! dt is re-defined is it is large relative to dust duration (step_tau) 
                 if (dt > step_tau/10d0) then 
                     dt = step_tau/10d0
                 endif 
-            elseif (0d0 + floor(time) <= time  .and.  time +dt > step_tau + floor(time)) then 
+            elseif (0d0 + floor(time) <= time  .and.  time +dt > step_tau + floor(time)) then  
+                ! currently the dust time BUT dt or time is large enough that next time step is non-dust time
+                ! dt is re-defined so that time in the next step is only slightly larger (step_tau*tol_step_tau) than the non-dust start time 
                 dt = step_tau + floor(time) - time + step_tau * tol_step_tau 
                 if (dt > step_tau/10d0) then 
                     dt = step_tau/10d0
@@ -3743,6 +3903,7 @@ do while (it<nt)
             ! if (time - floor(time) > step_tau) then 
             ! if (step_tau + floor(time) < time  .and.  time + dt < 1d0 + floor(time)) then 
             if (step_tau + floor(time) < time  ) then 
+                ! non-dust time
                 ! print *, 'no dust time', time 
                 msldsupp = 0d0
                 dust_norm = 0d0
@@ -3753,6 +3914,7 @@ do while (it<nt)
             ! else 
             ! elseif (0d0 + floor(time) <= time  .and.  time + dt <= step_tau + floor(time)) then 
             elseif (0d0 + floor(time) <= time  .and.  time <= step_tau + floor(time)) then 
+                ! dust time
                 ! print *, 'dust time !!', time 
                 msldsupp = msldsupp/step_tau
                 dust_norm = 1d0/step_tau
@@ -3802,6 +3964,38 @@ do while (it<nt)
         ! endif 
         
     endif 
+    
+    
+    ! non continueous implemented as seasonal change
+    if (climate(4)) then
+        if (rainpowder>0d0) then
+            imix    = imixtype
+            zml     = zml_dust
+        elseif (rainpowder==0d0) then 
+            imix    = imixtype_background 
+            zml     = zml_background ! mixed layer depth is common to all solid sp. 
+        else
+            print*,'Fatal error in seasonal dust',rainpowder
+            stop
+        endif 
+
+        ! new 5/18/2023 YK
+        ! OM is mixed in fickian regardless of dust implementation
+        do isps = 1, nsp_sld
+            if ( rfrc_sld_plant(isps) > 0d0 ) then 
+                imix(isps)  = imixtype_OM
+                zml(isps)   = zml_OM
+            endif 
+        enddo
+        
+        ! mixing reload
+        save_trans = .false.
+        call make_transmx(  &
+            & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
+            & ,trans  &! output 
+            & )
+    endif 
+    
     
     ! overload with OM rain 
     do isps = 1, nsp_sld
@@ -5974,6 +6168,21 @@ do while (it<nt)
             ! integration is now from time - dt to time with dust_norm
             write(idust,*) time-dt,dust_norm
             write(idust,*) time,dust_norm
+            close(idust)
+        endif 
+        ! print *, time-dt,dust_norm
+        ! print *, time,dust_norm
+    endif
+    
+    if (climate(4)) then
+        if ( rainpowder /= rainpowder_prev .or. ict_change(4) ) then
+        ! if ( dust_change ) then
+            open(idust, file=trim(adjustl(flxdir))//'/'//'dust.txt', &
+                & status='old',action='write',position='append')
+            ! write(idust,*) time-dt_prev,dust_norm_prev
+            ! integration is now from time - dt to time with dust_norm
+            write(idust,*) time-dt,rainpowder
+            write(idust,*) time,rainpowder
             close(idust)
         endif 
         ! print *, time-dt,dust_norm
