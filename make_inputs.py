@@ -384,46 +384,42 @@ def get_input_sld_properties(**kwargs):
 def get_input_climate_temp(**kwargs):
     outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
     runname     = kwargs.get('runname',     'test_input')
-    T_ave       = kwargs.get('T_ave',       15)
-    T_amp       = kwargs.get('T_amp',       0.3)
-    moist_ave   = kwargs.get('moist_ave',   0.5)
-    moist_amp   = kwargs.get('moist_amp',   0.3)
-    q_ave       = kwargs.get('q_ave',       0.5)
-    q_amp       = kwargs.get('q_amp',       0.3)
-    tau         = kwargs.get('tau',         1.)
-    timeline    = kwargs.get('timeline',    np.linspace(0,1,12,endpoint=False))
-
-    N = timeline.shape[0]
-    T = T_ave + T_ave * T_amp * np.sin(timeline/tau*2.*np.pi)
-    q = q_ave + q_ave * q_amp * np.sin(timeline/tau*2.*np.pi)
-    moist = moist_ave + moist_ave * moist_amp * np.sin(timeline/tau*2.*np.pi)
+    T_temp      = kwargs.get('T_temp',      [ list(1./np.linspace(12,1,12)),[15]*12 ] )
+    moist_temp  = kwargs.get('moist_temp',  [ list(1./np.linspace(12,1,12)),[0.3]*12 ] )
+    q_temp      = kwargs.get('q_temp',      [ list(1./np.linspace(12,1,12)),[0.5]*12 ])
+    dust_temp   = kwargs.get('dust_temp',   [ list(1./np.linspace(12,1,12)),[10]*12 ])
+    
     
 
     notes = [
         '# time(yr) / runoff(mm/month)',
         '# time(yr) / T(oC)',
         '# time(yr) / moisture(mm/m)',
+        '# time(yr) / dust(g/m2/yr)',
         ]
         
     filenames = [
         'q_temp.in',
         'T_temp.in',
         'Wet_temp.in',
+        'Dust_temp.in',
         ]
         
     values_lists = [
-        q,
-        T,
-        moist,
+        q_temp,
+        T_temp,
+        moist_temp,
+        dust_temp,
         ]
         
     factors = [
         1e3/12.,  # converting m/y to mm/month
         1,
         1e3,  # converting m/m to mm/m
+        1,
         ]
     
-    nn = 3
+    nn = 4
     
     if not os.path.exists(outdir + runname): os.makedirs(outdir + runname)
     
@@ -431,10 +427,12 @@ def get_input_climate_temp(**kwargs):
         values = values_lists[k]
         filename = filenames[k]
         factor = factors[k]
+        # print(values)
+        N = len(values[0])
         input_text = ''
         input_text += '{}\n'.format(notes[k])
         for i in range(N):
-            input_text += '{:f}\t{:f}\n'.format(timeline[i], values[i]*factor) 
+            input_text += '{:f}\t{:f}\n'.format(values[0][i], values[1][i]*factor) 
         
         input_file = outdir + runname + '/' + filename
         
@@ -444,6 +442,13 @@ def get_input_climate_temp(**kwargs):
         print(input_text)
         
         
+def make_sincurve(ave,amp,tau,**kwargs):
+    timeline    = kwargs.get('timeline',    np.linspace(0,1,12,endpoint=False))
+
+    N = timeline.shape[0]
+    var = ave + ave * amp * np.sin(timeline/tau*2.*np.pi)
+    
+    return [ list(timeline), list(var) ]
         
         
 def main():
@@ -451,6 +456,11 @@ def main():
     # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
     outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
     runname = 'test_input'
+    
+    exename_src = 'scepter_test'
+    exename = 'scepter'
+    
+    os.system('cp ' + exename_src + ' ' + outdir + runname + '/' + exename)
     
     ztot=0.5
     nz=30
@@ -506,7 +516,7 @@ def main():
     rough      ='true'
     act_ON ='false'
     dt_fix='false'
-    precalc='false'
+    cec_on='false'
     dz_fix='true'
     sld_fix='false'
     poro_evol='true'
@@ -515,6 +525,7 @@ def main():
     psd_bulk='true'
     psd_full='true'
     season='false'
+    # season='true'
         
     get_input_switches(
         outdir=outdir
@@ -529,7 +540,7 @@ def main():
         ,rough=rough      
         ,act_ON=act_ON 
         ,dt_fix=dt_fix
-        ,precalc=precalc
+        ,cec_on=cec_on
         ,dz_fix=dz_fix
         ,sld_fix=sld_fix
         ,poro_evol=poro_evol
@@ -541,6 +552,7 @@ def main():
         )
     
     sld_list=['inrt','g2']
+    # sld_list=['inrt','g2','gbas']
     aq_list = ['ca','k','mg','na']
     gas_list = ['pco2']
     exrxn_list = []
@@ -569,8 +581,8 @@ def main():
         outdir=outdir
         ,runname=runname
         ,filename = filename
-        # ,srcfile = srcfile
-        ,sld_varlist=sld_varlist
+        ,srcfile = srcfile
+        # ,sld_varlist=sld_varlist
         )
     filename = 'cec.in'
     sld_varlist = [('inrt',4,  5.9, 4.8, 10.47, 10.786, 16.47,  3.4) ,('g2',4,  5.9, 4.8, 10.47, 10.786, 16.47,  3.4) ] 
@@ -590,7 +602,7 @@ def main():
         )
     filename = '2ndslds.in'
     srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_def.in'
-    srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_rm_al2o3.in'
+    # srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_rm_al2o3.in'
     sld_varlist =[]
     get_input_sld_properties(
         outdir=outdir
@@ -610,12 +622,20 @@ def main():
         # ,srcfile = srcfile
         )
     
+    timeline = [0, 5e-3-1e-6, 5e-3, 1.-1e-6]
+    N = len(timeline)
+    T_temp = [timeline,[15.]*N]
+    moist_temp = [timeline,[0.5]*N]
+    q_temp = [timeline,[0.6]*N]
+    dust_temp = [timeline,[10,10,0,0]]
+    
     get_input_climate_temp(
         outdir=outdir,
         runname=runname,
-        tau = 1,
-        T_amp = 0,
-        moist_amp = 0,
+        T_temp = T_temp,
+        moist_temp = moist_temp,
+        q_temp = q_temp,
+        dust_temp = dust_temp,
         )
    
 if __name__ == '__main__':
