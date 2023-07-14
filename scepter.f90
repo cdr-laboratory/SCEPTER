@@ -521,8 +521,11 @@ logical :: dust_step = .true.
 logical :: season = .false.
 ! logical :: season = .true.
 
-! logical :: disp_ON = .false.
+#ifdef disp_cnst
+logical :: disp_ON = .false.
+#else
 logical :: disp_ON = .true.
+#endif 
 
 logical :: disp_FULL_ON = .false.
 ! logical :: disp_FULL_ON = .true.
@@ -822,6 +825,7 @@ character(5),dimension(:),allocatable::chrsld_cec
 real(kind=8),dimension(nsp_sld_all):: mcec_all,mcec_all_def
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all):: logkhaq_all,logkhaq_all_def
 real(kind=8),dimension(nsp_sld_all):: beta_all,beta_all_def
+real(kind=8),parameter :: c1_gamma_max = 20d0 ! "alpha" above which fH deppendence is ignored  
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod,fkin
@@ -2889,7 +2893,7 @@ call get_maqads_all_v4( &
 ! call get_maqads_all_v4a( &
     & nz,nsp_aq_all,nsp_sld_all &
     & ,chraq_all,chrsld_all &
-    & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
+    & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all,c1_gamma_max &
     & ,msldx_loc,maqx_loc,pro &
     & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
     & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
@@ -3236,7 +3240,7 @@ if (read_data) then
     ! call get_maqads_all_v4a( &
         & nz,nsp_aq_all,nsp_sld_all &
         & ,chraq_all,chrsld_all &
-        & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
+        & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all,c1_gamma_max &
         & ,msldx_loc,maqx_loc,prox &
         & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
         & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
@@ -4247,7 +4251,7 @@ do while (it<nt)
         !  old inputs
         & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON,beta_all &
+        & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON,beta_all,c1_gamma_max &
         ! old inout
         & ,dt,flgback,w &    
         ! output 
@@ -5476,12 +5480,14 @@ do while (it<nt)
             if (keqcec_all(isps) == 0d0) cycle
             
             if (any(chrsld_all(isps) == chrsld)) then 
-                proxads(iz) = proxads(iz) + ( &
-                    & + keqcec_all(isps) &
-                    & * msldx(findloc(chrsld,chrsld_all(isps),dim=1),iz) &
-                    & * msldf_loc(isps,iz) &
-                    & * beta_loc(isps,iz) &
-                    & )
+				if ( beta_all(isps) < c1_gamma_max ) then !! fH is accounted only when "alpha" value is less than a threshould (20 default)
+					proxads(iz) = proxads(iz) + ( &
+						& + keqcec_all(isps) &
+						& * msldx(findloc(chrsld,chrsld_all(isps),dim=1),iz) &
+						& * msldf_loc(isps,iz) &
+						& * beta_loc(isps,iz) &
+						& )
+				endif 
                     
                 cec(iz) = cec(iz) + ( &
                     & + keqcec_all(isps) &
@@ -7449,6 +7455,10 @@ daq_all(findloc(chraq_all,'tea',dim=1)) = 14d-5 /( visc**1.1d0 * (177.3d0)**0.6d
 ! Glycerophosphate (value for glycerol from Schramke et al. 1999 for now)
 daq_all(findloc(chraq_all,'glp',dim=1)) = 0.93d-5 * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
 
+#ifdef disp_cnst
+daq_all=disp_cnst
+#endif 
+
 ! --------------------------------- gas diff
 
 ! values used in Kanzaki and Murakami 2016 for oxygen 
@@ -7469,6 +7479,10 @@ dgasg_all(findloc(chrgas_all,'pnh3',dim=1)) = 0.1978d0*((tc+tempk_0)/(0d0+tempk_
 ! N2O(aq) diffusion from Schulz and Zabel 2005
 dgasa_all(findloc(chrgas_all,'pn2o',dim=1)) = k_arrhenius(4.89d-02    , 15d0+tempk_0, tc+tempk_0, 20.33417d0, rg)
 dgasg_all(findloc(chrgas_all,'pn2o',dim=1)) = k_arrhenius(441.504d0   , 15d0+tempk_0, tc+tempk_0, 4.18d0    , rg)
+
+#ifdef disp_cnst
+dgasa_all=disp_cnst
+#endif 
 
 kw = -14.93d0+0.04188d0*tc-0.0001974d0*tc**2d0+0.000000555d0*tc**3d0-0.0000000007581d0*tc**4d0  ! Murakami et al. 2011
 kw = k_arrhenius(10d0**(-14.35d0), tempk_0+15.0d0, tempk_0+tc, 58.736742d0, rg) ! from Kanzaki and Murakami 2015
@@ -14336,7 +14350,7 @@ endsubroutine get_maqads_all_v3
 subroutine get_maqads_all_v4( &
     & nz,nsp_aq_all,nsp_sld_all &
     & ,chraq_all,chrsld_all &
-    & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
+    & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all,c1_gamma_max &
     & ,msldx_loc,maqf_loc,prox &
     & ,dmaqfads_sld_dpro,dmaqfads_sld_dmaqf,dmaqfads_sld_dmsld &! output
     & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
@@ -14356,6 +14370,7 @@ real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::keqiex_all
 real(kind=8),dimension(nsp_aq_all,nz),intent(in)::maqf_loc
 real(kind=8),dimension(nsp_sld_all,nz),intent(in)::msldx_loc
 real(kind=8),dimension(nz),intent(in)::prox
+real(kind=8),intent(in)::c1_gamma_max
 logical,dimension(nsp_sld_all),intent(in)::cec_pH_depend
 
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::msldf_loc,beta_loc
@@ -14379,6 +14394,7 @@ real(kind=8),dimension(nz)::gamma,dgamma,beta,dbeta
 real(kind=8),dimension(nsp_aq_all,nz)::da_dmaqf
 real(kind=8),dimension(nsp_aq_all)::base_charge
 real(kind=8) c1_gamma,c0_gamma 
+! real(kind=8):: c1_gamma_max = 20d0
 ! real(kind=8) :: tol_dum = 1d-9
 real(kind=8) :: tol_dum = 1d-12 ! desparate for convergence 6/8/2023
 real(kind=8) :: tol_dum_2 = 1d-8
@@ -14394,6 +14410,8 @@ logical :: low_lim_ON = .false.
 logical :: beta_ON = .false.  
 logical :: gamma_ON = .true. 
 ! logical :: gamma_ON = .false. 
+
+logical :: fH_depend = .true.
 
 ! (1) First getting fraction of negatively charged sites occupied with H+ (f[X-H]) (defined as msldf_loc)
 ! 1 = f[X-H]*beta + f[X-Na] + f[X-K] + f[X2-Ca] + f[X2-Mg] + f[X3-Mg]
@@ -14413,6 +14431,10 @@ logical :: gamma_ON = .true.
 !           log KIH = log KINa - log KHNa 
 !           where  log KHNa = 5.9 in default
 ! f[X-H] ( or msldf_loc) is solved numerically considering Na+, K+, Mg++, Ca++ and Al+++
+!
+! when gamma is larger than some threshold (here assumed to be 10^(20 *f[X-H]), i.e. alpha of 20 ) 
+! equation reduces to 
+! 1 = f[X-Na] + f[X-K] + f[X2-Ca] + f[X2-Mg] + f[X3-Mg]
 
 msldf_loc = 0d0
 dmsldf_dpro = 0d0
@@ -14468,6 +14490,9 @@ do isps = 1, nsp_sld_all
     
     c1_gamma = beta_all(isps)
     
+    fH_depend = .true.
+    if ( c1_gamma >= c1_gamma_max) fH_depend = .false.
+    
     do while (error > tol_dum)
     
         a = 0d0
@@ -14489,6 +14514,13 @@ do isps = 1, nsp_sld_all
         
         if (.not. beta_ON) then
             beta = 1d0
+            dbeta = 0d0
+        endif 
+        
+        if (.not. fH_depend) then
+            gamma = 1d0
+            dgamma = 0d0
+            beta = 0d0
             dbeta = 0d0
         endif 
         
@@ -14592,6 +14624,15 @@ do isps = 1, nsp_sld_all
         beta_loc(isps,:) = 10d0**(-c1_gamma* (1d0 -  x ) )  
         
         if (.not. beta_ON) beta_loc(isps,:) = 1d0
+        
+        if (.not. fH_depend) then 
+            gamma_loc(isps,:) = 1d0
+            dgamma_dmsldf(isps,:) = 0d0
+            dgamma_dpro(isps,:) = 0d0
+            dgamma_dmsld(isps,:) = 0d0
+            dgamma_dmaqf(isps,:,:) = 0d0
+            beta_loc(isps,:) = 1d0
+        endif 
     else
         gamma_loc(isps,:) = 1d0
         beta_loc(isps,:) = 1d0
@@ -16444,7 +16485,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     !  old inputs
     & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
-    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON,beta_all & 
+    & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON,beta_all,c1_gamma_max & 
     ! old inout
     & ,dt,flgback,w &    
     ! output 
@@ -16544,6 +16585,7 @@ real(kind=8),dimension(nsp_sld_all),intent(in)::keqcec_all,beta_all
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all),intent(in)::keqiex_all
 logical,dimension(nsp_sld_all),intent(in)::cec_pH_depend
 real(kind=8),dimension(nsp_sld_all,nz),intent(out)::msldf_loc,beta_loc
+real(kind=8),intent(in)::c1_gamma_max						 
 
 real(kind=8),dimension(nsp_aq_all,nz)::dprodmaq_all,dso4fdmaq_all,diosdmaq_all
 real(kind=8),dimension(nsp_gas_all,nz)::dprodmgas_all,dso4fdmgas_all,diosdmgas_all
@@ -16932,7 +16974,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         ! call get_maqads_all_v4a( &
             & nz,nsp_aq_all,nsp_sld_all &
             & ,chraq_all,chrsld_all &
-            & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
+            & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all,c1_gamma_max &
             & ,msldx_loc,maqx_loc,prox &
             & ,dmaqfads_sld_dpro_loc,dmaqfads_sld_dmaqf_loc,dmaqfads_sld_dmsld_loc &! output
             & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
@@ -18826,7 +18868,7 @@ if (ads_ON) then
     ! call get_maqads_all_v4a( &
         & nz,nsp_aq_all,nsp_sld_all &
         & ,chraq_all,chrsld_all &
-        & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all &
+        & ,keqcec_all,keqiex_all,cec_pH_depend,beta_all,c1_gamma_max &
         & ,msldx_loc,maqx_loc,prox &
         & ,dmaqfads_sld_dpro_loc,dmaqfads_sld_dmaqf_loc,dmaqfads_sld_dmsld_loc &! output
         & ,msldf_loc,maqfads_sld_loc,beta_loc,ads_error  &! output
