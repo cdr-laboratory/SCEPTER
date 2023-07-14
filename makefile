@@ -12,7 +12,12 @@ CPFLAGS       += -Dno_intr_findloc # need to use in cluster
 # CPFLAGS       += -Dnpar_in=1 # number of threads for parallelization 
 # CPFLAGS       += -Dparpsd_chk # checking parallelization results
 # CPFLAGS       += -Dksld_chk # checking rate consts for sld species
-CPFLAGS       += -DolddustPSD # using old PSD for dust (not user input but prescribed one)
+CPFLAGS       += -Ddebug_phcalc # printing out more to check pH calculation
+CPFLAGS       += -Ddebug_season # printing out more to check seasonaility forcing calculation
+# CPFLAGS       += -Ddisp_cnst=1e-2 # forcing constant and common dispersion for aqueous species
+# CPFLAGS       += -Ddisp_cnst=0 # forcing constant and common dispersion for aqueous species
+# CPFLAGS       += -DGoldberg_Sikora # using Goldberg et al. 2002 data for Sikora buffer dissociation constants
+# CPFLAGS       += -DolddustPSD # using old PSD for dust (not user input but prescribed one)
 # CPFLAGS       += -Derrmtx_printout # 
 CPFLAGS       += -Dmod_basalt_cmp # using basalt composition defined in <basalt_define.h>
 # CPFLAGS       += -Ddef_flx_save_alltime # flux reported each integration (costs lots of bites)
@@ -26,6 +31,7 @@ CPFLAGS       += -Dmod_basalt_cmp # using basalt composition defined in <basalt_
 # CPFLAGS       += -DdispPSDiter # showing PSD flux in each iteration   
 # CPFLAGS       += -Dcalcporo_full # fully coupled poro calcuation  
 # CPFLAGS       += -Diwtypein=0 # uplift type 0--cnst w, 1-- cnst poro*w, 2-- cnst (1-poro)*w, 3--- w-flexible, if not defined 0 is taken
+# CPFLAGS       += -Dimixtype_background_in=0 # background mixing type 0--no mix w, 1-- fickian, 2-- homogeneous, 3-- tilling, 4-- LABS, if not defined 0 is taken
 
 ifeq ($(FC),gfortran)
   # CFLAGS        = -fcheck=all -g -O3  
@@ -60,9 +66,18 @@ else
   # Not found
 endif
 
-OBJS          = scepter.o 
-SRC           = scepter.f90  
+OBJS          = scepter.o
+SRC           = scepter.f90
+# OBJS          = scepter_DEV_TMP_PSD.o
+# SRC           = scepter_DEV_TMP_PSD.f90 
+# OBJS          = scepter_DEV_CEC_FLX.o
+# SRC           = scepter_DEV_CEC_FLX.f90 
+# OBJS          = scepter_SAVE-6-23-2023.o 
+# SRC           = scepter_SAVE-6-23-2023.f90
+# OBJS          = scepter_test_dev.o 
+# SRC           = scepter_test_dev.f90  
                             
+# PROGRAM       = scepter_DEV
 PROGRAM       = scepter
 
 all:            $(PROGRAM)
