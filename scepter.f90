@@ -452,7 +452,7 @@ real(kind=8),dimension(nz) :: proxads  ! H+ at exchange site
 
 real(kind=8) kho,ucv,kco2,k1,kw,k2,khco2i,knh3,k1nh3,khnh3i,kn2o
 
-integer iz,it,ispa,ispg,isps,irxn,ispa2,ispg2,isps2,ico2,ph_iter,isps_kinspc,isps_sa
+integer iz,it,ispa,ispg,isps,irxn,ispa2,ispg2,isps2,ico2,ph_iter,isps_kinspc,isps_sa,iaqex
 
 real(kind=8) error 
 real(kind=8) :: tol = 1d-6
@@ -826,6 +826,10 @@ real(kind=8),dimension(nsp_sld_all):: mcec_all,mcec_all_def
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all):: logkhaq_all,logkhaq_all_def
 real(kind=8),dimension(nsp_sld_all):: beta_all,beta_all_def
 real(kind=8),parameter :: c1_gamma_max = 20d0 ! "alpha" above which fH deppendence is ignored  
+integer,parameter::nsp_aqex = 5 ! exchangeable species
+character(5),dimension(nsp_aqex)::chraqex
+real(kind=8),dimension(nsp_aqex,5 + nrxn_ext + nsp_sld,nz)::flx_aqex
+real(kind=8),dimension(nsp_aqex,5 + nrxn_ext + nsp_sld)::int_flx_aqex
 
 character(10),dimension(nsp_sld)::precstyle
 real(kind=8),dimension(nsp_sld,nz)::solmod,fkin
@@ -857,6 +861,7 @@ integer,dimension(nsp_aq)::iaqflx
 integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
 integer,dimension(6)::ico2flx
+integer,dimension(nsp_aqex)::iaqexflx
 integer iphint,iphint2
 integer,parameter::nsp_saveall = 1
 character(5),dimension(nsp_saveall)::chrsp_saveall
@@ -1035,6 +1040,7 @@ chraq_ph   = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','
 chrgas_ph = (/'pco2 ','pnh3 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
+chraqex  = (/'na   ','k    ','ca   ','mg   ','al   '/)
 
 if (nsp_aq_cnst .ne. 0) then 
     do ispa = 1, nsp_aq_cnst
@@ -2103,8 +2109,12 @@ do ico2 = 1, 6
     ico2flx(ico2) = idust + nsp_sld + nsp_aq + nsp_gas + ico2
 enddo 
 
-iphint  = idust + nsp_sld + nsp_aq + nsp_gas + 7
-iphint2 = idust + nsp_sld + nsp_aq + nsp_gas + 8
+do iaqex = 1, nsp_aqex
+    iaqexflx(iaqex) = idust + nsp_sld + nsp_aq + nsp_gas + 6 + iaqex
+enddo 
+
+iphint  = idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 1
+iphint2 = idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 2
 
 #endif 
 
@@ -2241,6 +2251,18 @@ do ico2 = 1,6
         & //'int_flx_co2sp-'//trim(adjustl(chrco2sp(ico2)))//'.txt', status='replace')
     write(ico2flx(ico2),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
     close(ico2flx(ico2))
+enddo 
+
+do iaqex = 1,nsp_aqex
+    open(iaqexflx(iaqex), file=trim(adjustl(flxdir))//'/' &
+        & //'flx_aqex-'//trim(adjustl(chraqex(iaqex)))//'.txt', status='replace')
+    write(iaqexflx(iaqex),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+    close(iaqexflx(iaqex))
+    
+    open(iaqexflx(iaqex), file=trim(adjustl(flxdir))//'/' &
+        & //'int_flx_aqex-'//trim(adjustl(chraqex(iaqex)))//'.txt', status='replace')
+    write(iaqexflx(iaqex),trim(adjustl(chrfmt))) 'time',(chrflx(iflx),iflx=1,nflx)
+    close(iaqexflx(iaqex))
 enddo 
 
 #endif 
@@ -3331,6 +3353,7 @@ int_flx_aq = 0d0
 int_flx_gas = 0d0
 int_flx_sld = 0d0
 int_flx_co2sp = 0d0
+int_flx_aqex = 0d0
 
 int_ph = 0d0
 
@@ -4248,6 +4271,7 @@ do while (it<nt)
         & ,trans,display,chrflx,sld_enforce &! input
         & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
         & ,precstyle,solmod,fkin &! in 
+		& ,nsp_aqex,chraqex &! input 
         !  old inputs
         & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
@@ -4256,7 +4280,7 @@ do while (it<nt)
         & ,dt,flgback,w &    
         ! output 
         & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,maqft &
-        & ,maqfads,msldf_loc,beta_loc,iosx &
+        & ,maqfads,msldf_loc,beta_loc,iosx,flx_aqex &
         & )
     
     
@@ -5547,6 +5571,10 @@ do while (it<nt)
                     & ) *dt
             endif 
         enddo 
+		
+		do iaqex=1,nsp_aqex
+			int_flx_aqex(iaqex,iflx) = int_flx_aqex(iaqex,iflx) + sum(flx_aqex(iaqex,iflx,:)*dz(:))*dt
+		enddo 
     enddo 
     
     do iz=1,nz
@@ -5967,6 +5995,18 @@ do while (it<nt)
             close(ico2flx(ico2))
         enddo 
         
+        do iaqex=1,nsp_aqex 
+            open(iaqexflx(iaqex), file=trim(adjustl(flxdir))//'/' &
+                & //'flx_aqex-'//trim(adjustl(chraqex(iaqex)))//'.txt', action='write',status='old',position='append')
+            write(iaqexflx(iaqex),*) time,(sum(flx_aqex(iaqex,iflx,:)*dz(:)),iflx=1,nflx)
+            close(iaqexflx(iaqex))
+            
+            open(iaqexflx(iaqex), file=trim(adjustl(flxdir))//'/' &
+                & //'int_flx_aqex-'//trim(adjustl(chraqex(iaqex)))//'.txt', action='write',status='old',position='append')
+            write(iaqexflx(iaqex),*) time,(int_flx_aqex(iaqex,iflx)/time,iflx=1,nflx)
+            close(iaqexflx(iaqex))
+        enddo 
+        
         
         open(iphint, file=trim(adjustl(flxdir))//'/'//'int_ph.txt', action='write',status='old',position='append')
         write(iphint,*) time,(-log10(int_ph(iz)/time),iz=1,nz)
@@ -6118,7 +6158,18 @@ do while (it<nt)
                 write(ico2flx(ico2),*) time,(int_flx_co2sp(ico2,iflx)/time,iflx=1,nflx)
                 close(ico2flx(ico2))
             enddo 
-            
+        
+			do iaqex=1,nsp_aqex 
+				open(iaqexflx(iaqex), file=trim(adjustl(flxdir))//'/' &
+					& //'flx_aqex-'//trim(adjustl(chraqex(iaqex)))//'.txt', action='write',status='old',position='append')
+				write(iaqexflx(iaqex),*) time,(sum(flx_aqex(iaqex,iflx,:)*dz(:)),iflx=1,nflx)
+				close(iaqexflx(iaqex))
+				
+				open(iaqexflx(iaqex), file=trim(adjustl(flxdir))//'/' &
+					& //'int_flx_aqex-'//trim(adjustl(chraqex(iaqex)))//'.txt', action='write',status='old',position='append')
+				write(iaqexflx(iaqex),*) time,(int_flx_aqex(iaqex,iflx)/time,iflx=1,nflx)
+				close(iaqexflx(iaqex))
+			enddo 
             
             open(iphint, file=trim(adjustl(flxdir))//'/'//'int_ph.txt', action='write',status='old',position='append')
             write(iphint,*) time,(-log10(int_ph(iz)/time),iz=1,nz)
@@ -16482,6 +16533,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     & ,trans,display,chrflx,sld_enforce &! input
     & ,nsld_kinspc,chrsld_kinspc,kin_sld_spc &! input
     & ,precstyle,solmod,fkin &! input
+	& ,nsp_aqex,chraqex &! input 
     !  old inputs
     & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
@@ -16490,7 +16542,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     & ,dt,flgback,w &    
     ! output 
     & ,msldx,omega,flx_sld,maqx,flx_aq,mgasx,flx_gas,rxnext,prox,nonprec,rxnsld,flx_co2sp,maqft & 
-    & ,maqfads,msldf_loc,beta_loc,iosx &
+    & ,maqfads,msldf_loc,beta_loc,iosx,flx_aqex &
     & )
 ! this is an attempt to calculate mass balance based on specific primary variables for aq. species.  
 implicit none 
@@ -16509,7 +16561,7 @@ character(3),intent(in)::msldunit
 real(kind=8),intent(in)::dt
 real(kind=8) error
 
-integer,intent(in)::nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext,nsld_kinspc
+integer,intent(in)::nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext,nsld_kinspc,nsp_aqex
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsp_sld_2),intent(in)::chrsld_2
 character(5),dimension(nsp_aq),intent(in)::chraq
@@ -16518,6 +16570,7 @@ character(5),dimension(nsp_gas_ph),intent(in)::chrgas_ph
 character(5),dimension(nsp_gas),intent(in)::chrgas
 character(5),dimension(nrxn_ext),intent(in)::chrrxn_ext
 character(5),dimension(nsld_kinspc),intent(in)::chrsld_kinspc
+character(5),dimension(nsp_aqex),intent(in)::chraqex
 real(kind=8),dimension(nsp_sld),intent(in)::msldi,msldth,mv
 real(kind=8),dimension(nsp_aq),intent(in)::maqi,maqth,daq 
 real(kind=8),dimension(nsp_gas),intent(in)::mgasi,mgasth,dgasa,dgasg,khgasi
@@ -16643,6 +16696,7 @@ real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
 real(kind=8),dimension(nrxn_ext_all,nz),intent(in)::krxn1_ext_all,krxn2_ext_all
 
 real(kind=8),dimension(4,nflx,nz),intent(out)::flx_co2sp
+real(kind=8),dimension(nsp_aqex,nflx,nz),intent(out)::flx_aqex
 
 integer iz,row,ie,ie2,iflx,isps,ispa,ispg,ispa2,ispg2,col,irxn,isps2,iiz,isps_kinspc,row_w,col_w
 integer izp,izn
@@ -18801,6 +18855,7 @@ flx_aq = 0d0
 flx_gas = 0d0
 
 flx_co2sp = 0d0
+flx_aqex = 0d0
 
 ! pH calculation and its derivative wrt aq and gas species
 
@@ -19168,6 +19223,15 @@ do iz = 1, nz
             flx_aq(ispa,iadv,iz) = flx_aq(ispa,iadv,iz) + ( &
                 & - ( wp_tmp*mp_tmp - w_tmp* m_tmp)/dz(iz) &
                 & ) 
+				
+			if (any(chraqex == chraq(ispa))) then 
+				flx_aqex(findloc(chraqex,chraq(ispa),dim=1),itflx,iz) = flx_aqex(findloc(chraqex,chraq(ispa),dim=1),itflx,iz) + ( &
+					& ( m_tmp - mprev_tmp )/dt  &
+					& ) 
+				flx_aqex(findloc(chraqex,chraq(ispa),dim=1),iadv,iz) = flx_aqex(findloc(chraqex,chraq(ispa),dim=1),iadv,iz) + ( &
+					& - ( wp_tmp*mp_tmp - w_tmp* m_tmp)/dz(iz) &
+					& ) 
+			endif 
             
             if (.not.sld_enforce) then 
                 do isps = 1,nsp_sld 
@@ -19178,6 +19242,15 @@ do iz = 1, nz
                         flx_aq(ispa,idif,iz) = flx_aq(ispa,idif,iz) + ( &
                             & - trans(iiz,iz,isps)*maqx(ispa,iiz)*maqfads_sld(ispa,isps,iiz) &
                             & )
+						
+						
+						if (any(chraqex == chraq(ispa))) then 
+							flx_aqex(findloc(chraqex,chraq(ispa),dim=1),idif,iz) &
+								& = flx_aqex(findloc(chraqex,chraq(ispa),dim=1),idif,iz) + ( &
+								& - trans(iiz,iz,isps)*maqx(ispa,iiz)*maqfads_sld(ispa,isps,iiz) &
+								& )
+						endif 
+						
                     enddo
                 enddo 
             endif 
