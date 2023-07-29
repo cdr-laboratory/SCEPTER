@@ -3687,11 +3687,8 @@ do while (it<nt)
             close(idust)
         endif 
         
-        sat = min(1.0d0, 1d0-(1d0-satup)*(1d0-z/zsat)**2d0)
-        do iz=1,nz
-            if (z(iz)>=zsat) sat(iz)=1d0
-        enddo 
-        v = qin/poroi/sat
+		sat = min(1.0d0,(1d0-satup)*z/zsat + satup)
+        v = qin/poro/sat
         ! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
         ! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
 
@@ -3995,32 +3992,45 @@ do while (it<nt)
     
     ! non continueous implemented as seasonal change
     if (climate(4)) then
-        if (rainpowder>0d0) then
-            imix    = imixtype
-            zml     = zml_dust
-        elseif (rainpowder==0d0) then 
-            imix    = imixtype_background 
-            zml     = zml_background ! mixed layer depth is common to all solid sp. 
-        else
-            print*,'Fatal error in seasonal dust',rainpowder
-            stop
-        endif 
+		if ( all( clim_dust(2,:) == rainpowder ) ) then !! seasonal climate is forced but not for dust | 7/26/2023
+			! imix    = imixtype
+			! zml     = zml_dust
+			continue ! no need to redifine mixing as dust is continuously applied
+		
+		elseif ( any( clim_dust(2,:) /= rainpowder ) ) then  ! case of non-continuous dust application | 7/26/2023
+			
+			if (rainpowder>0d0) then
+				imix    = imixtype
+				zml     = zml_dust
+			elseif (rainpowder==0d0) then 
+				imix    = imixtype_background 
+				zml     = zml_background ! mixed layer depth is common to all solid sp. 
+			else
+				print*,'Fatal error in seasonal dust',rainpowder
+				stop
+			endif 
 
-        ! new 5/18/2023 YK
-        ! OM is mixed in fickian regardless of dust implementation
-        do isps = 1, nsp_sld
-            if ( rfrc_sld_plant(isps) > 0d0 ) then 
-                imix(isps)  = imixtype_OM
-                zml(isps)   = zml_OM
-            endif 
-        enddo
+			! new 5/18/2023 YK
+			! OM is mixed in fickian regardless of dust implementation
+			do isps = 1, nsp_sld
+				if ( rfrc_sld_plant(isps) > 0d0 ) then 
+					imix(isps)  = imixtype_OM
+					zml(isps)   = zml_OM
+				endif 
+			enddo
         
-        ! mixing reload
-        save_trans = .false.
-        call make_transmx(  &
-            & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
-            & ,trans  &! output 
-            & )
+			! mixing reload
+			save_trans = .false.
+			call make_transmx(  &
+				& nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
+				& ,trans  &! output 
+				& )
+		
+		else
+			print*,'Fatal error in seasonal dust',rainpowder
+			stop
+			
+		endif 
     endif 
     
     
