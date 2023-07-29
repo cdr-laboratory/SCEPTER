@@ -754,7 +754,8 @@ real(kind=8),dimension(6,5 + nrxn_ext + nsp_sld)::int_flx_co2sp
 character(5),dimension(6)::chrco2sp
 
 ! an attempt to record psd
-integer,parameter :: nps = 50 ! bins for particle size 
+! integer,parameter :: nps = 50 ! bins for particle size 
+integer,parameter :: nps = 200 ! bins for particle size 
 ! real(kind=8),parameter :: ps_min = 0.1d-6 ! min particle size (0.1 um)
 real(kind=8),parameter :: ps_min = 10d-9 ! min particle size (10 nm)
 ! real(kind=8),parameter :: ps_min = 100d-9 ! min particle size (100 nm)
@@ -771,16 +772,21 @@ real(kind=8),dimension(nps,nz)::psd_norm,psdx_norm,dpsd_norm,psd_rain_norm
 real(kind=8),dimension(nps)::psd_tmp,dvd_tmp
 real(kind=8),dimension(nps)::psd_pr,dps,rough_ps_b
 real(kind=8),dimension(nps)::psd_pr_norm,psd_norm_fact,psd_rain_tmp,intpsd,intpsd_tmp,intpsd_sum_tmp
-real(kind=8),dimension(nz)::DV
+real(kind=8),dimension(nz)::DV,kpsdx,kpsdx_int,kpsdx_int_int
+real(kind=8),dimension(nsp_sld,nz)::kmpsdx,kmpsdx_int,kmpsdx_int_int
 ! integer,parameter :: nps_rain_char = 4
 integer nps_rain_char_in,nps_rain_char != 4
 real(kind=8),dimension(:),allocatable::pssigma_rain_list,psu_rain_list,psw_rain_list
 real(kind=8),dimension(:),allocatable::pssigma_rain_list_in,psu_rain_list_in,psw_rain_list_in
 real(kind=8) psu_pr,pssigma_pr,psu_rain,psw_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd,volsld,flx_max_max,psd_th_flex
 real(kind=8) p80_tmp
-real(kind=8) :: ps_sigma_std = 1d0
+! real(kind=8) :: ps_sigma_std = 1d0
 ! real(kind=8) :: ps_sigma_std = 0.5d0
 ! real(kind=8) :: ps_sigma_std = 0.2d0
+! real(kind=8) :: ps_sigma_std = log10(2d0) ! ~0.3
+! real(kind=8) :: ps_sigma_std = log10(1.4d0) ! ~0.14
+real(kind=8) :: ps_sigma_std = log10(1.6d0) ! ~0.2
+! real(kind=8) :: ps_sigma_std = log10(2.5d0) ! ~0.4
 integer ips,iips,ips_new
 logical psd_error_flg,no_psd_prevrun
 integer,parameter :: nflx_psd = 6
@@ -819,6 +825,8 @@ character(5),dimension(:),allocatable::chrsld_sa
 real(kind=8) time_pbe,dt_pbe,dt_save
 integer nsld_nopsd
 character(5),dimension(:),allocatable::chrsld_nopsd ! minerals whose PSDs tracking is not conducted for some reasons (e.g., too fast; mostly precipitating etc.)
+logical,dimension(:),allocatable::sldnopsd ! true if PSD is not considered; input from input file
+logical,dimension(nsp_sld)::skip_psdcalc,skip_psdcalc_def ! true if PSD is not considered for a species
 ! attempting to calculate cec when not using default values 
 integer nsld_cec
 character(5),dimension(:),allocatable::chrsld_cec
@@ -868,7 +876,7 @@ character(5),dimension(nsp_saveall)::chrsp_saveall
 #endif 
 
 integer,parameter::idust = 15
-integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx  &
+integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx,ikpsd  &
     & ,isa,isa2,iaqprof2,iaqprof3,iaqprof4,iaqprof5,iaqprof6
 
 integer,dimension(nsp_sld)::imix
@@ -944,8 +952,9 @@ ipsd        = idust + nsp_sld + nsp_gas + nsp_aq + 14
 ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 15
 ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 16
 ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 17
-isa         = idust + nsp_sld + nsp_gas + nsp_aq + 18
-isa2        = idust + nsp_sld + nsp_gas + nsp_aq + 19
+ikpsd     	= idust + nsp_sld + nsp_gas + nsp_aq + 18
+isa         = idust + nsp_sld + nsp_gas + nsp_aq + 19
+isa2        = idust + nsp_sld + nsp_gas + nsp_aq + 20
 
 ! species whose flux is saved all time
 ! chrsp_saveall = (/'pco2 '/)
@@ -2516,16 +2525,33 @@ call get_cec( &
     & ,mcec_all,chrsld_cec,logkhaq_all,beta_all &! output
     & ) 
 
+! define solid species whose PSD calculations are skipped
+skip_psdcalc_def = .false.
+do isps=1,nsp_sld
+	if ( precstyle(isps) == 'decay' ) then 
+		skip_psdcalc_def(isps) = .true. ! decay type does not depend on surface area 
+    endif 
+enddo 
 call get_nopsd_num(nsld_nopsd)
 
 if (allocated(chrsld_nopsd)) deallocate(chrsld_nopsd)
-allocate(chrsld_nopsd(nsld_nopsd))
+if (allocated(sldnopsd)) deallocate(sldnopsd)
+allocate( chrsld_nopsd(nsld_nopsd), sldnopsd(nsld_nopsd) )
 
 call get_nopsd( &
     & nsp_sld,chrsld,nsld_nopsd &! input
-    & ,chrsld_nopsd &! output
+    & ,chrsld_nopsd,sldnopsd &! output
     & )
 
+skip_psdcalc = skip_psdcalc_def
+! reflecting read data
+if (nsld_nopsd>0) then
+	do isps=1,nsp_sld
+		if ( any( chrsld(isps) == chrsld_nopsd ) ) then 
+			skip_psdcalc(isps) =  sldnopsd(findloc(chrsld_nopsd,chrsld(isps),dim=1))
+		endif 
+	enddo 
+endif 
 
 rough = 1d0
 rough_ps = 1d0
@@ -2655,7 +2681,7 @@ if (do_psd) then
             enddo 
         
             if (.not.incld_rough) then 
-                rough_ps(isps,:) = rough_f( 'smooth', nps, 10d0**ps(:) )
+                rough_ps(isps,:) = rough_f( 'smooth    ', nps, 10d0**ps(:) )
             else 
                 rough_ps(isps,:) = rough_f( roughref(isps), nps, 10d0**ps(:) )
             endif 
@@ -2711,7 +2737,7 @@ if (do_psd) then
         ! so hr = sum (psd(:)*dps(:)*S(:) ) where S in units m2/m3 and simplest way 1/r 
         ! in this case hr = sum(  psd(:)*dps(:)*1d0/(10d0**(-ps(:))) )
         if (.not.incld_rough) then 
-            rough_ps_b(:) = rough_f( roughref_b, nps, 10d0**ps(:) )
+            rough_ps_b(:) = rough_f( 'smooth    ', nps, 10d0**ps(:) )
         else 
             rough_ps_b(:) = rough_f( roughref_b, nps, 10d0**ps(:) )
         endif 
@@ -3357,6 +3383,11 @@ int_flx_aqex = 0d0
 
 int_ph = 0d0
 
+if (do_psd) then 
+	kpsdx_int_int = 0d0
+	kmpsdx_int_int = 0d0
+endif 
+
 !! @@@@@@@@@@@@@@@   start of time integration  @@@@@@@@@@@@@@@@@@@@@@
 
 do while (it<nt)
@@ -3687,8 +3718,11 @@ do while (it<nt)
             close(idust)
         endif 
         
-		sat = min(1.0d0,(1d0-satup)*z/zsat + satup)
-        v = qin/poro/sat
+        sat = min(1.0d0, 1d0-(1d0-satup)*(1d0-z/zsat)**2d0)
+        do iz=1,nz
+            if (z(iz)>=zsat) sat(iz)=1d0
+        enddo 
+        v = qin/poroi/sat
         ! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
         ! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
 
@@ -3992,45 +4026,32 @@ do while (it<nt)
     
     ! non continueous implemented as seasonal change
     if (climate(4)) then
-		if ( all( clim_dust(2,:) == rainpowder ) ) then !! seasonal climate is forced but not for dust | 7/26/2023
-			! imix    = imixtype
-			! zml     = zml_dust
-			continue ! no need to redifine mixing as dust is continuously applied
-		
-		elseif ( any( clim_dust(2,:) /= rainpowder ) ) then  ! case of non-continuous dust application | 7/26/2023
-			
-			if (rainpowder>0d0) then
-				imix    = imixtype
-				zml     = zml_dust
-			elseif (rainpowder==0d0) then 
-				imix    = imixtype_background 
-				zml     = zml_background ! mixed layer depth is common to all solid sp. 
-			else
-				print*,'Fatal error in seasonal dust',rainpowder
-				stop
-			endif 
+        if (rainpowder>0d0) then
+            imix    = imixtype
+            zml     = zml_dust
+        elseif (rainpowder==0d0) then 
+            imix    = imixtype_background 
+            zml     = zml_background ! mixed layer depth is common to all solid sp. 
+        else
+            print*,'Fatal error in seasonal dust',rainpowder
+            stop
+        endif 
 
-			! new 5/18/2023 YK
-			! OM is mixed in fickian regardless of dust implementation
-			do isps = 1, nsp_sld
-				if ( rfrc_sld_plant(isps) > 0d0 ) then 
-					imix(isps)  = imixtype_OM
-					zml(isps)   = zml_OM
-				endif 
-			enddo
+        ! new 5/18/2023 YK
+        ! OM is mixed in fickian regardless of dust implementation
+        do isps = 1, nsp_sld
+            if ( rfrc_sld_plant(isps) > 0d0 ) then 
+                imix(isps)  = imixtype_OM
+                zml(isps)   = zml_OM
+            endif 
+        enddo
         
-			! mixing reload
-			save_trans = .false.
-			call make_transmx(  &
-				& nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
-				& ,trans  &! output 
-				& )
-		
-		else
-			print*,'Fatal error in seasonal dust',rainpowder
-			stop
-			
-		endif 
+        ! mixing reload
+        save_trans = .false.
+        call make_transmx(  &
+            & nsp_sld,imix,dz,poro,nz,z,zml,dbl_ref,tol,save_trans  &! input
+            & ,trans  &! output 
+            & )
     endif 
     
     
@@ -4591,6 +4612,8 @@ do while (it<nt)
         dt_save = dt
         time_pbe = 0d0
         ddpsd = 0d0
+		kpsdx_int 	= 0d0
+		kmpsdx_int 	= 0d0
         do while(time_pbe < dt_save)
         ! print *
         ! print *,' ---- PSD time: ',time_pbe,' dt: ',dt, ' completeness [%]: ',100d0*time_pbe/dt_save
@@ -4610,9 +4633,10 @@ do while (it<nt)
             
             do isps = 1, nsp_sld
             
-                if ( trim(adjustl(precstyle(isps))) == 'decay') cycle ! solid species not related to SA
+                ! if ( trim(adjustl(precstyle(isps))) == 'decay') cycle ! solid species not related to SA
                 
-                if (psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) cycle
+                ! if (psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) cycle
+                if ( psd_enable_skip .and. skip_psdcalc(isps) ) cycle				
             
                 DV(:) = flx_sld(isps, 4 + isps,:)*mv(isps)*1d-6*dt  
             
@@ -4630,6 +4654,7 @@ do while (it<nt)
                         & ,psd,ps,dps,ps_min,ps_max &! in 
                         & ,chrsld(isps) &! in 
                         & ,dpsd,psd_error_flg &! inout
+						& ,kpsdx &! out
                         & )
 
                     if ( flgback .or. psd_error_flg) then 
@@ -4637,6 +4662,8 @@ do while (it<nt)
                         print *, '*** escape from do-loop'
                         exit
                     endif 
+					
+					kmpsdx(isps,:) = kpsdx	 
                     
                     ! dt_pbe = dt
                     ! time_pbe = 0
@@ -4747,6 +4774,7 @@ do while (it<nt)
                     & ,psd,ps,dps,ps_min,ps_max &! in 
                     & ,' blk ' &! in 
                     & ,dpsd,psd_error_flg &! inout
+					& ,kpsdx &! out
                     & )
 
                 if ( flgback .or. psd_error_flg) then 
@@ -4799,10 +4827,11 @@ do while (it<nt)
                 do isps=1,nsp_sld
                     
                     ! if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA              
-                    if ( &
-                        & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
-                        & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
-                        & ) then
+                    ! if ( &
+                        ! & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
+                        ! & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
+                        ! & ) then
+					if ( psd_enable_skip .and. skip_psdcalc(isps) ) then
                         flx_mpsd(isps,:,:,:) = 0d0
                         do iz=1,nz
                             mpsdx(isps,:,iz) = mpsd_pr(isps,:)
@@ -4969,10 +4998,11 @@ do while (it<nt)
                 do isps = 1, nsp_sld
                     
                     ! if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA               
-                    if ( &
-                        & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
-                        & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
-                        & ) then           
+                    ! if ( &
+                        ! & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
+                        ! & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
+                        ! & ) then           
+					if ( psd_enable_skip .and. skip_psdcalc(isps) ) then 
                         flx_mpsd(isps,:,:,:) = 0d0
                         do iz=1,nz
                             mpsdx(isps,:,iz) = mpsd_pr(isps,:)
@@ -5215,6 +5245,15 @@ do while (it<nt)
             mpsd = mpsd_save_2
             cycle
         endif 
+		
+		!  calculating time integral of k value used for pbe solution
+		if (do_psd_full) then 
+			do isps=1,nsp_sld
+				kmpsdx_int(isps,:) = kmpsdx_int(isps,:) + kmpsdx(isps,:)*dt
+			enddo 
+		else
+			kpsdx_int = kpsdx_int + kpsdx*dt
+		endif 
         
         time_pbe = time_pbe + dt
         
@@ -5265,6 +5304,15 @@ do while (it<nt)
                 go to 100
             endif 
         endif 
+		
+		!  calculating time-average k value used for pbe solution based on time integral of k value
+		! if (do_psd_full) then 
+			! do isps=1,nsp_sld
+				! kmpsdx_int(isps,:) = kmpsdx_int(isps,:) / dt
+			! enddo 
+		! else
+			! kpsdx_int = kpsdx_int / dt
+		! endif 	  
         
         if (display) then 
             print *, '-- ending PSD'
@@ -5590,6 +5638,17 @@ do while (it<nt)
     do iz=1,nz
         int_ph(iz) = int_ph(iz) + sum(gamma(1:iz)*prox(1:iz)*dz(1:iz))/z(iz) * dt
     enddo 
+	
+	! calculating time integral of k (m/yr) used for solution of PBE 
+	if (do_psd) then 
+		if (do_psd_full) then 
+			do isps=1,nsp_sld
+				kmpsdx_int_int(isps,:) = kmpsdx_int_int(isps,:) + kmpsdx_int(isps,:) 
+			enddo 
+		else
+			kpsdx_int_int = kpsdx_int_int + kpsdx_int
+		endif 
+	endif
 
     if (time >= savetime) then 
         
@@ -5838,6 +5897,20 @@ do while (it<nt)
                     close(ipsds)
                     close(ipsdflx)
                 enddo 
+
+
+				open(ikpsd, file=trim(adjustl(profdir))//'/'  &
+					& //'psd_kint-'//chr//'.txt', status='replace')				
+				write(chrfmt,'(i0)') nsp_sld
+				chrfmt = '(1x,a5,'//trim(adjustl(chrfmt))//'(1x,a5),1x,a5)'
+				write(ikpsd,trim(adjustl(chrfmt))) 'z[m]',(chrsld(isps),isps=1,nsp_sld),'time'
+				
+				do iz=1,nz
+					write(ikpsd,*) z(iz),(kmpsdx_int_int(isps,iz),isps=1,nsp_sld),time
+				enddo
+				
+				close(ikpsd)
+				
             else 
                 
                 open(ipsd, file=trim(adjustl(profdir))//'/'  &
@@ -5848,6 +5921,8 @@ do while (it<nt)
                     & //'psd(SA%)-'//chr//'.txt', status='replace')
                 open(ipsdflx, file=trim(adjustl(flxdir))//'/'  &
                     & //'flx_psd-'//chr//'.txt', status='replace')
+				open(ikpsd, file=trim(adjustl(profdir))//'/'  &
+					& //'psd_kint-'//chr//'.txt', status='replace')		
                 
                 write(chrfmt,'(i0)') nps
                 chrfmt = '(1x,a16,'//trim(adjustl(chrfmt))//'(1x,f11.6),1x,a5)'
@@ -5857,6 +5932,7 @@ do while (it<nt)
                 write(chrfmt,'(i0)') nflx_psd
                 chrfmt = '(1x,a5,1x,a16,'//trim(adjustl(chrfmt))//'(1x,a11))'
                 write(ipsdflx,trim(adjustl(chrfmt))) 'time','log10(r[m])\flx','tflx','adv','dif','rain','rxn','res'
+				write(ikpsd,'(3(1x,a5))') 'z[m]','k_int','time'
                 
                 do iz = 1, Nz
                     ucvsld2 = 1d0 - poro(iz)
@@ -5874,6 +5950,7 @@ do while (it<nt)
                         & / ssab(iz)  * 1d2 &
                         ! & /( poro(iz)/(1d0 - poro(iz) ))  &
                         & ,ips=1,nps), time 
+					write(ikpsd,*) z(iz),kpsdx_int_int(iz),time
                 end do
                 
                 do ips=1,nps
@@ -5884,6 +5961,7 @@ do while (it<nt)
                 close(ipsdv)
                 close(ipsds)
                 close(ipsdflx)
+                close(ikpsd)
             
             endif 
         
@@ -7229,14 +7307,16 @@ endsubroutine get_nopsd_num
 
 subroutine get_nopsd( &
     & nsp_sld,chrsld,nsld_nopsd &! input
-    & ,chrsld_nopsd_dum &! output
+    & ,chrsld_nopsd_dum,sldnopsd_dum &! output
     & )
 implicit none
 
 integer,intent(in):: nsp_sld,nsld_nopsd
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsld_nopsd),intent(out)::chrsld_nopsd_dum
+logical,dimension(nsld_nopsd),intent(out)::sldnopsd_dum
 character(5) chr_tmp
+logical logic_tmp
 
 character(500) file_name
 integer i
@@ -7248,8 +7328,9 @@ if (nsld_nopsd <= 0) return
 open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
 read(50,'()')
 do i =1,nsld_nopsd
-    read(50,*) chr_tmp
+    read(50,*) chr_tmp,logic_tmp
     chrsld_nopsd_dum(i) = chr_tmp
+    sldnopsd_dum(i) 	= logic_tmp
 enddo 
 close(50)
 
@@ -9416,7 +9497,9 @@ select case(trim(adjustl(mineral)))
         kin = k_q10(kref,tc,tc_ref,q10)
         ! kin = kref
         dkin_dmsp = 0d0
-        
+    case('inrt')
+        kin =0d0
+        dkin_dmsp = 0d0
     case default 
         kin =0d0
         dkin_dmsp = 0d0
@@ -13317,7 +13400,8 @@ select case(trim(adjustl(mineral)))
         omega = 0d0
     
     case('inrt') ! not reacting in any case
-        omega = 1d0
+        ! omega = 1d0
+        omega = 0d0
         
     case default 
         ! this should not be selected
@@ -20707,7 +20791,7 @@ enddo
 dVd = 0d0
 rough_tmp = 1d0
 if (.not.incld_rough) then 
-    rough_tmp(:) = rough_f( 'smooth', nps, (10d0**ps(:)) )
+    rough_tmp(:) = rough_f( 'smooth    ', nps, (10d0**ps(:)) )
 else
     rough_tmp(:) = rough_f( roughref, nps, (10d0**ps(:)) )
 endif 
@@ -20986,6 +21070,7 @@ subroutine psd_diss_pbe( &
     & ,psd,ps,dps,ps_min,ps_max &! in 
     & ,chrsp &! in 
     & ,dpsd,psd_error_flg &! inout
+	& ,kpsdx &! out												 
     & )
 ! an attempt to solve population balance equation reflecting imposed dissolution rate
 implicit none 
@@ -21001,10 +21086,11 @@ character(10),intent(in)::roughref
 logical,intent(in)::incld_rough
 real(kind=8),dimension(nps,nz),intent(inout)::dpsd
 logical,intent(inout)::psd_error_flg
+real(kind=8),dimension(nz),intent(out)::kpsdx					   
 ! local 
 real(kind=8),dimension(nps,nz)::dVd,psd_old,psd_new,dpsd_tmp,psdx,psdxx
 real(kind=8),dimension(nps)::psd_tmp,dvd_tmp,dpsx,lambda
-real(kind=8),dimension(nz)::kpsd,kpsdx,DV_chk,DV_exist
+real(kind=8),dimension(nz)::kpsd,DV_chk,DV_exist
 real(kind=8) ps_new,ps_newp,dvd_res,error,vol,fact,surf
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8),parameter::threshold = 20d0
@@ -21090,20 +21176,24 @@ if (incld_rough)  lambda = rough_f( roughref, nps, (10d0**ps(:)) )
 ! dR/dr =  1/(r * log10)
 ! dr = dR * r * log10
 ! note that dps is dR; we need dr denoted here as dpsx (?)
-! dpsx = dps * 10d0**(ps) * log(10d0)
-do ips = 1,nps
-    dpsx(ips) = 10d0**(ps(ips)+0.5d0*dps(ips)) - 10d0**(ps(ips)-0.5d0*dps(ips))
-enddo
+dpsx = dps * 10d0**(ps) * log(10d0)
+! do ips = 1,nps
+    ! dpsx(ips) = 10d0**(ps(ips)+0.5d0*dps(ips)) - 10d0**(ps(ips)-0.5d0*dps(ips))
+! enddo
 
 ! psd is given as number of particles/m3/log(m)
 ! converting to number of particles/m3/m
 ! note that psd*dps = psdx*dpsx
 do iz=1,nz
     psdx(:,iz) = psd(:,iz) *dps(:) / dpsx(:)
+    ! psdx(:,iz) = psd(:,iz) / ( 10d0**ps(:)*log(10d0) )  ! same as above if dpsx = dps * 10d0**(ps) * log(10d0)
 enddo 
 
+! initial guess of kpsd based om previous PSD and newly obtained dV (volume change from reaction)
 kpsd = 0d0
 do iz = 1, nz
+	! integral of dF(r,t)/dt * v *dr = d[ F(r,t)*R(r,t) ]/dr * v * dr = d[ F(r,t)*R(r,t) ] * v 
+	! where F(r,t) is after conversion from F(log r, t)
     if (dV(iz)>=0d0) then
         do ips=1,nps
             if (ips==nps) then
@@ -21128,6 +21218,7 @@ do iz = 1, nz
             endif
         enddo 
     endif
+	
     ! if (kpsd(iz) * dV(iz) < 0d0) then 
         ! print *,' *** inconsistent between kpsd and DV ' , chrsp
         ! psd_error_flg = .true.

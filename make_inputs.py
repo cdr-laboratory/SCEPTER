@@ -327,7 +327,7 @@ def get_input_sld_properties(**kwargs):
     elif filename == 'cec.in':
         note = '** cec [cmol/kg], log10(KH-X) [-] (X=Na,K,Ca,Mg,Al) and beta specified by users (e.g., "g2   90   5.9   4.8   10.47   10.786   16.47   3.4") (if not specified assumed code default values)'
     elif filename == 'nopsd.in':
-        note = '** list of minerals whose PSDs are not tracked for some reason'
+        note = '** list of minerals whose PSDs are not tracked for some reason (e.g., "g2   true/false" where true means no PSD and false means PSD implementation)'
     elif filename == '2ndslds.in':
         note = '** list of minerals whose precipitation is allowed'
     elif filename == 'psdrain.in':
@@ -351,7 +351,11 @@ def get_input_sld_properties(**kwargs):
                 input_text += note + '\n'
             else:
                 if filename == 'nopsd.in' or filename == '2ndslds.in':
-                    input_text += sld_varlist[i][0] + '\n'
+                    for j in range(len(sld_varlist[i])):
+                        if j==0:
+                            input_text += sld_varlist[i][j] + '\t' 
+                        else:
+                            input_text += sld_varlist[i][j] + '\n'
                 elif filename == 'cec.in':
                     for j in range(len(sld_varlist[i])):
                         if j==0:
@@ -457,7 +461,8 @@ def main():
     outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
     runname = 'test_input'
     
-    exename_src = 'scepter_test'
+    # exename_src = 'scepter_test'
+    exename_src = 'scepter_DEV'
     exename = 'scepter'
     
     os.system('cp ' + exename_src + ' ' + outdir + runname + '/' + exename)
@@ -620,6 +625,15 @@ def main():
         ,filename = filename
         ,sld_varlist=sld_varlist
         # ,srcfile = srcfile
+        )
+        
+    filename = 'nopsd.in'
+    sld_varlist = [ ('g2','true'), ('inrt','false') ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
         )
     
     timeline = [0, 5e-3-1e-6, 5e-3, 1.-1e-6]

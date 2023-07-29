@@ -60,11 +60,15 @@ def run_a_scepter_run(
     sld_varlist_cec     = kwargs.get('sld_varlist_cec',     [('inrt', 10, 5.9, 4.8, 10.47, 10.786, 16.47, 3.4) ])
     sld_varlist_omrain  = kwargs.get('sld_varlist_omrain',  [('g2',1.0)])
     sld_varlist_kinspc  = kwargs.get('sld_varlist_kinspc',  [])
+    sld_varlist_sa      = kwargs.get('sld_varlist_sa',      [])
+    sld_varlist_nopsd   = kwargs.get('sld_varlist_nopsd',   [])
     sld_varlist_2ndslds = kwargs.get('sld_varlist_2ndslds', [])
     srcfile_dust        = kwargs.get('srcfile_dust',        None)
     srcfile_omrain      = kwargs.get('srcfile_omrain',      None)
     srcfile_cec         = kwargs.get('srcfile_cec',         None)
     srcfile_kinspc      = kwargs.get('srcfile_kinspc',      None)
+    srcfile_sa          = kwargs.get('srcfile_sa',          None)
+    srcfile_nopsd       = kwargs.get('srcfile_nopsd',       None)
     srcfile_2ndslds     = kwargs.get('srcfile_2ndslds',     './data/2ndslds_def.in')
     
     
@@ -78,12 +82,12 @@ def run_a_scepter_run(
     
     # compile 
     exename = 'scepter'
-    # exename_src = 'scepter'
-    exename_src = 'scepter_test'
+    exename_src = 'scepter_DEV'
+    # exename_src = 'scepter_test'
     to = ' '
     where = '/'
-    # os.system('make')
-    os.system('make --file=makefile_test')
+    os.system('make')
+    # os.system('make --file=makefile_test')
     if not os.path.exists( outdir + runname) : os.system('mkdir -p ' + outdir + runname)
     os.system('cp ' + exename_src + to + outdir + runname + where + exename)
 
@@ -152,13 +156,19 @@ def run_a_scepter_run(
         ,atm_list=atm_list
         )
         
-    filename_list = ['dust.in','cec.in','OM_rain.in','kinspc.in','2ndslds.in']
-    srcfile_list  = [srcfile_dust,srcfile_cec,srcfile_omrain,srcfile_kinspc,srcfile_2ndslds]
-    sld_varlist_list = [sld_varlist_dust,sld_varlist_cec,sld_varlist_omrain,sld_varlist_kinspc,sld_varlist_2ndslds]
-    for i in range(len(filename_list)):
-        filename = filename_list[i]
-        srcfile = srcfile_list[i]
-        sld_varlist = sld_varlist_list[i]
+    sldvar_list_all = [
+        ('dust.in',         srcfile_dust,       sld_varlist_dust),
+        ('cec.in',          srcfile_cec,        sld_varlist_cec),
+        ('OM_rain.in',      srcfile_omrain,     sld_varlist_omrain),
+        ('kinspc.in',       srcfile_kinspc,     sld_varlist_kinspc),
+        ('sa.in',           srcfile_sa,         sld_varlist_sa),
+        ('nopsd.in',        srcfile_nopsd,      sld_varlist_nopsd),
+        ('2ndslds.in',      srcfile_2ndslds,    sld_varlist_2ndslds),
+        ]
+    for i in range(len(sldvar_list_all)):
+        filename    = sldvar_list_all[i][0]
+        srcfile     = sldvar_list_all[i][1]
+        sld_varlist = sldvar_list_all[i][2]
         if srcfile!=None:
             make_inputs.get_input_sld_properties(
                 outdir=outdir
