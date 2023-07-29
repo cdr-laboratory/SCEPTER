@@ -68,14 +68,6 @@ endif
 
 OBJS          = scepter.o
 SRC           = scepter.f90
-# OBJS          = scepter_DEV_TMP_PSD.o
-# SRC           = scepter_DEV_TMP_PSD.f90 
-# OBJS          = scepter_DEV_CEC_FLX.o
-# SRC           = scepter_DEV_CEC_FLX.f90 
-# OBJS          = scepter_SAVE-6-23-2023.o 
-# SRC           = scepter_SAVE-6-23-2023.f90
-# OBJS          = scepter_test_dev.o 
-# SRC           = scepter_test_dev.f90  
                             
 # PROGRAM       = scepter_DEV
 PROGRAM       = scepter
