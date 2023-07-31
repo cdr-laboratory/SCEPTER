@@ -11,7 +11,7 @@ CPFLAGS       += -Dno_intr_findloc # need to use in cluster
 # CPFLAGS       += -Dnpar_in=1 # number of threads for parallelization 
 # CPFLAGS       += -Dnpar_in=1 # number of threads for parallelization 
 # CPFLAGS       += -Dparpsd_chk # checking parallelization results
-# CPFLAGS       += -Dksld_chk # checking rate consts for sld species
+CPFLAGS       += -Dksld_chk # checking rate consts for sld species
 CPFLAGS       += -Ddebug_phcalc # printing out more to check pH calculation
 CPFLAGS       += -Ddebug_season # printing out more to check seasonaility forcing calculation
 # CPFLAGS       += -Ddisp_cnst=1e-2 # forcing constant and common dispersion for aqueous species
@@ -69,8 +69,8 @@ endif
 OBJS          = scepter.o
 SRC           = scepter.f90
                             
-# PROGRAM       = scepter_DEV
-PROGRAM       = scepter
+PROGRAM       = scepter_DEV
+# PROGRAM       = scepter
 
 all:            $(PROGRAM)
 
