@@ -25,17 +25,17 @@ def linave(dep,var,ztrgt):
     
     return a
 
-def get_ph_int_site(outdir,runname,dep_sample):
+def get_ph_int_site(outdir,runname,dep_sample,i):
     # outdir = '../pyweath_output/'
     # runname = ''
     # runname = 'Sheldon_A_fick_noiter_test_psdfullpbe_w1_fit_r2000_sig0p2_loop_q0p2_chkall'
 
     # dep_sample = float(sys.argv[1])
 
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/prof_aq(tot)-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+    # for i in range(20,0,-1):
+        # infile  = outdir+runname+'/prof/prof_aq(tot)-{:03d}.txt'.format(i)
+        # if not os.path.exists(infile): continue
+        # else: break 
     infile = outdir+runname+'/prof/prof_aq(tot)-{:03d}.txt'.format(i)
     data = np.loadtxt(infile,skiprows=1)
     print('using aq(tot)-{:03d}'.format(i))
@@ -100,12 +100,12 @@ def get_ac_int_site(outdir,runname,dep_sample):
     
     return phintval
 
-def get_ac_int_site_v2(outdir,runname,dep_sample):
+def get_ac_int_site_v2(outdir,runname,dep_sample,i):
 
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/prof_aq(ads%cec)-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+    # for i in range(20,0,-1):
+        # infile  = outdir+runname+'/prof/prof_aq(ads%cec)-{:03d}.txt'.format(i)
+        # if not os.path.exists(infile): continue
+        # else: break 
     infile  = outdir+runname+'/prof/prof_aq(ads%cec)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
     print('using prof_aq(ads%cec)-{:03d}'.format(i))
@@ -235,12 +235,12 @@ def get_spex_int_site(outdir,runname,dep_sample,sp):
     
     return phintval
 
-def get_rhobulk_int_site(outdir,runname,dep_sample):
+def get_rhobulk_int_site(outdir,runname,dep_sample,i):
 
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+    # for i in range(20,0,-1):
+        # infile  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
+        # if not os.path.exists(infile): continue
+        # else: break 
     infile  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
     print('using bsd-{:03d}'.format(i))
@@ -267,12 +267,12 @@ def get_rhobulk_int_site(outdir,runname,dep_sample):
     
     return phintval
 
-def get_sldwt_int_site(outdir,runname,dep_sample,sps):
+def get_sldwt_int_site(outdir,runname,dep_sample,sps,i):
 
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/prof_sld(wt%)-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+    # for i in range(20,0,-1):
+        # infile  = outdir+runname+'/prof/prof_sld(wt%)-{:03d}.txt'.format(i)
+        # if not os.path.exists(infile): continue
+        # else: break 
     infile  = outdir+runname+'/prof/prof_sld(wt%)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
     print('using prof_sld(wt%)-{:03d}'.format(i))
@@ -580,12 +580,12 @@ def get_DIC_save_get_site_NEW(outdir,runname,dep_sample,i_save):
     
     return DIC_btm,dep
 
-def get_ave_DIC_save(outdir,runname,dep_sample):
+def get_ave_DIC_save(outdir,runname,dep_sample,i):
 
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+    # for i in range(20,0,-1):
+        # infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
+        # if not os.path.exists(infile): continue
+        # else: break 
     infile  = outdir+runname+'/prof/charge_balance-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
     print('using charge_balance-{:03d}'.format(i))
@@ -746,12 +746,12 @@ def get_ave_DIC_save_v2(outdir,runname,dep_sample):
     
     return DIC_ave
 
-def get_ave_IS(outdir,runname,dep_sample):
+def get_ave_IS(outdir,runname,dep_sample,i):
 
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+    # for i in range(20,0,-1):
+        # infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
+        # if not os.path.exists(infile): continue
+        # else: break 
     infile  = outdir+runname+'/prof/charge_balance-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
     print('using charge_balance-{:03d}'.format(i))
@@ -858,12 +858,12 @@ def get_waterave_site(outdir,runname,dep_sample):
     
     return sps,btmconcs,dep
 
-def get_totsave_site(outdir,runname,dep_sample):
+def get_totsave_site(outdir,runname,dep_sample,i):
     
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/prof_ex(tot)-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+    # for i in range(20,0,-1):
+        # infile  = outdir+runname+'/prof/prof_ex(tot)-{:03d}.txt'.format(i)
+        # if not os.path.exists(infile): continue
+        # else: break 
     
     infile  = outdir+runname+'/prof/prof_ex(tot)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)

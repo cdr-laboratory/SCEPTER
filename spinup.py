@@ -56,6 +56,7 @@ def run_a_scepter_run(
     rain_list           = kwargs.get('rain_list',           [('ca',5.0e-6)])
     atm_list            = kwargs.get('atm_list',            [('pco2',3.16e-4),('po2',0.21),('pnh3',1e-50),('pn2o',1e-50)])
     # ---- sopecify solid phase properties ----    
+    sld_varlist_psdpr   = kwargs.get('sld_varlist_psdpr',   [])
     sld_varlist_dust    = kwargs.get('sld_varlist_dust',    [])
     sld_varlist_cec     = kwargs.get('sld_varlist_cec',     [('inrt', 10, 5.9, 4.8, 10.47, 10.786, 16.47, 3.4) ])
     sld_varlist_omrain  = kwargs.get('sld_varlist_omrain',  [('g2',1.0)])
@@ -63,6 +64,7 @@ def run_a_scepter_run(
     sld_varlist_sa      = kwargs.get('sld_varlist_sa',      [])
     sld_varlist_nopsd   = kwargs.get('sld_varlist_nopsd',   [])
     sld_varlist_2ndslds = kwargs.get('sld_varlist_2ndslds', [])
+    srcfile_psdpr       = kwargs.get('srcfile_psdpr',       None)
     srcfile_dust        = kwargs.get('srcfile_dust',        None)
     srcfile_omrain      = kwargs.get('srcfile_omrain',      None)
     srcfile_cec         = kwargs.get('srcfile_cec',         None)
@@ -70,6 +72,11 @@ def run_a_scepter_run(
     srcfile_sa          = kwargs.get('srcfile_sa',          None)
     srcfile_nopsd       = kwargs.get('srcfile_nopsd',       None)
     srcfile_2ndslds     = kwargs.get('srcfile_2ndslds',     './data/2ndslds_def.in')
+    # ---- seasonality properties ----
+    T_temp              = kwargs.get('T_temp',              [ list(1./np.linspace(12,1,12)),[15]*12 ] )
+    moist_temp          = kwargs.get('moist_temp',          [ list(1./np.linspace(12,1,12)),[0.3]*12 ] )
+    q_temp              = kwargs.get('q_temp',              [ list(1./np.linspace(12,1,12)),[0.5]*12 ])
+    dust_temp           = kwargs.get('dust_temp',           [ list(1./np.linspace(12,1,12)),[0]*12 ])
     
     
     # ---- python stuff ----
@@ -157,6 +164,7 @@ def run_a_scepter_run(
         )
         
     sldvar_list_all = [
+        ('psdpr.in',        srcfile_psdpr,      sld_varlist_psdpr),
         ('dust.in',         srcfile_dust,       sld_varlist_dust),
         ('cec.in',          srcfile_cec,        sld_varlist_cec),
         ('OM_rain.in',      srcfile_omrain,     sld_varlist_omrain),
@@ -183,6 +191,16 @@ def run_a_scepter_run(
                 ,filename = filename
                 ,sld_varlist=sld_varlist
                 )
+    
+    if season=='true':
+        make_inputs.get_input_climate_temp(
+            outdir=outdir,
+            runname=runname,
+            T_temp = T_temp,
+            moist_temp = moist_temp,
+            q_temp = q_temp,
+            dust_temp = dust_temp,
+            )
         
     # >>>> run 
     

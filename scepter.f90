@@ -761,8 +761,8 @@ real(kind=8),dimension(6,5 + nrxn_ext + nsp_sld)::int_flx_co2sp
 character(5),dimension(6)::chrco2sp
 
 ! an attempt to record psd
-! integer,parameter :: nps = 50 ! bins for particle size 
-integer,parameter :: nps = 200 ! bins for particle size 
+integer,parameter :: nps = 50 ! bins for particle size 
+! integer,parameter :: nps = 200 ! bins for particle size 
 ! real(kind=8),parameter :: ps_min = 0.1d-6 ! min particle size (0.1 um)
 real(kind=8),parameter :: ps_min = 10d-9 ! min particle size (10 nm)
 ! real(kind=8),parameter :: ps_min = 100d-9 ! min particle size (100 nm)
@@ -785,14 +785,17 @@ real(kind=8),dimension(nsp_sld,nz)::kmpsdx,kmpsdx_int,kmpsdx_int_int
 integer nps_rain_char_in,nps_rain_char != 4
 real(kind=8),dimension(:),allocatable::pssigma_rain_list,psu_rain_list,psw_rain_list
 real(kind=8),dimension(:),allocatable::pssigma_rain_list_in,psu_rain_list_in,psw_rain_list_in
+integer nps_pr_char_in,nps_pr_char != 1
+real(kind=8),dimension(:),allocatable::pssigma_pr_list,psu_pr_list,psw_pr_list
+real(kind=8),dimension(:),allocatable::pssigma_pr_list_in,psu_pr_list_in,psw_pr_list_in
 real(kind=8) psu_pr,pssigma_pr,psu_rain,psw_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd,volsld,flx_max_max,psd_th_flex
 real(kind=8) p80_tmp
 ! real(kind=8) :: ps_sigma_std = 1d0
 ! real(kind=8) :: ps_sigma_std = 0.5d0
 ! real(kind=8) :: ps_sigma_std = 0.2d0
-! real(kind=8) :: ps_sigma_std = log10(2d0) ! ~0.3
+real(kind=8) :: ps_sigma_std = log10(2d0) ! ~0.3
 ! real(kind=8) :: ps_sigma_std = log10(1.4d0) ! ~0.14
-real(kind=8) :: ps_sigma_std = log10(1.6d0) ! ~0.2
+! real(kind=8) :: ps_sigma_std = log10(1.6d0) ! ~0.2
 ! real(kind=8) :: ps_sigma_std = log10(2.5d0) ! ~0.4
 integer ips,iips,ips_new
 logical psd_error_flg,no_psd_prevrun
@@ -1854,6 +1857,21 @@ select case(imixtype)
         imixtype = imixtype_nobio
 endselect 
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!   when dust_step is ON or dust is non-continuous prescribed in Dust_temp.in
+! 	
+!	>>> for solid species in dust
+! 	period:  ---- basalt ---- | ---- non basalt ---- 
+! 	mixing:        imix		  |  imixtype_background
+!   zml   :      zml_dust     |        zsupp
+! 	
+! 	>>> for solid species associated with OM?
+! 	period:  ---- basalt ---- | ---- non basalt ---- 
+! 	mixing:               imixtype_OM
+!   zml   :                 zsupp
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+
 imix                = imixtype
 imixtype_OM         = imixtype_OM_in
 imixtype_background = imixtype_background_in     ! in default it is fickian assuming driver of background mixing is the same as driver of OM mixing
@@ -2481,7 +2499,7 @@ do isps = 1, nsp_sld
     hri(isps,:) = 1d0/hrii(isps)
 enddo
 
-! getting user-defined PSD for dust
+!!!!! getting user-defined PSD for dust !!!!! 
 
 call get_psdrain_num(nps_rain_char_in)
 
@@ -2529,7 +2547,53 @@ allocate(pssigma_rain_list(nps_rain_char),psu_rain_list(nps_rain_char),psw_rain_
 ! print*,psw_rain_list
 ! stop
 
-! getting user-defined cec
+!!!!! getting user-defined PSD for parent rock !!!!! 
+
+call get_psdpr_num(nps_pr_char_in)
+
+if (nps_pr_char_in <= 0) then
+    ! random default used in GMD paper
+    nps_pr_char = 1
+    
+    if (allocated(pssigma_pr_list_in)) deallocate(pssigma_pr_list_in)
+    if (allocated(psu_pr_list_in)) deallocate(psu_pr_list_in)
+    if (allocated(psw_pr_list_in)) deallocate(psw_pr_list_in)
+    allocate(pssigma_pr_list_in(nps_pr_char),psu_pr_list_in(nps_pr_char),psw_pr_list_in(nps_pr_char))
+    
+    psu_pr_list_in      = log10(p80)
+    pssigma_pr_list_in	= ps_sigma_std
+    psw_pr_list_in		= 1d0
+    
+    
+else
+
+    nps_pr_char = nps_pr_char_in
+    
+    if (allocated(pssigma_pr_list_in)) deallocate(pssigma_pr_list_in)
+    if (allocated(psu_pr_list_in)) deallocate(psu_pr_list_in)
+    if (allocated(psw_pr_list_in)) deallocate(psw_pr_list_in)
+    allocate(pssigma_pr_list_in(nps_pr_char),psu_pr_list_in(nps_pr_char),psw_pr_list_in(nps_pr_char))
+
+    call get_psdpr( &
+        & nps_pr_char &! input
+        & ,psu_pr_list_in,pssigma_pr_list_in,psw_pr_list_in &! output
+        & )
+        
+    do ips = 1, nps_pr_char
+        psu_pr_list_in(ips) = log10( psu_pr_list_in(ips) )
+    enddo
+endif 
+    
+if (allocated(pssigma_pr_list)) deallocate(pssigma_pr_list)
+if (allocated(psu_pr_list)) deallocate(psu_pr_list)
+if (allocated(psw_pr_list)) deallocate(psw_pr_list)
+allocate(pssigma_pr_list(nps_pr_char),psu_pr_list(nps_pr_char),psw_pr_list(nps_pr_char))
+
+psu_pr_list           = psu_pr_list_in
+pssigma_pr_list       = pssigma_pr_list_in
+psw_pr_list           = psw_pr_list_in
+
+!!!!! getting user-defined cec !!!!!!
 
 call get_cec_num(nsld_cec)
 
@@ -2669,8 +2733,9 @@ if (do_psd) then
         do isps = 1, nsp_sld
             volsld = msldi(isps)*mv(isps)*1d-6
             call calc_psd_pr( &
-                & nps &! input
+                & nps,nps_pr_char,nps_pr_char_in &! input
                 & ,pi,hrii(isps),ps_sigma_std,poroi,volsld,tol &! input
+				& ,pssigma_pr_list,psu_pr_list,psw_pr_list &! input 
                 & ,ps,dps &! input
                 & ,msldunit &! input
                 & ,psd_pr &! output 
@@ -2720,8 +2785,9 @@ if (do_psd) then
     else ! do psd only for bulk 
         volsld = sum(msldi*mv*1d-6) + mblki*mvblk*1d-6
         call calc_psd_pr( &
-            & nps &! input
+            & nps,nps_pr_char,nps_pr_char_in &! input
             & ,pi,p80,ps_sigma_std,poroi,volsld,tol &! input
+			& ,pssigma_pr_list,psu_pr_list,psw_pr_list &! input 
             & ,ps,dps &! input
             & ,msldunit &! input
             & ,psd_pr &! output 
@@ -3190,8 +3256,9 @@ if (read_data) then
             do isps = 1, nsp_sld
                 volsld = msldi(isps)*mv(isps)*1d-6
                 call calc_psd_pr( &
-                    & nps &! input
+                    & nps,nps_pr_char,nps_pr_char_in &! input
                     & ,pi,hrii(isps),ps_sigma_std,poroi,volsld,tol &! input
+					& ,pssigma_pr_list,psu_pr_list,psw_pr_list &! input 
                     & ,ps,dps &! input
                     & ,msldunit &! input
                     & ,psd_pr &! output 
@@ -7228,6 +7295,63 @@ close(50)
 
 
 endsubroutine get_psdrain
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_psdpr_num(nps_pr_char)
+implicit none
+
+integer,intent(out):: nps_pr_char
+
+character(500) file_name
+integer n_tmp
+
+file_name = './psdpr.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+nps_pr_char = n_tmp
+
+
+endsubroutine get_psdpr_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_psdpr( &
+    & nps_pr_char &! input
+    & ,psu_pr_list,pssigma_pr_list,psw_pr_list &! output
+    & )
+implicit none
+
+integer,intent(in):: nps_pr_char
+real(kind=8),dimension(nps_pr_char),intent(out)::psu_pr_list,pssigma_pr_list,psw_pr_list
+real(kind=8),dimension(3)::val_tmp
+
+character(500) file_name
+integer i
+
+file_name = './psdpr.in'
+
+if (nps_pr_char <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,nps_pr_char
+    read(50,*) val_tmp(:)
+    psu_pr_list(i)        = val_tmp(1)
+    pssigma_pr_list(i)    = val_tmp(2)
+    psw_pr_list(i)        = val_tmp(3)
+enddo 
+close(50)
+
+
+endsubroutine get_psdpr
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -20395,8 +20519,9 @@ endsubroutine sld_rxn
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine calc_psd_pr( &
-    & nps &! input
+    & nps,nps_pr_char,nps_pr_char_in &! input
     & ,pi,p80,ps_sigma_std,poroi,volsld,tol &! input
+	& ,pssigma_pr_list,psu_pr_list,psw_pr_list &! input 
     & ,ps,dps &! input
     & ,msldunit &! input
     & ,psd_pr &! output 
@@ -20404,22 +20529,38 @@ subroutine calc_psd_pr( &
 
 implicit none
 ! input 
-integer,intent(in)::nps
+integer,intent(in)::nps,nps_pr_char,nps_pr_char_in
 real(kind=8),intent(in)::pi,p80,ps_sigma_std,poroi,volsld,tol
 real(kind=8),dimension(nps),intent(in)::ps,dps
+real(kind=8),dimension(nps_pr_char),intent(in)::pssigma_pr_list,psu_pr_list,psw_pr_list
 character(3),intent(in)::msldunit
 ! output 
 real(kind=8),dimension(nps),intent(out)::psd_pr
 ! local
-real(kind=8) psu_pr,pssigma_pr
+real(kind=8) psu_pr,pssigma_pr,psw_pr
+integer ips
 
 
-psu_pr = log10(p80)
-pssigma_pr = 1d0
-pssigma_pr = ps_sigma_std
+if (nps_pr_char_in<=0) then  ! no input data in psdpr.in
+	psu_pr = log10(p80)
+	pssigma_pr = 1d0
+	pssigma_pr = ps_sigma_std
 
-! calculate parent rock particle size distribution 
-psd_pr = 1d0/pssigma_pr/sqrt(2d0*pi)*exp( -0.5d0*( (ps - psu_pr)/pssigma_pr )**2d0 )
+	! calculate parent rock particle size distribution 
+	psd_pr = 1d0/pssigma_pr/sqrt(2d0*pi)*exp( -0.5d0*( (ps - psu_pr)/pssigma_pr )**2d0 )
+else
+	psd_pr = 0d0
+	do ips = 1,nps_pr_char
+		psu_pr = psu_pr_list(ips)
+		pssigma_pr = pssigma_pr_list(ips)
+		psw_pr = psw_pr_list(ips)
+		
+		print*,psu_pr,pssigma_pr,psw_pr
+
+		! calculate parent rock particle size distribution 
+		psd_pr = psd_pr + psw_pr*1d0/pssigma_pr/sqrt(2d0*pi)*exp( -0.5d0*( (ps - psu_pr)/pssigma_pr )**2d0 )
+	enddo 
+endif 
 
 ! to ensure sum is 1
 ! print *, sum(psd_pr*dps)
@@ -20427,6 +20568,10 @@ psd_pr = psd_pr/sum(psd_pr*dps)
 ! print *, sum(psd_pr*dps)
 ! stop
 
+if (any(psd_pr==0d0)) then
+	psd_pr = psd_pr + 1d-12
+	psd_pr = psd_pr/sum(psd_pr*dps)  
+endif 
 ! balance for volumes
 ! sum(msldi*mv*1d-6) (m3/m3) must be equal to sum( 4/3(pi)r3 * psd_pr * dps) 
 ! where psd is number / bulk m3 / log r 

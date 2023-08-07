@@ -332,6 +332,8 @@ def get_input_sld_properties(**kwargs):
         note = '** list of minerals whose precipitation is allowed'
     elif filename == 'psdrain.in':
         note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define dust psd (e.g., 1e-5    0.2    1)'
+    elif filename == 'psdpr.in':
+        note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define parentrock psd (e.g., 1e-5    0.2    1)'
     else:
         print('{} is not supposed to be input file'.format(filename))
     
@@ -364,7 +366,7 @@ def get_input_sld_properties(**kwargs):
                             input_text += str(sld_varlist[i][j]) + '\n' 
                         else:
                             input_text += str(sld_varlist[i][j]) + '\t'
-                elif filename == 'psdrain.in':
+                elif filename == 'psdrain.in' or filename == 'psdpr.in':
                     for j in range(len(sld_varlist[i])):
                         if j==len(sld_varlist[i])-1:
                             input_text += str(sld_varlist[i][j]) + '\n' 
@@ -618,6 +620,17 @@ def main():
         )
     filename = 'psdrain.in'
     srcfile = './data/psdrain_100um.in'
+    sld_varlist = [ (5e-6,0.2,1), (20e-6,0.2,1), (50e-6,0.2,1), (70e-6,0.2,1) ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        # ,srcfile = srcfile
+        )
+        
+    filename = 'psdpr.in'
+    srcfile = './data/psdpr_mip_ex1c.in'
     sld_varlist = [ (5e-6,0.2,1), (20e-6,0.2,1), (50e-6,0.2,1), (70e-6,0.2,1) ] 
     get_input_sld_properties(
         outdir=outdir

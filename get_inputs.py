@@ -205,6 +205,12 @@ def main():
         sld_data_list,
         sld_data_list[0][1]
         )
+        
+    for filename in ['rain.in', 'atm.in', 'parentrock.in']:
+        sld_data_list = get_input_sld_properties(outdir,runname,filename)
+        print(
+            sld_data_list,
+            )
     
     sld_data_list = get_input_sld_properties('./','data','dust_gbasalt.in')
     print(
