@@ -255,6 +255,8 @@ real(kind=8),parameter :: mvinrt = mvka ! cm3/mol; molar volume of kaolinite; Ro
 ! real(kind=8),parameter :: mvinrt = mvqtz ! cm3/mol; molar volume of quartz; Robie et al. 1978
 real(kind=8),parameter :: mvolvn = fr_fa_olvn*mvfa + (1d0 - fr_fa_olvn)*mvfo ! cm3/mol; molar volume of olivine
 real(kind=8),parameter :: mvmgn = 44.524d0 ! cm3/mol; molar volume of magnetite; Robie et al. 1978
+real(kind=8),parameter :: mvilmn = 31.69d0 ! cm3/mol; molar volume of ilmenite; Robie et al. 1978
+real(kind=8),parameter :: mvanat = 20.52d0 ! cm3/mol; molar volume of anatase; Robie et al. 1978
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
@@ -351,6 +353,8 @@ real(kind=8),parameter :: mwtinrt = mwtka ! g/mol; formula weight of Ka; Robie e
 ! real(kind=8),parameter :: mwtinrt = mwtqtz ! g/mol; formula weight of quartz; Robie et al. 1978
 real(kind=8),parameter :: mwtolvn = fr_fa_olvn*mwtfa + (1d0 - fr_fa_olvn)*mwtfo ! g/mol; formula weight of olivine (FexMg(1-x)2SiO4); assuming simple ('ideal'?) mixing
 real(kind=8),parameter :: mwtmgn = 231.539d0 ! g/mol; formula weight of magnetite; Robie et al. 1978
+real(kind=8),parameter :: mwtilmn = 151.745d0 ! g/mol; formula weight of ilmenite; Robie et al. 1978
+real(kind=8),parameter :: mwtanat = 79.899d0 ! g/mol; formula weight of ilmenite; Robie et al. 1978
 
  
 real(kind=8),parameter :: mvgbas = ( &
@@ -380,6 +384,7 @@ real(kind=8),parameter :: mwtaqal   = 26.9815d0
 real(kind=8),parameter :: mwtaqsi   = 28.0843d0  
 real(kind=8),parameter :: mwtaqfe2  = 55.847d0  
 real(kind=8),parameter :: mwtaqfe3  = 55.847d0  
+real(kind=8),parameter :: mwtaqti  	= 47.867d0  
 ! anions 
 real(kind=8),parameter :: mwtaqno3  = 14.0067d0 + 3*16.0d0
 real(kind=8),parameter :: mwtaqso4  = 32.064d0 + 4*16.0d0
@@ -655,11 +660,11 @@ integer nsp_sld_2 != 25
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 ! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
 ! #endif 
-integer,parameter::nsp_sld_all = 82
+integer,parameter::nsp_sld_all = 84
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
-integer,parameter::nsp_aq_ph = 17
-integer,parameter::nsp_aq_all = 17
+integer,parameter::nsp_aq_ph = 18
+integer,parameter::nsp_aq_all = 18
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 2
@@ -1000,12 +1005,12 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
-    & ,'sdn  ','cdr  ','leu  ','amal ','amfe3','olvn ','mgn  ' &
+    & ,'sdn  ','cdr  ','leu  ','amal ','amfe3','olvn ','mgn  ','ilmn ','anat ' &
     & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ','teas ','naoh ','naglp','cacl2' &
     & ,'nacl ','sio2 ','caso4' &
     & ,'inrt '/)
 chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
+    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  ','ti   '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22','oxao2' &
     & ,'g2k  ','g2ca ','g2mg '/)
@@ -1055,7 +1060,7 @@ call get_2ndsld( &
 ! #endif 
 ! below are species which are sensitive to pH 
 chraq_ph   = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
+    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  ','ti   '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
@@ -1106,14 +1111,14 @@ mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mv
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
     & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu,mvamal,mvamfe3 &
-	& ,mvolvn,mvmgn &
+	& ,mvolvn,mvmgn,mvilmn,mvanat &
     & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh,mvnaglp,mvcacl2,mvnacl,mvsio2,mvcaso4  &
     & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
     & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal,mvamfe3 &
-	& ,mwtolvn,mwtmgn &
+	& ,mwtolvn,mwtmgn,mwtilmn,mwtanat &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh,mwtnaglp,mwtcacl2,mwtnacl,mwtsio2,mwtcaso4 &
     & ,mwtinrt/)
 
@@ -1123,7 +1128,7 @@ do isps = 1, nsp_sld
 enddo 
 
 mwtaq_all = (/ mwtaqmg,mwtaqsi,mwtaqna,mwtaqca,mwtaqal,mwtaqfe2,mwtaqfe3,mwtaqso4,mwtaqk,mwtaqno3,mwtaqoxa  &
-    & ,mwtaqcl,mwtaqac,mwtaqmes,mwtaqim,mwtaqtea,mwtaqglp /)
+    & ,mwtaqcl,mwtaqac,mwtaqmes,mwtaqim,mwtaqtea,mwtaqglp,mwtaqti /)
     
 do ispa = 1, nsp_aq 
     mwtaq(ispa) = mwtaq_all(findloc(chraq_all,chraq(ispa),dim=1))
@@ -1381,6 +1386,11 @@ staq_all(findloc(chrsld_all,'hm',dim=1), findloc(chraq_all,'fe3',dim=1)) = 2d0
 ! Magnetite; Fe3O4
 staq_all(findloc(chrsld_all,'mgn',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'mgn',dim=1), findloc(chraq_all,'fe3',dim=1)) = 2d0
+! Ilmenite; FeTiO3
+staq_all(findloc(chrsld_all,'ilmn',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'ilmn',dim=1), findloc(chraq_all,'ti',dim=1)) = 1d0
+! Anatase; TiO2
+staq_all(findloc(chrsld_all,'anat',dim=1), findloc(chraq_all,'ti',dim=1)) = 1d0
 ! Ca-beidellite; Ca(1/6)Al(7/3)Si(11/3)O10(OH)2
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0/6d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
@@ -7748,6 +7758,9 @@ daq_all(findloc(chraq_all,'tea',dim=1)) = 14d-5 /( visc**1.1d0 * (177.3d0)**0.6d
 ! Glycerophosphate (value for glycerol from Schramke et al. 1999 for now)
 daq_all(findloc(chraq_all,'glp',dim=1)) = 0.93d-5 * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
 
+! other species that does not have any diffusion coefficient in the literature: so it is assumed 
+daq_all(findloc(chraq_all,'ti',dim=1)) = 1d-2 !  m2/yr
+
 #ifdef disp_cnst
 daq_all=disp_cnst
 #endif 
@@ -9012,7 +9025,7 @@ select case(trim(adjustl(mineral)))
             & ) 
         dkin_dmsp = 0d0
 
-    case('hm')
+    case('hm') 
         mh = 1d0
         moh = 0d0
         kinn_ref = 10d0**(-14.60d0)*sec2yr
@@ -9038,6 +9051,24 @@ select case(trim(adjustl(mineral)))
         kinoh_ref = 0d0
         ean = 18.6d0
         eah = 18.6d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        dkin_dmsp = 0d0
+
+    case('ilmn','anat') ! anatase is assumed to have the same kinetics at that of ilmenite | 4-5 x 10^-15 mol/cm2/sec at low temp according to Casey et al 1988 (Fig. 6) 
+        mh = 0.421d0
+        moh = 0d0
+        kinn_ref = 10d0**(-11.16d0)*sec2yr
+        kinh_ref = 10d0**(-8.35d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 37.9d0
+        eah = 37.9d0
         eaoh = 0d0
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
@@ -9894,6 +9925,24 @@ select case(trim(adjustl(mineral)))
         ha = -17.831d0
         tc_ref = 25d0
         ! from mip_exp1a
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('ilmn')
+        ! FeTiO3 +2.0000 H+ +1.0000 H2O  =  + 1.0000 Fe++ + 1.0000 Ti(OH)4
+        ! therm_ref = 10d0**(0.9046d0)
+        ! ha = 0d0
+        ! tc_ref = 25d0
+        ! from LLNL.DAT
+        therm_ref = 10d0**(1.817d0)
+        ha = -87.445d0
+        tc_ref = 25d0
+        ! from mip_exp1a
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('anat')
+        ! TiO2 +2.0000 H2O  =  + 1.0000 Ti(OH)4
+        therm_ref = 10d0**(-8.5586d0)
+        ha = 0d0
+        tc_ref = 25d0
+        ! from LLNL.DAT
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('ct')
         ! Mg3Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 3 Mg+2
@@ -13470,7 +13519,7 @@ select case(trim(adjustl(mineral)))
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
         & ,'agt','jd','wls','phsi','splt','casp','ksp','nasp','mgsp','fe2o','mgo','k2o','cao','na2o','al2o3' &
-        & ,'gbas','cbas','ep','clch','sdn','cdr','leu','amal','amfe3','sio2','olvn','mgn' &
+        & ,'gbas','cbas','ep','clch','sdn','cdr','leu','amal','amfe3','sio2','olvn','mgn','ilmn','anat' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
@@ -13696,7 +13745,7 @@ do ispa = 1, nsp_aq_all
             base_charge(ispa) = -2d0
         case('no3','oxa','cl','ac','mes','glp')
             base_charge(ispa) = -1d0
-        case('si','im','tea')
+        case('si','im','tea','ti')
             base_charge(ispa) = 0d0
         case('na','k')
             base_charge(ispa) = 1d0
