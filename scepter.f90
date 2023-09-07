@@ -2945,12 +2945,12 @@ enddo
 close(idust)
 
 open (idust, file='./sld_data_chk.txt', status ='unknown',action='write')
-chrfmt = '(3(1x,a5))'
-write(idust,chrfmt) 'sld','mv','mwt'
+chrfmt = '(4(1x,a7))'
+write(idust,chrfmt) 'sld','mv','mwt','logKeq'
 write(chrfmt,'(i0)') nsp_sld_all
-chrfmt = '(1x,a5,2(1x,E11.3))'
+chrfmt = '(1x,a5,3(1x,E11.3))'
 do isps = 1,nsp_sld_all
-    write(idust,chrfmt) chrsld_all(isps),mv_all(isps),mwt_all(isps)
+    write(idust,chrfmt) chrsld_all(isps),mv_all(isps),mwt_all(isps),-log10(keqsld_all(isps))
 enddo 
 close(idust)
 ! stop
