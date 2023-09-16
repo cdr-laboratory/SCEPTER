@@ -105,8 +105,8 @@ def get_input_switches(**kwargs):
     mix_scheme  = kwargs.get('mix_scheme',  1) 
     poro_iter   = kwargs.get('poro_iter',   'false') 
     sldmin_lim  = kwargs.get('sldmin_lim',  'true') 
-    display     = kwargs.get('display',     'true')
-    disp_lim    = kwargs.get('disp_lim',    'true')
+    display     = kwargs.get('display',     1)
+    report      = kwargs.get('report',      0)
     restart     = kwargs.get('restart',     'false') 
     rough       = kwargs.get('rough',       'true')      
     act_ON      = kwargs.get('act_ON',      'false') 
@@ -127,8 +127,8 @@ def get_input_switches(**kwargs):
         ,'bio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken'
         ,'porosity  iteration'
         ,'limiting mineral lowest conc.'
-        ,'display results at runtime'
-        ,'limited results display'
+        ,'display results at runtime: 0-- none, 1-- only reporting time, 2-- every time iteration, if not defined 1 is taken'
+        ,'report files: 0-- basics, 1-- +saturation time series'
         ,'restart from a previous run'
         ,'include roughness in mineral surface area'
         ,'enabling activity coefficients'
@@ -151,7 +151,7 @@ def get_input_switches(**kwargs):
         ,poro_iter 
         ,sldmin_lim 
         ,display
-        ,disp_lim
+        ,report
         ,restart 
         ,rough      
         ,act_ON 
@@ -517,8 +517,10 @@ def main():
     mix_scheme=1 
     poro_iter='false' 
     sldmin_lim ='true'
-    display='true'
-    disp_lim='true'
+    # display='true'
+    display=1
+    # disp_lim='true'
+    report=0
     restart ='false'
     rough      ='true'
     act_ON ='false'
@@ -542,7 +544,7 @@ def main():
         ,poro_iter=poro_iter 
         ,sldmin_lim=sldmin_lim 
         ,display=display
-        ,disp_lim=disp_lim
+        ,report=report
         ,restart=restart 
         ,rough=rough      
         ,act_ON=act_ON 

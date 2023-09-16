@@ -31,8 +31,8 @@ def run_a_scepter_run(
     mix_scheme          = kwargs.get('mix_scheme',          0) 
     poro_iter           = kwargs.get('poro_iter',           'true') 
     sldmin_lim          = kwargs.get('sldmin_lim',          'true')
-    display             = kwargs.get('display',             'true')
-    disp_lim            = kwargs.get('disp_lim',            'true')
+    display             = kwargs.get('display',             1)
+    report              = kwargs.get('report',              0)
     restart             = kwargs.get('restart',             'false')
     rough               = kwargs.get('rough',               'true')
     act_ON              = kwargs.get('act_ON',              'true')
@@ -130,7 +130,7 @@ def run_a_scepter_run(
         ,poro_iter=poro_iter 
         ,sldmin_lim=sldmin_lim 
         ,display=display
-        ,disp_lim=disp_lim
+        ,report=report
         ,restart=restart 
         ,rough=rough      
         ,act_ON=act_ON 
@@ -273,8 +273,8 @@ def main():
     mix_scheme          = 1 # 1 --Fickian
     poro_iter           = 'false' 
     sldmin_lim          = 'true'
-    display             = 'true'
-    disp_lim            = 'true'
+    display             = 1
+    report              = 0
     restart             = 'false'
     rough               = 'true'
     act_ON              = 'true'
@@ -343,7 +343,7 @@ def main():
         poro_iter           = poro_iter,
         sldmin_lim          = sldmin_lim,
         display             = display,
-        disp_lim            = disp_lim,
+        report              = report,
         restart             = restart,
         rough               = rough,
         act_ON              = act_ON,
