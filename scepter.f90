@@ -508,7 +508,8 @@ logical :: timestep_fixed = .false.
 ! logical :: timestep_fixed = .true.
 
 ! logical :: display = .false.
-logical :: display = .true.
+! logical :: display = .true.
+integer display ! = 0 , do not show results on display | = 1, show results on display only when making report | = 2, show results on display every time iteration 
 
 ! logical :: regular_grid = .false.
 logical :: regular_grid = .true.
@@ -621,7 +622,8 @@ integer,parameter :: iroughtype_NSB07 = 1
 integer,parameter :: iroughtype_BM00 = 2
 integer,parameter :: iroughtype_Letal21 = 3
 
-logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
+! logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
+integer report  ! = 0 , report basics | = 1, + report saturation time series 
 logical poroiter_in !  true if porosity (or w) is iteratively checked  (input from input file swtiches.in)
 logical lim_minsld_in !  true if minimum sld conc. is enforced  (input from input file swtiches.in)
 
@@ -1845,7 +1847,7 @@ enddo
 
 
 call get_switches( &
-    & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
+    & iwtype,imixtype,poroiter_in,display,report,read_data,incld_rough &
     & ,act_ON,timestep_fixed,ads_ON,regular_grid,aq_close &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &!
     & )
@@ -1919,7 +1921,8 @@ endif
 
 if (do_psd_full) do_psd = .true.
 
-if (display_lim_in) display_lim = .true.
+! if (display_lim_in) display_lim = .true.
+if (display==1) display_lim = .true.
 
 if (sld_enforce) nsp3 = nsp_aq + nsp_gas ! excluding solid phases
 
@@ -2481,6 +2484,14 @@ open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', status='replace')
 write(iphint2,*) 'time\depth',(z(iz),iz=1,nz)
 close(iphint2)
 
+if (report==1) then
+	do isps = 1,nsp_sld
+		open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+			& //'logsat-'//trim(adjustl(chrsld(isps)))//'.txt', status='replace')
+		write(isldflx(isps),*)  'time\depth',(z(iz),iz=1,nz)
+		close(isldflx(isps))
+	enddo 
+endif 
 
 sat = min(1.0d0,(1d0-satup)*z/zsat + satup)
 #ifdef satconvex 
@@ -3407,7 +3418,7 @@ if (read_data) then
     
     time = 0d0
         
-    if (display) then
+    if (display>0) then
         write(chrfmt,'(i0)') nz_disp
         chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
         
@@ -3488,7 +3499,7 @@ do while (it<nt)
     ! call cpu_time(time_start)
     call system_clock(t1)
     
-    if (display) then 
+    if (display>0) then 
         print *
         print *, '-----------------------------------------'
         print '(i11,a)', it,': time iteration'
@@ -4644,7 +4655,8 @@ do while (it<nt)
             enddo 
         endif 
         
-        if (display .and. (.not. display_lim)) then 
+        if ( (display>0) .and. (.not. display_lim)) then 
+        ! if ( display == 2 ) then 
             write(chrfmt,'(i0)') nz_disp
             chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
             print *
@@ -4701,7 +4713,7 @@ do while (it<nt)
     ! attempt to do psd
     if (do_psd) then 
         
-        if (display) then 
+        if (display>0) then 
             print *
             print *, '-- doing PSD'
         endif 
@@ -5114,7 +5126,7 @@ do while (it<nt)
                         cycle 
                     endif 
         
-                    if (display) then 
+                    if (display>0) then 
                         print *
                         print *, '<'//trim(adjustl(chrsld(isps)))//'>'
                     endif 
@@ -5418,7 +5430,7 @@ do while (it<nt)
 			! kpsdx_int = kpsdx_int / dt
 		! endif 	  
         
-        if (display) then 
+        if (display>0) then 
             print *, '-- ending PSD'
             print *
         endif 
@@ -5487,7 +5499,8 @@ do while (it<nt)
         gamma = gamma_tmp
     endif 
 
-    if (display  .and. (.not. display_lim)) then 
+    if ( (display>0)  .and. (.not. display_lim)) then 
+    ! if ( display == 2 ) then 
         write(chrfmt,'(i0)') nz_disp
         chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
         
@@ -5590,7 +5603,8 @@ do while (it<nt)
         endif
         
 ! #ifdef disp_lim
-        if (display_lim_in) display_lim = .true.
+        ! if (display_lim_in) display_lim = .true.
+        if (display==1) display_lim = .true.
 ! #endif 
         
     endif 
@@ -6207,6 +6221,15 @@ do while (it<nt)
         open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
         write(iphint2,*) time,(-log10(gamma(iz)*prox(iz)),iz=1,nz)
         close(iphint2)
+			
+		if (report==1) then 
+			do isps=1,nsp_sld 
+				open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+					& //'logsat-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+				write(isldflx(isps),*) time, (log10(omega(isps,iz)),iz=1,nz) 
+				close(isldflx(isps))
+			enddo
+		endif 
         
 #endif 
         flx_recorded = .true.
@@ -6274,7 +6297,8 @@ do while (it<nt)
         endif 
         
 ! #ifdef disp_lim
-        if (display_lim_in) display_lim = .false.
+        ! if (display_lim_in) display_lim = .false.
+        if (display==1) display_lim = .false.
 ! #endif 
         
     end if    
@@ -6370,7 +6394,15 @@ do while (it<nt)
             open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
             write(iphint2,*) time,(-log10(gamma(iz)*prox(iz)),iz=1,nz)
             close(iphint2)
-            
+			
+			if (report==1) then 
+				do isps=1,nsp_sld 
+					open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+						& //'logsat-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+					write(isldflx(isps),*) time, (log10(omega(isps,iz)),iz=1,nz) 
+					close(isldflx(isps))
+				enddo
+			endif 
             
         endif 
     endif 
@@ -6482,7 +6514,8 @@ do while (it<nt)
         stop
     endif 
     
-    if (display  .and. (.not. display_lim)) then 
+    if ( (display>0)  .and. (.not. display_lim)) then 
+    ! if (display==2) then 
         print *
         print '(E11.3,a)',progress_rate,': computation time per iteration [sec]'
         print '(E11.3,a)',maxdt, ': maxdt [yr]'
@@ -7140,17 +7173,17 @@ endsubroutine get_atm
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_switches( &
-    & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
+    & iwtype,imixtype,poroiter_in,display,report,read_data,incld_rough &
     & ,act_ON,timestep_fixed,ads_ON,regular_grid,aq_close &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &! inout
     & )
 implicit none
 
 character(100) chr_tmp
-logical,intent(inout):: poroiter_in,display,display_lim_in,read_data,incld_rough &
+logical,intent(inout):: poroiter_in,read_data,incld_rough &
     & ,act_ON,timestep_fixed,ads_ON,regular_grid,aq_close &
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season
-integer,intent(out) :: imixtype,iwtype
+integer,intent(out) :: imixtype,iwtype,display,report
 
 character(500) file_name
 integer i,n_tmp
@@ -7165,7 +7198,7 @@ read(50,*) imixtype,chr_tmp
 read(50,*) poroiter_in,chr_tmp
 read(50,*) lim_minsld_in,chr_tmp
 read(50,*) display,chr_tmp
-read(50,*) display_lim_in,chr_tmp
+read(50,*) report,chr_tmp
 read(50,*) read_data,chr_tmp
 read(50,*) incld_rough,chr_tmp
 read(50,*) act_ON,chr_tmp
@@ -16950,7 +16983,8 @@ real(kind=8),dimension(nz),intent(out)::iosx
 real(kind=8),dimension(nz),intent(inout)::w
 integer,intent(inout)::it
 integer iter
-logical,intent(in)::cplprec,display
+integer,intent(in)::display
+logical,intent(in)::cplprec
 logical,intent(inout)::flgback
 character(3),intent(in)::msldunit
 real(kind=8),intent(in)::dt
@@ -17162,6 +17196,9 @@ logical::aq_diff_close = .true.
 !       The switch below is to enable shutting down this exchange.
 ! logical::gas_close = .true.
 logical::gas_close = .false.
+
+! logical::cap_omega = .true.
+logical::cap_omega = .false.
 
 ! logical::sld_enforce = .false.
 logical,intent(in)::sld_enforce != .true.
@@ -17668,59 +17705,61 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     enddo 
     
     
-    ! *** reducing saturation ***    
-    do isps=1,nsp_sld
-        dummy = 0d0
-        if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
-            ! cycle
-            do iz=1,nz
-                if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
-            enddo 
-        else
-            ! omega(isps,:) = dummy
-            do iz=1,nz
-                if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
-            enddo 
-        endif 
-    enddo 
-                
-    ! *** sanity check ***     
-    if (any(isnan(omega))) then 
-        print *,' *** found NAN in omega: listing below -- '
-        do isps=1,nsp_sld
-            do iz=1,nz
-                if (isnan(omega(isps,iz))) print*,chrsld(isps),iz,omega(isps,iz)
-            enddo
-        enddo 
-        stop
+    ! *** reducing saturation ***   
+	if (cap_omega) then
+		do isps=1,nsp_sld
+			dummy = 0d0
+			if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+				! cycle
+				do iz=1,nz
+					if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
+				enddo 
+			else
+				! omega(isps,:) = dummy
+				do iz=1,nz
+					if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
+				enddo 
+			endif 
+		enddo 
     endif 
-    if (any(omega>infinity)) then 
-        print *,' *** found INF in omega  '
-        stop
-        print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
-        do isps=1,nsp_sld
-            dummy = 0d0
-            if (any(omega(isps,:)>infinity)) then 
-                dummy = omega(isps,:)
-                if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
-                    print *,chrsld(isps),' (precipitation allowed)'
-                    where(dummy>infinity)
-                        dummy = sat_lim_prec
-                    endwhere
-                else
-                    print *,chrsld(isps),' (precipitation not allowed)'
-                    where(dummy>infinity)
-                        dummy = sat_lim_noprec
-                    endwhere
-                endif 
-                if (any(dummy>infinity)) then 
-                    print *, 'somthing is wrong'
-                    stop
-                endif 
-                omega(isps,:) = dummy
-            endif 
-        enddo 
-    endif 
+					
+	! *** sanity check ***     
+	if (any(isnan(omega))) then 
+		print *,' *** found NAN in omega: listing below -- '
+		do isps=1,nsp_sld
+			do iz=1,nz
+				if (isnan(omega(isps,iz))) print*,chrsld(isps),iz,omega(isps,iz)
+			enddo
+		enddo 
+		stop
+	endif 
+	if (any(omega>infinity)) then 
+		print *,' *** found INF in omega  '
+		stop
+		print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
+		do isps=1,nsp_sld
+			dummy = 0d0
+			if (any(omega(isps,:)>infinity)) then 
+				dummy = omega(isps,:)
+				if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+					print *,chrsld(isps),' (precipitation allowed)'
+					where(dummy>infinity)
+						dummy = sat_lim_prec
+					endwhere
+				else
+					print *,chrsld(isps),' (precipitation not allowed)'
+					where(dummy>infinity)
+						dummy = sat_lim_noprec
+					endwhere
+				endif 
+				if (any(dummy>infinity)) then 
+					print *, 'somthing is wrong'
+					stop
+				endif 
+				omega(isps,:) = dummy
+			endif 
+		enddo 
+	endif 
     
     
     ! adding reactions that are not based on dis/prec of minerals
@@ -19184,7 +19223,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         ! stop
     endif
 
-    if (display) then 
+    if (display>0) then 
         print '(a,E11.3,a,i0,a,E11.3)', 'iteration error = ',error, ', iteration = ',iter,', time step [yr] = ',dt
     endif      
     iter = iter + 1 
@@ -19420,21 +19459,23 @@ do isps =1, nsp_sld
     omega(isps,:) = dummy
 enddo 
 
-! *** reducing saturation ***    
-do isps=1,nsp_sld
-    dummy = 0d0
-    if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
-        ! cycle
-        do iz=1,nz
-            if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
-        enddo 
-    else
-        ! omega(isps,:) = dummy
-        do iz=1,nz
-            if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
-        enddo 
-    endif 
-enddo 
+! *** reducing saturation ***  
+if (cap_omega) then  
+	do isps=1,nsp_sld
+		dummy = 0d0
+		if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+			! cycle
+			do iz=1,nz
+				if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
+			enddo 
+		else
+			! omega(isps,:) = dummy
+			do iz=1,nz
+				if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
+			enddo 
+		endif 
+	enddo 
+endif
 
 rxnsld = 0d0
     
