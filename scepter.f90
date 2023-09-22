@@ -2959,9 +2959,9 @@ open (idust, file='./sld_data_chk.txt', status ='unknown',action='write')
 chrfmt = '(4(1x,a7))'
 write(idust,chrfmt) 'sld','mv','mwt','logKeq'
 write(chrfmt,'(i0)') nsp_sld_all
-chrfmt = '(1x,a5,3(1x,E11.3))'
+chrfmt = '(1x,a5,3(1x,E14.6))'
 do isps = 1,nsp_sld_all
-    write(idust,chrfmt) chrsld_all(isps),mv_all(isps),mwt_all(isps),-log10(keqsld_all(isps))
+    write(idust,chrfmt) chrsld_all(isps),mv_all(isps),mwt_all(isps),log10(keqsld_all(isps))
 enddo 
 close(idust)
 ! stop
@@ -9893,6 +9893,10 @@ select case(trim(adjustl(mineral)))
         ha = -26.30862098d0
         tc_ref = 15d0
         ! from Kanzaki and Murakami 2018
+        therm_ref = 10d0**(-0.022d0)
+        ha = -49.93d0
+        tc_ref = 25d0
+		!  from mip_exp1a 
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('sdn')
         ! Sanidine_high: KAlSi3O8 +4.0000 H+  =  + 1.0000 Al+++ + 1.0000 K+ + 2.0000 H2O + 3.0000 SiO2
@@ -10113,14 +10117,10 @@ select case(trim(adjustl(mineral)))
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('ksp')
         ! K.33Mg3Al.33Si3.67O10(OH)2 +7.3200 H+  =  + 0.3300 Al+++ + 0.3300 K+ + 3.0000 Mg++ + 3.6700 SiO2 + 4.6600 H2O
-        ! therm_ref = 10d0**(26.0075d0)
-        ! ha = -196.402d0
-        ! tc_ref = 25d0
-        ! from llnl.dat in Phreeqc
-        therm_ref = 10d0**(-0.022d0)
-        ha = -49.93d0
+        therm_ref = 10d0**(26.0075d0)
+        ha = -196.402d0
         tc_ref = 25d0
-		! from mip_exp1a
+        ! from llnl.dat in Phreeqc
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('nasp')
         ! Na.33Mg3Al.33Si3.67O10(OH)2 +7.3200 H+  =  + 0.3300 Al+++ + 0.3300 Na+ + 3.0000 Mg++ + 3.6700 SiO2 + 4.6600 H2O
@@ -10224,12 +10224,14 @@ select case(trim(adjustl(mineral)))
         ha = 1d0
         tc_ref = 25d0
         ! from minteq.v4
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('caso4')
         ! CaSO4 = Ca+2 + SO4-2 + 2H2O
         therm_ref = 10d0**(-4.36d0)
         ha = -7.2d0
         tc_ref = 25d0
         ! from minteq.v4
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('fe2o')
         ! FeO +2.0000 H+  =  + 1.0000 Fe++ + 1.0000 H2O
         therm_ref = 10d0**(13.5318d0)
@@ -18354,33 +18356,36 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
 			enddo
 		enddo 
 		stop
-	endif 
-	if (any(omega>infinity)) then 
-		print *,' *** found INF in omega  '
-		stop
-		print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
-		do isps=1,nsp_sld
-			dummy = 0d0
-			if (any(omega(isps,:)>infinity)) then 
-				dummy = omega(isps,:)
-				if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
-					print *,chrsld(isps),' (precipitation allowed)'
-					where(dummy>infinity)
-						dummy = sat_lim_prec
-					endwhere
-				else
-					print *,chrsld(isps),' (precipitation not allowed)'
-					where(dummy>infinity)
-						dummy = sat_lim_noprec
-					endwhere
+		
+		
+		if (any(omega>infinity)) then 
+			print *,' *** found INF in omega  '
+			stop
+			print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
+			do isps=1,nsp_sld
+				dummy = 0d0
+				if (any(omega(isps,:)>infinity)) then 
+					dummy = omega(isps,:)
+					if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+						print *,chrsld(isps),' (precipitation allowed)'
+						where(dummy>infinity)
+							dummy = sat_lim_prec
+						endwhere
+					else
+						print *,chrsld(isps),' (precipitation not allowed)'
+						where(dummy>infinity)
+							dummy = sat_lim_noprec
+						endwhere
+					endif 
+					if (any(dummy>infinity)) then 
+						print *, 'somthing is wrong'
+						stop
+					endif 
+					omega(isps,:) = dummy
 				endif 
-				if (any(dummy>infinity)) then 
-					print *, 'somthing is wrong'
-					stop
-				endif 
-				omega(isps,:) = dummy
-			endif 
-		enddo 
+			enddo 
+		endif 
+		
 	endif 
     
     
