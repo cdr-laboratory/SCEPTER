@@ -122,49 +122,49 @@ def get_input_switches(**kwargs):
     season      = kwargs.get('season',      'false') 
     
     notes = [
-        '** switch number or on/off [true if on, false if off]'
-        ,'erosion scheme: 0-- cnst w, 1-- cnst poro*w, 2-- cnst (1-poro)*w, 3--- w-flexible(cnst porosity prof), if not defined 0 is taken'
-        ,'bio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken'
-        ,'porosity  iteration'
-        ,'limiting mineral lowest conc.'
-        ,'display results at runtime'
-        ,'limited results display'
-        ,'restart from a previous run'
-        ,'include roughness in mineral surface area'
-        ,'enabling activity coefficients'
-        ,'time step fixed'
-        ,'enabling adsorption for cation exchange'
-        ,'adopting a regular grid'
-        ,'closing system for aq phases'
-        ,'enabling porosity evolution'
-        ,'enabling SA evolution 1 (SA decreases as porosity increases)'
-        ,'enabling SA evolution 2 (SA increases with porosity)'
-        ,'enabling PSD tracking'
-        ,'enabling PSD tracking for individual solid species'
-        ,'enabling full seasonality'
+        '** switch number or on/off [true if on, false if off]',
+        'erosion scheme: 0-- cnst w, 1-- cnst poro*w, 2-- cnst (1-poro)*w, 3--- w-flexible(cnst porosity prof), if not defined 0 is taken',
+        'bio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken',
+        'porosity  iteration',
+        'limiting mineral lowest conc.',
+        'display results at runtime',
+        'limited results display',
+        'restart from a previous run',
+        'include roughness in mineral surface area',
+        'enabling activity coefficients',
+        'time step fixed',
+        'enabling adsorption for cation exchange',
+        'adopting a regular grid',
+        'closing system for aq phases',
+        'enabling porosity evolution',
+        'enabling SA evolution 1 (SA decreases as porosity increases)',
+        'enabling SA evolution 2 (SA increases with porosity)',
+        'enabling PSD tracking',
+        'enabling PSD tracking for individual solid species',
+        'enabling full seasonality',
         ]
     
     values = [
-        ''
-        ,w_scheme
-        ,mix_scheme 
-        ,poro_iter 
-        ,sldmin_lim 
-        ,display
-        ,disp_lim
-        ,restart 
-        ,rough      
-        ,act_ON 
-        ,dt_fix
-        ,cec_on
-        ,dz_fix
-        ,close_aq
-        ,poro_evol
-        ,sa_evol_1 
-        ,sa_evol_2
-        ,psd_bulk
-        ,psd_full
-        ,season
+        '',
+        w_scheme,
+        mix_scheme,
+        poro_iter,
+        sldmin_lim,
+        display,
+        disp_lim,
+        restart,
+        rough,
+        act_ON,
+        dt_fix,
+        cec_on,
+        dz_fix,
+        close_aq,
+        poro_evol,
+        sa_evol_1,
+        sa_evol_2,
+        psd_bulk,
+        psd_full,
+        season,
         ]
         
     if len(values) != len(notes): 

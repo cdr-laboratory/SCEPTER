@@ -363,6 +363,9 @@ real(kind=8),parameter :: mwtcbas = ( &
                                 & fr_si_cbas*mwtamsi + fr_al_cbas/2d0*mwtal2o3 + fr_na_cbas/2d0*mwtna2o &
                                 & + fr_k_cbas/2d0*mwtk2o + fr_ca_cbas*mwtcao + fr_mg_cbas*mwtmgo + fr_fe2_cbas*mwtfe2o &
                                 & ) ! assuming simply mixing molar weight?
+								
+real(kind=8),parameter :: mvfbas = mvgbas ! cm3/mol; molar volume of fake basalt, assumed to have same property as glass basalt
+real(kind=8),parameter :: mwtfbas = mwtgbas ! g/mol; molar weight of fake basalt, assumed to have same property as glass basalt
  
 ! cation molar weight from PHREEQC.DAT
 real(kind=8),parameter :: mwtaqna   = 22.9898d0  
@@ -648,7 +651,7 @@ integer nsp_sld_2 != 25
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 ! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
 ! #endif 
-integer,parameter::nsp_sld_all = 80
+integer,parameter::nsp_sld_all = 81
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
 integer,parameter::nsp_aq_ph = 17
@@ -981,7 +984,7 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
-    & ,'sdn  ','cdr  ','leu  ','amal ','amfe3' &
+    & ,'sdn  ','cdr  ','leu  ','amal ','amfe3','fbas ' &
     & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ','teas ','naoh ','naglp','cacl2' &
     & ,'nacl ','sio2 ','caso4' &
     & ,'inrt '/)
@@ -1087,12 +1090,14 @@ mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mv
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
     & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu,mvamal,mvamfe3 &
+	& ,mvfbas &
     & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh,mvnaglp,mvcacl2,mvnacl,mvsio2,mvcaso4  &
     & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
-    & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal,mvamfe3 &
+    & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal,mwtamfe3 &
+	& ,mwtfbas &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh,mwtnaglp,mwtcacl2,mwtnacl,mwtsio2,mwtcaso4 &
     & ,mwtinrt/)
 
@@ -1518,6 +1523,8 @@ staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'k',dim=1)) = fr_k_
 staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'mg',dim=1)) = fr_mg_cbas
 staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'ca',dim=1)) = fr_ca_cbas
 staq_all(findloc(chrsld_all,'cbas',dim=1), findloc(chraq_all,'fe2',dim=1)) = fr_fe2_cbas
+! fake basalt 
+staq_all(findloc(chrsld_all,'fbas',dim=1), :) = staq_all(findloc(chrsld_all,'gbas',dim=1), :)
 ! Epidote (Ca2FeAl2Si3O12OH)
 staq_all(findloc(chrsld_all,'ep',dim=1), findloc(chraq_all,'ca',dim=1)) = 2d0
 staq_all(findloc(chrsld_all,'ep',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
@@ -8095,7 +8102,7 @@ do isps = 1, nsp_sld_all
     endselect 
     
     select case(trim(adjustl(mineral))) 
-        case('gbas','cbas') 
+        case('gbas','cbas','fbas') 
             ! doing rather complicated solid solution though simplified
             ! following Pollyea and Rimstidt 2017; Aradóttir et al. 2012
             ss_x = 0d0 
@@ -8105,7 +8112,7 @@ do isps = 1, nsp_sld_all
             therm = 0d0
             
             do ispss=1,7
-                if (trim(adjustl(mineral)) =='gbas') then
+                if (trim(adjustl(mineral)) =='gbas' .or. trim(adjustl(mineral)) =='fbas') then
                     ssaq = chrss_gbas_aq(ispss)
                     sssld = chrss_gbas_sld(ispss)
                 elseif (trim(adjustl(mineral)) =='cbas') then
@@ -9218,7 +9225,7 @@ select case(trim(adjustl(mineral)))
                 ! dkin_dmsp = 0d0
         ! endselect 
         
-    case('fe2o','mgo','k2o','cao','na2o','al2o3','sio2','caso4')
+    case('fe2o','mgo','k2o','cao','na2o','al2o3','sio2','caso4','fbas')
         kin = ( &
             & 1d0/0.01d0 &! mol m^-2 yr^-1, just a value assumed; turnover time of 1 year as in Chen et al. (2010, AFM) 
             & )
@@ -13135,7 +13142,7 @@ select case(trim(adjustl(mineral)))
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
         & ,'agt','jd','wls','phsi','splt','casp','ksp','nasp','mgsp','fe2o','mgo','k2o','cao','na2o','al2o3' &
-        & ,'gbas','cbas','ep','clch','sdn','cdr','leu','amal','amfe3','sio2' &
+        & ,'gbas','cbas','ep','clch','sdn','cdr','leu','amal','amfe3','sio2','fbas' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
