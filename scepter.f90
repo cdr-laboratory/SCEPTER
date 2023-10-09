@@ -2884,6 +2884,32 @@ call calc_pH_v7_4( &
     & ,ios,diosdmaq_all,diosdmgas_all &! output
     & ,pro,ph_error,ph_iter &! output
     & ) 
+if (ph_error) then 
+	print*,'error in calc_pH_v7_4: trying bisection method'
+	call calc_pH_v7_4_bisec( &
+		& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+		& ,poro,sat,tc &! input 
+		& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+		& ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+		& ,keqaq_oxa,keqaq_cl &! input
+		& ,print_cb,print_loc,z,act_ON &! input 
+		& ,dprodmaq_all,dprodmgas_all &! output
+		& ,ios,diosdmaq_all,diosdmgas_all &! output
+		& ,pro,ph_error,ph_iter &! output
+		& ) 
+	print*,'bisection method successful?: retrying calc_pH_v7_4'
+	call calc_pH_v7_4( &
+		& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+		& ,poro,sat,tc &! input 
+		& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+		& ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+		& ,keqaq_oxa,keqaq_cl &! input
+		& ,print_cb,print_loc,z,act_ON &! input 
+		& ,dprodmaq_all,dprodmgas_all &! output
+		& ,ios,diosdmaq_all,diosdmgas_all &! output
+		& ,pro,ph_error,ph_iter &! output
+		& ) 
+endif   
 ! print*,ios
 ! stop
 ! getting mgasx_loc & maqx_loc
@@ -3229,6 +3255,32 @@ if (read_data) then
         & ,iosx,diosdmaq_all,diosdmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
         & ) 
+	if (ph_error) then
+		print*,'error in calc_pH_v7_4: trying bisection method'
+		call calc_pH_v7_4_bisec( &
+			& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+			& ,poro,sat,tc &! input 
+			& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+			& ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+			& ,keqaq_oxa,keqaq_cl &! input
+			& ,print_cb,print_loc,z,act_ON &! input 
+			& ,dprodmaq_all,dprodmgas_all &! output
+			& ,iosx,diosdmaq_all,diosdmgas_all &! output
+			& ,prox,ph_error,ph_iter &! output
+			& ) 
+		print*,'bisection method successful?: retrying calc_pH_v7_4'
+		call calc_pH_v7_4( &
+			& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+			& ,poro,sat,tc &! input 
+			& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+			& ,maq,maqc,mgas,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+			& ,keqaq_oxa,keqaq_cl &! input
+			& ,print_cb,print_loc,z,act_ON &! input 
+			& ,dprodmaq_all,dprodmgas_all &! output
+			& ,iosx,diosdmaq_all,diosdmgas_all &! output
+			& ,prox,ph_error,ph_iter &! output
+			& ) 
+	endif 
     ios = iosx
     ! stop
     ! getting mgasx_loc & maqx_loc
@@ -5683,6 +5735,32 @@ do while (it<nt)
             & ,iosx,diosdmaq_all,diosdmgas_all &! output
             & ,prox,ph_error,ph_iter &! output
             & ) 
+		if (ph_error) then 
+			print*,'error in calc_pH_v7_4: trying bisection method'
+			call calc_pH_v7_4_bisec( &
+				& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+				& ,poro,sat,tc &! input 
+				& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+				& ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+				& ,keqaq_oxa,keqaq_cl &! input
+				& ,print_cb,print_loc,z,act_ON &! input 
+				& ,dprodmaq_all,dprodmgas_all &! output
+				& ,iosx,diosdmaq_all,diosdmgas_all &! output
+				& ,prox,ph_error,ph_iter &! output
+				& ) 
+			print*,'bisection method successful?: retrying calc_pH_v7_4'
+			call calc_pH_v7_4( &
+				& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+				& ,poro,sat,tc &! input 
+				& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+				& ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+				& ,keqaq_oxa,keqaq_cl &! input
+				& ,print_cb,print_loc,z,act_ON &! input 
+				& ,dprodmaq_all,dprodmgas_all &! output
+				& ,iosx,diosdmaq_all,diosdmgas_all &! output
+				& ,prox,ph_error,ph_iter &! output
+				& ) 
+		endif 
 
         ! activity coefficient for H+
         gamma = 1d0
@@ -10968,6 +11046,525 @@ return
 
 endsubroutine calc_pH_v7_4
 
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine calc_pH_v7_4_bisec( &
+    & nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input
+    & ,poro,sat,tc &! input  
+    & ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+    & ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+    & ,keqaq_oxa,keqaq_cl &! input
+    & ,print_cb,print_loc,z,act_ON &! input 
+    & ,dprodmaq_all,dprodmgas_all &! output
+    & ,iosx,diosdmaq_all,diosdmgas_all &! output
+    & ,prox,ph_error,ph_iter &! output
+    & ) 
+! solving charge balance with specific primary variables input; 
+! here maqx is assumed to be concs. of free cations or H4SiO4 or SO42- or NO3-  
+! gases are already treated with specific gas form.  
+implicit none
+integer,intent(in)::nz
+real(kind=8),intent(in)::kw,tc
+real(kind=8) so4th
+real(kind=8),dimension(nz)::so4x,prox_save,error_save,prox_save_newton,prox_save_bisec,prox_init
+real(kind=8),dimension(nz)::iosx_save,ios_new
+real(kind=8),dimension(nz),intent(in)::z,poro,sat
+real(kind=8),dimension(nz),intent(inout)::prox
+logical,intent(out)::ph_error
+
+real(kind=8),dimension(nz)::prox_max,prox_min,ph_add_order,prox_tmp1,prox_tmp2
+real(kind=8),dimension(nz)::f1_max,f1_min,iosx_max,iosx_min
+real(kind=8),dimension(nz)::df1,f1,f2,df2,df21,df12,d2f1
+real(kind=8),dimension(nz),intent(inout)::iosx
+real(kind=8) k_order,ph_inflex,a_order,c_order
+real(kind=8) error,tol,dconc 
+integer iter,iz,ispa,ispg
+
+integer,intent(in)::nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst
+character(5),dimension(nsp_aq),intent(in)::chraq
+character(5),dimension(nsp_aq_cnst),intent(in)::chraq_cnst
+character(5),dimension(nsp_aq_all),intent(in)::chraq_all
+character(5),dimension(nsp_gas),intent(in)::chrgas
+character(5),dimension(nsp_gas_cnst),intent(in)::chrgas_cnst
+character(5),dimension(nsp_gas_all),intent(in)::chrgas_all
+real(kind=8),dimension(nsp_aq,nz),intent(in)::maqx
+real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
+real(kind=8),dimension(nsp_gas,nz),intent(in)::mgasx
+real(kind=8),dimension(nsp_gas_cnst,nz),intent(in)::mgasc
+real(kind=8),dimension(nsp_gas_all,3),intent(in)::keqgas_h
+real(kind=8),dimension(nsp_aq_all,4),intent(in)::keqaq_h
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_c
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_s
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_nh3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_no3
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_oxa
+real(kind=8),dimension(nsp_aq_all,2),intent(in)::keqaq_cl
+real(kind=8),dimension(nsp_aq_all),intent(in)::maqth_all
+
+real(kind=8),dimension(nsp_aq_all)::base_charge
+real(kind=8),dimension(nsp_aq_all,nz)::maqx_loc,maqf_loc
+real(kind=8),dimension(nsp_aq_all,nz)::dmaqf_dpro,dmaqf_dso4f,dmaqf_dmaq,dmaqf_dpco2
+real(kind=8),dimension(nsp_gas_all,nz)::mgasx_loc
+real(kind=8),dimension(nsp_aq_all,nz)::df1dmaq,df2dmaq,df1dmaqf,d2f1dmaqf
+real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas,df2dmgas,d2f1dmgas
+
+real(kind=8),dimension(nsp_aq_all,nz),intent(out)::dprodmaq_all
+real(kind=8),dimension(nsp_gas_all,nz),intent(out)::dprodmgas_all
+
+real(kind=8),dimension(nsp_aq_all,nz),intent(out)::diosdmaq_all
+real(kind=8),dimension(nsp_gas_all,nz),intent(out)::diosdmgas_all
+
+real(kind=8),dimension(nsp_aq_all,nz)::dmaq,maqtmp_loc
+real(kind=8),dimension(nsp_gas_all,nz)::dmgas,mgastmp_loc
+real(kind=8),dimension(nz)::df1_dum,f1_dum,d2f1_dum,fact,f1_tmp,df1_tmp,d2f1_tmp
+real(kind=8),dimension(nz)::f1_tmp1,df1_tmp1,d2f1_tmp1
+real(kind=8),dimension(nz)::f1_tmp2,df1_tmp2,d2f1_tmp2
+real(kind=8),dimension(nsp_aq_all,nz)::df1dmaqf_dum,d2f1dmaqf_dum,df1dmaqf_tmp,d2f1dmaqf_tmp
+real(kind=8),dimension(nsp_gas_all,nz)::df1dmgas_dum,d2f1dmgas_dum,df1dmgas_tmp,d2f1dmgas_tmp
+real(kind=8),dimension(nz)::d2f2,df1df2,df2df1
+real(kind=8),dimension(nsp_aq_all,nz)::df2dmaqf,d2f2dmaqf
+real(kind=8),dimension(nsp_gas_all,nz)::d2f2dmgas
+
+real(kind=8),dimension(nsp_aq_all,nz)::dmaqft_dpro_loc,maqft_loc,dmaqft_dios_loc
+real(kind=8),dimension(nsp_aq_all,nsp_aq_all,nz)::dmaqft_dmaqf_loc
+real(kind=8),dimension(nsp_aq_all,nsp_gas_all,nz)::dmaqft_dmgas_loc
+
+integer iso4,iph,iph2,iph3
+integer :: nph = 3000
+! integer :: nph2 = 1000
+integer :: nph2 = 100
+integer :: nph3 = 15
+
+integer,intent(out)::ph_iter
+
+logical,intent(in)::print_cb,act_ON
+character(500),intent(in)::print_loc
+logical so4_error,print_res
+logical bisec_chk,bisec_chk_ON,bisec_only,mod_ph_order,calc_simple,halley,first_chk_done
+
+real(kind=8),allocatable::amx(:,:),ymx(:)
+integer,allocatable::ipiv(:)
+integer info,nmx
+
+real(kind=8),parameter :: threshold = 10d0
+real(kind=8),parameter :: corr = exp(threshold)
+
+real(kind=8) ph_tmp,ph_fact,err1,err2,slp,slplog,ph_tmp_min,ph_tmp_max,slp_save
+real(kind=8) ph_max,ph_min 
+real(kind=8) u
+integer judge
+
+real(kind=8) f1_min_save,ph_f1min_save
+real(kind=8),parameter :: ph_init_min = 1d-20
+real(kind=8),parameter :: ph_init_max = 1d4 
+
+#ifdef debug_phcalc
+logical::debug = .true. 
+#else
+logical::debug = .false. 
+#endif
+
+! bisec_chk_ON = .false.
+bisec_chk_ON = .true.
+
+bisec_only = .false.
+! bisec_only = .true.
+
+mod_ph_order = .false.
+! mod_ph_order = .true.
+
+! calc_simple = .false.
+calc_simple = .true.
+
+error = 1d4
+tol = 1d-6
+dconc = 1d0
+ph_add_order = 0d0
+ph_add_order = 2d0
+
+k_order = 0.5d0
+ph_inflex = 7d0
+a_order = 2d0
+c_order = 2d0
+
+! where(-log10(prox)<3d0)
+    ! ph_add_order=0d0
+! endwhere 
+
+! ph_add_order = a_order/(1d0+EXP(-2d0*k_order*(-log10(prox)-ph_inflex))) + c_order
+
+! prox = 1d0 
+iter = 0
+
+if (any(isnan(maqx)) .or. any(isnan(maqc))) then 
+    print*,'nan in input aqueosu species'
+    stop
+endif 
+
+call get_maqgasx_all( &
+    & nz,nsp_aq_all,nsp_gas_all,nsp_aq,nsp_gas,nsp_aq_cnst,nsp_gas_cnst &
+    & ,chraq,chraq_all,chraq_cnst,chrgas,chrgas_all,chrgas_cnst &
+    & ,maqx,mgasx,maqc,mgasc &
+    & ,maqx_loc,mgasx_loc  &! output
+    & )
+    
+call get_base_charge( &
+    & nsp_aq_all & 
+    & ,chraq_all & 
+    & ,base_charge &! output 
+    & )
+    
+call get_maqt_all( &
+! call get_maqt_all_v2( &
+    & nz,nsp_aq_all,nsp_gas_all &
+    & ,chraq_all,chrgas_all &
+    & ,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl &
+    & ,mgasx_loc,maqx_loc,prox,iosx,tc &
+    & ,dmaqft_dpro_loc,dmaqft_dmaqf_loc,dmaqft_dmgas_loc,dmaqft_dios_loc &! output
+    & ,maqft_loc  &! output
+    & )
+    
+iso4 = findloc(chraq_all,'so4',dim=1)
+so4x = maqx_loc(iso4,:)*maqft_loc(iso4,:)
+    
+maqf_loc = maqx_loc ! fixed free concs. 
+
+if (.not.act_ON) iosx = 0d0
+if (.not.act_ON) iosx_max = 0d0
+if (.not.act_ON) iosx_min = 0d0
+
+nmx = nz*2
+nmx = nz
+
+if (allocated(amx)) deallocate(amx)
+if (allocated(ymx)) deallocate(ymx)
+if (allocated(ipiv)) deallocate(ipiv)
+allocate(amx(nmx,nmx),ymx(nmx),ipiv(nmx))
+
+ph_error = .false.
+
+print_res = .false.
+
+prox_max = 1d1
+prox_min = 1d-15
+
+! print*,'calc_pH'
+if (.not. print_cb) then
+! if (.true.) then
+    ! obtaining ph and so4f from scratch
+  
+    ! prox = 1d0 
+    ! do while (error > tol)
+    ! do while (error > tol*1d-4)
+    ! do while (error > tol*1d-8)
+    do while (error > tol*1d-9)
+    ! do while (error > tol*1d-10)
+    ! do while (error > tol*1d-12)
+
+        prox_save = prox
+        iosx_save = iosx
+		
+		prox = 0.5d0*(prox_max + prox_min)
+		! iosx = 0.5d0*(iosx_max + iosx_min)
+        
+        call calc_charge_balance( &
+            & nz,nsp_aq_all,nsp_gas_all &
+            & ,chraq_all,chrgas_all &
+            & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
+            & ,base_charge &
+            & ,mgasx_loc,maqf_loc &
+            & ,z,prox_max,iosx,tc &
+            & ,print_loc,print_res,ph_add_order &
+            & ,f1_max,df1,df1dmaqf,df1dmgas &!output
+            & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
+            & ,f2,df2,df2dmaqf,df2dmgas &!output
+            & ,df1df2,df2df1,iosx_max &!output
+            & )
+        
+        call calc_charge_balance( &
+            & nz,nsp_aq_all,nsp_gas_all &
+            & ,chraq_all,chrgas_all &
+            & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
+            & ,base_charge &
+            & ,mgasx_loc,maqf_loc &
+            & ,z,prox_min,iosx,tc &
+            & ,print_loc,print_res,ph_add_order &
+            & ,f1_min,df1,df1dmaqf,df1dmgas &!output
+            & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
+            & ,f2,df2,df2dmaqf,df2dmgas &!output
+            & ,df1df2,df2df1,iosx_min &!output
+            & )
+        
+        call calc_charge_balance( &
+            & nz,nsp_aq_all,nsp_gas_all &
+            & ,chraq_all,chrgas_all &
+            & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
+            & ,base_charge &
+            & ,mgasx_loc,maqf_loc &
+            & ,z,prox,iosx,tc &
+            & ,print_loc,print_res,ph_add_order &
+            & ,f1,df1,df1dmaqf,df1dmgas &!output
+            & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
+            & ,f2,df2,df2dmaqf,df2dmgas &!output
+            & ,df1df2,df2df1,ios_new &!output
+            & )
+		
+		where (f1_min*f1 > 0d0)
+			prox_min = prox
+		elsewhere
+			prox_max = prox
+		endwhere
+		
+		error = maxval( abs( ( prox_max - prox_min)/prox_min ) )
+		
+        
+        ! df1 = df1*prox
+        
+        if (any(isnan(f1)).or.any(isnan(df1))) then 
+            print*,'found nan during the course of ph calc: bisec'
+            print *,any(isnan(f1)),any(isnan(df1))
+            print *,prox
+            print *
+            print *,f1
+            print *
+            ! if (any(isnan(f1))) print *, f1
+            if (any(isnan(df1))) print *, df1
+            if (act_ON) then
+                print *,iosx
+                print *
+                print *,f2
+                print *
+                if (any(isnan(df2))) print *, df2
+            endif 
+            ph_error = .true.
+            ! stop
+            return
+            exit
+            ! pause 
+        endif 
+        
+        if (act_ON) then
+            if (any(isnan(f2)).or.any(isnan(df2)) ) then 
+                print*,'found nan during the course of ios calc: bisec'
+                print *,any(isnan(f2)),any(isnan(df2))
+                print *,iosx
+                print *
+                print *,f2
+                print *
+                ! if (any(isnan(f2))) print *, f2
+                if (any(isnan(df2))) print *, df2
+                ph_error = .true.
+                ! stop
+                return
+                exit
+                ! pause 
+            endif 
+        endif 
+        
+        df1 = df1*prox
+        df2df1 = df2df1*prox
+        df2 = df2*iosx
+        df1df2 = df1df2*iosx
+        
+        if (any(isnan(f1)).or.any(isnan(df1))) then 
+            print*,'found nan during the course of ph calc'
+            print *,any(isnan(f1)),any(isnan(df1))
+            print *,prox
+            ph_error = .true.
+            exit
+            ! pause 
+        endif 
+        
+        if (act_ON) then
+            if (any(isnan(f2)).or.any(isnan(df2)) &
+                & .or.any(isnan(df1df2)).or.any(isnan(df2df1))) then 
+                print*,'found nan during the course of ios calc'
+                print *,any(isnan(f2)),any(isnan(df2)) &
+                    & ,any(isnan(df1df2)),any(isnan(df2df1))
+                print *,iosx
+                ph_error = .true.
+                exit
+                ! pause 
+            endif 
+        endif 
+
+        
+        ! error = maxval(dabs((prox_save-prox)/prox))
+        ! error_save = dabs((prox_save-prox)/prox)
+        
+        ! if (any(prox == 0d0)) then 
+            ! error = 1d4
+            ! where (prox == 0d0)
+                ! prox = 1d-12
+                ! error_save = 1d4
+            ! endwhere
+        ! endif 
+        
+        iter = iter + 1
+        
+        if (debug) print*,iter,error,maxval(abs(f1))
+        
+        if (iter > 3000) then 
+            print *,'iteration exceeds 3000 with newton method: error = ',error, ' tol = ',tol,halley
+            do iz=1,nz
+                print*,iz,-log10(prox_save(iz)),-log10(prox(iz)),dabs((prox_save(iz)-prox(iz))/prox(iz)),abs(f1(iz))
+                error_save(iz) = dabs((prox_save(iz)-prox(iz))/prox(iz))
+            enddo
+            print *
+            do iz=1,nz
+                print*,iz,-log10(iosx_save(iz)),-log10(iosx(iz)),dabs((iosx_save(iz)-iosx(iz))/iosx(iz)),abs(f2(iz))
+                error_save(iz) = dabs((iosx_save(iz)-iosx(iz))/iosx(iz))
+            enddo
+            ! print*,error
+            ! print*,prox
+            ph_error = .true.
+            if (.not.bisec_chk_ON) return
+        endif 
+        
+        if (ph_error) exit 
+    enddo  
+endif 
+
+ph_iter = iter
+
+ph_error = .false.
+
+if (any(isnan(prox)) .or. any(prox<=0d0)) then     
+    print *, (-log10(prox(iz)),iz=1,nz,nz/5)
+    print*,'ph is nan or <= zero'
+    ! prox = prox_init
+    ph_error = .true.
+    ! stop
+endif 
+
+if (print_cb) print_res = .true.
+
+        
+call calc_charge_balance( &
+    & nz,nsp_aq_all,nsp_gas_all &
+    & ,chraq_all,chrgas_all &
+    & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
+    & ,base_charge &
+    & ,mgasx_loc,maqf_loc &
+    & ,z,prox,iosx,tc &
+    & ,print_loc,print_res,ph_add_order &
+    & ,f1,df1,df1dmaqf,df1dmgas &!output
+    & ,d2f1,d2f1dmaqf,d2f1dmgas &!output
+    & ,f2,df2,df2dmaqf,df2dmgas &!output
+    & ,df1df2,df2df1,ios_new &!output
+    & )
+
+if (act_ON) then 
+	if ( maxval(abs((ios_new - iosx)/iosx)) > tol ) then
+		print *, 'Ionic strength calculation check failure'
+		print *, maxval(abs((ios_new - iosx)/iosx))
+		stop
+	endif 
+
+	ios_new = iosx
+endif 
+
+! stop
+
+! ### CHECKING WIHT POINT SUBROUTINE WORKS ###
+
+! f1_tmp = 0d0
+! df1_tmp = 0d0 
+! d2f1_tmp = 0d0
+! df1dmaqf_tmp = 0d0
+! df1dmgas_tmp = 0d0
+! d2f1dmaqf_tmp = 0d0
+! d2f1dmgas_tmp = 0d0 
+! print_res = .false.
+! do iz=1,nz
+    ! call calc_charge_balance_point( &
+        ! & nz,nsp_aq_all,nsp_gas_all &
+        ! & ,chraq_all,chrgas_all &
+        ! & ,kw,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3,keqaq_oxa,keqaq_cl  &
+        ! & ,base_charge &
+        ! & ,mgasx_loc,maqf_loc &
+        ! & ,z,prox,iz &
+        ! & ,print_loc,print_res,ph_add_order &
+        ! & ,f1_dum,df1_dum,df1dmaqf_dum,df1dmgas_dum &!output
+        ! & ,d2f1_dum,d2f1dmaqf_dum,d2f1dmgas_dum &!output
+        ! & )
+    ! f1_tmp(iz) = f1_dum(iz)
+    ! df1_tmp(iz) = df1_dum(iz) 
+    ! d2f1_tmp(iz) = d2f1_dum(iz)
+    ! df1dmaqf_tmp(:,iz) = df1dmaqf_dum(:,iz)
+    ! df1dmgas_tmp(:,iz) = df1dmgas_dum(:,iz)
+    ! d2f1dmaqf_tmp(:,iz) = d2f1dmaqf_dum(:,iz)
+    ! d2f1dmgas_tmp(:,iz) = d2f1dmgas_dum(:,iz)
+
+! enddo 
+
+! if (maxval(abs((f1_tmp -f1)/f1)) > tol) then 
+    ! print *, 'point wrong for f1?'
+    ! stop
+! endif 
+
+! if (maxval(abs((df1_tmp - df1)/df1)) > tol) then 
+    ! print *, 'point wrong for df1?'
+    ! stop
+! endif 
+
+! if (maxval(abs((df1dmaqf_tmp - df1dmaqf)/df1dmaqf)) > tol) then 
+    ! print *, 'point wrong for df1dmaqf?'
+    ! stop
+! endif 
+
+! if (maxval(abs((df1dmgas_tmp - df1dmgas)/df1dmgas)) > tol) then 
+    ! print *, 'point wrong for df1dmaqf?'
+    ! stop
+! endif 
+
+
+! ### END CHECKING ###
+
+do ispa = 1, nsp_aq_all
+    dprodmaq_all(ispa,:) = - df1dmaqf(ispa,:) / df1   
+enddo 
+
+do ispg = 1, nsp_gas_all
+    dprodmgas_all(ispg,:) = - df1dmgas(ispg,:) /df1
+enddo 
+
+diosdmaq_all = 0d0
+diosdmgas_all = 0d0
+
+if (act_ON) then 
+    do ispa = 1, nsp_aq_all
+        diosdmaq_all(ispa,:) = - df2dmaqf(ispa,:) / df2   
+    enddo 
+
+    do ispg = 1, nsp_gas_all
+        diosdmgas_all(ispg,:) = - df2dmgas(ispg,:) /df2
+    enddo 
+endif 
+
+! solving two equations analytically:
+! df1/dmsp + df1/dph * dph/dmsp  = 0  
+! df1/dmsp * Dmsp + df1/dph *Dph = 0
+! df1/dmsp * Dmsp + df1/dph *Dph + (d2f1/dmsp2) * (Dmsp)^2 + (d2f1/d2ph) *(Dph)^2 = 0
+! df1/dmsp * Dmsp + (d2f1/dmsp2) * (Dmsp)^2 + df1/dph *Dph +  (d2f1/d2ph) *(Dph)^2 = 0
+
+! do ispa = 1, nsp_aq_all
+    ! dprodmaq_all(ispa,:) = - (df2*df1dmaqf(ispa,:) - df1df2*df2dmaqf(ispa,:))/(df2*df1 - df1df2*df2df1)   
+    ! diosdmaq_all(ispa,:) = - ( df2df1*df1dmaqf(ispa,:) - df1*df2dmaqf(ispa,:) )/(df2df1*df1df2 - df1*df2 ) 
+! enddo 
+
+! do ispg = 1, nsp_gas_all
+    ! dprodmgas_all(ispg,:) = - (df2*df1dmgas(ispg,:) - df1df2*df2dmgas(ispg,:) )/(df2*df1 -df12*df2df1)
+    ! diosdmgas_all(ispg,:) = - ( df2df1*df1dmgas(ispg,:) - df1*df2dmgas(ispg,:) )/(df2df1*df1df2 - df1*df2 )  
+! enddo 
+
+return
+
+endsubroutine calc_pH_v7_4_bisec
+						
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -16925,6 +17522,32 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         & ,iosx,diosdmaq_all,diosdmgas_all &! output
         & ,prox,ph_error,ph_iter &! output
         & ) 
+	if (ph_error) then
+		print*,'error in calc_pH_v7_4: trying bisection method'
+		call calc_pH_v7_4_bisec( &
+			& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+			& ,poro,sat,tc &! input  
+			& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+			& ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+			& ,keqaq_oxa,keqaq_cl &! input
+			& ,print_cb,print_loc,z,act_ON &! input 
+			& ,dprodmaq_all,dprodmgas_all &! output
+			& ,iosx,diosdmaq_all,diosdmgas_all &! output
+			& ,prox,ph_error,ph_iter &! output
+			& ) 
+		print*,'bisection method successful?: retrying calc_pH_v7_4'
+		call calc_pH_v7_4( &
+			& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+			& ,poro,sat,tc &! input  
+			& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+			& ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+			& ,keqaq_oxa,keqaq_cl &! input
+			& ,print_cb,print_loc,z,act_ON &! input 
+			& ,dprodmaq_all,dprodmgas_all &! output
+			& ,iosx,diosdmaq_all,diosdmgas_all &! output
+			& ,prox,ph_error,ph_iter &! output
+			& ) 
+	endif 
     
     ! print *
     ! print *, -log10(prox)
@@ -18887,6 +19510,32 @@ call calc_pH_v7_4( &
     & ,iosx,diosdmaq_all,diosdmgas_all &! output
     & ,prox,ph_error,ph_iter &! output
     & ) 
+if (ph_error) then
+	print*,'error in calc_pH_v7_4: trying bisection method'
+	call calc_pH_v7_4_bisec( &
+		& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+		& ,poro,sat,tc &! input  
+		& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+		& ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+		& ,keqaq_oxa,keqaq_cl &! input
+		& ,print_cb,print_loc,z,act_ON &! input 
+		& ,dprodmaq_all,dprodmgas_all &! output
+		& ,iosx,diosdmaq_all,diosdmgas_all &! output
+		& ,prox,ph_error,ph_iter &! output
+		& ) 
+	print*,'bisection method successful?: retrying calc_pH_v7_4'
+	call calc_pH_v7_4( &
+		& nz,kw,nsp_aq,nsp_gas,nsp_aq_all,nsp_gas_all,nsp_aq_cnst,nsp_gas_cnst &! input 
+		& ,poro,sat,tc &! input  
+		& ,chraq,chraq_cnst,chraq_all,chrgas,chrgas_cnst,chrgas_all &!input
+		& ,maqx,maqc,mgasx,mgasc,keqgas_h,keqaq_h,keqaq_c,keqaq_s,maqth_all,keqaq_no3,keqaq_nh3 &! input
+		& ,keqaq_oxa,keqaq_cl &! input
+		& ,print_cb,print_loc,z,act_ON &! input 
+		& ,dprodmaq_all,dprodmgas_all &! output
+		& ,iosx,diosdmaq_all,diosdmgas_all &! output
+		& ,prox,ph_error,ph_iter &! output
+		& ) 
+endif 
     
 if (ph_error) then 
     print *, 'error issued from ph calculation (after main iteration in alsilicate_aq_gas_1D_v3_2)'
