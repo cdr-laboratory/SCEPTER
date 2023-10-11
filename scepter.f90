@@ -17814,7 +17814,8 @@ real(kind=8):: dt_th = 1d-6
 real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 ! real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
 ! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
-real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
+! real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
+real(kind=8):: flx_max_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))  !  to further facilitate convergence 
 real(kind=8):: flx_max_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
 
@@ -18355,37 +18356,40 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
 				if (isnan(omega(isps,iz))) print*,chrsld(isps),iz,omega(isps,iz)
 			enddo
 		enddo 
+		flgback = .true.
+		return 
 		stop
+	endif 
 		
-		
-		if (any(omega>infinity)) then 
-			print *,' *** found INF in omega  '
-			stop
-			print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
-			do isps=1,nsp_sld
-				dummy = 0d0
-				if (any(omega(isps,:)>infinity)) then 
-					dummy = omega(isps,:)
-					if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
-						print *,chrsld(isps),' (precipitation allowed)'
-						where(dummy>infinity)
-							dummy = sat_lim_prec
-						endwhere
-					else
-						print *,chrsld(isps),' (precipitation not allowed)'
-						where(dummy>infinity)
-							dummy = sat_lim_noprec
-						endwhere
-					endif 
-					if (any(dummy>infinity)) then 
-						print *, 'somthing is wrong'
-						stop
-					endif 
-					omega(isps,:) = dummy
+	
+	if (any(omega>infinity)) then 
+		print *,' *** found INF in omega  '
+		flgback = .true.
+		return 
+		stop
+		print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
+		do isps=1,nsp_sld
+			dummy = 0d0
+			if (any(omega(isps,:)>infinity)) then 
+				dummy = omega(isps,:)
+				if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+					print *,chrsld(isps),' (precipitation allowed)'
+					where(dummy>infinity)
+						dummy = sat_lim_prec
+					endwhere
+				else
+					print *,chrsld(isps),' (precipitation not allowed)'
+					where(dummy>infinity)
+						dummy = sat_lim_noprec
+					endwhere
 				endif 
-			enddo 
-		endif 
-		
+				if (any(dummy>infinity)) then 
+					print *, 'somthing is wrong'
+					stop
+				endif 
+				omega(isps,:) = dummy
+			endif 
+		enddo 
 	endif 
     
     
@@ -20712,6 +20716,7 @@ if (chkflx .and. dt > dt_th) then
             if (flx_max/flx_max_max > flx_max_tol .and.  abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > flx_tol ) then 
                 print *
                 print *, '*** too large error in mass balance of sld phases'
+                print *, '*** flx_max/flx_max_max > flx_max_tol'
                 print *,'sp          = ',chrsld(isps)
                 print *,'flx_max_tol = ',  flx_max_tol
                 print *,'flx_max_max = ',  flx_max_max
