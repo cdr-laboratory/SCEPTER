@@ -61,6 +61,7 @@ def run_a_scepter_run(
     sld_varlist_cec     = kwargs.get('sld_varlist_cec',     [('inrt', 10, 5.9, 4.8, 10.47, 10.786, 16.47, 3.4) ])
     sld_varlist_omrain  = kwargs.get('sld_varlist_omrain',  [('g2',1.0)])
     sld_varlist_kinspc  = kwargs.get('sld_varlist_kinspc',  [])
+    sld_varlist_keqspc  = kwargs.get('sld_varlist_keqspc',  [])
     sld_varlist_sa      = kwargs.get('sld_varlist_sa',      [])
     sld_varlist_nopsd   = kwargs.get('sld_varlist_nopsd',   [])
     sld_varlist_2ndslds = kwargs.get('sld_varlist_2ndslds', [])
@@ -69,6 +70,7 @@ def run_a_scepter_run(
     srcfile_omrain      = kwargs.get('srcfile_omrain',      None)
     srcfile_cec         = kwargs.get('srcfile_cec',         None)
     srcfile_kinspc      = kwargs.get('srcfile_kinspc',      None)
+    srcfile_keqspc      = kwargs.get('srcfile_keqspc',      None)
     srcfile_sa          = kwargs.get('srcfile_sa',          None)
     srcfile_nopsd       = kwargs.get('srcfile_nopsd',       None)
     srcfile_2ndslds     = kwargs.get('srcfile_2ndslds',     './data/2ndslds_def.in')
@@ -169,6 +171,7 @@ def run_a_scepter_run(
         ('cec.in',          srcfile_cec,        sld_varlist_cec),
         ('OM_rain.in',      srcfile_omrain,     sld_varlist_omrain),
         ('kinspc.in',       srcfile_kinspc,     sld_varlist_kinspc),
+        ('keqspc.in',       srcfile_keqspc,     sld_varlist_keqspc),
         ('sa.in',           srcfile_sa,         sld_varlist_sa),
         ('nopsd.in',        srcfile_nopsd,      sld_varlist_nopsd),
         ('2ndslds.in',      srcfile_2ndslds,    sld_varlist_2ndslds),
@@ -207,10 +210,11 @@ def run_a_scepter_run(
     run_success = False
     
     if not lim_calc_time:
-        os.system(outdir+runname+where+exename)
+        os.system(outdir+runname+where+exename + ' > ' + outdir+runname+'/logfile.txt')
         run_success = True
     else:
-        proc = subprocess.Popen([outdir+runname_lab+where+exename])
+        logf = open(outdir+runname+'/logfile.txt', 'w')
+        proc = subprocess.Popen([outdir+runname+where+exename], stdout=logf)
 
         my_timeout =60*max_calc_time
         

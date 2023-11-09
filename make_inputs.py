@@ -318,6 +318,8 @@ def get_input_sld_properties(**kwargs):
     
     if filename == 'kinspc.in':
         note = '** specify rate const in [mol/m2/yr] except for OMs which should be presented as turnover year [yr] (e.g., g2   1.0)'
+    elif filename == 'keqspc.in':
+        note = '** specify thermodynamic const in log10 (e.g., by   21.018)'
     elif filename == 'sa.in':
         note = '** parent rock particle radii in meter (e.g., "ab      1e-5") (if not specified value in frame.in is used for all sld sp.)'
     elif filename == 'OM_rain.in':
@@ -644,6 +646,15 @@ def main():
         
     filename = 'nopsd.in'
     sld_varlist = [ ('g2','true'), ('inrt','false') ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        )
+        
+    filename = 'keqspc.in'
+    sld_varlist = [ ('an',24.5295), ('by',21.018) ] 
     get_input_sld_properties(
         outdir=outdir
         ,runname=runname

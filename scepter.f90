@@ -844,6 +844,10 @@ integer nsld_nopsd
 character(5),dimension(:),allocatable::chrsld_nopsd ! minerals whose PSDs tracking is not conducted for some reasons (e.g., too fast; mostly precipitating etc.)
 logical,dimension(:),allocatable::sldnopsd ! true if PSD is not considered; input from input file
 logical,dimension(nsp_sld)::skip_psdcalc,skip_psdcalc_def ! true if PSD is not considered for a species
+! enabling user-specified keq input | 10-30-2023
+integer nsld_keqspc 
+character(5),dimension(:),allocatable::chrsld_keqspc
+real(kind=8),dimension(:),allocatable::keq_sld_spc
 ! attempting to calculate cec when not using default values 
 integer nsld_cec
 character(5),dimension(:),allocatable::chrsld_cec
@@ -1947,11 +1951,16 @@ do isps = 1, nsp_sld
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
             ! solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
+            ! fkin(isps,:) = 1d1
         case('casp','ksp','nasp','mgsp')
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
             ! solmod(isps,:) = 0.05d0 ! assumed factor to be multiplied with omega
             ! fkin(isps,:) = 0.01d0
+        case('gb','amsi') ! for mip
+            precstyle(isps) = 'def'
+            ! precstyle(isps) = 'emmanuel'
+            ! fkin(isps,:) = 1d4
         case default 
             precstyle(isps) = 'def'
             ! precstyle(isps) = '2/3'
@@ -2504,6 +2513,18 @@ do iz=1,nz
 enddo 
 #endif 
 
+! getting user-defined thermodynamc data
+call get_keqspc_num(nsld_keqspc)
+
+if (allocated(chrsld_keqspc)) deallocate(chrsld_keqspc)
+if (allocated(keq_sld_spc)) deallocate(keq_sld_spc)
+allocate(chrsld_keqspc(nsld_keqspc),keq_sld_spc(nsld_keqspc))
+
+call get_keqspc( &
+    & nsp_sld,chrsld,nsld_keqspc &! input
+    & ,keq_sld_spc,chrsld_keqspc &! output
+    & )
+
 ! getting user-defined SA
 
 call get_sa_num(nsld_sa)
@@ -2945,6 +2966,7 @@ do iph = 1,nph
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
         & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+		& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
         & ,keqaq_oxa,keqaq_cl &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -2984,6 +3006,7 @@ call coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+	& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -3504,6 +3527,7 @@ call coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+	& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -3898,6 +3922,7 @@ do while (it<nt)
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
         & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+		& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
         & ,keqaq_oxa,keqaq_cl &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -7301,6 +7326,65 @@ endsubroutine get_switches
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine get_keqspc_num(nsld_keqspc_dum)
+implicit none
+
+integer,intent(out):: nsld_keqspc_dum
+
+character(500) file_name
+integer n_tmp
+
+file_name = './keqspc.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+nsld_keqspc_dum = n_tmp
+
+
+endsubroutine get_keqspc_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_keqspc( &
+    & nsp_sld,chrsld,nsld_keqspc &! input
+    & ,keq_sld_spc,chrsld_keqspc_dum &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld,nsld_keqspc
+character(5),dimension(nsp_sld),intent(in)::chrsld
+character(5),dimension(nsld_keqspc),intent(out)::chrsld_keqspc_dum
+real(kind=8),dimension(nsld_keqspc),intent(out)::keq_sld_spc
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i
+
+file_name = './keqspc.in'
+
+if (nsld_keqspc <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,nsld_keqspc
+    read(50,*) chr_tmp,val_tmp
+    chrsld_keqspc_dum(i) = chr_tmp
+	keq_sld_spc(i) = val_tmp
+enddo 
+close(50)
+
+
+endsubroutine get_keqspc
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine get_sa_num(nsld_sa_dum)
 implicit none
 
@@ -7735,6 +7819,7 @@ subroutine coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+	& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -7788,6 +7873,10 @@ real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
 real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
 
 logical,dimension(nsp_sld_all),intent(in)::cec_pH_depend
+
+integer,intent(in)::nsld_keqspc
+character(5),dimension(nsld_keqspc),intent(in)::chrsld_keqspc
+real(kind=8),dimension(nsld_keqspc),intent(in)::keq_sld_spc
 
 real(kind=8),dimension(nsp_gas_all,nz)::mgas_loc
 real(kind=8),dimension(nsp_aq_all,nz)::maqf_loc
@@ -8503,6 +8592,14 @@ do isps = 1, nsp_sld_all
     endselect 
     
     keqsld_all(isps) = therm
+enddo
+
+! overwrite if user specifies some thermodynamic data 
+
+do isps=1,nsld_keqspc
+    mineral = chrsld_keqspc(isps)
+	therm 	= 10d0**keq_sld_spc(isps)
+	keqsld_all(findloc(chrsld_all,trim(adjustl(mineral)),dim=1)) = therm 
 enddo
 
 
