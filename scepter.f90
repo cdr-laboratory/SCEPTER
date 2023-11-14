@@ -1895,9 +1895,10 @@ do isps = 1, nsp_sld
         case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2','nacl')
             precstyle(isps) = 'decay'
         case('cc','arg','dlm') ! added to change solubility 
-            precstyle(isps) = 'def'
-            ! precstyle(isps) = 'emmanuel'
-            ! solmod(isps,:) = 0.1d0 ! assumed factor to be multiplied with omega
+            ! precstyle(isps) = 'def'
+            precstyle(isps) = 'emmanuel'
+            solmod(isps,:) = 1d-1 ! assumed factor to be multiplied with omega
+            fkin(isps,:) = 1d0/solmod(isps,:) ! to undo change in rate const caused by change in solubility
         case('casp','ksp','nasp','mgsp')
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
@@ -2983,7 +2984,8 @@ poroprev = poro
 if (read_data) then 
     ! runname_save = 'test_cpl_rain-0.40E+04_pevol_sevol1_q-0.10E-01_zsat-5' ! specifiy the file where restart data is stored 
     ! runname_save = runname  ! the working folder has the restart data 
-    loc_runname_save = '../'//trim(adjustl(runname_save))//'/'//trim(adjustl(profdir(3:)))
+    ! loc_runname_save = '../'//trim(adjustl(runname_save))//'/'//trim(adjustl(profdir(3:)))
+    loc_runname_save = trim(adjustl(runname_save))//'/'//trim(adjustl(profdir(3:)))
     if (trim(adjustl(runname_save)) == 'self') loc_runname_save = trim(adjustl(profdir))
     call system('cp '//trim(adjustl(loc_runname_save))//'/'//'prof_sld-save.txt '  &
         & //trim(adjustl(profdir))//'/'//'prof_sld-restart.txt')
@@ -3029,6 +3031,8 @@ if (read_data) then
         & status ='old',action='read')
     open (isa, file=trim(adjustl(profdir))//'/'//'sa-restart.txt',  &
         & status ='old',action='read')
+		
+	! stop
     
     read (isldprof,'()')
     read (iaqprof,'()')
@@ -6110,6 +6114,7 @@ do while (it<nt)
         open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
         write(iphint2,*) time,(-log10(gamma(iz)*prox(iz)),iz=1,nz)
         close(iphint2)
+		
         
 #endif 
         flx_recorded = .true.
@@ -6611,17 +6616,17 @@ integer,intent(out):: nsp_sld,nsp_aq,nsp_gas,nrxn_ext,nsld_kinspc,nsld_sa_save
 character(256),intent(in):: workdir,runname_save
 character(500) file_name
 
-file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/slds.save'
+file_name = trim(adjustl(runname_save))//'/slds.save'
 call Console4(file_name,nsp_sld)
-file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/solutes.save'
+file_name = trim(adjustl(runname_save))//'/solutes.save'
 call Console4(file_name,nsp_aq)
-file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/gases.save'
+file_name = trim(adjustl(runname_save))//'/gases.save'
 call Console4(file_name,nsp_gas)
-file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/extrxns.save'
+file_name = trim(adjustl(runname_save))//'/extrxns.save'
 call Console4(file_name,nrxn_ext)
-file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/kinspc.save'
+file_name = trim(adjustl(runname_save))//'/kinspc.save'
 call Console4(file_name,nsld_kinspc)
-file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/sa.save'
+file_name = trim(adjustl(runname_save))//'/sa.save'
 call Console4(file_name,nsld_sa_save)
 
 nsp_sld = nsp_sld - 1
@@ -6661,7 +6666,7 @@ character(500) file_name
 integer ispa,ispg,isps,irxn,isldspc,isldsa
 
 if (nsp_aq>=1) then 
-    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/solutes.save'
+    file_name = trim(adjustl(runname_save))//'/solutes.save'
     open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
     read(50,'()')
     do ispa =1,nsp_aq
@@ -6671,7 +6676,7 @@ if (nsp_aq>=1) then
 endif 
 
 if (nsp_sld>=1) then 
-    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/slds.save'
+    file_name = trim(adjustl(runname_save))//'/slds.save'
     open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
     read(50,'()')
     do isps =1,nsp_sld
@@ -6681,7 +6686,7 @@ if (nsp_sld>=1) then
 endif 
 
 if (nsp_gas>=1) then 
-    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/gases.save'
+    file_name = trim(adjustl(runname_save))//'/gases.save'
     open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
     read(50,'()')
     do ispg =1,nsp_gas
@@ -6691,7 +6696,7 @@ if (nsp_gas>=1) then
 endif 
 
 if (nrxn_ext>=1) then 
-    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/extrxns.save'
+    file_name = trim(adjustl(runname_save))//'/extrxns.save'
     open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
     read(50,'()')
     do irxn =1,nrxn_ext
@@ -6701,7 +6706,7 @@ if (nrxn_ext>=1) then
 endif 
 
 if (nsld_kinspc>=1) then 
-    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/kinspc.save'
+    file_name = trim(adjustl(runname_save))//'/kinspc.save'
     open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
     read(50,'()')
     do isldspc =1,nsld_kinspc
@@ -6711,7 +6716,7 @@ if (nsld_kinspc>=1) then
 endif 
 
 if (nsld_sa_dum>=1) then 
-    file_name = trim(adjustl(workdir))//trim(adjustl(runname_save))//'/sa.save'
+    file_name = trim(adjustl(runname_save))//'/sa.save'
     open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
     read(50,'()')
     do isldsa =1,nsld_sa_dum
@@ -6761,9 +6766,9 @@ read(50,*) w
 read(50,*) qin
 read(50,*) p80
 read(50,*) count_dtunchanged_Max
-read(50,*) runname_save
+read(50,'(A)') runname_save
 read(50,'()')
-read(50,*) sim_name
+read(50,'(A)') sim_name
 close(50)
 
 print*,'nz,ztot,ttot,rainpowder,rainpowder_2nd,zsupp,poroi,satup,zsat,w,qin,p80,sim_name,plant_rain'// &
@@ -17399,6 +17404,7 @@ real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 ! real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
 ! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
 real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
+! real(kind=8):: flx_max_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))  ! facilitate convergence 
 real(kind=8):: flx_max_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
 

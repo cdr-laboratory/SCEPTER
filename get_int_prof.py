@@ -1043,9 +1043,16 @@ def get_dis_frac(outdir,runname,sp):
 
 def main():
     outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
-    runname = 'US_cropland_251_pph_N_cacl2_2p5_homo2_mgo_field_tpH7p0_tau10'
+    runname = 'test_inert_spinup_cec_5_ca_p2'
     dep_sample = 0.15
-    get_intph_int_site(outdir,runname,dep_sample)
+    sps,btmconcs,dep=get_totsave_site(outdir,runname,dep_sample,20)
+    print(sps,btmconcs,dep)
+    sps,btmconcs,dep=get_adssave_site(outdir,runname,dep_sample)
+    print(sps,btmconcs,dep)
+    phintval=get_rhobulk_int_site(outdir,runname,dep_sample,20)
+    print(phintval)
+    phintval=get_sldwt_int_site(outdir,runname,dep_sample,['inrt'],20)
+    print(phintval)
     
     
     

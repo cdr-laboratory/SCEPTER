@@ -87,7 +87,10 @@ def get_input_frame(**kwargs):
         if values[i]=='':
             input_text += notes[i] + '\n'
         else:
-            input_text += str(values[i]) + '\t' + notes[i] + '\n'
+            if notes[i]=='':
+                input_text += str(values[i]) + '\n'
+            else:
+                input_text += str(values[i]) + '\t' + notes[i] + '\n'
     
     if not os.path.exists(outdir + runname): os.makedirs(outdir + runname)
     
@@ -432,7 +435,7 @@ def get_input_climate_temp(**kwargs):
         input_text = ''
         input_text += '{}\n'.format(notes[k])
         for i in range(N):
-            input_text += '{:f}\t{:f}\n'.format(values[0][i], values[1][i]*factor) 
+            input_text += '{:f}\t{:f}\n'.format(float(values[0][i]), float(values[1][i])*factor) 
         
         input_file = outdir + runname + '/' + filename
         
@@ -442,11 +445,11 @@ def get_input_climate_temp(**kwargs):
         print(input_text)
         
         
-def make_sincurve(ave,amp,tau,**kwargs):
+def make_sincurve(ave,amp,tau,order,**kwargs):
     timeline    = kwargs.get('timeline',    np.linspace(0,1,12,endpoint=False))
 
-    N = timeline.shape[0]
-    var = ave + ave * amp * np.sin(timeline/tau*2.*np.pi)
+    # N = timeline.shape[0]
+    var = ave + ave * amp * np.sin(timeline/tau*2.*np.pi)**order
     
     return [ list(timeline), list(var) ]
         
