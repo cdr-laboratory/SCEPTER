@@ -241,21 +241,27 @@ def run_a_scepter_run(
         
 def main():
 
-    outdir_src = '../scepter_output/'
-    runname = 'test'
+    outdir_src = '../scepter_output/tests/'
+    runname = 'test_richards'
+    runname = 'test_richards_2'
+    runname = 'test_richards_3'
     
     #  >>>> input variables of interests 
     cec     = 10.0
-    logkh   = 5.9
+    logkhna = 5.9
+    logkhk  = 4.8
+    logkhca = 10.47
+    logkhmg = 10.786
+    logkhal = 16.47
     alpha   = 3.4
     
     ca      = 1e-5
     
     # >>>> define input variables written in input files 
     # ---- frame.in ----
-    ztot                = 0.5
+    ztot                = 1.5
     nz                  = 30
-    ttot                = 1e5
+    ttot                = 1e1
     temp                = 15
     fdust               = 0
     fdust2              = 0
@@ -291,7 +297,8 @@ def main():
     sa_evol_2           = 'false'
     psd_bulk            = 'true'
     psd_full            = 'true'
-    season              = 'false'
+    # season              = 'false'
+    season              = 'true'
     # ---- tracers ----
     sld_list            = ['inrt','g2']
     aq_list             = ['ca','k','mg','na']
@@ -303,7 +310,7 @@ def main():
     atm_list            = [('pco2',3.16e-4),('po2',0.21),('pnh3',1e-50),('pn2o',1e-50)]
     # ---- sopecify solid phase properties ----    
     sld_varlist_dust    = []
-    sld_varlist_cec     = [('inrt', cec, logkh, alpha), ('g2', cec, logkh, alpha) ]
+    sld_varlist_cec     = [('inrt', cec, logkhna, logkhk, logkhca, logkhmg, logkhal, alpha), ('g2', cec, logkhna, logkhk, logkhca, logkhmg, logkhal, alpha)]
     sld_varlist_omrain  = [('g2',1.0)]
     sld_varlist_kinspc  = []
     sld_varlist_2ndslds = []
@@ -312,8 +319,15 @@ def main():
     srcfile_cec         = None
     srcfile_kinspc      = None
     srcfile_2ndslds     = './data/2ndslds_def.in'
+    # ---- seasonality properties ----
+    q_temp              = list(np.loadtxt('../openRE/infiltrationproblem/input/infiltration.dat',skiprows=1,delimiter=',',usecols=1)/1000.*365.25)
+    time_list           = list((np.arange(len(q_temp)))/365.25)
+    T_temp              = [time_list,[temp]*len(time_list)]
+    moist_temp          = [time_list,[moistsrf]*len(time_list)]
+    dust_temp           = [time_list,[0]*len(time_list)]
+    q_temp              = [time_list,q_temp]
     # ---- python stuff ----
-    use_local_storage   = True
+    use_local_storage   = False
     
     
     
@@ -381,6 +395,11 @@ def main():
         srcfile_cec         = srcfile_cec,
         srcfile_kinspc      = srcfile_kinspc,
         srcfile_2ndslds     = srcfile_2ndslds,
+        # ---- seasonality properties ----
+        T_temp              = T_temp,
+        moist_temp          = moist_temp,
+        q_temp              = q_temp,
+        dust_temp           = dust_temp,
         # ---- python stuff ----
         use_local_storage   = use_local_storage,
         )

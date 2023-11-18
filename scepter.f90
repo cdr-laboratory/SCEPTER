@@ -421,7 +421,15 @@ real(kind=8) rainpowder,rainpowder_prev
 
 real(kind=8),intent(in)::zsupp != 0.3d0 !  e-folding decrease
 
-real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz), tc, satup
+real(kind=8) tc,satup
+real(kind=8),dimension(nz)::sat,poro,torg,tora
+real(kind=8),dimension(nz)::kh,hp,theta,thetaprev,satprev,hpprev,q_RE
+integer,parameter :: nflx_h2o = 6
+integer itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o
+data itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o/1,2,3,4,5,6/
+real(kind=8),dimension(nflx_h2o,nz) :: flx_h2o ! itflx,iadv,idif,irain,irxn,ires
+real(kind=8),dimension(nflx_h2o) :: int_flx_h2o ! itflx,iadv,idif,irain,irxn,ires
+logical err_flg_richards
 character(10)::tor_ref
 
 ! real(kind=8) :: poroi = 0.1d0 !*** default
@@ -891,7 +899,7 @@ integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
 integer,dimension(6)::ico2flx
 integer,dimension(nsp_aqex)::iaqexflx
-integer iphint,iphint2
+integer iphint,iphint2,ih2oflx
 integer,parameter::nsp_saveall = 1
 character(5),dimension(nsp_saveall)::chrsp_saveall
 #endif 
@@ -2178,8 +2186,9 @@ do iaqex = 1, nsp_aqex
     iaqexflx(iaqex) = idust + nsp_sld + nsp_aq + nsp_gas + 6 + iaqex
 enddo 
 
-iphint  = idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 1
-iphint2 = idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 2
+iphint	= idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 1
+iphint2	= idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 2
+ih2oflx	= idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 3
 
 #endif 
 
@@ -2493,6 +2502,35 @@ open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', status='replace')
 write(iphint2,*) 'time\depth',(z(iz),iz=1,nz)
 close(iphint2)
 
+
+open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_psi.txt', status='replace')
+write(ih2oflx,*) 'time\depth',(z(iz),iz=1,nz)
+close(ih2oflx)
+
+open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_kh.txt', status='replace')
+write(ih2oflx,*) 'time\depth',(z(iz),iz=1,nz)
+close(ih2oflx)
+
+open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_q.txt', status='replace')
+write(ih2oflx,*) 'time\depth',(z(iz),iz=1,nz)
+close(ih2oflx)
+
+open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_theta.txt', status='replace')
+write(ih2oflx,*) 'time\depth',(z(iz),iz=1,nz)
+close(ih2oflx)
+
+
+write(chrfmt,'(i0)') nflx_h2o+1
+chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a))'
+
+open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'flx_h2o.txt', status='replace')
+write(ih2oflx,chrfmt) 'time','tflx','adv','dif','rain','rxn','res'
+close(ih2oflx)
+
+open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'int_flx_h2o.txt', status='replace')
+write(ih2oflx,chrfmt) 'time','tflx','adv','dif','rain','rxn','res'
+close(ih2oflx)
+
 if (report==1) then
 	do isps = 1,nsp_sld
 		open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
@@ -2706,6 +2744,13 @@ do isps=1,nsp_sld
 enddo 
 v = qin/poroi/sat
 poro = poroi
+theta = 0.1d0
+thetaprev = 0.1d0
+! psi = -3.59 m with parameterization in Ireson et al. 2023
+theta = 0.27294042d0
+thetaprev = 0.27294042d0
+hp = -3.59d0
+hpprev = -3.59d0
 
 ! tortuosity references (= tor_ref) include:
 ! 'Aetal03','Aetal00','P40','Mi59','Ma59','B1904','MQ60','MQ61','GDC', 
@@ -3564,6 +3609,8 @@ int_flx_aqex = 0d0
 
 int_ph = 0d0
 
+int_flx_h2o = 0d0
+
 if (do_psd) then 
 	kpsdx_int_int = 0d0
 	kmpsdx_int_int = 0d0
@@ -3693,6 +3740,10 @@ do while (it<nt)
     wprev = w 
     
     dispprev = disp
+	
+	satprev = sat
+	thetaprev = theta
+	hpprev = hp
     
     mblkx = mblk
     
@@ -4454,13 +4505,43 @@ do while (it<nt)
         if (dust_norm>0d0) close(ipsdv)
     endif 
 
-    ! if ((.not.read_data) .and. it == 0 .and. iter == 0) then 
-        ! do ispa = 1, nsp_aq
-            ! if (chraq(ispa)/='so4') then
-                ! maqx(ispa,1:) = 1d2
-            ! endif 
-        ! enddo
-    ! endif 
+	!  attempt to calculate water saturation based on Richards equation 
+	call richards( &
+		& nz,nflx_h2o,z,dz,poro,poroprev,hpprev,thetaprev,satprev,qin,dt &! input 
+		& ,sat,hp,kh,theta,flx_h2o,err_flg_richards &! output
+		& )
+
+    if (err_flg_richards) then 
+        flgback = .false. 
+        flgreducedt = .true.
+        ! pre_calc = .true.
+        dt = dt/1d1
+        psd = psd_old
+        mpsd = mpsd_old
+        poro = poroprev
+        torg = torgprev
+        tora = toraprev
+        disp = dispprev
+		sat = satprev
+		theta = thetaprev
+		hp = hpprev
+        v = vprev
+        hr = hrprev
+        w = wprev
+        call calcupwindscheme(  &
+            up,dwn,cnr,adf & ! output 
+            ,w,nz   & ! input &
+            )
+        go to 100
+    endif   
+	
+	q_RE = ( flx_h2o(iadv_h2o,:) + flx_h2o(irain_h2o,:) )* dz(:)
+	
+	print*,sat
+	print*,hp
+	print*,kh
+	print*,q_RE
+
     
     poro_iter = 0
     poro_error = 1d4
@@ -4537,6 +4618,9 @@ do while (it<nt)
         torg = torgprev
         tora = toraprev
         disp = dispprev
+		sat = satprev
+		theta = thetaprev
+		hp = hpprev
         v = vprev
         hr = hrprev
         w = wprev
@@ -4601,6 +4685,9 @@ do while (it<nt)
             torg = torgprev
             tora = toraprev
             disp = dispprev
+			sat = satprev
+			theta = thetaprev
+			hp = hpprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -4628,6 +4715,9 @@ do while (it<nt)
             torg = torgprev
             tora = toraprev
             disp = dispprev
+			sat = satprev
+			theta = thetaprev
+			hp = hpprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -4769,6 +4859,9 @@ do while (it<nt)
             torg = torgprev
             tora = toraprev
             disp = dispprev
+			sat = satprev
+			theta = thetaprev
+			hp = hpprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -5409,6 +5502,9 @@ do while (it<nt)
                     torg = torgprev
                     tora = toraprev
                     disp = dispprev
+					sat = satprev
+					theta = thetaprev
+					hp = hpprev
                     v = vprev
                     hr = hrprev
                     w = wprev
@@ -5486,6 +5582,9 @@ do while (it<nt)
                 torg = torgprev
                 tora = toraprev
                 disp = dispprev
+				sat = satprev
+				theta = thetaprev
+				hp = hpprev
                 v = vprev
                 hr = hrprev
                 w = wprev
@@ -5834,6 +5933,10 @@ do while (it<nt)
         int_ph(iz) = int_ph(iz) + sum(gamma(1:iz)*prox(1:iz)*dz(1:iz))/z(iz) * dt
     enddo 
 	
+    do iflx=1,nflx_h2o
+		int_flx_h2o(iflx) = int_flx_h2o(iflx) + sum(flx_h2o(iflx,:)*dz(:))*dt
+	enddo
+	
 	! calculating time integral of k (m/yr) used for solution of PBE 
 	if (do_psd) then 
 		if (do_psd_full) then 
@@ -6016,10 +6119,11 @@ do while (it<nt)
         write(chrfmt,'(i0)') nsp_gas+2
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(igasprof,trim(adjustl(chrfmt))) 'z',(chrgas(isps),isps=1,nsp_gas),'time'
-        write(chrfmt,'(i0)') 11
+        write(chrfmt,'(i0)') 14
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a12))'
         write(ibsd,trim(adjustl(chrfmt))) 'z','poro', 'sat', 'v[m/yr]', 'm2/m3' , 'w[m/yr]' &
-            & , 'vol[m3/m3]','dens[g/cm3]','blk[wt%]','cec[cmol/kg]','time'
+            & , 'vol[m3/m3]','dens[g/cm3]','blk[wt%]','cec[cmol/kg]' &
+			& , 'theta','psi[m]','Kh[m/yr]','time'
         write(chrfmt,'(i0)') 2 + nsp_sld + nrxn_ext
         chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a5))'
         write(irate,trim(adjustl(chrfmt))) 'z',(chrsld(isps),isps=1,nsp_sld),(chrrxn_ext(irxn),irxn=1,nrxn_ext),'time'
@@ -6046,7 +6150,8 @@ do while (it<nt)
                 & ,poro(iz)*sat(iz)*1d3*prox(iz) + proxads(iz) / (1d5/ucvsld1/(rho_grain_z(iz)*1d6)) ,time
             write(iaqprof6,*) z(iz),(cecaqwt(ispa,iz),ispa = 1, nsp_aq) ,1d0*10d0*proxads(iz),time
             write(ibsd,*) z(iz), poro(iz),sat(iz),v(iz),hrb(iz),w(iz),sldvolfrac(iz),rho_grain_z(iz)  &
-                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),cec(iz),time
+                & ,mblkx(iz)*mwtblk*1d2/ucvsld1/(rho_grain_z(iz)*1d6),cec(iz) &
+				& ,theta(iz),hp(iz),kh(iz),time
             write(irate,*) z(iz), (rxnsld(isps,iz),isps=1,nsp_sld),(rxnext(irxn,iz),irxn=1,nrxn_ext), time 
             write(isa,*) z(iz),(hr(isps,iz),isps = 1, nsp_sld),time
             write(isa2,*) z(iz),(ssas(isps,iz),isps = 1, nsp_sld),time
@@ -6334,6 +6439,30 @@ do while (it<nt)
 			enddo
 		endif 
         
+        open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_psi.txt', action='write',status='old',position='append')
+        write(ih2oflx,*) time,(hp(iz),iz=1,nz)
+        close(ih2oflx)
+        
+        open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_kh.txt', action='write',status='old',position='append')
+        write(ih2oflx,*) time,(kh(iz),iz=1,nz)
+        close(ih2oflx)
+        
+        open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_q.txt', action='write',status='old',position='append')
+        write(ih2oflx,*) time,(q_RE(iz),iz=1,nz)
+        close(ih2oflx)
+        
+        open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_theta.txt', action='write',status='old',position='append')
+        write(ih2oflx,*) time,(theta(iz),iz=1,nz)
+        close(ih2oflx)
+		
+		open(ih2oflx, file=trim(adjustl(flxdir))//'/flx_h2o.txt', action='write',status='old',position='append')
+		write(ih2oflx,*) time,(sum(flx_h2o(iflx,:)*dz(:)),iflx=1,nflx_h2o)
+		close(ih2oflx)
+		
+		open(ih2oflx, file=trim(adjustl(flxdir))//'/int_flx_h2o.txt', action='write',status='old',position='append')
+		write(ih2oflx,*) time,(int_flx_h2o(iflx)/time,iflx=1,nflx_h2o)
+		close(ih2oflx)
+        
 #endif 
         flx_recorded = .true.
         
@@ -6506,6 +6635,30 @@ do while (it<nt)
 					close(isldflx(isps))
 				enddo
 			endif 
+        
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_psi.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(hp(iz),iz=1,nz)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_kh.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(kh(iz),iz=1,nz)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_q.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(q_RE(iz),iz=1,nz)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_theta.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(theta(iz),iz=1,nz)
+			close(ih2oflx)
+
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/flx_h2o.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(sum(flx_h2o(iflx,:)*dz(:)),iflx=1,nflx_h2o)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/int_flx_h2o.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(int_flx_h2o(iflx)/time,iflx=1,nflx_h2o)
+			close(ih2oflx)
             
         endif 
     endif 
@@ -25349,6 +25502,349 @@ dgamma_dis = log(10d0) * 10d0**gamma * dgamma_dis
 gamma = 10d0**gamma
 
 endsubroutine calc_gamma_davies
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine richards( &
+	& nz,nflx_h2o,z,dz,poro,poroprev,hpprev,thetaprev,satprev,qin,dt &! input 
+	& ,sat,hp,kh,theta,flx_h2o,flg_err &! output
+	& )
+! an attempt to solve water saturation based on simplified Richards equation 
+! 		d(poro*sat)/dt = ∇ (K ∇h) + Q 
+!			or
+! 		d(poro*sat)/dt = d (K dh/dz)/dz + Q 
+! 		( e.g. Steefel et al. 2015 )
+! where 
+! 		h = hp + z
+! 		sat =  1 / [1 + (a*hp)^n]^(1-1/n)
+! 		K = K_o * sat ^L * { 1 - [ 1 - sat^[n/(n-1)] ]^(1-1/n) }^2
+! 		( Schaap and Leij 2000 )
+! 
+!		sat^(1/m) = 1/[1 + (a*|hp|)^n] where m = 1- 1/n
+!		1/sat^(1/m) = 1 + (a*|hp|)^n
+!		(a*|hp|)^n = 1/sat^(1/m) - 1
+!		(a*|hp|) = [1/sat^(1/m)-1]^(1/n)
+!		|hp| = [1/sat^(1/m)-1]^(1/n)/a
+!		hp = -[1/sat^(1/m)-1]^(1/n)/a
+! 		d(poro*sat)/dt = d (K dhp/dz + K)/dz + Q 
+! 		d(poro*sat)/dt = d (K dhp/dz ) + dK/dz + Q 
+
+! Table 1 of Schaap and Leij 2000
+! 		res.wat	sat		logalfa	logn	logKo	L			n			n/(n-1)		1-1/n		(1-n)/n			1/n
+! All	0.055	0.442	-1.66	0.214	1.92	1.03		1.636816521	2.570311018	0.389057975	-0.389057975	0.610942025
+! sands	0.052	0.396	-1.58	0.349	1.44	-0.73		2.233572223	1.810653792	0.552286696	-0.552286696	0.447713304
+! loams	0.056	0.512	-1.39	0.076	2.03	1.42		1.191242008	6.228976679	0.160540013	-0.160540013	0.839459987
+! silts	0.031	0.428	-1.92	0.225	0.524	0.624		1.678804018	2.473179258	0.404337856	-0.404337856	0.595662144
+! clays	0.098	0.512	-1.75	0.114	0.43	-1.26		1.300169578	4.331450197	0.23086956	-0.23086956		0.76913044
+
+	
+integer,intent(in)::nz,nflx_h2o
+real(kind=8),intent(in)::qin,dt
+real(kind=8),dimension(nz),intent(in)::z,dz,poro,poroprev,hpprev,thetaprev,satprev
+real(kind=8),dimension(nz),intent(out)::sat,hp,kh,theta
+real(kind=8),dimension(nflx_h2o,nz),intent(out)::flx_h2o
+logical,intent(out)::flg_err
+
+! local 
+integer iz,ie,ie2,iter
+integer itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o
+data itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o/1,2,3,4,5,6/
+integer,parameter::iter_max = 3000
+real(kind=8),parameter::tol=1d-9
+real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8),parameter::threshold = 10d0
+real(kind=8),parameter::corr = exp(threshold)
+real(kind=8) alpha,ell,enn,kh_o,emm,theta_r,theta_s
+real(kind=8) khtmp_p,khtmp_n,hptmp_p,hptmp_n
+real(kind=8) error 
+real(kind=8),dimension(nz)::dhp_dsatr,dkh_dsatr,dtheta_dsatr
+real(kind=8),dimension(nz)::dhp_dtheta,dkh_dtheta
+logical disp_Rich_iter
+real(kind=8) amx3(nz,nz), ymx3(nz), emx3(nz)
+integer ipiv3(nz) 
+integer info 
+
+
+! disp_Rich_iter = .false.
+disp_Rich_iter = .true.
+
+flg_err = .false.
+
+
+alpha = 10d0**-1.66d0* 1d2 ! cm-1 converted m-1
+ell = 1.04d0
+enn = 10d0**0.214d0
+emm = 1d0 - 1d0/enn
+theta_r = 0.055d0
+theta_s = 0.442d0  ! if porosity < 1, theta = poro * sat <---> sat = theta/poro <--->  sat > theta
+
+kh_o = 10d0**1.92d0 *365d0 * 1d-2 !  cm/day converted to m/yr
+
+! -- parameterization from Ireson et al. 2023 (excluding Ss term)
+theta_r=0.131d0
+theta_s=0.396d0
+alpha=0.423d0
+enn=2.06d0
+emm=1d0-1d0/enn
+kh_o=0.0496d0 * 365d0 ! m/d converted to m/yr
+ell=0.5d0
+
+! initial guess
+
+! sat = satprev
+! theta = ( theta_s - theta_r ) * sat + theta_r
+theta = thetaprev
+
+error = 1d4
+iter = 1
+
+do while (error > tol) 
+
+	ymx3 = 0d0
+	amx3 = 0d0
+	
+	! theta = ( theta_s - theta_r ) * sat + theta_r
+	sat = ( theta - theta_r )/( theta_s - theta_r )
+	hp = -( 1d0/sat**(1d0/emm) - 1d0 ) ** (1d0/enn) / alpha 
+	kh = kh_o * sat ** ell * ( 1d0 - ( 1d0 - sat**( 1d0/emm ) )**emm ) ** 2d0
+	
+	! print *, hp
+	! print *, kh
+
+	dhp_dsatr = -(1d0/enn) * ( 1d0/sat**(1d0/emm) -1d0 ) **(1d0/enn-1d0) / alpha &
+		& * ( (1d0/emm) * 1d0/sat**(1d0/emm-1d0) * (-1d0) * 1d0/sat**2d0 )
+		
+	dkh_dsatr = &
+		& + kh_o * ell * sat ** (ell - 1d0) * ( 1d0 - ( 1d0 - sat**( 1d0/emm ) )**emm ) ** 2d0 &
+		& + kh_o * sat ** ell * 2d0 * ( 1d0 - ( 1d0 - sat**( 1d0/emm ) )**emm )  &
+		&	* (-1d0) * emm *( 1d0 - sat**( 1d0/emm ) )**(emm-1d0) &
+		&	* (-1d0) * ( 1d0/emm ) * sat**( 1d0/emm - 1d0 )
+	
+	dtheta_dsatr = ( theta_s - theta_r )
+	
+	dhp_dtheta = dhp_dsatr/dtheta_dsatr
+	dkh_dtheta = dkh_dsatr/dtheta_dsatr
+
+	do iz=1,nz
+		if (iz==1) then
+			ymx3(iz) = ( &
+				! & + ( poro(iz) * sat(iz) - poroprev(iz) * satprev(iz)) / dt &
+				& + ( theta(iz) - thetaprev(iz) ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				! &	- 0.5d0*( kh_o     + kh(iz) ) * ( ( hp(iz) -   0d0    )/( z(iz) - 0d0     ) - 1d0 ) &
+				&	- (-qin) &
+				&	) / dz(iz) &
+				! & - qin/dz(iz) &
+				& )
+			amx3(iz,iz) = ( &
+				! & + ( poro(iz) * 1d0 ) / dt &
+				& + ( 1d0 ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( - dhp_dtheta(iz) )/( z(iz+1) - z(iz) ) ) &
+				! &	- 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz) -   0d0    )/( z(iz) - 0d0     ) - 1d0 ) &
+				! &	- 0.5d0*( kh_o     + kh(iz) ) * ( ( dhp_dtheta(iz) -   0d0    )/( z(iz) - 0d0     ) ) &
+				&	) / dz(iz) &
+				! & )*sat(iz)
+				& )*theta(iz)
+			amx3(iz,iz+1) = ( &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz+1) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( dhp_dtheta(iz+1) )/( z(iz+1) - z(iz) ) ) &
+				&	) / dz(iz) &
+				& )*theta(iz+1) 
+		elseif (iz==nz) then
+			ymx3(iz) = ( &
+				& + ( theta(iz) - thetaprev(iz) ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( kh(iz)   + kh(iz) ) * ( - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	) / dz(iz) &
+				& )
+			amx3(iz,iz) = ( &
+				& + ( 1d0  ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz)   + dkh_dtheta(iz) ) * ( - 1d0 ) &
+				&	- 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( dhp_dtheta(iz) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	) / dz(iz) &
+				& )*theta(iz)
+			amx3(iz,iz-1) = ( &
+				& - ( & 
+				&	- 0.5d0*( dkh_dtheta(iz-1) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( - dhp_dtheta(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	) / dz(iz) &
+				& )*theta(iz-1)
+		else
+			! print*,iz-1,poro(iz-1),sat(iz-1),kh(iz-1),hp(iz-1)
+			! print*,iz,poro(iz),sat(iz),kh(iz),hp(iz)
+			! print*,iz+1,poro(iz+1),sat(iz+1),kh(iz+1),hp(iz+1)
+			ymx3(iz) = ( &
+				! & + ( poro(iz) * sat(iz) - poroprev(iz) * satprev(iz)) / dt &
+				& + ( theta(iz) - thetaprev(iz) ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	) / dz(iz) &
+				& )
+			amx3(iz,iz) = ( &
+				& + ( 1d0 ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( - dhp_dtheta(iz) )/( z(iz+1) - z(iz) ) ) &
+				&	- 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( dhp_dtheta(iz) )/( z(iz) - z(iz-1) ) ) &
+				&	) / dz(iz) &
+				& )*theta(iz)
+			amx3(iz,iz+1) = ( &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz+1) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( dhp_dtheta(iz+1) )/( z(iz+1) - z(iz) ) ) &
+				&	) / dz(iz) &
+				& )*theta(iz+1)
+			amx3(iz,iz-1) = ( &
+				& - ( & 
+				&	- 0.5d0*( dkh_dtheta(iz-1) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( - dhp_dtheta(iz-1) )/( z(iz) - z(iz-1) ) ) &
+				&	) / dz(iz) &
+				& )*theta(iz-1)
+		endif 
+	enddo 
+	
+	ymx3 = - ymx3
+
+	if (any(isnan(amx3)).or.any(isnan(ymx3)).or.any(amx3>infinity).or.any(ymx3>infinity)) then 
+	! if (.true.) then 
+		print*,'richards: error in mtx'
+		print*,'richards: any(isnan(amx3)),any(isnan(ymx3))'
+		print*,any(isnan(amx3)),any(isnan(ymx3))
+		
+		flg_err = .true.
+
+		if (any(isnan(ymx3))) then 
+			do iz = 1, nz
+				if (isnan(ymx3(iz))) then 
+					print*,'richards: NAN is here...',iz,sat(iz),theta(iz)
+				endif
+			enddo 
+		endif
+
+
+		if (any(isnan(amx3))) then 
+			do ie = 1,(nz)
+				do ie2 = 1,(nz)
+					if (isnan(amx3(ie,ie2))) then 
+						print*,'richards: NAN is here...',ie,ie2
+					endif
+				enddo
+			enddo
+		endif
+		stop
+		
+	endif
+
+	call DGESV(Nz,int(1),amx3,Nz,IPIV3,ymx3,Nz,INFO) 
+
+
+    
+	do iz = 1, nz
+
+		if (isnan(ymx3(iz))) then 
+			print *,'richards: nan at', iz
+			flg_err = .true.
+			stop
+		endif
+		
+		emx3(iz) = theta(iz)*exp(ymx3(iz)) - theta(iz)
+		
+		if ((.not.isnan(ymx3(iz))).and.ymx3(iz) >threshold) then 
+			theta(iz) = theta(iz)*corr
+		elseif (ymx3(iz) < -threshold) then 
+			theta(iz) = theta(iz)/corr
+		else   
+			theta(iz) = theta(iz)*exp(ymx3(iz))
+		endif
+	enddo
+	
+	error = maxval(abs(emx3))
+	if (disp_Rich_iter) print '("richards: iteration =", I5, 1x, "| error", 1x, E13.6)',iter, error 
+	
+	iter = iter + 1
+	
+	where ( theta > theta_s )
+		theta = theta_s-tol/1d4
+	elsewhere ( theta < theta_r )
+		theta = theta_r+tol/1d4
+	endwhere 
+	
+	if (iter > iter_max) then 
+		flg_err = .true.
+		return
+	endif 
+
+enddo 
+
+if (any(theta >=1d0)) then
+	flg_err = .true.
+	print*, 'converged theta is somehow >= 1'
+	stop
+endif 
+
+! sat = theta/poro
+
+sat = ( theta - theta_r )/( theta_s - theta_r )
+hp = -( 1d0/sat**(1d0/emm) - 1d0 ) ** (1d0/enn) / alpha 
+kh = kh_o * sat ** ell * ( 1d0 - ( 1d0 - sat**( enn/(enn-1d0) ) )**(1d0-1d0/enn) ) ** 2d0
+
+flx_h2o = 0d0
+
+do iz=1,nz
+	if (iz==1) then
+		flx_h2o(itflx_h2o,iz) = ( &
+			! & + ( poro(iz) * sat(iz) - poroprev(iz) * satprev(iz)) / dt &
+			& + ( theta(iz) - thetaprev(iz) ) / dt &
+			& )
+		flx_h2o(iadv_h2o,iz) = ( &
+			& - ( & 
+			&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+			! &	- 0.5d0*( kh_o     + kh(iz) ) * ( ( hp(iz) -   0d0    )/( z(iz) - 0d0     ) - 1d0 ) &
+			! &	- (-qin) &
+			&	) / dz(iz) &
+			& )
+		flx_h2o(irain_h2o,iz) = ( &
+			& - qin/dz(iz) &
+			& )
+	elseif (iz==nz) then
+		flx_h2o(itflx_h2o,iz) = ( &
+			& + ( theta(iz) - thetaprev(iz) ) / dt &
+			& )
+		flx_h2o(iadv_h2o,iz) = ( &
+			& - ( & 
+			&	+ 0.5d0*( kh(iz)   + kh(iz) ) * ( - 1d0 ) &
+			&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+			&	) / dz(iz) &
+			& )
+	else
+		flx_h2o(itflx_h2o,iz) = ( &
+			& + ( theta(iz) - thetaprev(iz) ) / dt &
+			& )
+		flx_h2o(iadv_h2o,iz) = ( &
+			& - ( & 
+			&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+			&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+			&	) / dz(iz) &
+			& )
+	endif 
+	
+	flx_h2o(ires_h2o,iz) = sum(flx_h2o(:,iz))
+	
+enddo 
+
+endsubroutine richards
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
