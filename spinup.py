@@ -210,11 +210,12 @@ def run_a_scepter_run(
     run_success = False
     
     if not lim_calc_time:
-        os.system(outdir+runname+where+exename + ' > ' + outdir+runname+'/logfile.txt')
+        os.system(outdir+runname+where+exename + ' > ' + outdir+runname+'/logfile.txt' + ' 2> ' + outdir+runname+'/err.txt')
         run_success = True
     else:
         logf = open(outdir+runname+'/logfile.txt', 'w')
-        proc = subprocess.Popen([outdir+runname+where+exename], stdout=logf)
+        logerrf = open(outdir+runname+'/err.txt', 'w')
+        proc = subprocess.Popen([outdir+runname+where+exename], stdout=logf, stderr=logerrf)
 
         my_timeout =60*max_calc_time
         
@@ -245,6 +246,8 @@ def main():
     runname = 'test_richards'
     runname = 'test_richards_2'
     runname = 'test_richards_3'
+    runname = 'test_richards_4'
+    runname = 'test_richards_4_v2'
     
     #  >>>> input variables of interests 
     cec     = 10.0
@@ -268,7 +271,8 @@ def main():
     taudust             = 0
     omrain              = 300
     zom                 = 0.25
-    poro                = 0.5
+    # poro                = 0.5
+    poro                = 0.396
     moistsrf            = 0.5
     zwater              = 1000
     zdust               = 0.25
