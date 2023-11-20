@@ -108,8 +108,8 @@ def get_input_switches(**kwargs):
     mix_scheme  = kwargs.get('mix_scheme',  1) 
     poro_iter   = kwargs.get('poro_iter',   'false') 
     sldmin_lim  = kwargs.get('sldmin_lim',  'true') 
-    display     = kwargs.get('display',     'true')
-    disp_lim    = kwargs.get('disp_lim',    'true')
+    display     = kwargs.get('display',     1)
+    report      = kwargs.get('report',      0)
     restart     = kwargs.get('restart',     'false') 
     rough       = kwargs.get('rough',       'true')      
     act_ON      = kwargs.get('act_ON',      'false') 
@@ -125,49 +125,49 @@ def get_input_switches(**kwargs):
     season      = kwargs.get('season',      'false') 
     
     notes = [
-        '** switch number or on/off [true if on, false if off]',
-        'erosion scheme: 0-- cnst w, 1-- cnst poro*w, 2-- cnst (1-poro)*w, 3--- w-flexible(cnst porosity prof), if not defined 0 is taken',
-        'bio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken',
-        'porosity  iteration',
-        'limiting mineral lowest conc.',
-        'display results at runtime',
-        'limited results display',
-        'restart from a previous run',
-        'include roughness in mineral surface area',
-        'enabling activity coefficients',
-        'time step fixed',
-        'enabling adsorption for cation exchange',
-        'adopting a regular grid',
-        'closing system for aq phases',
-        'enabling porosity evolution',
-        'enabling SA evolution 1 (SA decreases as porosity increases)',
-        'enabling SA evolution 2 (SA increases with porosity)',
-        'enabling PSD tracking',
-        'enabling PSD tracking for individual solid species',
-        'enabling full seasonality',
+        '** switch number or on/off [true if on, false if off]'
+        ,'erosion scheme: 0-- cnst w, 1-- cnst poro*w, 2-- cnst (1-poro)*w, 3--- w-flexible(cnst porosity prof), if not defined 0 is taken'
+        ,'bio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken'
+        ,'porosity  iteration'
+        ,'limiting mineral lowest conc.'
+        ,'display results at runtime: 0-- none, 1-- only reporting time, 2-- every time iteration, if not defined 1 is taken'
+        ,'report files: 0-- basics, 1-- +saturation time series'
+        ,'restart from a previous run'
+        ,'include roughness in mineral surface area'
+        ,'enabling activity coefficients'
+        ,'time step fixed'
+        ,'enabling adsorption for cation exchange'
+        ,'adopting a regular grid'
+        ,'closing system for aq phases'
+        ,'enabling porosity evolution'
+        ,'enabling SA evolution 1 (SA decreases as porosity increases)'
+        ,'enabling SA evolution 2 (SA increases with porosity)'
+        ,'enabling PSD tracking'
+        ,'enabling PSD tracking for individual solid species'
+        ,'enabling full seasonality'
         ]
     
     values = [
-        '',
-        w_scheme,
-        mix_scheme,
-        poro_iter,
-        sldmin_lim,
-        display,
-        disp_lim,
-        restart,
-        rough,
-        act_ON,
-        dt_fix,
-        cec_on,
-        dz_fix,
-        close_aq,
-        poro_evol,
-        sa_evol_1,
-        sa_evol_2,
-        psd_bulk,
-        psd_full,
-        season,
+        ''
+        ,w_scheme
+        ,mix_scheme 
+        ,poro_iter 
+        ,sldmin_lim 
+        ,display
+        ,report
+        ,restart 
+        ,rough      
+        ,act_ON 
+        ,dt_fix
+        ,cec_on
+        ,dz_fix
+        ,close_aq
+        ,poro_evol
+        ,sa_evol_1 
+        ,sa_evol_2
+        ,psd_bulk
+        ,psd_full
+        ,season
         ]
         
     if len(values) != len(notes): 
@@ -321,6 +321,8 @@ def get_input_sld_properties(**kwargs):
     
     if filename == 'kinspc.in':
         note = '** specify rate const in [mol/m2/yr] except for OMs which should be presented as turnover year [yr] (e.g., g2   1.0)'
+    elif filename == 'keqspc.in':
+        note = '** specify thermodynamic const in log10 (e.g., by   21.018)'
     elif filename == 'sa.in':
         note = '** parent rock particle radii in meter (e.g., "ab      1e-5") (if not specified value in frame.in is used for all sld sp.)'
     elif filename == 'OM_rain.in':
@@ -330,11 +332,13 @@ def get_input_sld_properties(**kwargs):
     elif filename == 'cec.in':
         note = '** cec [cmol/kg], log10(KH-X) [-] (X=Na,K,Ca,Mg,Al) and beta specified by users (e.g., "g2   90   5.9   4.8   10.47   10.786   16.47   3.4") (if not specified assumed code default values)'
     elif filename == 'nopsd.in':
-        note = '** list of minerals whose PSDs are not tracked for some reason'
+        note = '** list of minerals whose PSDs are not tracked for some reason (e.g., "g2   true/false" where true means no PSD and false means PSD implementation)'
     elif filename == '2ndslds.in':
         note = '** list of minerals whose precipitation is allowed'
     elif filename == 'psdrain.in':
         note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define dust psd (e.g., 1e-5    0.2    1)'
+    elif filename == 'psdpr.in':
+        note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define parentrock psd (e.g., 1e-5    0.2    1)'
     else:
         print('{} is not supposed to be input file'.format(filename))
     
@@ -354,7 +358,11 @@ def get_input_sld_properties(**kwargs):
                 input_text += note + '\n'
             else:
                 if filename == 'nopsd.in' or filename == '2ndslds.in':
-                    input_text += sld_varlist[i][0] + '\n'
+                    for j in range(len(sld_varlist[i])):
+                        if j==0:
+                            input_text += sld_varlist[i][j] + '\t' 
+                        else:
+                            input_text += sld_varlist[i][j] + '\n'
                 elif filename == 'cec.in':
                     for j in range(len(sld_varlist[i])):
                         if j==0:
@@ -363,7 +371,7 @@ def get_input_sld_properties(**kwargs):
                             input_text += str(sld_varlist[i][j]) + '\n' 
                         else:
                             input_text += str(sld_varlist[i][j]) + '\t'
-                elif filename == 'psdrain.in':
+                elif filename == 'psdrain.in' or filename == 'psdpr.in':
                     for j in range(len(sld_varlist[i])):
                         if j==len(sld_varlist[i])-1:
                             input_text += str(sld_varlist[i][j]) + '\n' 
@@ -460,7 +468,8 @@ def main():
     outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
     runname = 'test_input'
     
-    exename_src = 'scepter_test'
+    # exename_src = 'scepter_test'
+    exename_src = 'scepter_DEV'
     exename = 'scepter'
     
     os.system('cp ' + exename_src + ' ' + outdir + runname + '/' + exename)
@@ -513,8 +522,10 @@ def main():
     mix_scheme=1 
     poro_iter='false' 
     sldmin_lim ='true'
-    display='true'
-    disp_lim='true'
+    # display='true'
+    display=1
+    # disp_lim='true'
+    report=0
     restart ='false'
     rough      ='true'
     act_ON ='false'
@@ -538,7 +549,7 @@ def main():
         ,poro_iter=poro_iter 
         ,sldmin_lim=sldmin_lim 
         ,display=display
-        ,disp_lim=disp_lim
+        ,report=report
         ,restart=restart 
         ,rough=rough      
         ,act_ON=act_ON 
@@ -623,6 +634,35 @@ def main():
         ,filename = filename
         ,sld_varlist=sld_varlist
         # ,srcfile = srcfile
+        )
+        
+    filename = 'psdpr.in'
+    srcfile = './data/psdpr_mip_ex1c.in'
+    sld_varlist = [ (5e-6,0.2,1), (20e-6,0.2,1), (50e-6,0.2,1), (70e-6,0.2,1) ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        # ,srcfile = srcfile
+        )
+        
+    filename = 'nopsd.in'
+    sld_varlist = [ ('g2','true'), ('inrt','false') ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        )
+        
+    filename = 'keqspc.in'
+    sld_varlist = [ ('an',24.5295), ('by',21.018) ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
         )
     
     timeline = [0, 5e-3-1e-6, 5e-3, 1.-1e-6]

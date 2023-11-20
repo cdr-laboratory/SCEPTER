@@ -117,7 +117,10 @@ real(kind=8),parameter :: fr_an_olg = 0.2d0 ! Anorthite fraction for oligoclase 
 real(kind=8),parameter :: fr_an_and = 0.4d0 ! Anorthite fraction for andesine (Beerling et al., 2020); 0.3 - 0.5
 real(kind=8),parameter :: fr_an_la = 0.6d0 ! Anorthite fraction for labradorite (Beerling et al., 2020); 0.5 - 0.7
 real(kind=8),parameter :: fr_an_by = 0.8d0 ! Anorthite fraction for bytownite (Beerling et al., 2020); 0.7 - 0.9
-real(kind=8),parameter :: fr_an_an = 1.0d0 ! Anorthite fraction for anorthite (Beerling et al., 2020); 0.9 - 1.0
+! real(kind=8),parameter :: fr_an_an = 1.0d0 ! Anorthite fraction for anorthite (Beerling et al., 2020); 0.9 - 1.0
+real(kind=8),parameter :: fr_an_an = 0.95d0 ! Anorthite fraction for anorthite (Beerling et al., 2020); 0.9 - 1.0
+
+real(kind=8),parameter :: fr_fa_olvn = 0.2d0 ! Fayalite fraction for olivine; 0.2 
 
 real(kind=8),parameter :: fr_hb_cpx = 0.5d0 ! Hedenbergite fraction for clinopyroxene; 0.0 - 1.0
 real(kind=8),parameter :: fr_fer_opx = 0.5d0 ! Ferrosilite fraction for orthopyroxene; 0.0 - 1.0
@@ -250,6 +253,10 @@ real(kind=8),parameter :: mvnacl = 27.015d0 ! cm3/mol; molar volume of halite; f
 real(kind=8),parameter :: mvcaso4 = 45.94d0 ! cm3/mol; molar volume of anhydrite; from Robie et al. 1978
 real(kind=8),parameter :: mvinrt = mvka ! cm3/mol; molar volume of kaolinite; Robie et al. 1978
 ! real(kind=8),parameter :: mvinrt = mvqtz ! cm3/mol; molar volume of quartz; Robie et al. 1978
+real(kind=8),parameter :: mvolvn = fr_fa_olvn*mvfa + (1d0 - fr_fa_olvn)*mvfo ! cm3/mol; molar volume of olivine
+real(kind=8),parameter :: mvmgn = 44.524d0 ! cm3/mol; molar volume of magnetite; Robie et al. 1978
+real(kind=8),parameter :: mvilmn = 31.69d0 ! cm3/mol; molar volume of ilmenite; Robie et al. 1978
+real(kind=8),parameter :: mvanat = 20.52d0 ! cm3/mol; molar volume of anatase; Robie et al. 1978
                                 
                                 
 real(kind=8),parameter :: mwtka = 258.162d0 ! g/mol; formula weight of Ka; Robie et al. 1978
@@ -344,6 +351,10 @@ real(kind=8),parameter :: mwtnacl = 58.443d0 ! g/mol; molar weight of halite; Ro
 real(kind=8),parameter :: mwtcaso4 = 136.138d0 ! g/mol; molar weight of halite; Robie et al. 1978 
 real(kind=8),parameter :: mwtinrt = mwtka ! g/mol; formula weight of Ka; Robie et al. 1978
 ! real(kind=8),parameter :: mwtinrt = mwtqtz ! g/mol; formula weight of quartz; Robie et al. 1978
+real(kind=8),parameter :: mwtolvn = fr_fa_olvn*mwtfa + (1d0 - fr_fa_olvn)*mwtfo ! g/mol; formula weight of olivine (FexMg(1-x)2SiO4); assuming simple ('ideal'?) mixing
+real(kind=8),parameter :: mwtmgn = 231.539d0 ! g/mol; formula weight of magnetite; Robie et al. 1978
+real(kind=8),parameter :: mwtilmn = 151.745d0 ! g/mol; formula weight of ilmenite; Robie et al. 1978
+real(kind=8),parameter :: mwtanat = 79.899d0 ! g/mol; formula weight of ilmenite; Robie et al. 1978
 
  
 real(kind=8),parameter :: mvgbas = ( &
@@ -376,6 +387,7 @@ real(kind=8),parameter :: mwtaqal   = 26.9815d0
 real(kind=8),parameter :: mwtaqsi   = 28.0843d0  
 real(kind=8),parameter :: mwtaqfe2  = 55.847d0  
 real(kind=8),parameter :: mwtaqfe3  = 55.847d0  
+real(kind=8),parameter :: mwtaqti  	= 47.867d0  
 ! anions 
 real(kind=8),parameter :: mwtaqno3  = 14.0067d0 + 3*16.0d0
 real(kind=8),parameter :: mwtaqso4  = 32.064d0 + 4*16.0d0
@@ -412,8 +424,17 @@ real(kind=8) rainpowder,rainpowder_prev
 
 real(kind=8),intent(in)::zsupp != 0.3d0 !  e-folding decrease
 
-real(kind=8) sat(nz), poro(nz), torg(nz), tora(nz), tc, satup
-character(10)::tor_ref
+real(kind=8) tc,satup
+real(kind=8),dimension(nz)::sat,poro,torg,tora
+real(kind=8) theta_r,theta_s,ell,emm,enn,alpha,kh_o
+real(kind=8),dimension(nz)::kh,hp,theta,thetaprev,satprev,hpprev,q_RE,sat_RE,satprev_RE
+integer,parameter :: nflx_h2o = 6
+integer itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o
+data itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o/1,2,3,4,5,6/
+real(kind=8),dimension(nflx_h2o,nz) :: flx_h2o ! itflx,iadv,idif,irain,irxn,ires
+real(kind=8),dimension(nflx_h2o) :: int_flx_h2o ! itflx,iadv,idif,irain,irxn,ires
+logical err_flg_richards
+character(10)::tor_ref,RE_ref
 
 ! real(kind=8) :: poroi = 0.1d0 !*** default
 real(kind=8),intent(in) :: poroi != 0.5d0
@@ -499,7 +520,8 @@ logical :: timestep_fixed = .false.
 ! logical :: timestep_fixed = .true.
 
 ! logical :: display = .false.
-logical :: display = .true.
+! logical :: display = .true.
+integer display ! = 0 , do not show results on display | = 1, show results on display only when making report | = 2, show results on display every time iteration 
 
 ! logical :: regular_grid = .false.
 logical :: regular_grid = .true.
@@ -544,6 +566,9 @@ logical :: aq_close = .false.
 
 logical :: act_ON = .false.
 ! logical :: act_ON = .true.
+
+! logical :: h2odyn_ON = .false.
+logical :: h2odyn_ON = .true.
 
 logical ads_ON_tmp,dust_Off
 
@@ -612,7 +637,8 @@ integer,parameter :: iroughtype_NSB07 = 1
 integer,parameter :: iroughtype_BM00 = 2
 integer,parameter :: iroughtype_Letal21 = 3
 
-logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
+! logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
+integer report  ! = 0 , report basics | = 1, + report saturation time series 
 logical poroiter_in !  true if porosity (or w) is iteratively checked  (input from input file swtiches.in)
 logical lim_minsld_in !  true if minimum sld conc. is enforced  (input from input file swtiches.in)
 
@@ -651,11 +677,11 @@ integer nsp_sld_2 != 25
 ! integer,parameter::nsp_sld_2 = 20 ! removing all carbonate from secondary minerals
 ! integer,parameter::nsp_sld_2 = 11 ! removing all base-catio bearers from secondary minerals
 ! #endif 
-integer,parameter::nsp_sld_all = 81
+integer,parameter::nsp_sld_all = 85
 integer ::nsp_sld_cnst != nsp_sld_all - nsp_sld
 integer,intent(in)::nsp_aq != 5
-integer,parameter::nsp_aq_ph = 17
-integer,parameter::nsp_aq_all = 17
+integer,parameter::nsp_aq_ph = 18
+integer,parameter::nsp_aq_all = 18
 integer ::nsp_aq_cnst != nsp_aq_all - nsp_aq
 integer,intent(in)::nsp_gas != 2
 integer,parameter::nsp_gas_ph = 2
@@ -758,6 +784,7 @@ character(5),dimension(6)::chrco2sp
 
 ! an attempt to record psd
 integer,parameter :: nps = 50 ! bins for particle size 
+! integer,parameter :: nps = 200 ! bins for particle size 
 ! real(kind=8),parameter :: ps_min = 0.1d-6 ! min particle size (0.1 um)
 real(kind=8),parameter :: ps_min = 10d-9 ! min particle size (10 nm)
 ! real(kind=8),parameter :: ps_min = 100d-9 ! min particle size (100 nm)
@@ -774,16 +801,24 @@ real(kind=8),dimension(nps,nz)::psd_norm,psdx_norm,dpsd_norm,psd_rain_norm
 real(kind=8),dimension(nps)::psd_tmp,dvd_tmp
 real(kind=8),dimension(nps)::psd_pr,dps,rough_ps_b
 real(kind=8),dimension(nps)::psd_pr_norm,psd_norm_fact,psd_rain_tmp,intpsd,intpsd_tmp,intpsd_sum_tmp
-real(kind=8),dimension(nz)::DV
+real(kind=8),dimension(nz)::DV,kpsdx,kpsdx_int,kpsdx_int_int
+real(kind=8),dimension(nsp_sld,nz)::kmpsdx,kmpsdx_int,kmpsdx_int_int
 ! integer,parameter :: nps_rain_char = 4
 integer nps_rain_char_in,nps_rain_char != 4
 real(kind=8),dimension(:),allocatable::pssigma_rain_list,psu_rain_list,psw_rain_list
 real(kind=8),dimension(:),allocatable::pssigma_rain_list_in,psu_rain_list_in,psw_rain_list_in
+integer nps_pr_char_in,nps_pr_char != 1
+real(kind=8),dimension(:),allocatable::pssigma_pr_list,psu_pr_list,psw_pr_list
+real(kind=8),dimension(:),allocatable::pssigma_pr_list_in,psu_pr_list_in,psw_pr_list_in
 real(kind=8) psu_pr,pssigma_pr,psu_rain,psw_rain,pssigma_rain,ps_new,ps_newp,dvd_res,error_psd,volsld,flx_max_max,psd_th_flex
 real(kind=8) p80_tmp
-real(kind=8) :: ps_sigma_std = 1d0
+! real(kind=8) :: ps_sigma_std = 1d0
 ! real(kind=8) :: ps_sigma_std = 0.5d0
 ! real(kind=8) :: ps_sigma_std = 0.2d0
+real(kind=8) :: ps_sigma_std = log10(2d0) ! ~0.3
+! real(kind=8) :: ps_sigma_std = log10(1.4d0) ! ~0.14
+! real(kind=8) :: ps_sigma_std = log10(1.6d0) ! ~0.2
+! real(kind=8) :: ps_sigma_std = log10(2.5d0) ! ~0.4
 integer ips,iips,ips_new
 logical psd_error_flg,no_psd_prevrun
 integer,parameter :: nflx_psd = 6
@@ -822,6 +857,12 @@ character(5),dimension(:),allocatable::chrsld_sa
 real(kind=8) time_pbe,dt_pbe,dt_save
 integer nsld_nopsd
 character(5),dimension(:),allocatable::chrsld_nopsd ! minerals whose PSDs tracking is not conducted for some reasons (e.g., too fast; mostly precipitating etc.)
+logical,dimension(:),allocatable::sldnopsd ! true if PSD is not considered; input from input file
+logical,dimension(nsp_sld)::skip_psdcalc,skip_psdcalc_def ! true if PSD is not considered for a species
+! enabling user-specified keq input | 10-30-2023
+integer nsld_keqspc 
+character(5),dimension(:),allocatable::chrsld_keqspc
+real(kind=8),dimension(:),allocatable::keq_sld_spc
 ! attempting to calculate cec when not using default values 
 integer nsld_cec
 character(5),dimension(:),allocatable::chrsld_cec
@@ -865,13 +906,13 @@ integer,dimension(nsp_gas)::igasflx
 integer,dimension(nsp_sld)::isldflx
 integer,dimension(6)::ico2flx
 integer,dimension(nsp_aqex)::iaqexflx
-integer iphint,iphint2
+integer iphint,iphint2,ih2oflx
 integer,parameter::nsp_saveall = 1
 character(5),dimension(nsp_saveall)::chrsp_saveall
 #endif 
 
 integer,parameter::idust = 15
-integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx  &
+integer isldprof,isldprof2,isldprof3,iaqprof,igasprof,isldsat,ibsd,irate,ipsd,ipsdv,ipsds,ipsdflx,ikpsd  &
     & ,isa,isa2,iaqprof2,iaqprof3,iaqprof4,iaqprof5,iaqprof6
 
 integer,dimension(nsp_sld)::imix
@@ -947,8 +988,9 @@ ipsd        = idust + nsp_sld + nsp_gas + nsp_aq + 14
 ipsdv       = idust + nsp_sld + nsp_gas + nsp_aq + 15
 ipsds       = idust + nsp_sld + nsp_gas + nsp_aq + 16
 ipsdflx     = idust + nsp_sld + nsp_gas + nsp_aq + 17
-isa         = idust + nsp_sld + nsp_gas + nsp_aq + 18
-isa2        = idust + nsp_sld + nsp_gas + nsp_aq + 19
+ikpsd     	= idust + nsp_sld + nsp_gas + nsp_aq + 18
+isa         = idust + nsp_sld + nsp_gas + nsp_aq + 19
+isa2        = idust + nsp_sld + nsp_gas + nsp_aq + 20
 
 ! species whose flux is saved all time
 ! chrsp_saveall = (/'pco2 '/)
@@ -984,12 +1026,12 @@ chrsld_all = (/'fo   ','ab   ','an   ','cc   ','ka   ','gb   ','py   ','ct   ','
     & ,'qtz  ','gps  ','tm   ','la   ','by   ','olg  ','and  ','cpx  ','en   ','fer  ','opx  ','kbd  ' &
     & ,'mgbd ','nabd ','mscv ','plgp ','antp ','agt  ','jd   ','wls  ','phsi ','splt ','casp ','ksp  ' &
     & ,'nasp ','mgsp ','fe2o ','mgo  ','k2o  ','cao  ','na2o ','al2o3','gbas ','cbas ','ep   ','clch ' &
-    & ,'sdn  ','cdr  ','leu  ','amal ','amfe3','fbas ' &
+    & ,'sdn  ','cdr  ','leu  ','amal ','amfe3','fbas ','olvn ','mgn  ','ilmn ','anat ' &
     & ,'g1   ','g2   ','g3   ','amnt ','kcl  ','gac  ','mesmh','ims  ','teas ','naoh ','naglp','cacl2' &
     & ,'nacl ','sio2 ','caso4' &
     & ,'inrt '/)
 chraq_all  = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
+    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  ','ti   '/)
 chrgas_all = (/'pco2 ','po2  ','pnh3 ','pn2o '/)
 chrrxn_ext_all = (/'resp ','fe2o2','omomb','ombto','pyfe3','amo2o','g2n0 ','g2n21','g2n22','oxao2' &
     & ,'g2k  ','g2ca ','g2mg '/)
@@ -1039,7 +1081,7 @@ call get_2ndsld( &
 ! #endif 
 ! below are species which are sensitive to pH 
 chraq_ph   = (/'mg   ','si   ','na   ','ca   ','al   ','fe2  ','fe3  ','so4  ','k    ','no3  ','oxa  ' &
-    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  '/)
+    & ,'cl   ','ac   ','mes  ','im   ','tea  ','glp  ','ti   '/)
 chrgas_ph = (/'pco2 ','pnh3 '/)
 
 chrco2sp = (/'co2g ','co2aq','hco3 ','co3  ','DIC  ','ALK  '/)
@@ -1090,14 +1132,14 @@ mv_all = (/mvfo,mvab,mvan,mvcc,mvka,mvgb,mvpy,mvct,mvfa,mvgt,mvcabd,mvdp,mvhb,mv
     & ,mvarg,mvdlm,mvhm,mvill,mvanl,mvnph,mvqtz,mvgps,mvtm,mvla,mvby,mvolg,mvand,mvcpx,mven,mvfer,mvopx &
     & ,mvkbd,mvmgbd,mvnabd,mvmscv,mvplgp,mvantp,mvagt,mvjd,mvwls,mvphsi,mvsplt,mvcasp,mvksp,mvnasp,mvmgsp &
     & ,mvfe2o,mvmgo,mvk2o,mvcao,mvna2o,mval2o3,mvgbas,mvcbas,mvep,mvclch,mvsdn,mvcdr,mvleu,mvamal,mvamfe3 &
-	& ,mvfbas &
+	& ,mvfbas,mvolvn,mvmgn,mvilmn,mvanat &
     & ,mvg1,mvg2,mvg3,mvamnt,mvkcl,mvgac,mvmesmh,mvims,mvteas,mvnaoh,mvnaglp,mvcacl2,mvnacl,mvsio2,mvcaso4  &
     & ,mvinrt/)
 mwt_all = (/mwtfo,mwtab,mwtan,mwtcc,mwtka,mwtgb,mwtpy,mwtct,mwtfa,mwtgt,mwtcabd,mwtdp,mwthb,mwtkfs,mwtom,mwtomb,mwtamsi &
     & ,mwtarg,mwtdlm,mwthm,mwtill,mwtanl,mwtnph,mwtqtz,mwtgps,mwttm,mwtla,mwtby,mwtolg,mwtand,mwtcpx,mwten,mwtfer,mwtopx &
     & ,mwtkbd,mwtmgbd,mwtnabd,mwtmscv,mwtplgp,mwtantp,mwtagt,mwtjd,mwtwls,mwtphsi,mwtsplt,mwtcasp,mwtksp,mwtnasp,mwtmgsp &
     & ,mwtfe2o,mwtmgo,mwtk2o,mwtcao,mwtna2o,mwtal2o3,mwtgbas,mwtcbas,mwtep,mwtclch,mwtsdn,mwtcdr,mwtleu,mwtamal,mwtamfe3 &
-	& ,mwtfbas &
+	& ,mwtfbas,mwtolvn,mwtmgn,mwtilmn,mwtanat &
     & ,mwtg1,mwtg2,mwtg3,mwtamnt,mwtkcl,mwtgac,mwtmesmh,mwtims,mwtteas,mwtnaoh,mwtnaglp,mwtcacl2,mwtnacl,mwtsio2,mwtcaso4 &
     & ,mwtinrt/)
 
@@ -1107,7 +1149,7 @@ do isps = 1, nsp_sld
 enddo 
 
 mwtaq_all = (/ mwtaqmg,mwtaqsi,mwtaqna,mwtaqca,mwtaqal,mwtaqfe2,mwtaqfe3,mwtaqso4,mwtaqk,mwtaqno3,mwtaqoxa  &
-    & ,mwtaqcl,mwtaqac,mwtaqmes,mwtaqim,mwtaqtea,mwtaqglp /)
+    & ,mwtaqcl,mwtaqac,mwtaqmes,mwtaqim,mwtaqtea,mwtaqglp,mwtaqti /)
     
 do ispa = 1, nsp_aq 
     mwtaq(ispa) = mwtaq_all(findloc(chraq_all,chraq(ispa),dim=1))
@@ -1352,12 +1394,24 @@ staq_all(findloc(chrsld_all,'ct',dim=1), findloc(chraq_all,'mg',dim=1)) = 3d0
 ! Fayalite; Fe2SiO4
 staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 staq_all(findloc(chrsld_all,'fa',dim=1), findloc(chraq_all,'fe2',dim=1)) = 2d0
+! olivine; (FexMg(1-x))2SiO4
+staq_all(findloc(chrsld_all,'olvn',dim=1), findloc(chraq_all,'mg',dim=1)) = 2d0*(1d0-fr_fa_olvn)
+staq_all(findloc(chrsld_all,'olvn',dim=1), findloc(chraq_all,'fe2',dim=1)) = 2d0*fr_fa_olvn
+staq_all(findloc(chrsld_all,'olvn',dim=1), findloc(chraq_all,'si',dim=1)) = 1d0
 ! Amorphous Fe(OH)3
 staq_all(findloc(chrsld_all,'amfe3',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
 ! Goethite; FeO(OH)
 staq_all(findloc(chrsld_all,'gt',dim=1), findloc(chraq_all,'fe3',dim=1)) = 1d0
 ! Hematite; Fe2O3
 staq_all(findloc(chrsld_all,'hm',dim=1), findloc(chraq_all,'fe3',dim=1)) = 2d0
+! Magnetite; Fe3O4
+staq_all(findloc(chrsld_all,'mgn',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'mgn',dim=1), findloc(chraq_all,'fe3',dim=1)) = 2d0
+! Ilmenite; FeTiO3
+staq_all(findloc(chrsld_all,'ilmn',dim=1), findloc(chraq_all,'fe2',dim=1)) = 1d0
+staq_all(findloc(chrsld_all,'ilmn',dim=1), findloc(chraq_all,'ti',dim=1)) = 1d0
+! Anatase; TiO2
+staq_all(findloc(chrsld_all,'anat',dim=1), findloc(chraq_all,'ti',dim=1)) = 1d0
 ! Ca-beidellite; Ca(1/6)Al(7/3)Si(11/3)O10(OH)2
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'ca',dim=1)) = 1d0/6d0
 staq_all(findloc(chrsld_all,'cabd',dim=1), findloc(chraq_all,'al',dim=1)) = 7d0/3d0
@@ -1814,7 +1868,7 @@ enddo
 
 
 call get_switches( &
-    & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
+    & iwtype,imixtype,poroiter_in,display,report,read_data,incld_rough &
     & ,act_ON,timestep_fixed,ads_ON,regular_grid,aq_close &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &!
     & )
@@ -1835,6 +1889,21 @@ select case(imixtype)
         print *, '***| thus choose default |---- > no mixing'
         imixtype = imixtype_nobio
 endselect 
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!   when dust_step is ON or dust is non-continuous prescribed in Dust_temp.in
+! 	
+!	>>> for solid species in dust
+! 	period:  ---- basalt ---- | ---- non basalt ---- 
+! 	mixing:        imix		  |  imixtype_background
+!   zml   :      zml_dust     |        zsupp
+! 	
+! 	>>> for solid species associated with OM?
+! 	period:  ---- basalt ---- | ---- non basalt ---- 
+! 	mixing:               imixtype_OM
+!   zml   :                 zsupp
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
 imix                = imixtype
 imixtype_OM         = imixtype_OM_in
@@ -1873,7 +1942,8 @@ endif
 
 if (do_psd_full) do_psd = .true.
 
-if (display_lim_in) display_lim = .true.
+! if (display_lim_in) display_lim = .true.
+if (display==1) display_lim = .true.
 
 if (sld_enforce) nsp3 = nsp_aq + nsp_gas ! excluding solid phases
 
@@ -1904,6 +1974,10 @@ do isps = 1, nsp_sld
             ! precstyle(isps) = 'emmanuel'
             ! solmod(isps,:) = 0.05d0 ! assumed factor to be multiplied with omega
             ! fkin(isps,:) = 0.01d0
+        case('gb','amsi') ! for mip
+            precstyle(isps) = 'def'
+            ! precstyle(isps) = 'emmanuel'
+            ! fkin(isps,:) = 1d4
         case default 
             precstyle(isps) = 'def'
             ! precstyle(isps) = '2/3'
@@ -2121,8 +2195,9 @@ do iaqex = 1, nsp_aqex
     iaqexflx(iaqex) = idust + nsp_sld + nsp_aq + nsp_gas + 6 + iaqex
 enddo 
 
-iphint  = idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 1
-iphint2 = idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 2
+iphint	= idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 1
+iphint2	= idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 2
+ih2oflx	= idust + nsp_sld + nsp_aq + nsp_gas + 6 + nsp_aqex + 3
 
 #endif 
 
@@ -2436,6 +2511,46 @@ open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', status='replace')
 write(iphint2,*) 'time\depth',(z(iz),iz=1,nz)
 close(iphint2)
 
+if (h2odyn_ON) then 
+
+	open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_psi.txt', status='replace')
+	write(ih2oflx,*) 'time\depth',(z(iz),iz=1,nz)
+	close(ih2oflx)
+
+	open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_kh.txt', status='replace')
+	write(ih2oflx,*) 'time\depth',(z(iz),iz=1,nz)
+	close(ih2oflx)
+
+	open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_q.txt', status='replace')
+	write(ih2oflx,*) 'time\depth',(z(iz),iz=1,nz)
+	close(ih2oflx)
+
+	open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_theta.txt', status='replace')
+	write(ih2oflx,*) 'time\depth',(z(iz),iz=1,nz)
+	close(ih2oflx)
+
+
+	write(chrfmt,'(i0)') nflx_h2o+1
+	chrfmt = '('//trim(adjustl(chrfmt))//'(1x,a))'
+
+	open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'flx_h2o.txt', status='replace')
+	write(ih2oflx,chrfmt) 'time','tflx','adv','dif','rain','rxn','res'
+	close(ih2oflx)
+
+	open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'int_flx_h2o.txt', status='replace')
+	write(ih2oflx,chrfmt) 'time','tflx','adv','dif','rain','rxn','res'
+	close(ih2oflx)
+
+endif 
+
+if (report==1) then
+	do isps = 1,nsp_sld
+		open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+			& //'logsat-'//trim(adjustl(chrsld(isps)))//'.txt', status='replace')
+		write(isldflx(isps),*)  'time\depth',(z(iz),iz=1,nz)
+		close(isldflx(isps))
+	enddo 
+endif 
 
 sat = min(1.0d0,(1d0-satup)*z/zsat + satup)
 #ifdef satconvex 
@@ -2447,6 +2562,18 @@ do iz=1,nz
     if (z(iz)>=zsat) sat(iz)=1d0
 enddo 
 #endif 
+
+! getting user-defined thermodynamc data
+call get_keqspc_num(nsld_keqspc)
+
+if (allocated(chrsld_keqspc)) deallocate(chrsld_keqspc)
+if (allocated(keq_sld_spc)) deallocate(keq_sld_spc)
+allocate(chrsld_keqspc(nsld_keqspc),keq_sld_spc(nsld_keqspc))
+
+call get_keqspc( &
+    & nsp_sld,chrsld,nsld_keqspc &! input
+    & ,keq_sld_spc,chrsld_keqspc &! output
+    & )
 
 ! getting user-defined SA
 
@@ -2464,7 +2591,7 @@ do isps = 1, nsp_sld
     hri(isps,:) = 1d0/hrii(isps)
 enddo
 
-! getting user-defined PSD for dust
+!!!!! getting user-defined PSD for dust !!!!! 
 
 call get_psdrain_num(nps_rain_char_in)
 
@@ -2512,7 +2639,53 @@ allocate(pssigma_rain_list(nps_rain_char),psu_rain_list(nps_rain_char),psw_rain_
 ! print*,psw_rain_list
 ! stop
 
-! getting user-defined cec
+!!!!! getting user-defined PSD for parent rock !!!!! 
+
+call get_psdpr_num(nps_pr_char_in)
+
+if (nps_pr_char_in <= 0) then
+    ! random default used in GMD paper
+    nps_pr_char = 1
+    
+    if (allocated(pssigma_pr_list_in)) deallocate(pssigma_pr_list_in)
+    if (allocated(psu_pr_list_in)) deallocate(psu_pr_list_in)
+    if (allocated(psw_pr_list_in)) deallocate(psw_pr_list_in)
+    allocate(pssigma_pr_list_in(nps_pr_char),psu_pr_list_in(nps_pr_char),psw_pr_list_in(nps_pr_char))
+    
+    psu_pr_list_in      = log10(p80)
+    pssigma_pr_list_in	= ps_sigma_std
+    psw_pr_list_in		= 1d0
+    
+    
+else
+
+    nps_pr_char = nps_pr_char_in
+    
+    if (allocated(pssigma_pr_list_in)) deallocate(pssigma_pr_list_in)
+    if (allocated(psu_pr_list_in)) deallocate(psu_pr_list_in)
+    if (allocated(psw_pr_list_in)) deallocate(psw_pr_list_in)
+    allocate(pssigma_pr_list_in(nps_pr_char),psu_pr_list_in(nps_pr_char),psw_pr_list_in(nps_pr_char))
+
+    call get_psdpr( &
+        & nps_pr_char &! input
+        & ,psu_pr_list_in,pssigma_pr_list_in,psw_pr_list_in &! output
+        & )
+        
+    do ips = 1, nps_pr_char
+        psu_pr_list_in(ips) = log10( psu_pr_list_in(ips) )
+    enddo
+endif 
+    
+if (allocated(pssigma_pr_list)) deallocate(pssigma_pr_list)
+if (allocated(psu_pr_list)) deallocate(psu_pr_list)
+if (allocated(psw_pr_list)) deallocate(psw_pr_list)
+allocate(pssigma_pr_list(nps_pr_char),psu_pr_list(nps_pr_char),psw_pr_list(nps_pr_char))
+
+psu_pr_list           = psu_pr_list_in
+pssigma_pr_list       = pssigma_pr_list_in
+psw_pr_list           = psw_pr_list_in
+
+!!!!! getting user-defined cec !!!!!!
 
 call get_cec_num(nsld_cec)
 
@@ -2524,24 +2697,42 @@ call get_cec( &
     & ,mcec_all,chrsld_cec,logkhaq_all,beta_all &! output
     & ) 
 
+! define solid species whose PSD calculations are skipped
+skip_psdcalc_def = .false.
+do isps=1,nsp_sld
+	if ( precstyle(isps) == 'decay' ) then 
+		skip_psdcalc_def(isps) = .true. ! decay type does not depend on surface area 
+    endif 
+enddo 
 call get_nopsd_num(nsld_nopsd)
 
 if (allocated(chrsld_nopsd)) deallocate(chrsld_nopsd)
-allocate(chrsld_nopsd(nsld_nopsd))
+if (allocated(sldnopsd)) deallocate(sldnopsd)
+allocate( chrsld_nopsd(nsld_nopsd), sldnopsd(nsld_nopsd) )
 
 call get_nopsd( &
     & nsp_sld,chrsld,nsld_nopsd &! input
-    & ,chrsld_nopsd &! output
+    & ,chrsld_nopsd,sldnopsd &! output
     & )
 
+skip_psdcalc = skip_psdcalc_def
+! reflecting read data
+if (nsld_nopsd>0) then
+	do isps=1,nsp_sld
+		if ( any( chrsld(isps) == chrsld_nopsd ) ) then 
+			skip_psdcalc(isps) =  sldnopsd(findloc(chrsld_nopsd,chrsld(isps),dim=1))
+		endif 
+	enddo 
+endif 
 
 rough = 1d0
 rough_ps = 1d0
 rough_ps_b = 1d0
 ! roughness factor parameterization references
-roughref_b = 'NSB07'      ! Navarre-Sitchler and Brantley (2007)
+! roughref_b = 'NSB07'      ! Navarre-Sitchler and Brantley (2007)
 ! roughref_b  = 'BM00'       ! Brantley and Mellott (2000)
 ! roughref_b  = 'Letal21'    ! Lewis et al. (2021) (assuming sphere)
+roughref_b  = 'cnst'     	 ! constant roughness factor 
 ! roughref_b  = 'smooth'     ! smooth surface 
 
 roughref = roughref_b 
@@ -2565,6 +2756,33 @@ do isps=1,nsp_sld
 enddo 
 v = qin/poroi/sat
 poro = poroi
+
+if (h2odyn_ON) then 
+
+	RE_ref = 'I_etal_23'
+	! RE_ref = 'SL00_all'
+	! RE_ref = 'SL00_sand'
+	! RE_ref = 'SL00_silt'
+	! RE_ref = 'SL00_clay'
+	
+	call get_pars_richards( &
+		& RE_ref &! input 
+		& ,theta_r,theta_s,ell,emm,enn,alpha,kh_o &! output 
+		& )
+
+	theta = 0.1d0
+	! psi = -3.59 m with parameterization in Ireson et al. 2023
+	theta = 0.27294042d0
+	hp = -3.59d0
+	
+	! re-define saturation 
+	sat = theta/poro 
+	v = qin/poroi/sat
+else 
+	! tho no need to define these
+	theta = poro*sat 
+	hp = 0d0 
+endif 
 
 ! tortuosity references (= tor_ref) include:
 ! 'Aetal03','Aetal00','P40','Mi59','Ma59','B1904','MQ60','MQ61','GDC', 
@@ -2606,7 +2824,7 @@ c0_disp = 0.21d0
 c1_disp = 0.51d0
 c_disp = c0_disp*zdisp**c1_disp
 
-disp = c_disp * v
+disp = c_disp * abs(v)
 
 if (disp_FULL_ON) disp = disp_FULL
 
@@ -2634,8 +2852,9 @@ if (do_psd) then
         do isps = 1, nsp_sld
             volsld = msldi(isps)*mv(isps)*1d-6
             call calc_psd_pr( &
-                & nps &! input
+                & nps,nps_pr_char,nps_pr_char_in &! input
                 & ,pi,hrii(isps),ps_sigma_std,poroi,volsld,tol &! input
+				& ,pssigma_pr_list,psu_pr_list,psw_pr_list &! input 
                 & ,ps,dps &! input
                 & ,msldunit &! input
                 & ,psd_pr &! output 
@@ -2663,7 +2882,7 @@ if (do_psd) then
             enddo 
         
             if (.not.incld_rough) then 
-                rough_ps(isps,:) = rough_f( 'smooth', nps, 10d0**ps(:) )
+                rough_ps(isps,:) = rough_f( 'smooth    ', nps, 10d0**ps(:) )
             else 
                 rough_ps(isps,:) = rough_f( roughref(isps), nps, 10d0**ps(:) )
             endif 
@@ -2685,8 +2904,9 @@ if (do_psd) then
     else ! do psd only for bulk 
         volsld = sum(msldi*mv*1d-6) + mblki*mvblk*1d-6
         call calc_psd_pr( &
-            & nps &! input
+            & nps,nps_pr_char,nps_pr_char_in &! input
             & ,pi,p80,ps_sigma_std,poroi,volsld,tol &! input
+			& ,pssigma_pr_list,psu_pr_list,psw_pr_list &! input 
             & ,ps,dps &! input
             & ,msldunit &! input
             & ,psd_pr &! output 
@@ -2719,7 +2939,7 @@ if (do_psd) then
         ! so hr = sum (psd(:)*dps(:)*S(:) ) where S in units m2/m3 and simplest way 1/r 
         ! in this case hr = sum(  psd(:)*dps(:)*1d0/(10d0**(-ps(:))) )
         if (.not.incld_rough) then 
-            rough_ps_b(:) = rough_f( roughref_b, nps, 10d0**ps(:) )
+            rough_ps_b(:) = rough_f( 'smooth    ', nps, 10d0**ps(:) )
         else 
             rough_ps_b(:) = rough_f( roughref_b, nps, 10d0**ps(:) )
         endif 
@@ -2823,6 +3043,7 @@ do iph = 1,nph
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
         & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+		& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
         & ,keqaq_oxa,keqaq_cl &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -2834,12 +3055,12 @@ enddo
 close(idust)
 
 open (idust, file='./sld_data_chk.txt', status ='unknown',action='write')
-chrfmt = '(3(1x,a5))'
-write(idust,chrfmt) 'sld','mv','mwt'
+chrfmt = '(4(1x,a7))'
+write(idust,chrfmt) 'sld','mv','mwt','logKeq'
 write(chrfmt,'(i0)') nsp_sld_all
-chrfmt = '(1x,a5,2(1x,E11.3))'
+chrfmt = '(1x,a5,3(1x,E14.6))'
 do isps = 1,nsp_sld_all
-    write(idust,chrfmt) chrsld_all(isps),mv_all(isps),mwt_all(isps)
+    write(idust,chrfmt) chrsld_all(isps),mv_all(isps),mwt_all(isps),log10(keqsld_all(isps))
 enddo 
 close(idust)
 ! stop
@@ -2862,6 +3083,7 @@ call coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+	& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -3069,12 +3291,14 @@ if (read_data) then
     
     ! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
     ! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+	
+	theta = poro*sat
 
     torg = tor_f( tor_ref, nz, poro, 1d0-sat )
     tora = tor_f( tor_ref, nz, poro, sat )
         
     c_disp = c0_disp*zdisp**c1_disp
-    disp = c_disp * v
+    disp = c_disp * abs(v)
 
     if (disp_FULL_ON) disp = disp_FULL
     
@@ -3184,8 +3408,9 @@ if (read_data) then
             do isps = 1, nsp_sld
                 volsld = msldi(isps)*mv(isps)*1d-6
                 call calc_psd_pr( &
-                    & nps &! input
+                    & nps,nps_pr_char,nps_pr_char_in &! input
                     & ,pi,hrii(isps),ps_sigma_std,poroi,volsld,tol &! input
+					& ,pssigma_pr_list,psu_pr_list,psw_pr_list &! input 
                     & ,ps,dps &! input
                     & ,msldunit &! input
                     & ,psd_pr &! output 
@@ -3350,7 +3575,7 @@ if (read_data) then
     
     time = 0d0
         
-    if (display) then
+    if (display>0) then
         write(chrfmt,'(i0)') nz_disp
         chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
         
@@ -3384,6 +3609,7 @@ call coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+	& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -3420,13 +3646,20 @@ int_flx_aqex = 0d0
 
 int_ph = 0d0
 
+int_flx_h2o = 0d0
+
+if (do_psd) then 
+	kpsdx_int_int = 0d0
+	kmpsdx_int_int = 0d0
+endif 
+
 !! @@@@@@@@@@@@@@@   start of time integration  @@@@@@@@@@@@@@@@@@@@@@
 
 do while (it<nt)
     ! call cpu_time(time_start)
     call system_clock(t1)
     
-    if (display) then 
+    if (display>0) then 
         print *
         print *, '-----------------------------------------'
         print '(i11,a)', it,': time iteration'
@@ -3544,6 +3777,10 @@ do while (it<nt)
     wprev = w 
     
     dispprev = disp
+	
+	satprev = sat
+	thetaprev = theta
+	hpprev = hp
     
     mblkx = mblk
     
@@ -3759,7 +3996,7 @@ do while (it<nt)
         tora = tor_f( tor_ref, nz, poro, sat )
         
         c_disp = c0_disp*zdisp**c1_disp
-        disp = c_disp * v
+        disp = c_disp * abs(v)
 
         if (disp_FULL_ON) disp = disp_FULL
         
@@ -3773,6 +4010,7 @@ do while (it<nt)
         & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
         & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
         & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+		& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
         & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
         & ,keqaq_oxa,keqaq_cl &! output
         & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -4304,13 +4542,60 @@ do while (it<nt)
         if (dust_norm>0d0) close(ipsdv)
     endif 
 
-    ! if ((.not.read_data) .and. it == 0 .and. iter == 0) then 
-        ! do ispa = 1, nsp_aq
-            ! if (chraq(ispa)/='so4') then
-                ! maqx(ispa,1:) = 1d2
-            ! endif 
-        ! enddo
-    ! endif 
+	!  attempt to calculate water saturation based on Richards equation 
+	if (h2odyn_ON) then 
+	
+		call richards( &
+			& nz,nflx_h2o,z,dz,poro,poroprev,hpprev,thetaprev,satprev_RE,qin,dt &! input
+			& ,theta_r,theta_s,ell,emm,enn,alpha,kh_o &! input 
+			& ,sat_RE,hp,kh,theta,flx_h2o,err_flg_richards &! output
+			& )
+
+		if (err_flg_richards) then 
+			flgback = .false. 
+			flgreducedt = .true.
+			! pre_calc = .true.
+			dt = dt/1d1
+			psd = psd_old
+			mpsd = mpsd_old
+			poro = poroprev
+			torg = torgprev
+			tora = toraprev
+			disp = dispprev
+			sat = satprev
+			theta = thetaprev
+			hp = hpprev
+			v = vprev
+			hr = hrprev
+			w = wprev
+			call calcupwindscheme(  &
+				up,dwn,cnr,adf & ! output 
+				,w,nz   & ! input &
+				)
+			go to 100
+		endif   
+		
+		q_RE = ( flx_h2o(iadv_h2o,:) + flx_h2o(irain_h2o,:) )* dz(:)
+		
+		sat = theta/poro
+		v = q_RE/poro/sat
+		
+        ! torg = poro**(3.4d0-2.0d0)*(1.0d0-sat)**(3.4d0-1.0d0)
+        ! tora = poro**(3.4d0-2.0d0)*(sat)**(3.4d0-1.0d0)
+
+        torg = tor_f( tor_ref, nz, poro, 1d0-sat )
+        tora = tor_f( tor_ref, nz, poro, sat )
+        
+        c_disp = c0_disp*zdisp**c1_disp
+        disp = c_disp * abs(v)
+
+        if (disp_FULL_ON) disp = disp_FULL
+		
+		print*,sat_RE
+		print*,hp
+		print*,kh
+		print*,q_RE
+	endif 
     
     poro_iter = 0
     poro_error = 1d4
@@ -4346,7 +4631,7 @@ do while (it<nt)
         & ,precstyle,solmod,fkin &! in 
 		& ,nsp_aqex,chraqex &! input 
         !  old inputs
-        & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
+        & ,hr,poro,z,dz,w_btm,sat,satprev,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
         & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
         & ,ads_ON_tmp,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON,beta_all,c1_gamma_max &
         ! old inout
@@ -4387,6 +4672,9 @@ do while (it<nt)
         torg = torgprev
         tora = toraprev
         disp = dispprev
+		sat = satprev
+		theta = thetaprev
+		hp = hpprev
         v = vprev
         hr = hrprev
         w = wprev
@@ -4451,6 +4739,9 @@ do while (it<nt)
             torg = torgprev
             tora = toraprev
             disp = dispprev
+			sat = satprev
+			theta = thetaprev
+			hp = hpprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -4478,6 +4769,9 @@ do while (it<nt)
             torg = torgprev
             tora = toraprev
             disp = dispprev
+			sat = satprev
+			theta = thetaprev
+			hp = hpprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -4507,7 +4801,7 @@ do while (it<nt)
         tora = tor_f( tor_ref, nz, poro, sat )
         
         c_disp = c0_disp*zdisp**c1_disp
-        disp = c_disp * v
+        disp = c_disp * abs(v)
 
         if (disp_FULL_ON) disp = disp_FULL
         
@@ -4582,7 +4876,8 @@ do while (it<nt)
             enddo 
         endif 
         
-        if (display .and. (.not. display_lim)) then 
+        if ( (display>0) .and. (.not. display_lim)) then 
+        ! if ( display == 2 ) then 
             write(chrfmt,'(i0)') nz_disp
             chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
             print *
@@ -4618,6 +4913,9 @@ do while (it<nt)
             torg = torgprev
             tora = toraprev
             disp = dispprev
+			sat = satprev
+			theta = thetaprev
+			hp = hpprev
             v = vprev
             hr = hrprev
             w = wprev
@@ -4639,7 +4937,7 @@ do while (it<nt)
     ! attempt to do psd
     if (do_psd) then 
         
-        if (display) then 
+        if (display>0) then 
             print *
             print *, '-- doing PSD'
         endif 
@@ -4654,6 +4952,8 @@ do while (it<nt)
         dt_save = dt
         time_pbe = 0d0
         ddpsd = 0d0
+		kpsdx_int 	= 0d0
+		kmpsdx_int 	= 0d0
         do while(time_pbe < dt_save)
         ! print *
         ! print *,' ---- PSD time: ',time_pbe,' dt: ',dt, ' completeness [%]: ',100d0*time_pbe/dt_save
@@ -4673,9 +4973,10 @@ do while (it<nt)
             
             do isps = 1, nsp_sld
             
-                if ( trim(adjustl(precstyle(isps))) == 'decay') cycle ! solid species not related to SA
+                ! if ( trim(adjustl(precstyle(isps))) == 'decay') cycle ! solid species not related to SA
                 
-                if (psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) cycle
+                ! if (psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) cycle
+                if ( psd_enable_skip .and. skip_psdcalc(isps) ) cycle				
             
                 DV(:) = flx_sld(isps, 4 + isps,:)*mv(isps)*1d-6*dt  
             
@@ -4693,6 +4994,7 @@ do while (it<nt)
                         & ,psd,ps,dps,ps_min,ps_max &! in 
                         & ,chrsld(isps) &! in 
                         & ,dpsd,psd_error_flg &! inout
+						& ,kpsdx &! out
                         & )
 
                     if ( flgback .or. psd_error_flg) then 
@@ -4700,6 +5002,8 @@ do while (it<nt)
                         print *, '*** escape from do-loop'
                         exit
                     endif 
+					
+					kmpsdx(isps,:) = kpsdx	 
                     
                     ! dt_pbe = dt
                     ! time_pbe = 0
@@ -4810,6 +5114,7 @@ do while (it<nt)
                     & ,psd,ps,dps,ps_min,ps_max &! in 
                     & ,' blk ' &! in 
                     & ,dpsd,psd_error_flg &! inout
+					& ,kpsdx &! out
                     & )
 
                 if ( flgback .or. psd_error_flg) then 
@@ -4862,10 +5167,11 @@ do while (it<nt)
                 do isps=1,nsp_sld
                     
                     ! if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA              
-                    if ( &
-                        & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
-                        & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
-                        & ) then
+                    ! if ( &
+                        ! & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
+                        ! & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
+                        ! & ) then
+					if ( psd_enable_skip .and. skip_psdcalc(isps) ) then
                         flx_mpsd(isps,:,:,:) = 0d0
                         do iz=1,nz
                             mpsdx(isps,:,iz) = mpsd_pr(isps,:)
@@ -5032,10 +5338,11 @@ do while (it<nt)
                 do isps = 1, nsp_sld
                     
                     ! if ( trim(adjustl(precstyle(isps))) == 'decay' ) then ! solid species not related to SA               
-                    if ( &
-                        & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
-                        & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
-                        & ) then           
+                    ! if ( &
+                        ! & trim(adjustl(precstyle(isps))) == 'decay' &! solid species not related to SA              
+                        ! & .or. ( psd_enable_skip .and. any(chrsld_nopsd == chrsld(isps)) ) &!case when not-tracking PSDs for fast reacting minerals (SA not matter?)
+                        ! & ) then           
+					if ( psd_enable_skip .and. skip_psdcalc(isps) ) then 
                         flx_mpsd(isps,:,:,:) = 0d0
                         do iz=1,nz
                             mpsdx(isps,:,iz) = mpsd_pr(isps,:)
@@ -5043,7 +5350,7 @@ do while (it<nt)
                         cycle 
                     endif 
         
-                    if (display) then 
+                    if (display>0) then 
                         print *
                         print *, '<'//trim(adjustl(chrsld(isps)))//'>'
                     endif 
@@ -5090,6 +5397,9 @@ do while (it<nt)
                         torg = torgprev
                         tora = toraprev
                         disp = dispprev
+						sat = satprev
+						theta = thetaprev
+						hp = hpprev
                         v = vprev
                         hr = hrprev
                         w = wprev
@@ -5144,6 +5454,9 @@ do while (it<nt)
                     torg = torgprev
                     tora = toraprev
                     disp = dispprev
+					sat = satprev
+					theta = thetaprev
+					hp = hpprev
                     v = vprev
                     hr = hrprev
                     w = wprev
@@ -5193,6 +5506,9 @@ do while (it<nt)
                     torg = torgprev
                     tora = toraprev
                     disp = dispprev
+					sat = satprev
+					theta = thetaprev
+					hp = hpprev
                     v = vprev
                     hr = hrprev
                     w = wprev
@@ -5249,6 +5565,9 @@ do while (it<nt)
                     torg = torgprev
                     tora = toraprev
                     disp = dispprev
+					sat = satprev
+					theta = thetaprev
+					hp = hpprev
                     v = vprev
                     hr = hrprev
                     w = wprev
@@ -5278,6 +5597,15 @@ do while (it<nt)
             mpsd = mpsd_save_2
             cycle
         endif 
+		
+		!  calculating time integral of k value used for pbe solution
+		if (do_psd_full) then 
+			do isps=1,nsp_sld
+				kmpsdx_int(isps,:) = kmpsdx_int(isps,:) + kmpsdx(isps,:)*dt
+			enddo 
+		else
+			kpsdx_int = kpsdx_int + kpsdx*dt
+		endif 
         
         time_pbe = time_pbe + dt
         
@@ -5317,6 +5645,9 @@ do while (it<nt)
                 torg = torgprev
                 tora = toraprev
                 disp = dispprev
+				sat = satprev
+				theta = thetaprev
+				hp = hpprev
                 v = vprev
                 hr = hrprev
                 w = wprev
@@ -5328,8 +5659,17 @@ do while (it<nt)
                 go to 100
             endif 
         endif 
+		
+		!  calculating time-average k value used for pbe solution based on time integral of k value
+		! if (do_psd_full) then 
+			! do isps=1,nsp_sld
+				! kmpsdx_int(isps,:) = kmpsdx_int(isps,:) / dt
+			! enddo 
+		! else
+			! kpsdx_int = kpsdx_int / dt
+		! endif 	  
         
-        if (display) then 
+        if (display>0) then 
             print *, '-- ending PSD'
             print *
         endif 
@@ -5398,7 +5738,8 @@ do while (it<nt)
         gamma = gamma_tmp
     endif 
 
-    if (display  .and. (.not. display_lim)) then 
+    if ( (display>0)  .and. (.not. display_lim)) then 
+    ! if ( display == 2 ) then 
         write(chrfmt,'(i0)') nz_disp
         chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
         
@@ -5501,7 +5842,8 @@ do while (it<nt)
         endif
         
 ! #ifdef disp_lim
-        if (display_lim_in) display_lim = .true.
+        ! if (display_lim_in) display_lim = .true.
+        if (display==1) display_lim = .true.
 ! #endif 
         
     endif 
@@ -5653,6 +5995,21 @@ do while (it<nt)
     do iz=1,nz
         int_ph(iz) = int_ph(iz) + sum(gamma(1:iz)*prox(1:iz)*dz(1:iz))/z(iz) * dt
     enddo 
+	
+    do iflx=1,nflx_h2o
+		int_flx_h2o(iflx) = int_flx_h2o(iflx) + sum(flx_h2o(iflx,:)*dz(:))*dt
+	enddo
+	
+	! calculating time integral of k (m/yr) used for solution of PBE 
+	if (do_psd) then 
+		if (do_psd_full) then 
+			do isps=1,nsp_sld
+				kmpsdx_int_int(isps,:) = kmpsdx_int_int(isps,:) + kmpsdx_int(isps,:) 
+			enddo 
+		else
+			kpsdx_int_int = kpsdx_int_int + kpsdx_int
+		endif 
+	endif
 
     if (time >= savetime) then 
         
@@ -5927,6 +6284,20 @@ do while (it<nt)
                     close(ipsds)
                     close(ipsdflx)
                 enddo 
+
+
+				open(ikpsd, file=trim(adjustl(profdir))//'/'  &
+					& //'psd_kint-'//chr//'.txt', status='replace')				
+				write(chrfmt,'(i0)') nsp_sld
+				chrfmt = '(1x,a5,'//trim(adjustl(chrfmt))//'(1x,a5),1x,a5)'
+				write(ikpsd,trim(adjustl(chrfmt))) 'z[m]',(chrsld(isps),isps=1,nsp_sld),'time'
+				
+				do iz=1,nz
+					write(ikpsd,*) z(iz),(kmpsdx_int_int(isps,iz),isps=1,nsp_sld),time
+				enddo
+				
+				close(ikpsd)
+				
             else 
                 
                 open(ipsd, file=trim(adjustl(profdir))//'/'  &
@@ -5937,6 +6308,8 @@ do while (it<nt)
                     & //'psd(SA%)-'//chr//'.txt', status='replace')
                 open(ipsdflx, file=trim(adjustl(flxdir))//'/'  &
                     & //'flx_psd-'//chr//'.txt', status='replace')
+				open(ikpsd, file=trim(adjustl(profdir))//'/'  &
+					& //'psd_kint-'//chr//'.txt', status='replace')		
                 
                 write(chrfmt,'(i0)') nps
                 chrfmt = '(1x,a16,'//trim(adjustl(chrfmt))//'(1x,f11.6),1x,a5)'
@@ -5946,6 +6319,7 @@ do while (it<nt)
                 write(chrfmt,'(i0)') nflx_psd
                 chrfmt = '(1x,a5,1x,a16,'//trim(adjustl(chrfmt))//'(1x,a11))'
                 write(ipsdflx,trim(adjustl(chrfmt))) 'time','log10(r[m])\flx','tflx','adv','dif','rain','rxn','res'
+				write(ikpsd,'(3(1x,a5))') 'z[m]','k_int','time'
                 
                 do iz = 1, Nz
                     ucvsld2 = 1d0 - poro(iz)
@@ -5963,6 +6337,7 @@ do while (it<nt)
                         & / ssab(iz)  * 1d2 &
                         ! & /( poro(iz)/(1d0 - poro(iz) ))  &
                         & ,ips=1,nps), time 
+					write(ikpsd,*) z(iz),kpsdx_int_int(iz),time
                 end do
                 
                 do ips=1,nps
@@ -5973,6 +6348,7 @@ do while (it<nt)
                 close(ipsdv)
                 close(ipsds)
                 close(ipsdflx)
+                close(ikpsd)
             
             endif 
         
@@ -6114,7 +6490,41 @@ do while (it<nt)
         open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
         write(iphint2,*) time,(-log10(gamma(iz)*prox(iz)),iz=1,nz)
         close(iphint2)
-		
+			
+		if (report==1) then 
+			do isps=1,nsp_sld 
+				open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+					& //'logsat-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+				write(isldflx(isps),*) time, (log10(omega(isps,iz)),iz=1,nz) 
+				close(isldflx(isps))
+			enddo
+		endif 
+        
+		if (h2odyn_ON) then 
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_psi.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(hp(iz),iz=1,nz)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_kh.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(kh(iz),iz=1,nz)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_q.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(q_RE(iz),iz=1,nz)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_theta.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(theta(iz),iz=1,nz)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/flx_h2o.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(sum(flx_h2o(iflx,:)*dz(:)),iflx=1,nflx_h2o)
+			close(ih2oflx)
+			
+			open(ih2oflx, file=trim(adjustl(flxdir))//'/int_flx_h2o.txt', action='write',status='old',position='append')
+			write(ih2oflx,*) time,(int_flx_h2o(iflx)/time,iflx=1,nflx_h2o)
+			close(ih2oflx)
+		endif 
         
 #endif 
         flx_recorded = .true.
@@ -6182,7 +6592,8 @@ do while (it<nt)
         endif 
         
 ! #ifdef disp_lim
-        if (display_lim_in) display_lim = .false.
+        ! if (display_lim_in) display_lim = .false.
+        if (display==1) display_lim = .false.
 ! #endif 
         
     end if    
@@ -6278,7 +6689,41 @@ do while (it<nt)
             open(iphint2, file=trim(adjustl(flxdir))//'/'//'ph.txt', action='write',status='old',position='append')
             write(iphint2,*) time,(-log10(gamma(iz)*prox(iz)),iz=1,nz)
             close(iphint2)
-            
+			
+			if (report==1) then 
+				do isps=1,nsp_sld 
+					open(isldflx(isps), file=trim(adjustl(flxdir))//'/' &
+						& //'logsat-'//trim(adjustl(chrsld(isps)))//'.txt', action='write',status='old',position='append')
+					write(isldflx(isps),*) time, (log10(omega(isps,iz)),iz=1,nz) 
+					close(isldflx(isps))
+				enddo
+			endif 
+			
+			if (h2odyn_ON) then
+				open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_psi.txt', action='write',status='old',position='append')
+				write(ih2oflx,*) time,(hp(iz),iz=1,nz)
+				close(ih2oflx)
+				
+				open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_kh.txt', action='write',status='old',position='append')
+				write(ih2oflx,*) time,(kh(iz),iz=1,nz)
+				close(ih2oflx)
+				
+				open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_q.txt', action='write',status='old',position='append')
+				write(ih2oflx,*) time,(q_RE(iz),iz=1,nz)
+				close(ih2oflx)
+				
+				open(ih2oflx, file=trim(adjustl(flxdir))//'/'//'h2o_theta.txt', action='write',status='old',position='append')
+				write(ih2oflx,*) time,(theta(iz),iz=1,nz)
+				close(ih2oflx)
+
+				open(ih2oflx, file=trim(adjustl(flxdir))//'/flx_h2o.txt', action='write',status='old',position='append')
+				write(ih2oflx,*) time,(sum(flx_h2o(iflx,:)*dz(:)),iflx=1,nflx_h2o)
+				close(ih2oflx)
+				
+				open(ih2oflx, file=trim(adjustl(flxdir))//'/int_flx_h2o.txt', action='write',status='old',position='append')
+				write(ih2oflx,*) time,(int_flx_h2o(iflx)/time,iflx=1,nflx_h2o)
+				close(ih2oflx)
+			endif 
             
         endif 
     endif 
@@ -6390,7 +6835,8 @@ do while (it<nt)
         stop
     endif 
     
-    if (display  .and. (.not. display_lim)) then 
+    if ( (display>0)  .and. (.not. display_lim)) then 
+    ! if (display==2) then 
         print *
         print '(E11.3,a)',progress_rate,': computation time per iteration [sec]'
         print '(E11.3,a)',maxdt, ': maxdt [yr]'
@@ -7048,17 +7494,17 @@ endsubroutine get_atm
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine get_switches( &
-    & iwtype,imixtype,poroiter_in,display,display_lim_in,read_data,incld_rough &
+    & iwtype,imixtype,poroiter_in,display,report,read_data,incld_rough &
     & ,act_ON,timestep_fixed,ads_ON,regular_grid,aq_close &! inout
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season &! inout
     & )
 implicit none
 
 character(100) chr_tmp
-logical,intent(inout):: poroiter_in,display,display_lim_in,read_data,incld_rough &
+logical,intent(inout):: poroiter_in,read_data,incld_rough &
     & ,act_ON,timestep_fixed,ads_ON,regular_grid,aq_close &
     & ,poroevol,surfevol1,surfevol2,do_psd,lim_minsld_in,do_psd_full,season
-integer,intent(out) :: imixtype,iwtype
+integer,intent(out) :: imixtype,iwtype,display,report
 
 character(500) file_name
 integer i,n_tmp
@@ -7073,7 +7519,7 @@ read(50,*) imixtype,chr_tmp
 read(50,*) poroiter_in,chr_tmp
 read(50,*) lim_minsld_in,chr_tmp
 read(50,*) display,chr_tmp
-read(50,*) display_lim_in,chr_tmp
+read(50,*) report,chr_tmp
 read(50,*) read_data,chr_tmp
 read(50,*) incld_rough,chr_tmp
 read(50,*) act_ON,chr_tmp
@@ -7092,6 +7538,65 @@ close(50)
 
 
 endsubroutine get_switches
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_keqspc_num(nsld_keqspc_dum)
+implicit none
+
+integer,intent(out):: nsld_keqspc_dum
+
+character(500) file_name
+integer n_tmp
+
+file_name = './keqspc.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+nsld_keqspc_dum = n_tmp
+
+
+endsubroutine get_keqspc_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_keqspc( &
+    & nsp_sld,chrsld,nsld_keqspc &! input
+    & ,keq_sld_spc,chrsld_keqspc_dum &! output
+    & )
+implicit none
+
+integer,intent(in):: nsp_sld,nsld_keqspc
+character(5),dimension(nsp_sld),intent(in)::chrsld
+character(5),dimension(nsld_keqspc),intent(out)::chrsld_keqspc_dum
+real(kind=8),dimension(nsld_keqspc),intent(out)::keq_sld_spc
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i
+
+file_name = './keqspc.in'
+
+if (nsld_keqspc <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,nsld_keqspc
+    read(50,*) chr_tmp,val_tmp
+    chrsld_keqspc_dum(i) = chr_tmp
+	keq_sld_spc(i) = val_tmp
+enddo 
+close(50)
+
+
+endsubroutine get_keqspc
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -7219,6 +7724,63 @@ endsubroutine get_psdrain
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine get_psdpr_num(nps_pr_char)
+implicit none
+
+integer,intent(out):: nps_pr_char
+
+character(500) file_name
+integer n_tmp
+
+file_name = './psdpr.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+nps_pr_char = n_tmp
+
+
+endsubroutine get_psdpr_num
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_psdpr( &
+    & nps_pr_char &! input
+    & ,psu_pr_list,pssigma_pr_list,psw_pr_list &! output
+    & )
+implicit none
+
+integer,intent(in):: nps_pr_char
+real(kind=8),dimension(nps_pr_char),intent(out)::psu_pr_list,pssigma_pr_list,psw_pr_list
+real(kind=8),dimension(3)::val_tmp
+
+character(500) file_name
+integer i
+
+file_name = './psdpr.in'
+
+if (nps_pr_char <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,nps_pr_char
+    read(50,*) val_tmp(:)
+    psu_pr_list(i)        = val_tmp(1)
+    pssigma_pr_list(i)    = val_tmp(2)
+    psw_pr_list(i)        = val_tmp(3)
+enddo 
+close(50)
+
+
+endsubroutine get_psdpr
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 subroutine get_cec_num(nsld_cec_dum)
 implicit none
 
@@ -7319,14 +7881,16 @@ endsubroutine get_nopsd_num
 
 subroutine get_nopsd( &
     & nsp_sld,chrsld,nsld_nopsd &! input
-    & ,chrsld_nopsd_dum &! output
+    & ,chrsld_nopsd_dum,sldnopsd_dum &! output
     & )
 implicit none
 
 integer,intent(in):: nsp_sld,nsld_nopsd
 character(5),dimension(nsp_sld),intent(in)::chrsld
 character(5),dimension(nsld_nopsd),intent(out)::chrsld_nopsd_dum
+logical,dimension(nsld_nopsd),intent(out)::sldnopsd_dum
 character(5) chr_tmp
+logical logic_tmp
 
 character(500) file_name
 integer i
@@ -7338,8 +7902,9 @@ if (nsld_nopsd <= 0) return
 open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
 read(50,'()')
 do i =1,nsld_nopsd
-    read(50,*) chr_tmp
+    read(50,*) chr_tmp,logic_tmp
     chrsld_nopsd_dum(i) = chr_tmp
+    sldnopsd_dum(i) 	= logic_tmp
 enddo 
 close(50)
 
@@ -7472,6 +8037,7 @@ subroutine coefs_v2( &
     & ,chraq_all,chrgas_all,chrsld_all,chrrxn_ext_all &! input
     & ,nsp_gas,nsp_gas_cnst,chrgas,chrgas_cnst,mgas,mgasc,mgasth_all,mv_all,mwt_all,staq_all &!input
     & ,nsp_aq,nsp_aq_cnst,chraq,chraq_cnst,maq,maqc &!input
+	& ,nsld_keqspc,chrsld_keqspc,keq_sld_spc &! input 
     & ,ucv,kw,daq_all,dgasa_all,dgasg_all,keqgas_h,keqaq_h,keqaq_c,keqaq_s,keqaq_no3,keqaq_nh3 &! output
     & ,keqaq_oxa,keqaq_cl &! output
     & ,ksld_all,keqsld_all,krxn1_ext_all,krxn2_ext_all &! output
@@ -7525,6 +8091,10 @@ real(kind=8),dimension(nsp_aq_cnst,nz),intent(in)::maqc
 real(kind=8),dimension(nsp_gas_all),intent(in)::mgasth_all
 
 logical,dimension(nsp_sld_all),intent(in)::cec_pH_depend
+
+integer,intent(in)::nsld_keqspc
+character(5),dimension(nsld_keqspc),intent(in)::chrsld_keqspc
+real(kind=8),dimension(nsld_keqspc),intent(in)::keq_sld_spc
 
 real(kind=8),dimension(nsp_gas_all,nz)::mgas_loc
 real(kind=8),dimension(nsp_aq_all,nz)::maqf_loc
@@ -7605,6 +8175,9 @@ daq_all(findloc(chraq_all,'im',dim=1))  = 14d-5 /( visc**1.1d0 * (75.3d0)**0.6d0
 daq_all(findloc(chraq_all,'tea',dim=1)) = 14d-5 /( visc**1.1d0 * (177.3d0)**0.6d0 ) * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
 ! Glycerophosphate (value for glycerol from Schramke et al. 1999 for now)
 daq_all(findloc(chraq_all,'glp',dim=1)) = 0.93d-5 * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
+
+! other species that does not have any diffusion coefficient in the literature: so it is assumed 
+daq_all(findloc(chraq_all,'ti',dim=1)) = 1d-2 !  m2/yr
 
 #ifdef disp_cnst
 daq_all=disp_cnst
@@ -8166,6 +8739,10 @@ do isps = 1, nsp_sld_all
             ss_x = staq_all(isps, findloc(chraq_all,'ca',dim=1))
             ss_y = 0d0 
             ss_z = 0d0 
+        case('olvn','fa','fo') 
+            ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))/2d0
+            ss_y = 0d0 
+            ss_z = 0d0 
         case('cpx','hb','dp') 
             ss_x = staq_all(isps, findloc(chraq_all,'fe2',dim=1))
             ss_y = 0d0 
@@ -8233,6 +8810,14 @@ do isps = 1, nsp_sld_all
     endselect 
     
     keqsld_all(isps) = therm
+enddo
+
+! overwrite if user specifies some thermodynamic data 
+
+do isps=1,nsld_keqspc
+    mineral = chrsld_keqspc(isps)
+	therm 	= 10d0**keq_sld_spc(isps)
+	keqsld_all(findloc(chrsld_all,trim(adjustl(mineral)),dim=1)) = therm 
 enddo
 
 
@@ -8446,7 +9031,7 @@ select case(trim(adjustl(mineral)))
                 dkin_dmsp = 0d0
         endselect 
 
-    case('fo')
+    case('fo','olvn') ! olivine assumed to follow rate law of forsterite
         mh = 0.47d0
         moh = 0d0
         kinn_ref = 10d0**(-10.64d0)*sec2yr
@@ -8509,6 +9094,10 @@ select case(trim(adjustl(mineral)))
         eaoh = 0d0
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
+        moh = -0.572d0
+        kinoh_ref = 10d0**(-15.6d0)*sec2yr
+        eaoh = 71d0
+		! from mip_exp1a
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
@@ -8616,6 +9205,10 @@ select case(trim(adjustl(mineral)))
         eaoh = 0d0
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
+        moh = -0.572d0
+        kinoh_ref = 10d0**(-15.6d0)*sec2yr
+        eaoh = 71d0
+		! from mip_exp1a
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
@@ -8823,6 +9416,16 @@ select case(trim(adjustl(mineral)))
         eaoh = 90.9d0 ! assumed to be the same as ean
         tc_ref = 25d0
         ! pH neutral range from Palandri and Kharaka, 2004 pH dependence from Brantley et al 2008
+        mh = 0.309d0 ! brantley 2008
+        moh = -0.5d0 ! brantley 2008
+        kinn_ref = 10d0**(-13.34d0)*sec2yr
+        kinh_ref = 10d0**(-11.36d0)*sec2yr ! brantley 2008
+        kinoh_ref = 10d0**(-16.29d0)*sec2yr ! brantley 2008
+        ean = 90.1d0
+        eah = 87.7d0 ! assumed to be the same as ean
+        eaoh = 87.7d0 ! assumed to be the same as ean
+        tc_ref = 25d0
+		! from mip_exp1a
         kin = ( & 
             & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
             & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
@@ -8848,7 +9451,7 @@ select case(trim(adjustl(mineral)))
             & ) 
         dkin_dmsp = 0d0
 
-    case('hm')
+    case('hm') 
         mh = 1d0
         moh = 0d0
         kinn_ref = 10d0**(-14.60d0)*sec2yr
@@ -8856,6 +9459,42 @@ select case(trim(adjustl(mineral)))
         kinoh_ref = 0d0
         ean = 66.2d0
         eah = 66.2d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        dkin_dmsp = 0d0
+
+    case('mgn')
+        mh = 0.279d0
+        moh = 0d0
+        kinn_ref = 10d0**(-10.78d0)*sec2yr
+        kinh_ref = 10d0**(-8.59d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 18.6d0
+        eah = 18.6d0
+        eaoh = 0d0
+        tc_ref = 25d0
+        ! from Palandri and Kharaka, 2004
+        kin = ( & 
+            & k_arrhenius(kinn_ref,tc_ref+tempk_0,tc+tempk_0,ean,rg) &
+            & + prox**mh*k_arrhenius(kinh_ref,tc_ref+tempk_0,tc+tempk_0,eah,rg) &
+            & + prox**moh*k_arrhenius(kinoh_ref,tc_ref+tempk_0,tc+tempk_0,eaoh,rg) &
+            & ) 
+        dkin_dmsp = 0d0
+
+    case('ilmn','anat') ! anatase is assumed to have the same kinetics at that of ilmenite | 4-5 x 10^-15 mol/cm2/sec at low temp according to Casey et al 1988 (Fig. 6) 
+        mh = 0.421d0
+        moh = 0d0
+        kinn_ref = 10d0**(-11.16d0)*sec2yr
+        kinh_ref = 10d0**(-8.35d0)*sec2yr
+        kinoh_ref = 0d0
+        ean = 37.9d0
+        eah = 37.9d0
         eaoh = 0d0
         tc_ref = 25d0
         ! from Palandri and Kharaka, 2004
@@ -9002,7 +9641,7 @@ select case(trim(adjustl(mineral)))
         kinn_ref = 10d0**(-11.11d0)*sec2yr
         kinh_ref = 10d0**(-6.36d0)*sec2yr
         kinoh_ref = 0d0
-        ean = 50.6d0
+        ean = 40.6d0
         eah = 96.1d0
         eaoh = 0d0
         tc_ref = 25d0
@@ -9506,7 +10145,9 @@ select case(trim(adjustl(mineral)))
         kin = k_q10(kref,tc,tc_ref,q10)
         ! kin = kref
         dkin_dmsp = 0d0
-        
+    case('inrt')
+        kin =0d0
+        dkin_dmsp = 0d0
     case default 
         kin =0d0
         dkin_dmsp = 0d0
@@ -9567,6 +10208,10 @@ select case(trim(adjustl(mineral)))
         ha = -26.30862098d0
         tc_ref = 15d0
         ! from Kanzaki and Murakami 2018
+        therm_ref = 10d0**(-0.022d0)
+        ha = -49.93d0
+        tc_ref = 25d0
+		!  from mip_exp1a 
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('sdn')
         ! Sanidine_high: KAlSi3O8 +4.0000 H+  =  + 1.0000 Al+++ + 1.0000 K+ + 2.0000 H2O + 3.0000 SiO2
@@ -9596,20 +10241,20 @@ select case(trim(adjustl(mineral)))
         tc_ref = 15d0
         ! from Kanzaki and Murakami 2018
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
-    case('fo')
+    ! case('fo')
         ! Fo + 4H+ = 2Mg2+ + SiO2(aq) + 2H2O
-        therm_ref = 10d0**29.41364324d0
-        ha = -208.5932252d0
-        tc_ref = 15d0
+        ! therm_ref = 10d0**29.41364324d0
+        ! ha = -208.5932252d0
+        ! tc_ref = 15d0
         ! from Kanzaki and Murakami 2018
-        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
-    case('fa')
+        ! therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    ! case('fa')
         ! Fa + 4H+ = 2Fe2+ + SiO2(aq) + 2H2O
-        therm_ref = 10d0**19.98781342d0
-        ha = -153.7676621d0
-        tc_ref = 15d0
+        ! therm_ref = 10d0**19.98781342d0
+        ! ha = -153.7676621d0
+        ! tc_ref = 15d0
         ! from Kanzaki and Murakami 2018
-        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+        ! therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     ! case('an')
         ! CaAl2Si2O8 + 8H+ = Ca2+ + 2 Al3+ + 2SiO2 + 4H2O
         ! therm_ref = 10d0**28.8615308d0
@@ -9670,10 +10315,14 @@ select case(trim(adjustl(mineral)))
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('qtz')
         ! SiO2 + 2H2O = H4SiO4
-        therm_ref = 10d0**(-4d0)
-        ha = 22.36d0
-        tc_ref = 25d0
+        ! therm_ref = 10d0**(-4d0)
+        ! ha = 22.36d0
+        ! tc_ref = 25d0
         ! from minteq.v4 
+        therm_ref = 10d0**(-3.98d0)
+        ha = 25.06216d0
+        tc_ref = 25d0
+		!  from mip_exp1a 
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('amfe3')
         ! Fe(OH)3 + 3 H+ = Fe+3 + 2 H2O
@@ -9695,6 +10344,35 @@ select case(trim(adjustl(mineral)))
         ha = -128.987d0
         tc_ref = 25d0
         ! from minteq.v4
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('mgn')
+        ! Fe3O4 + 8H+ = 2Fe+3 + Fe+2 + 4H2O
+        ! therm_ref = 10d0**(3.4028d0)
+        ! ha = -208.526d0
+        ! tc_ref = 25d0
+        ! from minteq.v4
+        therm_ref = 10d0**(10.356d0)
+        ha = -17.831d0
+        tc_ref = 25d0
+        ! from mip_exp1a
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('ilmn')
+        ! FeTiO3 +2.0000 H+ +1.0000 H2O  =  + 1.0000 Fe++ + 1.0000 Ti(OH)4
+        ! therm_ref = 10d0**(0.9046d0)
+        ! ha = 0d0
+        ! tc_ref = 25d0
+        ! from LLNL.DAT
+        therm_ref = 10d0**(1.817d0)
+        ha = -87.445d0
+        tc_ref = 25d0
+        ! from mip_exp1a
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
+    case('anat')
+        ! TiO2 +2.0000 H2O  =  + 1.0000 Ti(OH)4
+        therm_ref = 10d0**(-8.5586d0)
+        ha = 0d0
+        tc_ref = 25d0
+        ! from LLNL.DAT
         therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('ct')
         ! Mg3Si2O5(OH)4 + 6 H+ = H2O + 2 H4SiO4 + 3 Mg+2
@@ -9861,12 +10539,14 @@ select case(trim(adjustl(mineral)))
         ha = 1d0
         tc_ref = 25d0
         ! from minteq.v4
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('caso4')
         ! CaSO4 = Ca+2 + SO4-2 + 2H2O
         therm_ref = 10d0**(-4.36d0)
         ha = -7.2d0
         tc_ref = 25d0
         ! from minteq.v4
+        therm = k_arrhenius(therm_ref,tc_ref+tempk_0,tc+tempk_0,ha,rg)
     case('fe2o')
         ! FeO +2.0000 H+  =  + 1.0000 Fe++ + 1.0000 H2O
         therm_ref = 10d0**(13.5318d0)
@@ -9969,6 +10649,40 @@ select case(trim(adjustl(mineral)))
             delG = ss_x*delG_1 + (1d0-ss_x)*delG_2 + rg*(tc+tempk_0)*(ss_x*log(ss_x)+(1d0-ss_x)*log(1d0-ss_x))
         endif 
         therm = exp(-delG/(rg*(tc+tempk_0)))
+    case('olvn','fa','fo')
+        ! (FexMg(1-x))2SiO4 +4.0000 H+  =  + 1.0000 SiO2 + 2.0000x Fe++ + 2.0000(1-x) Mg++ + 2.0000 H2O
+        ! obtaining fayalite 
+        therm_ref_1 = 10d0**19.98781342d0
+        ha_1 = -153.7676621d0
+        tc_ref_1 = 15d0
+        ! from Kanzaki and Murakami 2018
+        therm_ref_1 = 10d0**19.1113d0
+        ha_1 = -152.256d0
+        tc_ref_1 = 25d0
+        ! from LLNL.DAT
+        therm_1 = k_arrhenius(therm_ref_1,tc_ref_1+tempk_0,tc+tempk_0,ha_1,rg) ! rg in kJ mol^-1 K^-1
+        delG_1 = - rg*(tc+tempk_0)*log(therm_1) ! del-G = -RT ln K  now in kJ mol-1
+		! then forsterite
+        therm_ref_2 = 10d0**29.41364324d0
+        ha_2 = -208.5932252d0
+        tc_ref_2 = 15d0
+        ! from Kanzaki and Murakami 2018
+        therm_ref_2 = 10d0**27.8626d0
+        ha_2 = -205.614d0
+        tc_ref_2 = 25d0
+        ! from LLNL.DAT
+        therm_2 = k_arrhenius(therm_ref_2,tc_ref_2+tempk_0,tc+tempk_0,ha_2,rg)
+        delG_2 = - rg*(tc+tempk_0)*log(therm_2) ! del-G = -RT ln K  now in kJ mol-1
+        
+        if (ss_x == 1d0) then 
+            delG = delG_1 ! ideal hedenbergite
+        elseif (ss_x == 0d0) then 
+            delG = delG_2 ! ideal diopside
+        elseif (ss_x > 0d0 .and. ss_x < 1d0) then  ! solid solution 
+            ! ideal(?) mixing (after Gislason and Arnorsson, 1993)
+            delG = ss_x*delG_1 + (1d0-ss_x)*delG_2 + rg*(tc+tempk_0)*(ss_x*log(ss_x)+(1d0-ss_x)*log(1d0-ss_x))
+        endif 
+        therm = exp(-delG/(rg*(tc+tempk_0)))
     case('cpx','hb','dp')
         ! FexMg(1-x)CaSi2O6 + 4 H+  = Ca++  + 2 H2O  + xFe++ + (1-x)Mg++  + 2 SiO2(aq)
         ! obtaining hedenbergite 
@@ -9983,6 +10697,10 @@ select case(trim(adjustl(mineral)))
         ha_2 = -138.6020832d0
         tc_ref_2 = 15d0
         ! from Kanzaki and Murakami 2018
+        therm_ref_2 = 10d0**(19.894d0)
+        ha_2 = -135.344032d0
+        tc_ref_2 = 25d0
+        ! from mip_exp1a
         therm_2 = k_arrhenius(therm_ref_2,tc_ref_2+tempk_0,tc+tempk_0,ha_2,rg)
         delG_2 = - rg*(tc+tempk_0)*log(therm_2) ! del-G = -RT ln K  now in kJ mol-1
         
@@ -10005,10 +10723,14 @@ select case(trim(adjustl(mineral)))
         therm_1 = k_arrhenius(therm_ref_1,tc_ref_1+tempk_0,tc+tempk_0,ha_1,rg) ! rg in kJ mol^-1 K^-1
         delG_1 = - rg*(tc+tempk_0)*log(therm_1) ! del-G = -RT ln K  now in kJ mol-1
         ! Then enstatite 
-        therm_ref_2 = 10d0**(11.99060855d0)
-        ha_2 = -85.8218778d0
-        tc_ref_2 = 15d0
+        ! therm_ref_2 = 10d0**(11.99060855d0)
+        ! ha_2 = -85.8218778d0
+        ! tc_ref_2 = 15d0
         ! from Kanzaki and Murakami 2018
+        therm_ref_2 = 10d0**(11.342d0)
+        ha_2 = 0d0
+        tc_ref_2 = 25d0
+		! from mip_exp1a
         therm_2 = k_arrhenius(therm_ref_2,tc_ref_2+tempk_0,tc+tempk_0,ha_2,rg)
         delG_2 = - rg*(tc+tempk_0)*log(therm_2) ! del-G = -RT ln K  now in kJ mol-1
         
@@ -13744,7 +14466,7 @@ select case(trim(adjustl(mineral)))
         & 'fo','ab','an','ka','gb','ct','fa','gt','cabd','dp','hb','kfs','amsi','hm','ill','anl','nph' &
         & ,'qtz','tm','la','by','olg','and','cpx','en','fer','opx','mgbd','kbd','nabd','mscv','plgp','antp' &
         & ,'agt','jd','wls','phsi','splt','casp','ksp','nasp','mgsp','fe2o','mgo','k2o','cao','na2o','al2o3' &
-        & ,'gbas','cbas','ep','clch','sdn','cdr','leu','amal','amfe3','sio2','fbas' &
+        & ,'gbas','cbas','ep','clch','sdn','cdr','leu','amal','amfe3','sio2','fbas','olvn','mgn','ilmn','anat' &
         & )  ! (almino)silicates & oxides
         keq_tmp = keqsld_all(findloc(chrsld_all,mineral,dim=1))
         omega = 1d0
@@ -13926,7 +14648,8 @@ select case(trim(adjustl(mineral)))
         omega = 0d0
     
     case('inrt') ! not reacting in any case
-        omega = 1d0
+        ! omega = 1d0
+        omega = 0d0
         
     case default 
         ! this should not be selected
@@ -13969,7 +14692,7 @@ do ispa = 1, nsp_aq_all
             base_charge(ispa) = -2d0
         case('no3','oxa','cl','ac','mes','glp')
             base_charge(ispa) = -1d0
-        case('si','im','tea')
+        case('si','im','tea','ti')
             base_charge(ispa) = 0d0
         case('na','k')
             base_charge(ispa) = 1d0
@@ -17154,7 +17877,7 @@ subroutine alsilicate_aq_gas_1D_v3_2( &
     & ,precstyle,solmod,fkin &! input
 	& ,nsp_aqex,chraqex &! input 
     !  old inputs
-    & ,hr,poro,z,dz,w_btm,sat,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
+    & ,hr,poro,z,dz,w_btm,sat,satprev,pro,poroprev,tora,v,tol,it,nflx,kw,maqft_prev,disp & 
     & ,ucv,torg,cplprec,rg,tc,sec2yr,tempk_0,proi,poroi,up,dwn,cnr,adf,msldunit  &
     & ,ads_ON,maqfads_prev,keqcec_all,keqiex_all,cec_pH_depend,aq_close,ios,act_ON,beta_all,c1_gamma_max & 
     ! old inout
@@ -17168,13 +17891,15 @@ implicit none
 
 integer,intent(in)::nz,nflx
 real(kind=8),intent(in)::w_btm,tol,kw,ucv,rho_grain,rg,tc,sec2yr,tempk_0,proi,poroi
-real(kind=8),dimension(nz),intent(in)::poro,z,sat,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf,disp,ios
+real(kind=8),dimension(nz),intent(in)::poro,z,sat,satprev,tora,v,poroprev,dz,torg,pro,up,dwn,cnr,adf,disp,ios
 real(kind=8),dimension(nz),intent(out)::prox
 real(kind=8),dimension(nz),intent(out)::iosx
 real(kind=8),dimension(nz),intent(inout)::w
+real(kind=8),dimension(nz)::vn,vp
 integer,intent(inout)::it
 integer iter
-logical,intent(in)::cplprec,display
+integer,intent(in)::display
+logical,intent(in)::cplprec
 logical,intent(inout)::flgback
 character(3),intent(in)::msldunit
 real(kind=8),intent(in)::dt
@@ -17387,6 +18112,9 @@ logical::aq_diff_close = .true.
 ! logical::gas_close = .true.
 logical::gas_close = .false.
 
+! logical::cap_omega = .true.
+logical::cap_omega = .false.
+
 ! logical::sld_enforce = .false.
 logical,intent(in)::sld_enforce != .true.
 
@@ -17403,8 +18131,8 @@ real(kind=8):: dt_th = 1d-6
 real(kind=8):: flx_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))
 ! real(kind=8):: flx_tol = 1d-3 ! desparate to make things converge 
 ! real(kind=8):: flx_max_tol = 1d-9 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) ! working for most cases but not when spinup with N cycles
-real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
-! real(kind=8):: flx_max_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))  ! facilitate convergence 
+! real(kind=8):: flx_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
+real(kind=8):: flx_max_tol = 1d-4 != tol*fact_tol*(z(nz)+0.5d0*dz(nz))  !  to further facilitate convergence 
 real(kind=8):: flx_max_max_tol = 1d-6 != tol*fact_tol*(z(nz)+0.5d0*dz(nz)) 
 integer solve_sld 
 
@@ -17459,6 +18187,9 @@ kn2o = keqgas_h(findloc(chrgas_all,'pn2o',dim=1),ieqgas_h0)
 
 sporo = 1d0 - poro
 if (msldunit=='blk') sporo = 1d0
+
+vn = (v+abs(v))*0.5d0
+vp = (v-abs(v))*0.5d0
 
 ! so4fprev = so4f
 
@@ -17919,59 +18650,67 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
     enddo 
     
     
-    ! *** reducing saturation ***    
-    do isps=1,nsp_sld
-        dummy = 0d0
-        if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
-            ! cycle
-            do iz=1,nz
-                if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
-            enddo 
-        else
-            ! omega(isps,:) = dummy
-            do iz=1,nz
-                if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
-            enddo 
-        endif 
-    enddo 
-                
-    ! *** sanity check ***     
-    if (any(isnan(omega))) then 
-        print *,' *** found NAN in omega: listing below -- '
-        do isps=1,nsp_sld
-            do iz=1,nz
-                if (isnan(omega(isps,iz))) print*,chrsld(isps),iz,omega(isps,iz)
-            enddo
-        enddo 
-        stop
+    ! *** reducing saturation ***   
+	if (cap_omega) then
+		do isps=1,nsp_sld
+			dummy = 0d0
+			if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+				! cycle
+				do iz=1,nz
+					if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
+				enddo 
+			else
+				! omega(isps,:) = dummy
+				do iz=1,nz
+					if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
+				enddo 
+			endif 
+		enddo 
     endif 
-    if (any(omega>infinity)) then 
-        print *,' *** found INF in omega  '
-        stop
-        print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
-        do isps=1,nsp_sld
-            dummy = 0d0
-            if (any(omega(isps,:)>infinity)) then 
-                dummy = omega(isps,:)
-                if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
-                    print *,chrsld(isps),' (precipitation allowed)'
-                    where(dummy>infinity)
-                        dummy = sat_lim_prec
-                    endwhere
-                else
-                    print *,chrsld(isps),' (precipitation not allowed)'
-                    where(dummy>infinity)
-                        dummy = sat_lim_noprec
-                    endwhere
-                endif 
-                if (any(dummy>infinity)) then 
-                    print *, 'somthing is wrong'
-                    stop
-                endif 
-                omega(isps,:) = dummy
-            endif 
-        enddo 
-    endif 
+					
+	! *** sanity check ***     
+	if (any(isnan(omega))) then 
+		print *,' *** found NAN in omega: listing below -- '
+		do isps=1,nsp_sld
+			do iz=1,nz
+				if (isnan(omega(isps,iz))) print*,chrsld(isps),iz,omega(isps,iz)
+			enddo
+		enddo 
+		flgback = .true.
+		return 
+		stop
+	endif 
+		
+	
+	if (any(omega>infinity)) then 
+		print *,' *** found INF in omega  '
+		flgback = .true.
+		return 
+		stop
+		print *,' *** proceed maximum saturation 1d+100 if precipitating while 1d1 if not'
+		do isps=1,nsp_sld
+			dummy = 0d0
+			if (any(omega(isps,:)>infinity)) then 
+				dummy = omega(isps,:)
+				if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+					print *,chrsld(isps),' (precipitation allowed)'
+					where(dummy>infinity)
+						dummy = sat_lim_prec
+					endwhere
+				else
+					print *,chrsld(isps),' (precipitation not allowed)'
+					where(dummy>infinity)
+						dummy = sat_lim_noprec
+					endwhere
+				endif 
+				if (any(dummy>infinity)) then 
+					print *, 'somthing is wrong'
+					stop
+				endif 
+				omega(isps,:) = dummy
+			endif 
+		enddo 
+	endif 
     
     
     ! adding reactions that are not based on dis/prec of minerals
@@ -18181,7 +18920,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         dgasi(ispg) = ucv*1d3*dgasg(ispg)   !! gas diffusion alone in air 
         dgasn(ispg) = ucv*poro(1)*(1.0d0-sat(1))*1d3*torg(1)*dgasg(ispg)  ! gas diffusion alone in soil air at the upper most layer
         
-        agas(ispg,:)= ucv*poroprev*(1.0d0-sat)*1d3+poroprev*sat*khgas(ispg,:)*1d3
+        agas(ispg,:)= ucv*poroprev*(1.0d0-satprev)*1d3+poroprev*satprev*khgas(ispg,:)*1d3
         agasx(ispg,:)= ucv*poro*(1.0d0-sat)*1d3+poro*sat*khgasx(ispg,:)*1d3
         
         do ispa = 1,nsp_aq 
@@ -18633,19 +19372,22 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 &   *merge(0d0,maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz),iz==1 .and.aq_diff_close) &
                 &   /(0.5d0*(dz(iz)+dz(izn)))  )/dz(iz) &
                 & *merge(dt,1d0,dt_norm) &
-                & + poro(iz)*sat(iz)*1d3*v(iz)*(1d0*maqft(ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
-                & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                & + poro(iz)*sat(iz)*1d3*vn(iz)*(1d0*maqft(ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                & + poro(iz)*sat(iz)*1d3*vn(iz)*(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                & + poro(iz)*sat(iz)*1d3*vp(iz)*(-1d0*maqft(ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                & + poro(iz)*sat(iz)*1d3*vp(iz)*(-maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                 & -drxndisp_tmp*merge(dt,1d0,dt_norm) &
                 & - sum(staq_ext(:,ispa)*drxnext_dmaq(:,ispa,iz))*merge(dt,1d0,dt_norm) &
                 & ) &
                 & *merge(1.0d0,maqx(ispa,iz),caq_tmp<caqth_tmp*sw_red)
 
             ymx3(row) = ( &
-                & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/merge(1d0,dt,dt_norm)  &
+                & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*satprev(iz)*1d3*caq_tmp_prev)/merge(1d0,dt,dt_norm)  &
                 & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(izp))) &
                 & -0.5d0*(edif_tmp +edif_tmp_n)*(caq_tmp-caqdif_tmp_n)/(0.5d0*(dz(iz)+dz(izn))))/dz(iz) &
                 & *merge(dt,1d0,dt_norm) &
-                & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz)*merge(dt,1d0,dt_norm) &
+                & + poro(iz)*sat(iz)*1d3*vn(iz)*(caq_tmp-caq_tmp_n)/dz(iz)*merge(dt,1d0,dt_norm) &
+                & + poro(iz)*sat(iz)*1d3*vp(iz)*(caq_tmp_p-caq_tmp)/dz(iz)*merge(dt,1d0,dt_norm) &
                 & - rxn_tmp*merge(dt,1d0,dt_norm) &
                 & - caqsupp_tmp*merge(dt,1d0,dt_norm) &
                 & - rxn_ext_tmp*merge(dt,1d0,dt_norm) &
@@ -18660,8 +19402,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     & -(-0.5d0*(edif_tmp +edif_tmp_n) &
                     &   *(-maqx(ispa,izn)*dmaqft_dmaqf(ispa,ispa,izn))/(0.5d0*(dz(iz)+dz(izn))))/dz(iz) &
                     & *merge(dt,1d0,dt_norm) &
-                    & + poro(iz)*sat(iz)*1d3*v(iz)*(-1d0*maqft(ispa,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
-                    & + poro(iz)*sat(iz)*1d3*v(iz) &
+                    & + poro(iz)*sat(iz)*1d3*vn(iz)*(-1d0*maqft(ispa,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & + poro(iz)*sat(iz)*1d3*vn(iz) &
                     &   *(-maqx(ispa,izn)*dmaqft_dmaqf(ispa,ispa,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & ) &
                     & *maqx(ispa,izn)  &
@@ -18676,6 +19418,9 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     & -(0.5d0*(edif_tmp +edif_tmp_p) &
                     &   *(maqx(ispa,izp)*dmaqft_dmaqf(ispa,ispa,izp))/(0.5d0*(dz(iz)+dz(izp))))/dz(iz) &
                     & *merge(dt,1d0,dt_norm) &
+                    & + poro(iz)*sat(iz)*1d3*vp(iz)*(1d0*maqft(ispa,izp))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & + poro(iz)*sat(iz)*1d3*vp(iz) &
+                    &   *(maqx(ispa,izp)*dmaqft_dmaqf(ispa,ispa,izp))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & ) &
                     & *maqx(ispa,izp) &
                     & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
@@ -18709,7 +19454,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     &   * merge(0d0,maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz),iz==1 .and. aq_diff_close) &
                     &   /( 0.5d0*(dz(iz)+dz(izn)) ))/dz(iz) &
                     & *merge(dt,1d0,dt_norm) &
-                    & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & + poro(iz)*sat(iz)*1d3*vn(iz)*(maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & + poro(iz)*sat(iz)*1d3*vp(iz)*(-maqx(ispa,iz)*dmaqft_dmaqf(ispa,ispa2,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & - sum(staq(:,ispa)*drxnsld_dmaq(:,ispa2,iz))*merge(dt,1d0,dt_norm) &
                     & - sum(staq_ext(:,ispa)*drxnext_dmaq(:,ispa2,iz))*merge(dt,1d0,dt_norm) &
                     & ) &
@@ -18722,7 +19468,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         &   *(-maqx(ispa,izn)*dmaqft_dmaqf(ispa,ispa2,izn)) &
                         &   /(0.5d0*(dz(iz)+dz(izn))))/dz(iz) &
                         &   *merge(dt,1d0,dt_norm) &
-                        & + poro(iz)*sat(iz)*1d3*v(iz) &
+                        & + poro(iz)*sat(iz)*1d3*vn(iz) &
                         &   *(-maqx(ispa,izn)*dmaqft_dmaqf(ispa,ispa2,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
                         & ) &
                         & *maqx(ispa2,izn)  &
@@ -18735,6 +19481,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         &   *(maqx(ispa,izp)*dmaqft_dmaqf(ispa,ispa2,izp)) &
                         &   /(0.5d0*(dz(iz)+dz(izp))))/dz(iz) &
                         &   *merge(dt,1d0,dt_norm) &
+                        & + poro(iz)*sat(iz)*1d3*vp(iz) &
+                        &   *(maqx(ispa,izp)*dmaqft_dmaqf(ispa,ispa2,izp))/dz(iz)*merge(dt,1d0,dt_norm) &
                         & ) &
                         & *maqx(ispa2,izp) &
                         & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
@@ -18753,7 +19501,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     &   * merge(0d0,maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz),iz==1 .and. aq_diff_close) &
                     &   /( 0.5d0*(dz(iz)+dz(izn)) ))/dz(iz) &
                     &   *merge(dt,1d0,dt_norm) &
-                    & + poro(iz)*sat(iz)*1d3*v(iz)*(maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & + poro(iz)*sat(iz)*1d3*vn(iz)*(maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & + poro(iz)*sat(iz)*1d3*vp(iz)*(-maqx(ispa,iz)*dmaqft_dmgas(ispa,ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & - sum(staq(:,ispa)*drxnsld_dmgas(:,ispg,iz))*merge(dt,1d0,dt_norm) &
                     & - sum(staq_ext(:,ispa)*drxnext_dmgas(:,ispg,iz))*merge(dt,1d0,dt_norm) &
                     & ) &
@@ -18766,7 +19515,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         &   *(-maqx(ispa,izn)*dmaqft_dmgas(ispa,ispg,izn)) &
                         &   /(0.5d0*(dz(iz)+dz(izn))))/dz(iz) &
                         & *merge(dt,1d0,dt_norm) &
-                        & + poro(iz)*sat(iz)*1d3*v(iz) &
+                        & + poro(iz)*sat(iz)*1d3*vn(iz) &
                         &   *(-maqx(ispa,izn)*dmaqft_dmgas(ispa,ispg,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
                         & ) &
                         & *mgasx(ispg,izn)  &
@@ -18779,6 +19528,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         &   *(maqx(ispa,izp)*dmaqft_dmgas(ispa,ispg,izp)) &
                         &   /(0.5d0*(dz(iz)+dz(izp))))/dz(iz) &
                         & *merge(dt,1d0,dt_norm) &
+                        & + poro(iz)*sat(iz)*1d3*vp(iz) &
+                        &   *(maqx(ispa,izp)*dmaqft_dmgas(ispa,ispg,izp))/dz(iz)*merge(dt,1d0,dt_norm) &
                         & ) &
                         & *mgasx(ispg,izp) &
                         & *merge(0.0d0,1.0d0,caq_tmp<caqth_tmp*sw_red)   ! commented out (is this necessary?)
@@ -18958,10 +19709,11 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             endif ! End of if ads_ON 
                     
             flx_aq(ispa,itflx,iz) = flx_aq(ispa,itflx,iz) + (&
-                & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/dt  &
+                & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*satprev(iz)*1d3*caq_tmp_prev)/dt  &
                 & ) 
             flx_aq(ispa,iadv,iz) = flx_aq(ispa,iadv,iz) + (&
-                & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+                & + poro(iz)*sat(iz)*1d3*vn(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+                & + poro(iz)*sat(iz)*1d3*vp(iz)*(caq_tmp_p-caq_tmp)/dz(iz) &
                 & ) 
             flx_aq(ispa,idif,iz) = flx_aq(ispa,idif,iz) + (&
                 & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(izp))) &
@@ -19028,8 +19780,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 &       ) &
                 &       )/dz(iz)  &
                 & *merge(dt,1d0,dt_norm) &
-                & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz)*merge(dt,1d0,dt_norm) &
-                & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) *merge(dt,1d0,dt_norm) &
+                & +poro(iz)*sat(iz)*vn(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz)*merge(dt,1d0,dt_norm) &
+                & +poro(iz)*sat(iz)*vn(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) *merge(dt,1d0,dt_norm) &
+                & +poro(iz)*sat(iz)*vp(iz)*1d3*(-khgasx(ispg,iz)*1d0)/dz(iz)*merge(dt,1d0,dt_norm) &
+                & +poro(iz)*sat(iz)*vp(iz)*1d3*(-dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) *merge(dt,1d0,dt_norm) &
                 & -sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg,iz))*merge(dt,1d0,dt_norm) &
                 & -drxngas_dmgas(ispg,ispg,iz)*merge(dt,1d0,dt_norm) &
                 & ) &
@@ -19045,7 +19799,9 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 &   ,iz==1 .and. aq_diff_close) &
                 &       )/dz(iz)  &
                 & *merge(dt,1d0,dt_norm) &
-                & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz)*merge(dt,1d0,dt_norm) &
+                & +poro(iz)*sat(iz)*vn(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz)*merge(dt,1d0,dt_norm) &
+                & +poro(iz)*sat(iz)*vp(iz)*1d3 &
+				&		*(khgasx(ispg,izp)*mgasx(ispg,izp)-khgasx(ispg,iz)*mgasx(ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                 & -sum(stgas_ext(:,ispg)*rxnext(:,iz))*merge(dt,1d0,dt_norm) &
                 & -rxngas(ispg,iz)*merge(dt,1d0,dt_norm) &
                 & -mgassupp(ispg,iz)*merge(dt,1d0,dt_norm) &
@@ -19055,11 +19811,13 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
             
             if (iz/=nz) then 
                 amx3(row,row+nsp3) = ( &
-                        & -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,izp))*(1d0)/(0.5d0*(dz(iz)+dz(izp))) &
-                        & + 0.5d0*(ddgas_dmgas(ispg,ispg,izp))*(mgasx(ispg,izp)-mgasx(ispg,iz)) &
-                        &       /(0.5d0*(dz(iz)+dz(izp))))/dz(iz)*merge(dt,1d0,dt_norm) &
-                        & ) &
-                        & *merge(0.0d0,mgasx(ispg,izp),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
+					& -( 0.5d0*(dgas(ispg,iz)+dgas(ispg,izp))*(1d0)/(0.5d0*(dz(iz)+dz(izp))) &
+					& + 0.5d0*(ddgas_dmgas(ispg,ispg,izp))*(mgasx(ispg,izp)-mgasx(ispg,iz)) &
+					&       /(0.5d0*(dz(iz)+dz(izp))))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & +poro(iz)*sat(iz)*vp(iz)*1d3*(khgasx(ispg,izp)*1d0)/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & +poro(iz)*sat(iz)*vp(iz)*1d3*(dkhgas_dmgas(ispg,ispg,izp)*mgasx(ispg,izp))/dz(iz)*merge(dt,1d0,dt_norm) &
+					& ) &
+					& *merge(0.0d0,mgasx(ispg,izp),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
             endif 
             
             if (iz/=1) then 
@@ -19067,8 +19825,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     & -(- 0.5d0*(dgas(ispg,iz)+dgas(ispg,izn))*(-1d0)/(0.5d0*(dz(iz)+dz(izn))) &
                     & - 0.5d0*(ddgas_dmgas(ispg,ispg,izn))*(mgasx(ispg,iz)-mgasx(ispg,izn)) &
                     &       /(0.5d0*(dz(iz)+dz(izn))))/dz(iz)*merge(dt,1d0,dt_norm)  &
-                    & +poro(iz)*sat(iz)*v(iz)*1d3*(-khgasx(ispg,izn)*1d0)/dz(iz)*merge(dt,1d0,dt_norm) &
-                    & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhgas_dmgas(ispg,ispg,izn)*mgasx(ispg,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & +poro(iz)*sat(iz)*vn(iz)*1d3*(-khgasx(ispg,izn)*1d0)/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & +poro(iz)*sat(iz)*vn(iz)*1d3*(-dkhgas_dmgas(ispg,ispg,izn)*mgasx(ispg,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & ) &
                     & *merge(0.0d0,mgasx(ispg,izn),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
             endif 
@@ -19100,7 +19858,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     &       ) &
                     &       )/dz(iz)  &
                     & *merge(dt,1d0,dt_norm) &
-                    & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmaq(ispg,ispa,iz)*mgasx(ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & +poro(iz)*sat(iz)*vn(iz)*1d3*(dkhgas_dmaq(ispg,ispa,iz)*mgasx(ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & +poro(iz)*sat(iz)*vp(iz)*1d3*(-dkhgas_dmaq(ispg,ispa,iz)*mgasx(ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & -drxngas_dmaq(ispg,ispa,iz)*merge(dt,1d0,dt_norm) &
                     & -sum(stgas_ext(:,ispg)*drxnext_dmaq(:,ispa,iz))*merge(dt,1d0,dt_norm) &
                     & ) &
@@ -19111,6 +19870,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     amx3(row,col+nsp3) = ( &
                         & -( 0.5d0*(ddgas_dmaq(ispg,ispa,izp))*(mgasx(ispg,izp)-mgasx(ispg,iz)) &
                         &       /(0.5d0*(dz(iz)+dz(izp))))/dz(iz)*merge(dt,1d0,dt_norm) &
+                        & +poro(iz)*sat(iz)*vp(iz)*1d3*(dkhgas_dmaq(ispg,ispa,izp)*mgasx(ispg,izp))/dz(iz)*merge(dt,1d0,dt_norm) &
                         & ) &
                         & *merge(0.0d0,maqx(ispa,izp),mgasx(ispg,iz)<mgasth(ispg)*sw_red)            
                 endif 
@@ -19119,7 +19879,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     amx3(row,col-nsp3) = ( &
                         & -(- 0.5d0*(ddgas_dmaq(ispg,ispa,izn))*(mgasx(ispg,iz)-mgasx(ispg,izn)) &
                         &       /(0.5d0*(dz(iz)+dz(izn))))/dz(iz)*merge(dt,1d0,dt_norm)  &
-                        & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhgas_dmaq(ispg,ispa,izn)*mgasx(ispg,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
+                        & +poro(iz)*sat(iz)*vn(iz)*1d3*(-dkhgas_dmaq(ispg,ispa,izn)*mgasx(ispg,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
                         & ) &
                         & *merge(0.0d0,maqx(ispa,izn),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
                 endif  
@@ -19140,7 +19900,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     &   ,iz==1 .and. aq_diff_close &
                     &       ) &
                     & )/dz(iz)*merge(dt,1d0,dt_norm)  &
-                    & +poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg2,iz)*mgasx(ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & +poro(iz)*sat(iz)*vn(iz)*1d3*(dkhgas_dmgas(ispg,ispg2,iz)*mgasx(ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
+                    & +poro(iz)*sat(iz)*vp(iz)*1d3*(-dkhgas_dmgas(ispg,ispg2,iz)*mgasx(ispg,iz))/dz(iz)*merge(dt,1d0,dt_norm) &
                     & -drxngas_dmgas(ispg,ispg2,iz)*merge(dt,1d0,dt_norm) &
                     & -sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg2,iz))*merge(dt,1d0,dt_norm) &
                     & ) &
@@ -19150,6 +19911,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     amx3(row,col+nsp3) = ( &
                         & -( 0.5d0*(ddgas_dmgas(ispg,ispg2,izp))*(mgasx(ispg,izp)-mgasx(ispg,iz)) &
                         &       /(0.5d0*(dz(iz)+dz(izp))))/dz(iz)*merge(dt,1d0,dt_norm) &
+                        & +poro(iz)*sat(iz)*vp(iz)*1d3 &
+						&		*(dkhgas_dmgas(ispg,ispg2,izp)*mgasx(ispg,izp))/dz(iz)*merge(dt,1d0,dt_norm) &
                         & ) &
                         & *merge(0.0d0,mgasx(ispg2,izp),mgasx(ispg,iz)<mgasth(ispg)*sw_red)            
                 endif 
@@ -19158,7 +19921,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                     amx3(row,col-nsp3) = ( &
                         & -(- 0.5d0*(ddgas_dmgas(ispg,ispg2,izn))*(mgasx(ispg,iz)-mgasx(ispg,izn)) &
                         &       /(0.5d0*(dz(iz)+dz(izn))))/dz(iz)*merge(dt,1d0,dt_norm)  &
-                        & +poro(iz)*sat(iz)*v(iz)*1d3*(-dkhgas_dmgas(ispg,ispg2,izn)*mgasx(ispg,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
+                        & +poro(iz)*sat(iz)*vn(iz)*1d3 &
+						& 		*(-dkhgas_dmgas(ispg,ispg2,izn)*mgasx(ispg,izn))/dz(iz)*merge(dt,1d0,dt_norm) &
                         & ) &
                         & *merge(0.0d0,mgasx(ispg2,izn),mgasx(ispg,iz)<mgasth(ispg)*sw_red)
                 endif  
@@ -19172,8 +19936,10 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & +0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,izp)-mgasx(ispg,iz))/(0.5d0*(dz(iz)+dz(izp))) &
                 & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(1d0)/(0.5d0*(dz(iz)+dz(izn))) &
                 & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(izn))) )/dz(iz)  &
-                & ,+poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz) &
-                & ,+poro(iz)*sat(iz)*v(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
+                & ,+poro(iz)*sat(iz)*vn(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz) &
+                & ,+poro(iz)*sat(iz)*vn(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
+                & ,+poro(iz)*sat(iz)*vp(iz)*1d3*(-khgasx(ispg,iz)*1d0)/dz(iz) &
+                & ,+poro(iz)*sat(iz)*vp(iz)*1d3*(-dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
                 & ,-sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg,iz)) &
                 & ,-drxngas_dmgas(ispg,ispg,iz) 
             endif 
@@ -19192,7 +19958,8 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & )/dz(iz)  &
                 & )
             flx_gas(ispg,iadv,iz) = ( &
-                & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
+                & +poro(iz)*sat(iz)*vn(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
+                & +poro(iz)*sat(iz)*vp(iz)*1d3*(khgasx(ispg,izp)*mgasx(ispg,izp)-khgasx(ispg,iz)*mgasx(ispg,iz))/dz(iz) &
                 & )
             flx_gas(ispg,irxn_ext(:),iz) = -stgas_ext(:,ispg)*rxnext(:,iz)
             flx_gas(ispg,irain,iz) = - mgassupp(ispg,iz)
@@ -19435,7 +20202,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         ! stop
     endif
 
-    if (display) then 
+    if (display>0) then 
         print '(a,E11.3,a,i0,a,E11.3)', 'iteration error = ',error, ', iteration = ',iter,', time step [yr] = ',dt
     endif      
     iter = iter + 1 
@@ -19697,21 +20464,23 @@ do isps =1, nsp_sld
     omega(isps,:) = dummy
 enddo 
 
-! *** reducing saturation ***    
-do isps=1,nsp_sld
-    dummy = 0d0
-    if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
-        ! cycle
-        do iz=1,nz
-            if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
-        enddo 
-    else
-        ! omega(isps,:) = dummy
-        do iz=1,nz
-            if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
-        enddo 
-    endif 
-enddo 
+! *** reducing saturation ***  
+if (cap_omega) then  
+	do isps=1,nsp_sld
+		dummy = 0d0
+		if (any(chrsld_2 == chrsld(isps))) then  ! chrsld(isps) is included in secondary minerals
+			! cycle
+			do iz=1,nz
+				if (omega(isps,iz)>=sat_lim_prec) omega(isps,iz) = sat_lim_prec
+			enddo 
+		else
+			! omega(isps,:) = dummy
+			do iz=1,nz
+				if (omega(isps,iz)>=sat_lim_noprec) omega(isps,iz) = sat_lim_noprec
+			enddo 
+		endif 
+	enddo 
+endif
 
 rxnsld = 0d0
     
@@ -19930,10 +20699,11 @@ do iz = 1, nz
         endif 
                 
         flx_aq(ispa,itflx,iz) = flx_aq(ispa,itflx,iz) + (&
-            & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*sat(iz)*1d3*caq_tmp_prev)/dt  &
+            & (poro(iz)*sat(iz)*1d3*caq_tmp-poroprev(iz)*satprev(iz)*1d3*caq_tmp_prev)/dt  &
             & ) 
         flx_aq(ispa,iadv,iz) = flx_aq(ispa,iadv,iz) + (&
-            & + poro(iz)*sat(iz)*1d3*v(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+            & + poro(iz)*sat(iz)*1d3*vn(iz)*(caq_tmp-caq_tmp_n)/dz(iz) &
+            & + poro(iz)*sat(iz)*1d3*vp(iz)*(caq_tmp_p-caq_tmp)/dz(iz) &
             & ) 
         flx_aq(ispa,idif,iz) = flx_aq(ispa,idif,iz) + (&
             & -(0.5d0*(edif_tmp +edif_tmp_p)*(caq_tmp_p-caq_tmp)/(0.5d0*(dz(iz)+dz(izp))) &
@@ -20009,7 +20779,7 @@ do ispg = 1, nsp_gas
     dgas(ispg,:) = ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*(tora*dgasa(ispg)+disp)
     dgasi(ispg) = ucv*1d3*dgasg(ispg) 
     
-    agas(ispg,:)= ucv*poroprev*(1.0d0-sat)*1d3+poroprev*sat*khgas(ispg,:)*1d3
+    agas(ispg,:)= ucv*poroprev*(1.0d0-satprev)*1d3+poroprev*satprev*khgas(ispg,:)*1d3
     agasx(ispg,:)= ucv*poro*(1.0d0-sat)*1d3+poro*sat*khgasx(ispg,:)*1d3
     
     do isps = 1, nsp_sld
@@ -20056,7 +20826,8 @@ do iz = 1, nz
             & )/dz(iz)  &
             & )
         flx_gas(ispg,iadv,iz) = ( &
-            & +poro(iz)*sat(iz)*v(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
+            & +poro(iz)*sat(iz)*vn(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz) &
+            & +poro(iz)*sat(iz)*vp(iz)*1d3*(khgasx(ispg,izp)*mgasx(ispg,izp)-khgasx(ispg,iz)*mgasx(ispg,iz))/dz(iz) &
             & )
         flx_gas(ispg,irxn_ext(:),iz) = -stgas_ext(:,ispg)*rxnext(:,iz)
         flx_gas(ispg,irain,iz) = - mgassupp(ispg,iz)
@@ -20089,7 +20860,7 @@ do iz = 1, nz
         if (iz==1) edifn_tmp = dgasi(ispg)
         
         flx_co2sp(1,itflx,iz) = ( &
-            & (ucv*poro(iz)*(1.0d0-sat(Iz))*1d3*mgasx(ispg,iz)-ucv*poroprev(iz)*(1.0d0-sat(Iz))*1d3*mgas(ispg,iz))/dt &
+            & (ucv*poro(iz)*(1.0d0-sat(Iz))*1d3*mgasx(ispg,iz)-ucv*poroprev(iz)*(1.0d0-satprev(Iz))*1d3*mgas(ispg,iz))/dt &
             & )  
         flx_co2sp(1,idif,iz) = ( &
             & -( 0.5d0*(ucv*poro(iz)*(1.0d0-sat(iz))*1d3*torg(Iz)*dgasg(ispg) &
@@ -20112,7 +20883,7 @@ do iz = 1, nz
         if (iz==1) edifn_tmp = 0d0
         
         flx_co2sp(2,itflx,iz) = ( &
-            & (poro(iz)*sat(iz)*kco2*1d3*mgasx(ispg,iz)-poroprev(iz)*sat(iz)*kco2*1d3*mgas(ispg,iz))/dt &
+            & (poro(iz)*sat(iz)*kco2*1d3*mgasx(ispg,iz)-poroprev(iz)*satprev(iz)*kco2*1d3*mgas(ispg,iz))/dt &
             & )  
         flx_co2sp(2,idif,iz) = ( &
             & -( 0.5d0*(poro(iz)*sat(iz)*kco2*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) &
@@ -20128,7 +20899,8 @@ do iz = 1, nz
             & )/dz(iz)  &
             & ) 
         flx_co2sp(2,iadv,iz) = ( &
-            & +poro(iz)*sat(iz)*v(iz)*1d3*(kco2*mgasx(ispg,iz)- kco2*pco2n_tmp)/dz(iz) &
+            & +poro(iz)*sat(iz)*vn(iz)*1d3*(kco2*mgasx(ispg,iz)- kco2*pco2n_tmp)/dz(iz) &
+            & +poro(iz)*sat(iz)*vp(iz)*1d3*(kco2*mgasx(ispg,izp)- kco2*mgasx(ispg,iz))/dz(iz) &
             & )
             
         ! HCO3-
@@ -20138,7 +20910,7 @@ do iz = 1, nz
         if (iz==1) edifn_tmp = 0d0
         
         flx_co2sp(3,itflx,iz) = ( &
-            & (poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*mgasx(ispg,iz)-poroprev(iz)*sat(iz)*kco2*k1/pro(iz)*1d3*mgas(ispg,iz))/dt &
+            & (poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*mgasx(ispg,iz)-poroprev(iz)*satprev(iz)*kco2*k1/pro(iz)*1d3*mgas(ispg,iz))/dt &
             & )  
         flx_co2sp(3,idif,iz) = ( &
             & -( 0.5d0*(poro(iz)*sat(iz)*kco2*k1/prox(iz)*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) &
@@ -20155,9 +20927,12 @@ do iz = 1, nz
             & )/dz(iz)  &
             & ) 
         flx_co2sp(3,iadv,iz) = ( &
-            & +poro(iz)*sat(iz)*v(iz)*1d3*( &
+            & +poro(iz)*sat(iz)*vn(iz)*1d3*( &
             &       kco2*k1/prox(iz)*mgasx(ispg,iz) &
             &       - kco2*k1/proi_tmp*pco2n_tmp)/dz(iz) &
+            & +poro(iz)*sat(iz)*vp(iz)*1d3*( &
+            &       kco2*k1/prox(izp)*mgasx(ispg,izp) &
+            &       - kco2*k1/prox(iz)*mgasx(ispg,iz))/dz(iz) &
             & )
             
         ! CO32-
@@ -20168,7 +20943,7 @@ do iz = 1, nz
         
         flx_co2sp(4,itflx,iz) = (  &
             & (poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*mgasx(ispg,iz) &
-            &       -poroprev(iz)*sat(iz)*kco2*k1*k2/pro(iz)**2d0*1d3*mgas(ispg,iz))/dt &
+            &       -poroprev(iz)*satprev(iz)*kco2*k1*k2/pro(iz)**2d0*1d3*mgas(ispg,iz))/dt &
             & )  
         flx_co2sp(4,idif,iz) = ( &
             & -( 0.5d0*(poro(iz)*sat(iz)*kco2*k1*k2/prox(iz)**2d0*1d3*(tora(iz)*dgasa(ispg)+disp(iz)) &
@@ -20185,9 +20960,12 @@ do iz = 1, nz
             & )/dz(iz)  &
             & ) 
         flx_co2sp(4,iadv,iz) = ( &
-            & +poro(iz)*sat(iz)*v(iz)*1d3*( &
+            & +poro(iz)*sat(iz)*vn(iz)*1d3*( &
             &       kco2*k1*k2/prox(iz)**2d0*mgasx(ispg,iz) &
             &       - kco2*k1*k2/proi_tmp**2d0*pco2n_tmp)/dz(iz) &
+            & +poro(iz)*sat(iz)*vp(iz)*1d3*( &
+            &       kco2*k1*k2/prox(izp)**2d0*mgasx(ispg,izp) &
+            &       - kco2*k1*k2/prox(iz)**2d0*mgasx(ispg,iz))/dz(iz) &
             & )
             
             
@@ -20295,6 +21073,7 @@ if (chkflx .and. dt > dt_th) then
             if (flx_max/flx_max_max > flx_max_tol .and.  abs(sum(flx_sld(isps,ires,:)*dz))/flx_max > flx_tol ) then 
                 print *
                 print *, '*** too large error in mass balance of sld phases'
+                print *, '*** flx_max/flx_max_max > flx_max_tol'
                 print *,'sp          = ',chrsld(isps)
                 print *,'flx_max_tol = ',  flx_max_tol
                 print *,'flx_max_max = ',  flx_max_max
@@ -20845,8 +21624,9 @@ endsubroutine sld_rxn
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 subroutine calc_psd_pr( &
-    & nps &! input
+    & nps,nps_pr_char,nps_pr_char_in &! input
     & ,pi,p80,ps_sigma_std,poroi,volsld,tol &! input
+	& ,pssigma_pr_list,psu_pr_list,psw_pr_list &! input 
     & ,ps,dps &! input
     & ,msldunit &! input
     & ,psd_pr &! output 
@@ -20854,22 +21634,38 @@ subroutine calc_psd_pr( &
 
 implicit none
 ! input 
-integer,intent(in)::nps
+integer,intent(in)::nps,nps_pr_char,nps_pr_char_in
 real(kind=8),intent(in)::pi,p80,ps_sigma_std,poroi,volsld,tol
 real(kind=8),dimension(nps),intent(in)::ps,dps
+real(kind=8),dimension(nps_pr_char),intent(in)::pssigma_pr_list,psu_pr_list,psw_pr_list
 character(3),intent(in)::msldunit
 ! output 
 real(kind=8),dimension(nps),intent(out)::psd_pr
 ! local
-real(kind=8) psu_pr,pssigma_pr
+real(kind=8) psu_pr,pssigma_pr,psw_pr
+integer ips
 
 
-psu_pr = log10(p80)
-pssigma_pr = 1d0
-pssigma_pr = ps_sigma_std
+if (nps_pr_char_in<=0) then  ! no input data in psdpr.in
+	psu_pr = log10(p80)
+	pssigma_pr = 1d0
+	pssigma_pr = ps_sigma_std
 
-! calculate parent rock particle size distribution 
-psd_pr = 1d0/pssigma_pr/sqrt(2d0*pi)*exp( -0.5d0*( (ps - psu_pr)/pssigma_pr )**2d0 )
+	! calculate parent rock particle size distribution 
+	psd_pr = 1d0/pssigma_pr/sqrt(2d0*pi)*exp( -0.5d0*( (ps - psu_pr)/pssigma_pr )**2d0 )
+else
+	psd_pr = 0d0
+	do ips = 1,nps_pr_char
+		psu_pr = psu_pr_list(ips)
+		pssigma_pr = pssigma_pr_list(ips)
+		psw_pr = psw_pr_list(ips)
+		
+		print*,psu_pr,pssigma_pr,psw_pr
+
+		! calculate parent rock particle size distribution 
+		psd_pr = psd_pr + psw_pr*1d0/pssigma_pr/sqrt(2d0*pi)*exp( -0.5d0*( (ps - psu_pr)/pssigma_pr )**2d0 )
+	enddo 
+endif 
 
 ! to ensure sum is 1
 ! print *, sum(psd_pr*dps)
@@ -20877,6 +21673,10 @@ psd_pr = psd_pr/sum(psd_pr*dps)
 ! print *, sum(psd_pr*dps)
 ! stop
 
+if (any(psd_pr==0d0)) then
+	psd_pr = psd_pr + 1d-12
+	psd_pr = psd_pr/sum(psd_pr*dps)  
+endif 
 ! balance for volumes
 ! sum(msldi*mv*1d-6) (m3/m3) must be equal to sum( 4/3(pi)r3 * psd_pr * dps) 
 ! where psd is number / bulk m3 / log r 
@@ -21369,7 +22169,7 @@ enddo
 dVd = 0d0
 rough_tmp = 1d0
 if (.not.incld_rough) then 
-    rough_tmp(:) = rough_f( 'smooth', nps, (10d0**ps(:)) )
+    rough_tmp(:) = rough_f( 'smooth    ', nps, (10d0**ps(:)) )
 else
     rough_tmp(:) = rough_f( roughref, nps, (10d0**ps(:)) )
 endif 
@@ -21648,6 +22448,7 @@ subroutine psd_diss_pbe( &
     & ,psd,ps,dps,ps_min,ps_max &! in 
     & ,chrsp &! in 
     & ,dpsd,psd_error_flg &! inout
+	& ,kpsdx &! out												 
     & )
 ! an attempt to solve population balance equation reflecting imposed dissolution rate
 implicit none 
@@ -21663,10 +22464,11 @@ character(10),intent(in)::roughref
 logical,intent(in)::incld_rough
 real(kind=8),dimension(nps,nz),intent(inout)::dpsd
 logical,intent(inout)::psd_error_flg
+real(kind=8),dimension(nz),intent(out)::kpsdx					   
 ! local 
 real(kind=8),dimension(nps,nz)::dVd,psd_old,psd_new,dpsd_tmp,psdx,psdxx
 real(kind=8),dimension(nps)::psd_tmp,dvd_tmp,dpsx,lambda
-real(kind=8),dimension(nz)::kpsd,kpsdx,DV_chk,DV_exist
+real(kind=8),dimension(nz)::kpsd,DV_chk,DV_exist
 real(kind=8) ps_new,ps_newp,dvd_res,error,vol,fact,surf
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8),parameter::threshold = 20d0
@@ -21752,20 +22554,24 @@ if (incld_rough)  lambda = rough_f( roughref, nps, (10d0**ps(:)) )
 ! dR/dr =  1/(r * log10)
 ! dr = dR * r * log10
 ! note that dps is dR; we need dr denoted here as dpsx (?)
-! dpsx = dps * 10d0**(ps) * log(10d0)
-do ips = 1,nps
-    dpsx(ips) = 10d0**(ps(ips)+0.5d0*dps(ips)) - 10d0**(ps(ips)-0.5d0*dps(ips))
-enddo
+dpsx = dps * 10d0**(ps) * log(10d0)
+! do ips = 1,nps
+    ! dpsx(ips) = 10d0**(ps(ips)+0.5d0*dps(ips)) - 10d0**(ps(ips)-0.5d0*dps(ips))
+! enddo
 
 ! psd is given as number of particles/m3/log(m)
 ! converting to number of particles/m3/m
 ! note that psd*dps = psdx*dpsx
 do iz=1,nz
     psdx(:,iz) = psd(:,iz) *dps(:) / dpsx(:)
+    ! psdx(:,iz) = psd(:,iz) / ( 10d0**ps(:)*log(10d0) )  ! same as above if dpsx = dps * 10d0**(ps) * log(10d0)
 enddo 
 
+! initial guess of kpsd based om previous PSD and newly obtained dV (volume change from reaction)
 kpsd = 0d0
 do iz = 1, nz
+	! integral of dF(r,t)/dt * v *dr = d[ F(r,t)*R(r,t) ]/dr * v * dr = d[ F(r,t)*R(r,t) ] * v 
+	! where F(r,t) is after conversion from F(log r, t)
     if (dV(iz)>=0d0) then
         do ips=1,nps
             if (ips==nps) then
@@ -21790,6 +22596,7 @@ do iz = 1, nz
             endif
         enddo 
     endif
+	
     ! if (kpsd(iz) * dV(iz) < 0d0) then 
         ! print *,' *** inconsistent between kpsd and DV ' , chrsp
         ! psd_error_flg = .true.
@@ -24808,6 +25615,394 @@ endsubroutine calc_gamma_davies
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+subroutine richards( &
+	& nz,nflx_h2o,z,dz,poro,poroprev,hpprev,thetaprev,satprev,qin,dt &! input 
+	& ,theta_r,theta_s,ell,emm,enn,alpha,kh_o &! input
+	& ,sat,hp,kh,theta,flx_h2o,flg_err &! output
+	& )
+! an attempt to solve water saturation based on simplified Richards equation 
+! 		d(poro*sat)/dt = ∇ (K ∇h) + Q 
+!			or
+! 		d(poro*sat)/dt = d (K dh/dz)/dz + Q 
+! 		( e.g. Steefel et al. 2015 )
+! where 
+! 		h = hp + z
+! 		sat =  1 / [1 + (a*hp)^n]^(1-1/n)
+! 		K = K_o * sat ^L * { 1 - [ 1 - sat^[n/(n-1)] ]^(1-1/n) }^2
+! 		( Schaap and Leij 2000 )
+! 
+!		sat^(1/m) = 1/[1 + (a*|hp|)^n] where m = 1- 1/n
+!		1/sat^(1/m) = 1 + (a*|hp|)^n
+!		(a*|hp|)^n = 1/sat^(1/m) - 1
+!		(a*|hp|) = [1/sat^(1/m)-1]^(1/n)
+!		|hp| = [1/sat^(1/m)-1]^(1/n)/a
+!		hp = -[1/sat^(1/m)-1]^(1/n)/a
+! 		d(poro*sat)/dt = d (K dhp/dz + K)/dz + Q 
+! 		d(poro*sat)/dt = d (K dhp/dz ) + dK/dz + Q 
+
+	
+integer,intent(in)::nz,nflx_h2o
+real(kind=8),intent(in)::qin,dt
+real(kind=8),intent(in)::alpha,ell,enn,kh_o,emm,theta_r,theta_s
+real(kind=8),dimension(nz),intent(in)::z,dz,poro,poroprev,hpprev,thetaprev,satprev
+real(kind=8),dimension(nz),intent(out)::sat,hp,kh,theta
+real(kind=8),dimension(nflx_h2o,nz),intent(out)::flx_h2o
+logical,intent(out)::flg_err
+
+! local 
+integer iz,ie,ie2,iter
+integer itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o
+data itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o/1,2,3,4,5,6/
+integer,parameter::iter_max = 3000
+real(kind=8),parameter::tol=1d-9
+real(kind=8),parameter::infinity = huge(0d0)
+real(kind=8),parameter::threshold = 10d0
+real(kind=8),parameter::corr = exp(threshold)
+real(kind=8) khtmp_p,khtmp_n,hptmp_p,hptmp_n
+real(kind=8) error 
+real(kind=8),dimension(nz)::dhp_dsatr,dkh_dsatr,dtheta_dsatr
+real(kind=8),dimension(nz)::dhp_dtheta,dkh_dtheta
+logical disp_Rich_iter
+real(kind=8) amx3(nz,nz), ymx3(nz), emx3(nz)
+integer ipiv3(nz) 
+integer info 
+
+
+! disp_Rich_iter = .false.
+disp_Rich_iter = .true.
+
+flg_err = .false.
+
+! initial guess
+
+! sat = satprev
+! theta = ( theta_s - theta_r ) * sat + theta_r
+theta = thetaprev
+
+error = 1d4
+iter = 1
+
+do while (error > tol) 
+
+	ymx3 = 0d0
+	amx3 = 0d0
+	
+	! theta = ( theta_s - theta_r ) * sat + theta_r
+	sat = ( theta - theta_r )/( theta_s - theta_r )
+	hp = -( 1d0/sat**(1d0/emm) - 1d0 ) ** (1d0/enn) / alpha 
+	kh = kh_o * sat ** ell * ( 1d0 - ( 1d0 - sat**( 1d0/emm ) )**emm ) ** 2d0
+	
+	! print *, hp
+	! print *, kh
+
+	dhp_dsatr = -(1d0/enn) * ( 1d0/sat**(1d0/emm) -1d0 ) **(1d0/enn-1d0) / alpha &
+		& * ( (1d0/emm) * 1d0/sat**(1d0/emm-1d0) * (-1d0) * 1d0/sat**2d0 )
+		
+	dkh_dsatr = &
+		& + kh_o * ell * sat ** (ell - 1d0) * ( 1d0 - ( 1d0 - sat**( 1d0/emm ) )**emm ) ** 2d0 &
+		& + kh_o * sat ** ell * 2d0 * ( 1d0 - ( 1d0 - sat**( 1d0/emm ) )**emm )  &
+		&	* (-1d0) * emm *( 1d0 - sat**( 1d0/emm ) )**(emm-1d0) &
+		&	* (-1d0) * ( 1d0/emm ) * sat**( 1d0/emm - 1d0 )
+	
+	dtheta_dsatr = ( theta_s - theta_r )
+	
+	dhp_dtheta = dhp_dsatr/dtheta_dsatr
+	dkh_dtheta = dkh_dsatr/dtheta_dsatr
+
+	do iz=1,nz
+		if (iz==1) then
+			ymx3(iz) = ( &
+				! & + ( poro(iz) * sat(iz) - poroprev(iz) * satprev(iz)) / dt &
+				& + ( theta(iz) - thetaprev(iz) ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				! &	- 0.5d0*( kh_o     + kh(iz) ) * ( ( hp(iz) -   0d0    )/( z(iz) - 0d0     ) - 1d0 ) &
+				&	- (-qin) &
+				&	) / dz(iz) &
+				! & - qin/dz(iz) &
+				& )
+			amx3(iz,iz) = ( &
+				! & + ( poro(iz) * 1d0 ) / dt &
+				& + ( 1d0 ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( - dhp_dtheta(iz) )/( z(iz+1) - z(iz) ) ) &
+				! &	- 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz) -   0d0    )/( z(iz) - 0d0     ) - 1d0 ) &
+				! &	- 0.5d0*( kh_o     + kh(iz) ) * ( ( dhp_dtheta(iz) -   0d0    )/( z(iz) - 0d0     ) ) &
+				&	) / dz(iz) &
+				! & )*sat(iz)
+				& )*theta(iz)
+			amx3(iz,iz+1) = ( &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz+1) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( dhp_dtheta(iz+1) )/( z(iz+1) - z(iz) ) ) &
+				&	) / dz(iz) &
+				& )*theta(iz+1) 
+		elseif (iz==nz) then
+			ymx3(iz) = ( &
+				& + ( theta(iz) - thetaprev(iz) ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( kh(iz)   + kh(iz) ) * ( - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	) / dz(iz) &
+				& )
+			amx3(iz,iz) = ( &
+				& + ( 1d0  ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz)   + dkh_dtheta(iz) ) * ( - 1d0 ) &
+				&	- 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( dhp_dtheta(iz) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	) / dz(iz) &
+				& )*theta(iz)
+			amx3(iz,iz-1) = ( &
+				& - ( & 
+				&	- 0.5d0*( dkh_dtheta(iz-1) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( - dhp_dtheta(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	) / dz(iz) &
+				& )*theta(iz-1)
+		else
+			! print*,iz-1,poro(iz-1),sat(iz-1),kh(iz-1),hp(iz-1)
+			! print*,iz,poro(iz),sat(iz),kh(iz),hp(iz)
+			! print*,iz+1,poro(iz+1),sat(iz+1),kh(iz+1),hp(iz+1)
+			ymx3(iz) = ( &
+				! & + ( poro(iz) * sat(iz) - poroprev(iz) * satprev(iz)) / dt &
+				& + ( theta(iz) - thetaprev(iz) ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	) / dz(iz) &
+				& )
+			amx3(iz,iz) = ( &
+				& + ( 1d0 ) / dt &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( - dhp_dtheta(iz) )/( z(iz+1) - z(iz) ) ) &
+				&	- 0.5d0*( dkh_dtheta(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( dhp_dtheta(iz) )/( z(iz) - z(iz-1) ) ) &
+				&	) / dz(iz) &
+				& )*theta(iz)
+			amx3(iz,iz+1) = ( &
+				& - ( & 
+				&	+ 0.5d0*( dkh_dtheta(iz+1) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+				&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( dhp_dtheta(iz+1) )/( z(iz+1) - z(iz) ) ) &
+				&	) / dz(iz) &
+				& )*theta(iz+1)
+			amx3(iz,iz-1) = ( &
+				& - ( & 
+				&	- 0.5d0*( dkh_dtheta(iz-1) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+				&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( - dhp_dtheta(iz-1) )/( z(iz) - z(iz-1) ) ) &
+				&	) / dz(iz) &
+				& )*theta(iz-1)
+		endif 
+	enddo 
+	
+	ymx3 = - ymx3
+
+	if (any(isnan(amx3)).or.any(isnan(ymx3)).or.any(amx3>infinity).or.any(ymx3>infinity)) then 
+	! if (.true.) then 
+		print*,'richards: error in mtx'
+		print*,'richards: any(isnan(amx3)),any(isnan(ymx3))'
+		print*,any(isnan(amx3)),any(isnan(ymx3))
+		
+		flg_err = .true.
+
+		if (any(isnan(ymx3))) then 
+			do iz = 1, nz
+				if (isnan(ymx3(iz))) then 
+					print*,'richards: NAN is here...',iz,sat(iz),theta(iz)
+				endif
+			enddo 
+		endif
+
+
+		if (any(isnan(amx3))) then 
+			do ie = 1,(nz)
+				do ie2 = 1,(nz)
+					if (isnan(amx3(ie,ie2))) then 
+						print*,'richards: NAN is here...',ie,ie2
+					endif
+				enddo
+			enddo
+		endif
+		stop
+		
+	endif
+
+	call DGESV(Nz,int(1),amx3,Nz,IPIV3,ymx3,Nz,INFO) 
+
+
+    
+	do iz = 1, nz
+
+		if (isnan(ymx3(iz))) then 
+			print *,'richards: nan at', iz
+			flg_err = .true.
+			stop
+		endif
+		
+		emx3(iz) = theta(iz)*exp(ymx3(iz)) - theta(iz)
+		
+		if ((.not.isnan(ymx3(iz))).and.ymx3(iz) >threshold) then 
+			theta(iz) = theta(iz)*corr
+		elseif (ymx3(iz) < -threshold) then 
+			theta(iz) = theta(iz)/corr
+		else   
+			theta(iz) = theta(iz)*exp(ymx3(iz))
+		endif
+	enddo
+	
+	error = maxval(abs(emx3))
+	if (disp_Rich_iter) print '("richards: iteration =", I5, 1x, "| error", 1x, E13.6)',iter, error 
+	
+	iter = iter + 1
+	
+	where ( theta > theta_s )
+		theta = theta_s-tol/1d4
+	elsewhere ( theta < theta_r )
+		theta = theta_r+tol/1d4
+	endwhere 
+	
+	if (iter > iter_max) then 
+		flg_err = .true.
+		return
+	endif 
+
+enddo 
+
+if (any(theta >=1d0)) then
+	flg_err = .true.
+	print*, 'converged theta is somehow >= 1'
+	stop
+endif 
+
+! sat = theta/poro
+
+sat = ( theta - theta_r )/( theta_s - theta_r )
+hp = -( 1d0/sat**(1d0/emm) - 1d0 ) ** (1d0/enn) / alpha 
+kh = kh_o * sat ** ell * ( 1d0 - ( 1d0 - sat**( enn/(enn-1d0) ) )**(1d0-1d0/enn) ) ** 2d0
+
+flx_h2o = 0d0
+
+do iz=1,nz
+	if (iz==1) then
+		flx_h2o(itflx_h2o,iz) = ( &
+			! & + ( poro(iz) * sat(iz) - poroprev(iz) * satprev(iz)) / dt &
+			& + ( theta(iz) - thetaprev(iz) ) / dt &
+			& )
+		flx_h2o(iadv_h2o,iz) = ( &
+			& - ( & 
+			&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+			! &	- 0.5d0*( kh_o     + kh(iz) ) * ( ( hp(iz) -   0d0    )/( z(iz) - 0d0     ) - 1d0 ) &
+			! &	- (-qin) &
+			&	) / dz(iz) &
+			& )
+		flx_h2o(irain_h2o,iz) = ( &
+			& - qin/dz(iz) &
+			& )
+	elseif (iz==nz) then
+		flx_h2o(itflx_h2o,iz) = ( &
+			& + ( theta(iz) - thetaprev(iz) ) / dt &
+			& )
+		flx_h2o(iadv_h2o,iz) = ( &
+			& - ( & 
+			&	+ 0.5d0*( kh(iz)   + kh(iz) ) * ( - 1d0 ) &
+			&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+			&	) / dz(iz) &
+			& )
+	else
+		flx_h2o(itflx_h2o,iz) = ( &
+			& + ( theta(iz) - thetaprev(iz) ) / dt &
+			& )
+		flx_h2o(iadv_h2o,iz) = ( &
+			& - ( & 
+			&	+ 0.5d0*( kh(iz+1) + kh(iz) ) * ( ( hp(iz+1) - hp(iz) )/( z(iz+1) - z(iz) ) - 1d0 ) &
+			&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+			&	) / dz(iz) &
+			& )
+	endif 
+	
+	flx_h2o(ires_h2o,iz) = sum(flx_h2o(:,iz))
+	
+enddo 
+
+endsubroutine richards
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_pars_richards( &
+	& RE_ref &! input 
+	& ,theta_r,theta_s,ell,emm,enn,alpha,kh_o &! output 
+	& )
+implicit none
+
+character(10),intent(in)::RE_ref
+real(kind=8),intent(out)::theta_r,theta_s,ell,emm,enn,alpha,kh_o
+
+! Table 1 of Schaap and Leij 2000
+! 		res.wat	sat		logalfa	logn	logKo	L			n			n/(n-1)		1-1/n		(1-n)/n			1/n
+! All	0.055	0.442	-1.66	0.214	1.92	1.03		1.636816521	2.570311018	0.389057975	-0.389057975	0.610942025
+! sands	0.052	0.396	-1.58	0.349	1.44	-0.73		2.233572223	1.810653792	0.552286696	-0.552286696	0.447713304
+! loams	0.056	0.512	-1.39	0.076	2.03	1.42		1.191242008	6.228976679	0.160540013	-0.160540013	0.839459987
+! silts	0.031	0.428	-1.92	0.225	0.524	0.624		1.678804018	2.473179258	0.404337856	-0.404337856	0.595662144
+! clays	0.098	0.512	-1.75	0.114	0.43	-1.26		1.300169578	4.331450197	0.23086956	-0.23086956		0.76913044
+
+select case(trim(adjustl(RE_ref)))
+	case('I_etal_23')	
+		! -- parameterization from Ireson et al. 2023 (excluding Ss term)
+		theta_r=0.131d0
+		theta_s=0.396d0
+		alpha=0.423d0
+		enn=2.06d0
+		emm=1d0-1d0/enn
+		kh_o=0.0496d0 * 365d0 ! m/d converted to m/yr
+		ell=0.5d0
+	case('SL00_all')
+		theta_r = 0.055d0
+		theta_s = 0.442d0  ! if porosity < 1, theta = poro * sat <---> sat = theta/poro <--->  sat > theta
+		alpha = 10d0**-1.66d0* 1d2 ! cm-1 converted m-1
+		ell = 1.04d0
+		enn = 10d0**0.214d0
+		emm = 1d0 - 1d0/enn
+		kh_o = 10d0**1.92d0 *365d0 * 1d-2 !  cm/day converted to m/yr
+	case('SL00_sand')
+		theta_r = 0.052d0
+		theta_s = 0.396d0  ! if porosity < 1, theta = poro * sat <---> sat = theta/poro <--->  sat > theta
+		alpha = 10d0**-1.58d0* 1d2 ! cm-1 converted m-1
+		ell = -0.73d0
+		enn = 10d0**0.349d0
+		emm = 1d0 - 1d0/enn
+		kh_o = 10d0**1.44d0 *365d0 * 1d-2 !  cm/day converted to m/yr
+	case('SL00_silt')
+		theta_r = 0.031d0
+		theta_s = 0.428d0  ! if porosity < 1, theta = poro * sat <---> sat = theta/poro <--->  sat > theta
+		alpha = 10d0**-1.92d0* 1d2 ! cm-1 converted m-1
+		ell = 0.624d0
+		enn = 10d0**0.225d0
+		emm = 1d0 - 1d0/enn
+		kh_o = 10d0**0.524d0 *365d0 * 1d-2 !  cm/day converted to m/yr
+	case('SL00_clay')
+		theta_r = 0.098d0
+		theta_s = 0.512d0  ! if porosity < 1, theta = poro * sat <---> sat = theta/poro <--->  sat > theta
+		alpha = 10d0**-1.75d0* 1d2 ! cm-1 converted m-1
+		ell = -1.26d0
+		enn = 10d0**0.114d0
+		emm = 1d0 - 1d0/enn
+		kh_o = 10d0**0.43d0 *365d0 * 1d-2 !  cm/day converted to m/yr
+	case default
+		print *, '** you have to specify reference to RE parameters'
+		stop
+endselect
+
+endsubroutine get_pars_richards
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 !ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 function k_arrhenius(kref,tempkref,tempk,eapp,rg)
 implicit none
@@ -24840,6 +26035,12 @@ selectcase(trim(adjustl(ref_dummy)))
         ! rough_f = 10d0**(   113.41d0 * exp( 1.0219d0 * log10( r_dummy ) ) ) ! (assuming cube)
         ! rough_f = 10d0**(   max( 2.02d0*log10( r_dummy ) + 10.734d0, 1d0 ) )  ! (assuming sphere)
         rough_f = 10d0**(   max( 2.02d0*log10( r_dummy ) + 10.126d0, 1d0 ) )  ! (assuming cube)
+    case('cnst')
+#ifdef rough_f_cnst
+		rough_f = rough_f_cnst
+#else
+        rough_f = 200d0 ! for MIP 
+#endif 
     case('smooth')
         rough_f = 1d0
     case default 
