@@ -1965,19 +1965,19 @@ do isps = 1, nsp_sld
         case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2','nacl')
             precstyle(isps) = 'decay'
         case('cc','arg','dlm') ! added to change solubility 
-            ! precstyle(isps) = 'def'
-            precstyle(isps) = 'emmanuel'
-            solmod(isps,:) = 1d-1 ! assumed factor to be multiplied with omega
-            fkin(isps,:) = 1d0/solmod(isps,:) ! to undo change in rate const caused by change in solubility
+            precstyle(isps) = 'def'
+            ! precstyle(isps) = 'emmanuel'
+            ! solmod(isps,:) = 1d-1 ! assumed factor to be multiplied with omega
+            ! fkin(isps,:) = 1d0/solmod(isps,:) ! to undo change in rate const caused by change in solubility
         case('casp','ksp','nasp','mgsp')
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
             ! solmod(isps,:) = 0.05d0 ! assumed factor to be multiplied with omega
             ! fkin(isps,:) = 0.01d0
         case('gb','amsi') ! for mip
-            precstyle(isps) = 'def'
-            ! precstyle(isps) = 'emmanuel'
-            ! fkin(isps,:) = 1d4
+            ! precstyle(isps) = 'def'
+            precstyle(isps) = 'emmanuel'
+            fkin(isps,:) = 1d4
         case default 
             precstyle(isps) = 'def'
             ! precstyle(isps) = '2/3'
@@ -2760,7 +2760,7 @@ poro = poroi
 if (h2odyn_ON) then 
 
 	RE_ref = 'I_etal_23'
-	! RE_ref = 'SL00_all'
+	RE_ref = 'SL00_all'
 	! RE_ref = 'SL00_sand'
 	! RE_ref = 'SL00_silt'
 	! RE_ref = 'SL00_clay'
@@ -2770,10 +2770,12 @@ if (h2odyn_ON) then
 		& ,theta_r,theta_s,ell,emm,enn,alpha,kh_o &! output 
 		& )
 
-	theta = 0.1d0
-	! psi = -3.59 m with parameterization in Ireson et al. 2023
+	! psi = -3.59 m with parameterization in Ireson et al. 2023 (used in benchmarkiing)
 	theta = 0.27294042d0
 	hp = -3.59d0
+	
+	theta = poro*sat
+	hp = theta2hp(nz,theta,theta_r,theta_s,emm,enn,alpha)
 	
 	! re-define saturation 
 	sat = theta/poro 
@@ -4548,8 +4550,9 @@ do while (it<nt)
 		call richards( &
 			& nz,nflx_h2o,z,dz,poro,poroprev,hpprev,thetaprev,satprev_RE,qin,dt &! input
 			& ,theta_r,theta_s,ell,emm,enn,alpha,kh_o &! input 
-			& ,sat_RE,hp,kh,theta,flx_h2o,err_flg_richards &! output
+			& ,sat_RE,hp,kh,theta,q_RE,flx_h2o,err_flg_richards &! output
 			& )
+		
 
 		if (err_flg_richards) then 
 			flgback = .false. 
@@ -4574,8 +4577,8 @@ do while (it<nt)
 				)
 			go to 100
 		endif   
-		
-		q_RE = ( flx_h2o(iadv_h2o,:) + flx_h2o(irain_h2o,:) )* dz(:)
+				
+		! q_RE = - ( flx_h2o(iadv_h2o,:) + flx_h2o(irain_h2o,:) )* dz(:)
 		
 		sat = theta/poro
 		v = q_RE/poro/sat
@@ -4591,10 +4594,25 @@ do while (it<nt)
 
         if (disp_FULL_ON) disp = disp_FULL
 		
-		print*,sat_RE
-		print*,hp
-		print*,kh
-		print*,q_RE
+		print*,'theta',theta
+		print*,'sat_RE',sat_RE
+		print*,'hp',hp
+		print*,'kh',kh
+		print*,'q_RE',q_RE
+		print*,'sat',sat
+		
+        ! write(chrfmt,'(i0)') nz_disp
+        ! chrfmt = '(a5,'//trim(adjustl(chrfmt))//'(1x,E11.3))'
+        
+        ! print *
+        ! print *,' [porewater dynamics parameters] '
+        ! print trim(adjustl(chrfmt)),'z',(z(iz),iz=1,nz,nz/nz_disp)
+		! print trim(adjustl(chrfmt)), 'theta',(theta(iz),iz=1,nz, nz/nz_disp)
+		! print trim(adjustl(chrfmt)), 'satRE',(sat_RE(iz),iz=1,nz, nz/nz_disp)
+		! print trim(adjustl(chrfmt)), 'psi',(hp(iz),iz=1,nz, nz/nz_disp)
+		! print trim(adjustl(chrfmt)), 'Kh',(kh(iz),iz=1,nz, nz/nz_disp)
+		! print trim(adjustl(chrfmt)), 'qRE',(q_RE(iz),iz=1,nz, nz/nz_disp)
+		! print trim(adjustl(chrfmt)), 'sat',(sat(iz),iz=1,nz, nz/nz_disp)
 	endif 
     
     poro_iter = 0
@@ -4613,7 +4631,7 @@ do while (it<nt)
     
     ads_ON_tmp = .false.
     if (ads_ON) ads_ON_tmp = .true.
-        
+! #ifdef testestest
     call alsilicate_aq_gas_1D_v3_2( &
         ! new input 
         & nz,nsp_sld,nsp_sld_2,nsp_aq,nsp_aq_ph,nsp_gas_ph,nsp_gas,nsp3,nrxn_ext &
@@ -4641,9 +4659,9 @@ do while (it<nt)
         & ,maqfads,msldf_loc,beta_loc,iosx,flx_aqex &
         & )
     
-    
+! #endif    
     ! if (dt > 2d-2) stop
-    
+
     
     save_trans = .false.
     call make_transmx(  &
@@ -25618,7 +25636,7 @@ endsubroutine calc_gamma_davies
 subroutine richards( &
 	& nz,nflx_h2o,z,dz,poro,poroprev,hpprev,thetaprev,satprev,qin,dt &! input 
 	& ,theta_r,theta_s,ell,emm,enn,alpha,kh_o &! input
-	& ,sat,hp,kh,theta,flx_h2o,flg_err &! output
+	& ,sat,hp,kh,theta,q_RE,flx_h2o,flg_err &! output
 	& )
 ! an attempt to solve water saturation based on simplified Richards equation 
 ! 		d(poro*sat)/dt = ∇ (K ∇h) + Q 
@@ -25645,16 +25663,18 @@ integer,intent(in)::nz,nflx_h2o
 real(kind=8),intent(in)::qin,dt
 real(kind=8),intent(in)::alpha,ell,enn,kh_o,emm,theta_r,theta_s
 real(kind=8),dimension(nz),intent(in)::z,dz,poro,poroprev,hpprev,thetaprev,satprev
-real(kind=8),dimension(nz),intent(out)::sat,hp,kh,theta
+real(kind=8),dimension(nz),intent(out)::sat,hp,kh,theta,q_RE
 real(kind=8),dimension(nflx_h2o,nz),intent(out)::flx_h2o
 logical,intent(out)::flg_err
 
 ! local 
-integer iz,ie,ie2,iter
+integer iz,ie,ie2,iter,ierr_max
 integer itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o
 data itflx_h2o,iadv_h2o,idif_h2o,irain_h2o,irxn_h2o,ires_h2o/1,2,3,4,5,6/
 integer,parameter::iter_max = 3000
 real(kind=8),parameter::tol=1d-9
+real(kind=8),parameter::buff=1d-20
+real(kind=8),parameter::sat_min=1d-15
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8),parameter::threshold = 10d0
 real(kind=8),parameter::corr = exp(threshold)
@@ -25663,6 +25683,7 @@ real(kind=8) error
 real(kind=8),dimension(nz)::dhp_dsatr,dkh_dsatr,dtheta_dsatr
 real(kind=8),dimension(nz)::dhp_dtheta,dkh_dtheta
 logical disp_Rich_iter
+character(256)::fmttmp
 real(kind=8) amx3(nz,nz), ymx3(nz), emx3(nz)
 integer ipiv3(nz) 
 integer info 
@@ -25673,11 +25694,14 @@ disp_Rich_iter = .true.
 
 flg_err = .false.
 
+fmttmp = '("RE: iter =", I5, 1x, "| ierrmax =", 1x, I3, "| errmax =", 1x, E13.6, "| dt =", 1x, E13.6)'
+
 ! initial guess
 
 ! sat = satprev
 ! theta = ( theta_s - theta_r ) * sat + theta_r
 theta = thetaprev
+! theta = theta_r +1d-5
 
 error = 1d4
 iter = 1
@@ -25689,7 +25713,11 @@ do while (error > tol)
 	
 	! theta = ( theta_s - theta_r ) * sat + theta_r
 	sat = ( theta - theta_r )/( theta_s - theta_r )
+	
+	! where ( theta <= theta_r+buff ); sat = sat_min;  endwhere 
+	
 	hp = -( 1d0/sat**(1d0/emm) - 1d0 ) ** (1d0/enn) / alpha 
+	
 	kh = kh_o * sat ** ell * ( 1d0 - ( 1d0 - sat**( 1d0/emm ) )**emm ) ** 2d0
 	
 	! print *, hp
@@ -25806,25 +25834,27 @@ do while (error > tol)
 		
 		flg_err = .true.
 
-		if (any(isnan(ymx3))) then 
+		if ( any(isnan(ymx3)) .or. any(ymx3>infinity) ) then 
 			do iz = 1, nz
-				if (isnan(ymx3(iz))) then 
-					print*,'richards: NAN is here...',iz,sat(iz),theta(iz)
+				if (isnan(ymx3(iz)) .or. ymx3(iz)>infinity ) then 
+					print*,'richards: NAN is here...',iz,sat(iz),theta(iz),hp(iz),kh(iz)
 				endif
 			enddo 
 		endif
 
 
-		if (any(isnan(amx3))) then 
+		if (any(isnan(amx3)) .or. any(amx3>infinity)) then 
 			do ie = 1,(nz)
 				do ie2 = 1,(nz)
-					if (isnan(amx3(ie,ie2))) then 
-						print*,'richards: NAN is here...',ie,ie2
+					if (isnan(amx3(ie,ie2)) .or. (amx3(ie,ie2)>infinity) ) then 
+						print*,'richards: NAN is here...',ie,ie2,sat(ie),theta(ie),hp(ie),kh(ie)
 					endif
 				enddo
 			enddo
 		endif
-		stop
+		
+		! stop
+		return 
 		
 	endif
 
@@ -25852,15 +25882,25 @@ do while (error > tol)
 	enddo
 	
 	error = maxval(abs(emx3))
-	if (disp_Rich_iter) print '("richards: iteration =", I5, 1x, "| error", 1x, E13.6)',iter, error 
+	! ierr_max = findloc(abs(emx3),error,axis=1)
+	ierr_max = 0
+	do iz=1,nz; if (abs(emx3(iz))==error) ierr_max = iz; enddo 
+	if (disp_Rich_iter) print trim(adjustl(fmttmp)),iter, ierr_max, error , dt
 	
 	iter = iter + 1
 	
 	where ( theta > theta_s )
-		theta = theta_s-tol/1d4
+		! theta = theta_s-tol/1d4
+		theta = theta_s-buff
 	elsewhere ( theta < theta_r )
-		theta = theta_r+tol/1d4
+		! theta = theta_r+tol/1d4
+		theta = theta_r+buff
 	endwhere 
+	
+	! consider case where theta is too small
+	! where ( theta < 1d-20 )
+		! theta = 1d-20
+	! endwhere 
 	
 	if (iter > iter_max) then 
 		flg_err = .true.
@@ -25881,6 +25921,8 @@ sat = ( theta - theta_r )/( theta_s - theta_r )
 hp = -( 1d0/sat**(1d0/emm) - 1d0 ) ** (1d0/enn) / alpha 
 kh = kh_o * sat ** ell * ( 1d0 - ( 1d0 - sat**( enn/(enn-1d0) ) )**(1d0-1d0/enn) ) ** 2d0
 
+q_RE = 0d0
+
 flx_h2o = 0d0
 
 do iz=1,nz
@@ -25899,6 +25941,9 @@ do iz=1,nz
 		flx_h2o(irain_h2o,iz) = ( &
 			& - qin/dz(iz) &
 			& )
+		q_RE(iz) = ( &
+			& - qin/dz(iz) &
+			& )
 	elseif (iz==nz) then
 		flx_h2o(itflx_h2o,iz) = ( &
 			& + ( theta(iz) - thetaprev(iz) ) / dt &
@@ -25906,6 +25951,12 @@ do iz=1,nz
 		flx_h2o(iadv_h2o,iz) = ( &
 			& - ( & 
 			&	+ 0.5d0*( kh(iz)   + kh(iz) ) * ( - 1d0 ) &
+			&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+			&	) / dz(iz) &
+			& )
+		q_RE(iz) = ( &
+			& - ( & 
+			! &	+ 0.5d0*( kh(iz)   + kh(iz) ) * ( - 1d0 ) &
 			&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
 			&	) / dz(iz) &
 			& )
@@ -25919,11 +25970,19 @@ do iz=1,nz
 			&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
 			&	) / dz(iz) &
 			& )
+		q_RE(iz) = ( &
+			& - ( & 
+			&	- 0.5d0*( kh(iz-1) + kh(iz) ) * ( ( hp(iz) - hp(iz-1) )/( z(iz) - z(iz-1) ) - 1d0 ) &
+			&	) / dz(iz) &
+			& )
 	endif 
 	
 	flx_h2o(ires_h2o,iz) = sum(flx_h2o(:,iz))
 	
 enddo 
+
+! q defined as water flux coming from above 
+q_RE = -dz*q_RE
 
 endsubroutine richards
 
@@ -26157,6 +26216,24 @@ endselect
 tor_f = a_tmp * poro_dummy**(b_tmp)*(sat_dummy)**(c_tmp)
 
 endfunction tor_f
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+function theta2hp(n_dummy,theta_dummy,theta_r_dummy,theta_s_dummy,emm_dummy,enn_dummy,alpha_dummy)
+implicit none
+
+integer n_dummy
+real(kind=8) theta_r_dummy,theta_s_dummy,emm_dummy,enn_dummy,alpha_dummy
+real(kind=8),dimension(n_dummy)::theta2hp
+real(kind=8),dimension(n_dummy)::theta_dummy
+real(kind=8),dimension(n_dummy)::sat_dummy,hp_dummy
+
+sat_dummy = ( theta_dummy - theta_r_dummy )/( theta_s_dummy - theta_r_dummy )
+hp_dummy = -( 1d0/sat_dummy**(1d0/emm_dummy) - 1d0 ) ** (1d0/enn_dummy) / alpha_dummy 
+
+theta2hp = hp_dummy
+
+endfunction theta2hp
 !ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 #ifdef no_intr_findloc
