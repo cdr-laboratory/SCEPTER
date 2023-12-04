@@ -339,6 +339,8 @@ def get_input_sld_properties(**kwargs):
         note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define dust psd (e.g., 1e-5    0.2    1)'
     elif filename == 'psdpr.in':
         note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define parentrock psd (e.g., 1e-5    0.2    1)'
+    elif filename == 'h2odynpars.in':
+        note = '** list parameters (ksat,L,n,m,alpha,tres,tsat) and their values with length and time units of m and yr, respectively (e.g., ksat     100)'
     else:
         print('{} is not supposed to be input file'.format(filename))
     
@@ -465,7 +467,7 @@ def make_sincurve(ave,amp,tau,order,**kwargs):
 def main():
 
     # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
-    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/tests/'
     runname = 'test_input'
     
     # exename_src = 'scepter_test'
@@ -658,6 +660,15 @@ def main():
         
     filename = 'keqspc.in'
     sld_varlist = [ ('an',24.5295), ('by',21.018) ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        )
+        
+    filename = 'h2odynpars.in'
+    sld_varlist = [ ('ksat',100), ('L',0.5) ] 
     get_input_sld_properties(
         outdir=outdir
         ,runname=runname

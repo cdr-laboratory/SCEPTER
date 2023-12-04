@@ -435,6 +435,9 @@ real(kind=8),dimension(nflx_h2o,nz) :: flx_h2o ! itflx,iadv,idif,irain,irxn,ires
 real(kind=8),dimension(nflx_h2o) :: int_flx_h2o ! itflx,iadv,idif,irain,irxn,ires
 logical err_flg_richards
 character(10)::tor_ref,RE_ref
+integer :: npars_h2odyn,ipar ! number of paramters that are actually specified by user 
+character(5),dimension(:),allocatable::chrpars_h2odyn
+real(kind=8),dimension(:),allocatable::pars_h2odyn
 
 ! real(kind=8) :: poroi = 0.1d0 !*** default
 real(kind=8),intent(in) :: poroi != 0.5d0
@@ -1945,6 +1948,8 @@ if (do_psd_full) do_psd = .true.
 ! if (display_lim_in) display_lim = .true.
 if (display==1) display_lim = .true.
 
+if (aq_close) h2odyn_ON = .false.
+
 if (sld_enforce) nsp3 = nsp_aq + nsp_gas ! excluding solid phases
 
 
@@ -1975,9 +1980,9 @@ do isps = 1, nsp_sld
             ! solmod(isps,:) = 0.05d0 ! assumed factor to be multiplied with omega
             ! fkin(isps,:) = 0.01d0
         case('gb','amsi') ! for mip
-            ! precstyle(isps) = 'def'
-            precstyle(isps) = 'emmanuel'
-            fkin(isps,:) = 1d4
+            precstyle(isps) = 'def'
+            ! precstyle(isps) = 'emmanuel'
+            ! fkin(isps,:) = 1d4
         case default 
             precstyle(isps) = 'def'
             ! precstyle(isps) = '2/3'
@@ -2760,7 +2765,7 @@ poro = poroi
 if (h2odyn_ON) then 
 
 	RE_ref = 'I_etal_23'
-	RE_ref = 'SL00_all'
+	! RE_ref = 'SL00_all'
 	! RE_ref = 'SL00_sand'
 	! RE_ref = 'SL00_silt'
 	! RE_ref = 'SL00_clay'
@@ -2769,13 +2774,58 @@ if (h2odyn_ON) then
 		& RE_ref &! input 
 		& ,theta_r,theta_s,ell,emm,enn,alpha,kh_o &! output 
 		& )
+	
+	
+	call get_h2odynpars_num(npars_h2odyn)
+	
+	if ( npars_h2odyn > 0 ) then 
 
+		if (allocated(chrpars_h2odyn)) deallocate(chrpars_h2odyn)
+		if (allocated(pars_h2odyn)) deallocate(pars_h2odyn)
+		allocate(chrpars_h2odyn(npars_h2odyn),pars_h2odyn(npars_h2odyn))
+		
+		call get_h2odynpars( &
+			& npars_h2odyn &! input 
+			& ,chrpars_h2odyn,pars_h2odyn &! output 
+			& )
+		
+		print*,npars_h2odyn,chrpars_h2odyn,pars_h2odyn
+		
+		print*,theta_r,theta_s,ell,emm,enn,alpha,kh_o
+		do ipar=1,npars_h2odyn
+			selectcase(trim(adjustl(chrpars_h2odyn(ipar))))
+				case('ksat','KSAT','Ksat')
+					kh_o 	= pars_h2odyn(ipar)
+				case('m','M')
+					emm 	= pars_h2odyn(ipar)
+				case('L','l')
+					ell		= pars_h2odyn(ipar)
+				case('N','n')
+					enn		= pars_h2odyn(ipar)
+				case('alpha','ALPHA','Alpha')
+					alpha	= pars_h2odyn(ipar)
+				case('tres','TRES','Tres')
+					theta_r = pars_h2odyn(ipar)
+				case('tsat','TSAT','Tsat')
+					theta_s = pars_h2odyn(ipar)
+				case default
+					print*, 'user specified paramters for H2O dynamics seem to be wrong'
+					stop
+			endselect
+		enddo 
+		print*,theta_r,theta_s,ell,emm,enn,alpha,kh_o
+	endif 
+	
+	! stop
+	
 	! psi = -3.59 m with parameterization in Ireson et al. 2023 (used in benchmarkiing)
-	theta = 0.27294042d0
-	hp = -3.59d0
+	! theta = 0.27294042d0
+	! hp = -3.59d0
 	
 	theta = poro*sat
 	hp = theta2hp(nz,theta,theta_r,theta_s,emm,enn,alpha)
+	
+	! if (any(theta<theta_r) .or. any(theta>theta_s)) stop
 	
 	! re-define saturation 
 	sat = theta/poro 
@@ -7983,6 +8033,67 @@ close(50)
 
 
 endsubroutine get_2ndsld
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_h2odynpars_num(npars_h2odyn)
+implicit none
+
+integer,intent(out):: npars_h2odyn
+
+character(500) file_name
+integer n_tmp
+
+file_name = './h2odynpars.in'
+call Console4(file_name,n_tmp)
+
+n_tmp = n_tmp - 1
+npars_h2odyn = n_tmp
+
+
+endsubroutine get_h2odynpars_num
+
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+subroutine get_h2odynpars( &
+	& npars_h2odyn &! input 
+	& ,chrpars_h2odyn,pars_h2odyn &! output 
+    & )
+implicit none
+
+integer,intent(in):: npars_h2odyn
+
+character(5),dimension(npars_h2odyn),intent(out)::chrpars_h2odyn
+real(kind=8),dimension(npars_h2odyn),intent(out)::pars_h2odyn
+character(5) chr_tmp
+real(kind=8) val_tmp
+
+character(500) file_name
+integer i
+
+file_name = './h2odynpars.in'
+! in default 
+
+if (npars_h2odyn <= 0) return
+
+open(50,file=trim(adjustl(file_name)),status = 'old',action='read')
+read(50,'()')
+do i =1,npars_h2odyn
+    read(50,*) chr_tmp,val_tmp
+    chrpars_h2odyn(i) = chr_tmp
+	pars_h2odyn(i) = val_tmp
+enddo 
+close(50)
+
+
+endsubroutine get_h2odynpars
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -25890,11 +26001,20 @@ do while (error > tol)
 	iter = iter + 1
 	
 	where ( theta > theta_s )
-		! theta = theta_s-tol/1d4
-		theta = theta_s-buff
+		theta = theta_s-tol/1d4
+		! theta = theta_s-buff
 	elsewhere ( theta < theta_r )
-		! theta = theta_r+tol/1d4
-		theta = theta_r+buff
+		theta = theta_r+tol/1d4
+		! theta = theta_r+buff
+	endwhere 
+	
+	
+	where ( sat > 1d0 )
+		theta = theta_s-tol/1d4
+		! theta = theta_s-buff
+	elsewhere ( sat < 0d0 )
+		theta = theta_r+tol/1d4
+		! theta = theta_r+buff
 	endwhere 
 	
 	! consider case where theta is too small
