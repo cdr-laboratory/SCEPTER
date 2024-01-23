@@ -227,6 +227,9 @@ def run_a_scepter_run(
             proc.kill()
             print('run UNfinished within {:f} min'.format(int(my_timeout/60.)))
     
+    if run_success:
+        os.remove(outdir+runname+'/logfile.txt')
+        os.remove(outdir+runname+'/err.txt')
         
     if use_local_storage:
         src = outdir + runname 
