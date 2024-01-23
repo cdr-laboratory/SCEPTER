@@ -570,8 +570,8 @@ logical :: aq_close = .false.
 logical :: act_ON = .false.
 ! logical :: act_ON = .true.
 
-! logical :: h2odyn_ON = .false.
-logical :: h2odyn_ON = .true.
+logical :: h2odyn_ON = .false.
+! logical :: h2odyn_ON = .true.
 
 logical ads_ON_tmp,dust_Off
 
@@ -585,6 +585,8 @@ logical :: flx_save_alltime = .true.
 #else
 logical :: flx_save_alltime = .false.
 #endif
+
+logical :: flx_save_season = .false.
 
 real(kind=8),intent(in) :: step_tau ! = 0.1d0 ! yr time duration during which dust is added
 real(kind=8) :: tol_step_tau = 1d-6 ! yr time duration during which dust is added
@@ -1947,6 +1949,8 @@ if (do_psd_full) do_psd = .true.
 
 ! if (display_lim_in) display_lim = .true.
 if (display==1) display_lim = .true.
+
+if (report==2 .and. season) flx_save_season = .true.
 
 if (aq_close) h2odyn_ON = .false.
 
@@ -6667,7 +6671,7 @@ do while (it<nt)
     end if    
     
     ! saving flx when climate is changed within model 
-    if ( (any(climate) .and. any (ict_change))  & 
+    if ( (flx_save_season .and. any (ict_change))  & 
         ! or when time to record flx 
         & .or.(time>=rectime_flx(irec_flx+1)) &
         ! or when definining flx_save_alltime
