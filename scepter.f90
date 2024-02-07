@@ -6989,6 +6989,20 @@ call system ('cp extrxns.in '//trim(adjustl(profdir))//'/extrxns.save')
 call system ('cp kinspc.in '//trim(adjustl(profdir))//'/kinspc.save')
 call system ('cp sa.in '//trim(adjustl(profdir))//'/sa.save')
 
+print *
+print *, '*************************************'
+print *, '*** run completed successfully!!! ***'
+print *, '*************************************'
+print *
+
+
+open (idust, file='./run_complete.txt', status ='unknown',action='write')
+write(idust,*) '*************************************'
+write(idust,*) '*** run completed successfully!!! ***'
+write(idust,*) '*************************************'
+close(idust)
+
+
 endsubroutine weathering_main
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
