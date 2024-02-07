@@ -2,6 +2,9 @@ import os
 import numpy as np
 from shutil import copyfile
 import time
+import print_control
+
+disply_glbl = print_control.get_global_display()
 
 def get_input_frame(**kwargs):
     outdir      = kwargs.get('outdir',  '/storage/scratch1/0/ykanzaki3/scepter_output/')
@@ -99,7 +102,7 @@ def get_input_frame(**kwargs):
     with open(input_file, 'w') as file:
         file.write(input_text)
     
-    print(input_text)
+    if disply_glbl: print(input_text)
 
 def get_input_switches(**kwargs):
     outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
@@ -189,7 +192,7 @@ def get_input_switches(**kwargs):
     with open(input_file, 'w') as file:
         file.write(input_text)
     
-    print(input_text)
+    if disply_glbl: print(input_text)
 
 def get_input_tracers(**kwargs):
     outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
@@ -245,7 +248,7 @@ def get_input_tracers(**kwargs):
         with open(input_file, 'w') as file:
             file.write(input_text)
         
-        print(input_text)
+        if disply_glbl: print(input_text)
         
     del sld_list[0]
     del aq_list[0]
@@ -297,7 +300,7 @@ def get_input_tracer_bounds(**kwargs):
                 try:
                     input_text += values[i][0] + '\t' + str(values[i][1]) + '\n'
                 except:
-                    print(n,i,values)
+                    if disply_glbl: print(n,i,values)
                     time.sleep(100)
         
         input_file = outdir + runname + '/' + filename
@@ -305,7 +308,7 @@ def get_input_tracer_bounds(**kwargs):
         with open(input_file, 'w') as file:
             file.write(input_text)
         
-        print(input_text)
+        if disply_glbl: print(input_text)
     
     
     del pr_list[0]
@@ -387,7 +390,7 @@ def get_input_sld_properties(**kwargs):
         with open(input_file, 'w') as file:
             file.write(input_text)
         
-        print(input_text)
+        if disply_glbl: print(input_text)
     
     
     del sld_varlist[0]
@@ -452,7 +455,7 @@ def get_input_climate_temp(**kwargs):
         with open(input_file, 'w') as file:
             file.write(input_text)
         
-        print(input_text)
+        if disply_glbl: print(input_text)
         
         
 def make_sincurve(ave,amp,tau,order,**kwargs):

@@ -4,10 +4,12 @@ import scipy.integrate as integrate
 import copy
 import os
 import shutil
+import print_control
 
 
-debug_printout = False
-debug_printout = True
+# debug_printout = False
+# debug_printout = True
+debug_printout = print_control.get_global_display()
  
 def phint(dep,phdep,ztot):
     if ztot>dep[-1]: ztot=dep[-1]
@@ -25,30 +27,24 @@ def linave(dep,var,ztrgt):
     
     return a
 
-def get_ph_int_site(outdir,runname,dep_sample,i):
-    # outdir = '../pyweath_output/'
-    # runname = ''
-    # runname = 'Sheldon_A_fick_noiter_test_psdfullpbe_w1_fit_r2000_sig0p2_loop_q0p2_chkall'
+def get_ph_int_site(outdir,runname,dep_sample,i,**kwargs):
 
-    # dep_sample = float(sys.argv[1])
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
 
-    # for i in range(20,0,-1):
-        # infile  = outdir+runname+'/prof/prof_aq(tot)-{:03d}.txt'.format(i)
-        # if not os.path.exists(infile): continue
-        # else: break 
     infile = outdir+runname+'/prof/prof_aq(tot)-{:03d}.txt'.format(i)
     data = np.loadtxt(infile,skiprows=1)
-    print('using aq(tot)-{:03d}'.format(i))
+    if debug_printout: print('using aq(tot)-{:03d}'.format(i))
         
     pH_dep = data[:,-2]
     dep = data[:,0]
 
-    # print(dep)
-    # print(pH_dep)
-            
-    phintval =  phint(dep,pH_dep, dep_sample)
+    if no_depth_integral:
+        idep = np.argmin(np.abs(dep-dep_sample))
+        phintval = pH_dep[idep]
+    else:
+        phintval =  phint(dep,pH_dep, dep_sample)
 
-    print(phintval)
+    if debug_printout: print(phintval)
     
     return phintval
 
@@ -69,11 +65,11 @@ def get_intph_int_site(outdir,runname,dep_sample):
         else:
             continue
     
-    print(dep_list[idep])
+    if debug_printout: print(dep_list[idep])
             
     phintval =  data[-1,idep]
 
-    print(phintval)
+    if debug_printout: print(phintval)
     
     return phintval
 
@@ -86,7 +82,7 @@ def get_ac_int_site(outdir,runname,dep_sample):
 
     infile = outdir+runname+'/prof/prof_aq(ads%cec)-020.txt'
     data = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(ads%cec)-020')
+    if debug_printout: print('using prof_aq(ads%cec)-020')
         
     pH_dep = data[:,-2]
     dep = data[:,0]
@@ -96,19 +92,17 @@ def get_ac_int_site(outdir,runname,dep_sample):
             
     phintval =  linave(dep,pH_dep, dep_sample)
 
-    print(phintval)
+    if debug_printout: print(phintval)
     
     return phintval
 
-def get_ac_int_site_v2(outdir,runname,dep_sample,i):
+def get_ac_int_site_v2(outdir,runname,dep_sample,i,**kwargs):
 
-    # for i in range(20,0,-1):
-        # infile  = outdir+runname+'/prof/prof_aq(ads%cec)-{:03d}.txt'.format(i)
-        # if not os.path.exists(infile): continue
-        # else: break 
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
+
     infile  = outdir+runname+'/prof/prof_aq(ads%cec)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(ads%cec)-{:03d}'.format(i))
+    if debug_printout: print('using prof_aq(ads%cec)-{:03d}'.format(i))
     
     with open(infile) as f:
         first_line  = f.readline() 
@@ -116,20 +110,33 @@ def get_ac_int_site_v2(outdir,runname,dep_sample,i):
         
     sps     = ['h','al']
     
-    pH_dep = 0
-    for sp in sps:
-        try:
-            isp     = sp_list.index(sp) 
-        except:
-            continue
-        
-        pH_dep  += data[:,isp]
-    
     dep = data[:,0]
+    
+    if no_depth_integral:
+        idep = np.argmin(np.abs(dep-dep_sample))
+        pH_dep = 0
+        for sp in sps:
+            try:
+                isp     = sp_list.index(sp) 
+            except:
+                continue
             
-    phintval    =  linave(dep,pH_dep, dep_sample)
+            pH_dep  += data[idep,isp]
+                
+        phintval    =  pH_dep
+    else:
+        pH_dep = 0
+        for sp in sps:
+            try:
+                isp     = sp_list.index(sp) 
+            except:
+                continue
+            
+            pH_dep  += data[:,isp]
+                
+        phintval    =  linave(dep,pH_dep, dep_sample)
 
-    print(phintval)
+    if debug_printout: print(phintval)
     
     return phintval
 
@@ -141,11 +148,11 @@ def get_ac_int_site_v3(outdir,runname,dep_sample):
         else: break 
     infile  = outdir+runname+'/prof/prof_aq(ads%cec)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(ads%cec)-{:03d}'.format(i))
+    if debug_printout: print('using prof_aq(ads%cec)-{:03d}'.format(i))
     
     infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data2    = np.loadtxt(infile2,skiprows=1)
-    print('using bsd-{:03d} in {}'.format(i,outdir+runname))
+    if debug_printout: print('using bsd-{:03d} in {}'.format(i,outdir+runname))
     
     with open(infile) as f:
         first_line  = f.readline() 
@@ -174,7 +181,7 @@ def get_ac_int_site_v3(outdir,runname,dep_sample):
             
     exchac_int    =  linave(dep,(1-poro)*dense*cec*cecfrac, dep_sample)/linave(dep,(1-poro)*dense*cec, dep_sample)
 
-    print(exchac_int)
+    if debug_printout: print(exchac_int)
     
     return exchac_int
 
@@ -182,7 +189,7 @@ def get_bs_int_site(outdir,runname,dep_sample):
 
     infile  = outdir+runname+'/prof/prof_aq(ads%cec)-020.txt'
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(ads%cec)-020')
+    if debug_printout: print('using prof_aq(ads%cec)-020')
     
     with open(infile) as f:
         first_line  = f.readline() 
@@ -203,7 +210,7 @@ def get_bs_int_site(outdir,runname,dep_sample):
             
     phintval =  linave(dep,pH_dep, dep_sample)
 
-    print(phintval)
+    if debug_printout: print(phintval)
     
     return phintval
 
@@ -211,7 +218,7 @@ def get_spex_int_site(outdir,runname,dep_sample,sp):
 
     infile  = outdir+runname+'/prof/prof_aq(ads%cec)-020.txt'
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(ads%cec)-020')
+    if debug_printout: print('using prof_aq(ads%cec)-020')
     
     dep = data[:,0]
     
@@ -231,19 +238,17 @@ def get_spex_int_site(outdir,runname,dep_sample,sp):
         phintval = 0
             
 
-    print(phintval)
+    if debug_printout: print(phintval)
     
     return phintval
 
-def get_rhobulk_int_site(outdir,runname,dep_sample,i):
+def get_rhobulk_int_site(outdir,runname,dep_sample,i,**kwargs):
 
-    # for i in range(20,0,-1):
-        # infile  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
-        # if not os.path.exists(infile): continue
-        # else: break 
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
+
     infile  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using bsd-{:03d}'.format(i))
+    if debug_printout: print('using bsd-{:03d}'.format(i))
     
     dep = data[:,0]
     
@@ -252,30 +257,36 @@ def get_rhobulk_int_site(outdir,runname,dep_sample,i):
         sp_list     = first_line.split()
         
     # sps     = ['ca','mg','k','na']
-    
-    pH_dep = 0
-    try:
-        isp     = sp_list.index('dens[g/cm3]') 
-        pH_dep  += data[:,isp]
-        phintval =  linave(dep,pH_dep, dep_sample)
-    except:
-        print('not exist dens[g/cm3]')
-        phintval = 0
-            
+        
+    if no_depth_integral: 
+        idep = np.argmin(np.abs(dep-dep_sample))
+        try:
+            isp     = sp_list.index('dens[g/cm3]') 
+            phintval  = data[idep,isp]
+        except:
+            print('not exist dens[g/cm3]')
+            phintval = 0
+    else:
+        pH_dep = 0
+        try:
+            isp     = sp_list.index('dens[g/cm3]') 
+            pH_dep  += data[:,isp]
+            phintval =  linave(dep,pH_dep, dep_sample)
+        except:
+            print('not exist dens[g/cm3]')
+            phintval = 0
 
-    print(phintval)
+    if debug_printout: print(phintval)
     
     return phintval
 
-def get_sldwt_int_site(outdir,runname,dep_sample,sps,i):
+def get_sldwt_int_site(outdir,runname,dep_sample,sps,i,**kwargs):
 
-    # for i in range(20,0,-1):
-        # infile  = outdir+runname+'/prof/prof_sld(wt%)-{:03d}.txt'.format(i)
-        # if not os.path.exists(infile): continue
-        # else: break 
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
+
     infile  = outdir+runname+'/prof/prof_sld(wt%)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_sld(wt%)-{:03d}'.format(i))
+    if debug_printout: print('using prof_sld(wt%)-{:03d}'.format(i))
     
     dep = data[:,0]
     
@@ -283,19 +294,32 @@ def get_sldwt_int_site(outdir,runname,dep_sample,sps,i):
         first_line  = f.readline() 
         sp_list     = first_line.split()
         
-    pH_dep = 0
-    
-    for sp in sps:
-        try:
-            isp     = sp_list.index(sp) 
-        except:
-            continue
+    if no_depth_integral:
+        idep = np.argmin(np.abs(dep-dep_sample))
         
-        pH_dep  += data[:,isp]
+        pH_dep = 0
+        for sp in sps:
+            try:
+                isp     = sp_list.index(sp) 
+            except:
+                continue
+            pH_dep  += data[idep,isp]
+                
+        phintval =  pH_dep
+    else:
+        pH_dep = 0
+        
+        for sp in sps:
+            try:
+                isp     = sp_list.index(sp) 
+            except:
+                continue
             
-    phintval =  linave(dep,pH_dep, dep_sample)
+            pH_dep  += data[:,isp]
+                
+        phintval =  linave(dep,pH_dep, dep_sample)
 
-    print(phintval)
+    if debug_printout: print(phintval)
     
     return phintval
 
@@ -307,11 +331,11 @@ def get_totsldwt_site(outdir,runname,dep_sample):
         else: break 
     infile  = outdir+runname+'/prof/prof_sld(wt%)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_sld(wt%)-{:03d}'.format(i))
+    if debug_printout: print('using prof_sld(wt%)-{:03d}'.format(i))
     
     infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data2    = np.loadtxt(infile2,skiprows=1)
-    print('using bsd-{:03d} in {}'.format(i,outdir+runname))
+    if debug_printout: print('using bsd-{:03d} in {}'.format(i,outdir+runname))
     
     dep = data[:,0]
     
@@ -373,7 +397,7 @@ def get_btmwater_site(outdir,runname):
 
     infile  = outdir+runname+'/prof/prof_aq(tot)-020.txt'
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(tot)-020')
+    if debug_printout: print('using prof_aq(tot)-020')
     
     dep = data[-1,0]
     
@@ -403,7 +427,7 @@ def get_water_site_OLD(outdir,runname,dep_sample):
         else: break 
     infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq-{:03d}'.format(i))
+    if debug_printout: print('using prof_aq-{:03d}'.format(i))
     
     shutil.copyfile(infile, infile.replace('.txt','_org.txt'))
     # saving gas data
@@ -444,7 +468,7 @@ def get_DIC_save_get_site_OLD(outdir,runname,dep_sample):
         else: break 
     infile  = outdir+runname+'/prof/chrge_balance-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using chrge_balance-{:03d}'.format(i))
+    if debug_printout: print('using chrge_balance-{:03d}'.format(i))
     
     shutil.copyfile(infile, infile.replace('.txt','_org.txt'))
     
@@ -516,7 +540,7 @@ def get_DIC_save_get_site_NEW(outdir,runname,dep_sample,i_save):
         else: break 
     infile  = outdir+runname+'/prof/charge_balance-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using charge_balance-{:03d}'.format(i))
+    if debug_printout: print('using charge_balance-{:03d}'.format(i))
     
     shutil.copyfile(infile, infile.replace('.txt','_org.txt'))
     
@@ -580,20 +604,18 @@ def get_DIC_save_get_site_NEW(outdir,runname,dep_sample,i_save):
     
     return DIC_btm,dep
 
-def get_ave_DIC_save(outdir,runname,dep_sample,i):
+def get_ave_DIC_save(outdir,runname,dep_sample,i,**kwargs):
 
-    # for i in range(20,0,-1):
-        # infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
-        # if not os.path.exists(infile): continue
-        # else: break 
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
+
     infile  = outdir+runname+'/prof/charge_balance-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using charge_balance-{:03d}'.format(i))
+    if debug_printout: print('using charge_balance-{:03d}'.format(i))
     
     
-    infile2  = outdir+runname+'/prof/bsd-020.txt'
+    infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data2    = np.loadtxt(infile2,skiprows=1)
-    print('using bsd-020')
+    if debug_printout: print('using bsd-{:03d}'.format(i))
     
     deps = data[:,0]
     deps_list = [dep for dep in deps]
@@ -601,6 +623,9 @@ def get_ave_DIC_save(outdir,runname,dep_sample,i):
     for dep in deps:
         if dep_sample>=dep:
             idep = deps_list.index(dep)
+    
+    if no_depth_integral: idep = np.argmin(np.abs(deps-dep_sample))
+    
     dep = deps[idep]
     
     with open(infile) as f:
@@ -657,10 +682,16 @@ def get_ave_DIC_save(outdir,runname,dep_sample,i):
         isp     = sp_list.index(co2sp)
         DIC += data[:,isp]
         
-    DIC_btm = (
-        np.average( DIC[:idep+1]*poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ soil m3
-        /np.average( (1 - poro[:idep+1]) )  # mol/ solid m3
-        )
+    if no_depth_integral:
+        DIC_btm = (
+            DIC[idep]*poro[idep]*sat[idep]*1e3   # mol/ soil m3
+            /(1 - poro[idep])   # mol/ solid m3
+            )
+    else:
+        DIC_btm = (
+            np.average( DIC[:idep+1]*poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ soil m3
+            /np.average( (1 - poro[:idep+1]) )  # mol/ solid m3
+            )
     
     np.savetxt(outdir+runname+'/prof/prof_aq-DIC-{:03d}.txt'.format(i),np.transpose(np.array([list(deps),list(DIC)])))
     
@@ -674,12 +705,12 @@ def get_ave_DIC_save_v2(outdir,runname,dep_sample):
         else: break 
     infile  = outdir+runname+'/prof/charge_balance-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using charge_balance-{:03d}'.format(i))
+    if debug_printout: print('using charge_balance-{:03d}'.format(i))
     
     
     infile2  = outdir+runname+'/prof/bsd-020.txt'
     data2    = np.loadtxt(infile2,skiprows=1)
-    print('using bsd-020')
+    if debug_printout: print('using bsd-020')
     
     dep = data[:,0]
     
@@ -746,15 +777,13 @@ def get_ave_DIC_save_v2(outdir,runname,dep_sample):
     
     return DIC_ave
 
-def get_ave_IS(outdir,runname,dep_sample,i):
+def get_ave_IS(outdir,runname,dep_sample,i,**kwargs):
 
-    # for i in range(20,0,-1):
-        # infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
-        # if not os.path.exists(infile): continue
-        # else: break 
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
+
     infile  = outdir+runname+'/prof/charge_balance-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using charge_balance-{:03d}'.format(i))
+    if debug_printout: print('using charge_balance-{:03d}'.format(i))
     
     deps = data[:,0]
     deps_list = [dep for dep in deps]
@@ -762,6 +791,9 @@ def get_ave_IS(outdir,runname,dep_sample,i):
     for dep in deps:
         if dep_sample>=dep:
             idep = deps_list.index(dep)
+            
+    if no_depth_integral: idep = np.argmin(np.abs(deps-dep_sample))
+    
     dep = deps[idep]
     
     with open(infile) as f:
@@ -771,9 +803,14 @@ def get_ave_IS(outdir,runname,dep_sample,i):
     
     IS = data[:,-2]
         
-    IS_ave = (
-        np.average( IS[:idep+1] )  # mol/ L
-        )
+    if no_depth_integral:
+        IS_ave = (
+            IS[idep]  # mol/ L
+            )
+    else:
+        IS_ave = (
+            np.average( IS[:idep+1] )  # mol/ L
+            )
     
     return IS_ave,dep
 
@@ -781,7 +818,7 @@ def get_water_site(outdir,runname,dep_sample):
 
     infile  = outdir+runname+'/prof/prof_aq(tot)-020.txt'
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(tot)-020')
+    if debug_printout: print('using prof_aq(tot)-020')
     
     deps = data[:,0]
     deps_list = [dep for dep in deps]
@@ -813,11 +850,11 @@ def get_waterave_site(outdir,runname,dep_sample):
 
     infile  = outdir+runname+'/prof/prof_aq(tot)-020.txt'
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(tot)-020')
+    if debug_printout: print('using prof_aq(tot)-020')
     
     infile2  = outdir+runname+'/prof/bsd-020.txt'
     data2    = np.loadtxt(infile2,skiprows=1)
-    print('using bsd-020')
+    if debug_printout: print('using bsd-020')
     
     deps = data[:,0]
     deps_list = [dep for dep in deps]
@@ -858,20 +895,19 @@ def get_waterave_site(outdir,runname,dep_sample):
     
     return sps,btmconcs,dep
 
-def get_totsave_site(outdir,runname,dep_sample,i):
-    
-    # for i in range(20,0,-1):
-        # infile  = outdir+runname+'/prof/prof_ex(tot)-{:03d}.txt'.format(i)
-        # if not os.path.exists(infile): continue
-        # else: break 
+def get_totsave_site(outdir,runname,dep_sample,i,**kwargs):
+
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
     
     infile  = outdir+runname+'/prof/prof_ex(tot)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_ex(tot)-{:03d} in {}'.format(i,outdir+runname))
+    if debug_printout: print('using prof_ex(tot)-{:03d} in {}'.format(i,outdir+runname))
     
     infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data2    = np.loadtxt(infile2,skiprows=1)
-    print('using bsd-{:03d} in {}'.format(i,outdir+runname))
+    if debug_printout: print('using bsd-{:03d} in {}'.format(i,outdir+runname))
+    
+    time = data[-1,-1]
     
     deps = data[:,0]
     deps_list = [dep for dep in deps]
@@ -879,6 +915,9 @@ def get_totsave_site(outdir,runname,dep_sample,i):
     for dep in deps:
         if dep_sample>=dep:
             idep = deps_list.index(dep)
+    
+    if no_depth_integral: idep = np.argmin(np.abs(deps-dep_sample))
+    
     dep = deps[idep]
     
     with open(infile) as f:
@@ -904,12 +943,19 @@ def get_totsave_site(outdir,runname,dep_sample,i):
     
     for sp in sps:
         isp     = sp_list.index(sp)
-        btmconcs.append( 
-            np.average( data[:idep+1,isp] ) # mol/ soil m3
-            /np.average( (1 - poro[:idep+1]) )   # mol/ solid m3
-            )  
+        
+        if no_depth_integral:
+            btmconcs.append( 
+                data[idep,isp] # mol/ soil m3
+                /(1 - poro[idep])    # mol/ solid m3
+                )  
+        else:
+            btmconcs.append( 
+                np.average( data[:idep+1,isp] ) # mol/ soil m3
+                /np.average( (1 - poro[:idep+1]) )   # mol/ solid m3
+                )  
     
-    return sps,btmconcs,dep
+    return sps,btmconcs,dep,time
 
 def get_totsave_site_v2(outdir,runname,dep_sample):
     
@@ -920,15 +966,15 @@ def get_totsave_site_v2(outdir,runname,dep_sample):
     
     infile  = outdir+runname+'/prof/prof_ex(tot)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_ex(tot)-{:03d} in {}'.format(i,outdir+runname))
+    if debug_printout: print('using prof_ex(tot)-{:03d} in {}'.format(i,outdir+runname))
     
     infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data2    = np.loadtxt(infile2,skiprows=1)
-    print('using bsd-{:03d} in {}'.format(i,outdir+runname))
+    if debug_printout: print('using bsd-{:03d} in {}'.format(i,outdir+runname))
     
     infile3  = outdir+runname+'/prof/prof_aq(tot)-{:03d}.txt'.format(i)
     data3    = np.loadtxt(infile3,skiprows=1)
-    print('using prof_aq(tot)-{:03d} in {}'.format(i,outdir+runname))
+    if debug_printout: print('using prof_aq(tot)-{:03d} in {}'.format(i,outdir+runname))
     
     dep = data[:,0]
     
@@ -965,20 +1011,19 @@ def get_totsave_site_v2(outdir,runname,dep_sample):
     
     return sps,exchconcs,aqconcs
 
-def get_adssave_site(outdir,runname,dep_sample):
-    
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/prof_aq(ads)-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+def get_adssave_site(outdir,runname,dep_sample,i,**kwargs):
+
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
     
     infile  = outdir+runname+'/prof/prof_aq(ads)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
-    print('using prof_aq(ads)-{:03d}'.format(i))
+    if debug_printout: print('using prof_aq(ads)-{:03d}'.format(i))
     
     infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data2    = np.loadtxt(infile2,skiprows=1)
-    print('using bsd-{:03d}'.format(i))
+    if debug_printout: print('using bsd-{:03d}'.format(i))
+    
+    time = data[-1,-1]
     
     deps = data[:,0]
     deps_list = [dep for dep in deps]
@@ -986,6 +1031,9 @@ def get_adssave_site(outdir,runname,dep_sample):
     for dep in deps:
         if dep_sample>=dep:
             idep = deps_list.index(dep)
+    
+    if no_depth_integral: idep = np.argmin(np.abs(deps-dep_sample))
+    
     dep = deps[idep]
     
     with open(infile) as f:
@@ -1012,16 +1060,24 @@ def get_adssave_site(outdir,runname,dep_sample):
     
     for sp in sps:
         isp     = sp_list.index(sp)
-        btmconcs.append( 
-            np.average( 
-                data[:idep+1,isp]  # cmol/kg(solid)
-                * 1e-2/1e3  # now mok/g(solid)
-                * dense[:idep+1]    # mol/ solid cm3
-                * 1./1e-6
+        if no_depth_integral:
+            btmconcs.append( 
+                    data[idep,isp]  # cmol/kg(solid)
+                    * 1e-2/1e3  # now mok/g(solid)
+                    * dense[idep]    # mol/ solid cm3
+                    * 1./1e-6
                 )  
-            )  
+        else:
+            btmconcs.append( 
+                np.average( 
+                    data[:idep+1,isp]  # cmol/kg(solid)
+                    * 1e-2/1e3  # now mok/g(solid)
+                    * dense[:idep+1]    # mol/ solid cm3
+                    * 1./1e-6
+                    )  
+                )  
     
-    return sps,btmconcs,dep
+    return sps,btmconcs,dep,time
 
 def get_dis_frac(outdir,runname,sp):
     
