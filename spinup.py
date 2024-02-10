@@ -263,7 +263,7 @@ def run_a_scepter_run(
             print('run finished in {:f} min'.format(( et - st )/60.))
             os.remove('slurm-{}.out'.format(jobidstr))
         else:
-            print('run UNfinished within {:f} min'.format(int(my_timeout/60.)))
+            print('run UNfinished within {:f} min'.format(int( max_calc_time )))
         
             # kill job
             os.system('scancel ' + jobidstr )
