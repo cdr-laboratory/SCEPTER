@@ -13,6 +13,8 @@ CPFLAGS       += -Dno_intr_findloc # need to use in cluster
 # CPFLAGS       += -Dparpsd_chk # checking parallelization results
 # CPFLAGS       += -Dksld_chk # checking rate consts for sld species
 CPFLAGS       += -DolddustPSD # using old PSD for dust (not user input but prescribed one)
+# CPFLAGS       += -Ddisp_cnst=6.59754e-2 # forcing constant and common dispersion for aqueous species
+# CPFLAGS       += -Dnrec_prof_in=120 # number of profile records
 # CPFLAGS       += -Derrmtx_printout # 
 CPFLAGS       += -Dmod_basalt_cmp # using basalt composition defined in <basalt_define.h>
 # CPFLAGS       += -Ddef_flx_save_alltime # flux reported each integration (costs lots of bites)

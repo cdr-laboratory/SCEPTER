@@ -457,7 +457,13 @@ real(kind=8) error
 real(kind=8) :: tol = 1d-6
 
 ! integer, parameter :: nrec_prof = 22
+#ifndef nrec_prof_in
 integer, parameter :: nrec_prof = 20
+logical :: linear_rectime = .false. 
+#else
+integer, parameter :: nrec_prof = nrec_prof_in
+logical :: linear_rectime = .true. 
+#endif 
 integer, parameter :: nrec_flx = 60
 real(kind=8) rectime_prof(nrec_prof)
 real(kind=8) rectime_flx(nrec_flx)
@@ -523,8 +529,12 @@ logical,dimension(3) :: climate != .false.
 logical :: season = .false.
 ! logical :: season = .true.
 
+logical :: disp_ON = .false.
+! #ifdef disp_cnst
 ! logical :: disp_ON = .false.
-logical :: disp_ON = .true.
+! #else
+! logical :: disp_ON = .true.
+! #endif 
 
 logical :: disp_FULL_ON = .false.
 ! logical :: disp_FULL_ON = .true.
@@ -604,9 +614,10 @@ integer,parameter :: iroughtype_Letal21 = 3
 logical display_lim_in !  defining whether limiting display or not  (input from input file swtiches.in)
 logical poroiter_in !  true if porosity (or w) is iteratively checked  (input from input file swtiches.in)
 logical lim_minsld_in !  true if minimum sld conc. is enforced  (input from input file swtiches.in)
-
+#ifndef nrec_prof_in
 data rectime_prof /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
+#endif 
 ! data rectime_prof /-1d6,0d6,1d6,2d6,3d6,4d6,5d6,6d6,7d6,8d6
 ! &,9d6,10d6,11d6,12d6,13d6,14d6,15d6,16d6,17d6,18d6,19d6,20d6/
 ! data rectime_prof /21d6,22d6,23d6,24d6,25d6,26d6,27d6,28d6,29d6,30d6
@@ -1957,6 +1968,8 @@ enddo
 do irec_flx = 39,60
     rectime_flx(irec_flx) = rectime_flx(38) + (irec_flx-38)/20d0*100d0
 enddo
+
+if (linear_rectime)  rectime_prof =  (/(irec_prof*ttot/nrec_prof, irec_prof = 1,nrec_prof)/)
 
 if (rectime_scheme_old) then 
     do while (rectime_flx(nrec_flx)>ttot) 
@@ -7215,6 +7228,10 @@ daq_all(findloc(chraq_all,'tea',dim=1)) = 14d-5 /( visc**1.1d0 * (177.3d0)**0.6d
 ! Glycerophosphate (value for glycerol from Schramke et al. 1999 for now)
 daq_all(findloc(chraq_all,'glp',dim=1)) = 0.93d-5 * sec2yr *1d-4 ! sec2yr*1d-4 converting cm2/s to m2/yr
 
+#ifdef disp_cnst
+daq_all=disp_cnst
+#endif 
+
 ! --------------------------------- gas diff
 
 ! values used in Kanzaki and Murakami 2016 for oxygen 
@@ -7235,6 +7252,10 @@ dgasg_all(findloc(chrgas_all,'pnh3',dim=1)) = 0.1978d0*((tc+tempk_0)/(0d0+tempk_
 ! N2O(aq) diffusion from Schulz and Zabel 2005
 dgasa_all(findloc(chrgas_all,'pn2o',dim=1)) = k_arrhenius(4.89d-02    , 15d0+tempk_0, tc+tempk_0, 20.33417d0, rg)
 dgasg_all(findloc(chrgas_all,'pn2o',dim=1)) = k_arrhenius(441.504d0   , 15d0+tempk_0, tc+tempk_0, 4.18d0    , rg)
+
+#ifdef disp_cnst
+dgasa_all=disp_cnst
+#endif 
 
 kw = -14.93d0+0.04188d0*tc-0.0001974d0*tc**2d0+0.000000555d0*tc**3d0-0.0000000007581d0*tc**4d0  ! Murakami et al. 2011
 kw = k_arrhenius(10d0**(-14.35d0), tempk_0+15.0d0, tempk_0+tc, 58.736742d0, rg) ! from Kanzaki and Murakami 2015
