@@ -364,12 +364,12 @@ def get_totsldwt_site(outdir,runname,dep_sample):
     
     return sps,concs
 
-def get_gas_int_site(outdir,runname,dep_sample,sp):
+def get_gas_int_site(outdir,runname,dep_sample,sp,i):
 
-    for i in range(20,0,-1):
-        infile  = outdir+runname+'/prof/prof_gas-{:03d}.txt'.format(i)
-        if not os.path.exists(infile): continue
-        else: break 
+    # for i in range(20,0,-1):
+        # infile  = outdir+runname+'/prof/prof_gas-{:03d}.txt'.format(i)
+        # if not os.path.exists(infile): continue
+        # else: break 
     infile  = outdir+runname+'/prof/prof_gas-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
     
