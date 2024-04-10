@@ -4732,6 +4732,14 @@ do while (it<nt)
     else 
         mblkx = 0d0
     endif 
+	
+	! added 4/9, to escape from endless loop
+	
+    if (flgback .and. dt==0d0) then
+		print *, 'dt==0d0; stop'
+		stop
+	endif 
+	
 
     if (flgback) then 
         flgback = .false. 
@@ -18286,6 +18294,9 @@ integer solve_sld
 real(kind=8):: sat_lim_prec = 1d50 ! maximum value of saturation state for minerals that can precipitate 
 real(kind=8):: sat_lim_noprec = 2d0 ! maximum value of saturation state for minerals that cannot precipitate 
 
+! logical::debug_print_on = .true.
+logical::debug_print_on = .false.
+
 !-----------------------------------------------
 
 if (aq_close) chkflx = .false.
@@ -19336,7 +19347,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                         & )
                 flx_sld(isps,ires,iz) = sum(flx_sld(isps,:,iz))
                 if (isnan(flx_sld(isps,ires,iz))) then 
-                    print *,chrsld(isps),iz,(flx_sld(isps,iflx,iz),iflx=1,nflx)
+                    if (debug_print_on) print *,chrsld(isps),iz,(flx_sld(isps,iflx,iz),iflx=1,nflx)
                 endif 
             enddo 
         end do  !================================
@@ -19879,7 +19890,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ) 
             flx_aq(ispa,ires,iz) = sum(flx_aq(ispa,:,iz))
             if (isnan(flx_aq(ispa,ires,iz))) then 
-                print *,chraq(ispa),iz,(flx_aq(ispa,iflx,iz),iflx=1,nflx)
+                if (debug_print_on) print *,chraq(ispa),iz,(flx_aq(ispa,iflx,iz),iflx=1,nflx)
             endif 
             
             amx3(row,:) = amx3(row,:)*fact 
@@ -20075,21 +20086,22 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 endif  
             enddo 
             
-            if (amx3(row,row)==0d0) then 
-                print *,amx3(row,row),mgasx(ispg,iz)<mgasth(ispg)*sw_red,mgasx(ispg,iz) 
-                print *, &
-                & (agasx(ispg,iz) + dagas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz)) &
-                & ,-( 0.5d0*(dgas(ispg,iz)+dgas(ispg,izp))*merge(0d0,-1d0,iz==nz)/(0.5d0*(dz(iz)+dz(izp))) &
-                & +0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,izp)-mgasx(ispg,iz))/(0.5d0*(dz(iz)+dz(izp))) &
-                & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(1d0)/(0.5d0*(dz(iz)+dz(izn))) &
-                & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(izn))) )/dz(iz)  &
-                & ,+poro(iz)*sat(iz)*vn(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz) &
-                & ,+poro(iz)*sat(iz)*vn(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
-                & ,+poro(iz)*sat(iz)*vp(iz)*1d3*(-khgasx(ispg,iz)*1d0)/dz(iz) &
-                & ,+poro(iz)*sat(iz)*vp(iz)*1d3*(-dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
-                & ,-sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg,iz)) &
-                & ,-drxngas_dmgas(ispg,ispg,iz) 
-            endif 
+			! below commented-out 4/9/2024
+            ! if (amx3(row,row)==0d0) then 
+                ! print *,amx3(row,row),mgasx(ispg,iz)<mgasth(ispg)*sw_red,mgasx(ispg,iz) 
+                ! print *, &
+                ! & (agasx(ispg,iz) + dagas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz)) &
+                ! & ,-( 0.5d0*(dgas(ispg,iz)+dgas(ispg,izp))*merge(0d0,-1d0,iz==nz)/(0.5d0*(dz(iz)+dz(izp))) &
+                ! & +0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,izp)-mgasx(ispg,iz))/(0.5d0*(dz(iz)+dz(izp))) &
+                ! & - 0.5d0*(dgas(ispg,iz)+edifn_tmp)*(1d0)/(0.5d0*(dz(iz)+dz(izn))) &
+                ! & - 0.5d0*(ddgas_dmgas(ispg,ispg,iz))*(mgasx(ispg,iz)-pco2n_tmp)/(0.5d0*(dz(iz)+dz(izn))) )/dz(iz)  &
+                ! & ,+poro(iz)*sat(iz)*vn(iz)*1d3*(khgasx(ispg,iz)*1d0)/dz(iz) &
+                ! & ,+poro(iz)*sat(iz)*vn(iz)*1d3*(dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
+                ! & ,+poro(iz)*sat(iz)*vp(iz)*1d3*(-khgasx(ispg,iz)*1d0)/dz(iz) &
+                ! & ,+poro(iz)*sat(iz)*vp(iz)*1d3*(-dkhgas_dmgas(ispg,ispg,iz)*mgasx(ispg,iz))/dz(iz) &
+                ! & ,-sum(stgas_ext(:,ispg)*drxnext_dmgas(:,ispg,iz)) &
+                ! & ,-drxngas_dmgas(ispg,ispg,iz) 
+            ! endif 
             
             flx_gas(ispg,itflx,iz) = ( &
                 & (agasx(ispg,iz)*mgasx(ispg,iz)-agas(ispg,iz)*mgas(ispg,iz))/dt &
@@ -20117,7 +20129,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
                 & ) 
             flx_gas(ispg,ires,iz) = sum(flx_gas(ispg,:,iz))
             
-            if (any(isnan(flx_gas(ispg,:,iz)))) then
+            if (any(isnan(flx_gas(ispg,:,iz))) .and. debug_print_on) then
                 ! print *,flx_gas(ispg,:,iz)
                 print *,'NAN detected in flx_gas'
             endif 
@@ -20170,7 +20182,7 @@ do while ((.not.isnan(error)).and.(error > tol*fact_tol))
         close(11)
         close(12) 
 #endif 
-        
+        print*, 'raising error flag and return to the main ...'
         flgback = .true.
         ! pause
         exit
@@ -20748,7 +20760,7 @@ if (.not.sld_enforce)then
                     & - stsld_ext(:,isps)*rxnext(:,iz)  &
                     & )
             flx_sld(isps,ires,iz) = sum(flx_sld(isps,:,iz))
-            if (isnan(flx_sld(isps,ires,iz))) then 
+            if (isnan(flx_sld(isps,ires,iz)) .and. debug_print_on) then 
                 print *,chrsld(isps),iz,(flx_sld(isps,iflx,iz),iflx=1,nflx)
             endif   
             
@@ -20868,7 +20880,7 @@ do iz = 1, nz
             & - staq_ext(:,ispa)*rxnext(:,iz) &
             & ) 
         flx_aq(ispa,ires,iz) = sum(flx_aq(ispa,:,iz))
-        if (isnan(flx_aq(ispa,ires,iz))) then 
+        if (isnan(flx_aq(ispa,ires,iz)) .and. debug_print_on) then 
             print *,chraq(ispa),iz,(flx_aq(ispa,iflx,iz),iflx=1,nflx)
         endif 
     
@@ -20985,7 +20997,7 @@ do iz = 1, nz
             & )
         flx_gas(ispg,ires,iz) = sum(flx_gas(ispg,:,iz))
         
-        if (any(isnan(flx_gas(ispg,:,iz)))) then
+        if (any(isnan(flx_gas(ispg,:,iz))) .and. debug_print_on) then
             ! print *,flx_gas(ispg,:,iz)
             print *,'NAN detected in flx_gas'
         endif 
