@@ -486,7 +486,13 @@ real(kind=8) :: tol = 1d-6
 
 ! integer, parameter :: nrec_prof = 22
 integer, parameter :: nrec_prof = 20
+#ifdef nrec_flx_in
+integer, parameter :: nrec_flx = nrec_flx_in
+logical :: linear_recflxtime = .true.
+#else
 integer, parameter :: nrec_flx = 60
+logical :: linear_recflxtime = .false.
+#endif 
 real(kind=8) rectime_prof(nrec_prof)
 real(kind=8) rectime_flx(nrec_flx)
 character(3) chr
@@ -874,7 +880,8 @@ character(5),dimension(:),allocatable::chrsld_cec
 real(kind=8),dimension(nsp_sld_all):: mcec_all,mcec_all_def
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all):: logkhaq_all,logkhaq_all_def
 real(kind=8),dimension(nsp_sld_all):: beta_all,beta_all_def
-real(kind=8),parameter :: c1_gamma_max = 20d0 ! "alpha" above which fH deppendence is ignored  
+! real(kind=8),parameter :: c1_gamma_max = 20d0 ! "alpha" above which fH deppendence is ignored  
+real(kind=8),parameter :: c1_gamma_max = 50d0 ! "alpha" above which fH deppendence is ignored  
 integer,parameter::nsp_aqex = 5 ! exchangeable species
 character(5),dimension(nsp_aqex)::chraqex
 real(kind=8),dimension(nsp_aqex,5 + nrxn_ext + nsp_sld,nz)::flx_aqex
@@ -1974,10 +1981,10 @@ do isps = 1, nsp_sld
         case('g1','g2','g3','amnt','inrt','kcl','gac','mesmh','ims','teas','naoh','naglp','cacl2','nacl')
             precstyle(isps) = 'decay'
         case('cc','arg','dlm') ! added to change solubility 
-            precstyle(isps) = 'def'
-            ! precstyle(isps) = 'emmanuel'
-            ! solmod(isps,:) = 1d-1 ! assumed factor to be multiplied with omega
-            ! fkin(isps,:) = 1d0/solmod(isps,:) ! to undo change in rate const caused by change in solubility
+            ! precstyle(isps) = 'def'
+            precstyle(isps) = 'emmanuel'
+            solmod(isps,:) = 1d-1 ! assumed factor to be multiplied with omega
+            fkin(isps,:) = 1d0/solmod(isps,:) ! to undo change in rate const caused by change in solubility
         case('casp','ksp','nasp','mgsp')
             precstyle(isps) = 'def'
             ! precstyle(isps) = 'emmanuel'
@@ -2055,40 +2062,56 @@ do ispa = 1, nsp_aq
     if (any(chraq_all == chraq(ispa))) base_charge(ispa) = base_charge_all(findloc(chraq_all,chraq(ispa),dim=1))
 enddo 
 
-rectime_flx = 0d0
-do irec_flx = 1,20
-    rectime_flx(irec_flx) = irec_flx/20d0
-enddo
-do irec_flx = 21,38
-    rectime_flx(irec_flx) = rectime_flx(20) + (irec_flx-20)/20d0*10d0
-enddo
-do irec_flx = 39,60
-    rectime_flx(irec_flx) = rectime_flx(38) + (irec_flx-38)/20d0*100d0
-enddo
-
-if (rectime_scheme_old) then 
-    do while (rectime_flx(nrec_flx)>ttot) 
-        rectime_flx = rectime_flx/10d0
-    enddo 
-    do while (rectime_flx(nrec_flx)<ttot) 
-        rectime_flx = rectime_flx*10d0
-    enddo 
-
-    do while (rectime_prof(nrec_prof)>ttot) 
-        rectime_prof = rectime_prof/10d0
-    enddo 
-    do while (rectime_prof(nrec_prof)<ttot) 
-        rectime_prof = rectime_prof*10d0
-    enddo 
-    
-    savetime = rectime_prof(18)/100d0
-    dsavetime = rectime_prof(18)/100d0
-    
+! define time when to record fluxes
+if (linear_recflxtime) then
+	
+	do irec_flx = 1,nrec_flx
+		rectime_flx(irec_flx) = irec_flx/nrec_flx*ttot
+	enddo
+	
 else 
-    rectime_flx = rectime_flx*ttot/maxval(rectime_flx)
-    rectime_prof = rectime_prof*ttot/maxval(rectime_prof)
-    savetime = ttot/100d0
-    dsavetime = ttot/100d0
+
+	rectime_flx = 0d0
+	do irec_flx = 1,20
+		rectime_flx(irec_flx) = irec_flx/20d0
+	enddo
+	do irec_flx = 21,38
+		rectime_flx(irec_flx) = rectime_flx(20) + (irec_flx-20)/20d0*10d0
+	enddo
+	do irec_flx = 39,60
+		rectime_flx(irec_flx) = rectime_flx(38) + (irec_flx-38)/20d0*100d0
+	enddo
+
+	if (rectime_scheme_old) then 
+		do while (rectime_flx(nrec_flx)>ttot) 
+			rectime_flx = rectime_flx/10d0
+		enddo 
+		do while (rectime_flx(nrec_flx)<ttot) 
+			rectime_flx = rectime_flx*10d0
+		enddo 
+		
+	else 
+		rectime_flx = rectime_flx*ttot/maxval(rectime_flx)
+	endif 
+endif 
+
+! define time when to record dep-profiles
+if (rectime_scheme_old) then 
+
+	do while (rectime_prof(nrec_prof)>ttot) 
+		rectime_prof = rectime_prof/10d0
+	enddo 
+	do while (rectime_prof(nrec_prof)<ttot) 
+		rectime_prof = rectime_prof*10d0
+	enddo 
+	
+	savetime = rectime_prof(18)/100d0
+	dsavetime = rectime_prof(18)/100d0
+	
+else 
+	rectime_prof = rectime_prof*ttot/maxval(rectime_prof)
+	savetime = ttot/100d0
+	dsavetime = ttot/100d0
 endif 
 
 ! print*, rectime_flx
@@ -2496,6 +2519,11 @@ do iclim = 1,n_seasonpar
                         dctmin(iclim) = min( dctmin(iclim), ctau(iclim) - clim_dust(1,ict) )
                     endif 
                 enddo 
+				
+                if (season_debug) then
+                    print *, dct(iclim), ctau(iclim), dctmin(iclim)
+                endif 
+				
             case default
                 print*, 'error in obtaining climate'
                 stop
@@ -4032,6 +4060,15 @@ do while (it<nt)
                         if (season_debug) then
                             print*,ict,clim_dust(1,ict),mod(time,ctau(iclim)),clim_dust(1,ict) + dct(iclim),time,dt,rainpowder
                         endif 
+						
+						if (season_debug) then
+							print *, dct(iclim), ctau(iclim), dctmin(iclim)
+						endif 
+	
+						if ( season_debug .and. dt == 0 ) then
+							print*,'dt ==0'
+							stop
+						endif 
                         
                 endselect
             endif 
@@ -15936,9 +15973,9 @@ real(kind=8),dimension(nsp_sld_all,nz)::dmsldf_dmsld,dmsldf_dpro
 real(kind=8),dimension(nsp_sld_all,nz)::gamma_loc,dgamma_dmsld,dgamma_dmsldf,dgamma_dpro  
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all,nz)::dmsldf_dmaqf
 real(kind=8),dimension(nsp_sld_all,nsp_aq_all,nz)::dgamma_dmaqf
-real(kind=8),dimension(nz)::f,f_chk,x,dx
-real(kind=8),dimension(nz)::a,da_dpro,da_dmsld,da
-real(kind=8),dimension(nz)::gamma,dgamma,beta,dbeta
+real(kind=8),dimension(nz)::f,f_chk,x,dx, x_i,x_f
+real(kind=8),dimension(nz)::a,da_dpro,da_dmsld,da, a_i, a_f
+real(kind=8),dimension(nz)::gamma,dgamma,beta,dbeta,gamma_i,gamma_f,beta_i,beta_f
 real(kind=8),dimension(nsp_aq_all,nz)::da_dmaqf
 real(kind=8),dimension(nsp_aq_all)::base_charge
 real(kind=8) c1_gamma,c0_gamma 
@@ -16123,6 +16160,158 @@ do isps = 1, nsp_sld_all
     if (any(x > 1d0) ) then
         print *, 'solution exceeds 1: get_maqads_all_v4 ',chrsld_all(isps)
         print *,x
+        print *,a
+		
+		!!! testing bisection method here 
+		
+		x_i= 0d0
+		x_f= 1d0
+		error = 1d4
+		iter = 0
+		
+		c1_gamma = beta_all(isps)
+		
+		fH_depend = .true.
+		if ( c1_gamma >= c1_gamma_max) fH_depend = .false.
+		
+		do while (error > tol_dum)
+		
+			x = 0.5d0*( x_i + x_f )
+		
+			a = 0d0
+			da = 0d0
+			da_dpro = 0d0
+			da_dmaqf = 0d0
+			da_dmsld = 0d0
+			
+			a_i = 0d0
+			a_f = 0d0
+			
+			gamma = 10d0**(c1_gamma*x)
+			dgamma = 10d0**(c1_gamma*x)*c1_gamma*log(10d0)
+			
+			gamma_i = 10d0**(c1_gamma*x_i)
+			gamma_f = 10d0**(c1_gamma*x_f)
+			
+			if (.not. gamma_ON) then
+				gamma = 10d0**(c1_gamma*c0_gamma)
+				dgamma = 0d0
+				
+				gamma_i = 10d0**(c1_gamma*c0_gamma)
+				gamma_f = 10d0**(c1_gamma*c0_gamma)
+			endif 
+			
+			beta = 10d0**( -c1_gamma*( 1d0 - x )  ) 
+			dbeta = 10d0**( -c1_gamma*( 1d0 - x )  ) *(c1_gamma)*log(10d0)
+			
+			beta_i = 10d0**( -c1_gamma*( 1d0 - x_i )  ) 
+			beta_f = 10d0**( -c1_gamma*( 1d0 - x_f )  ) 
+			
+			if (.not. beta_ON) then
+				beta = 1d0
+				dbeta = 0d0
+				
+				beta_i = 1d0
+				beta_f = 1d0
+			endif 
+			
+			if (.not. fH_depend) then
+				gamma = 1d0
+				dgamma = 0d0
+				beta = 0d0
+				dbeta = 0d0
+				
+				gamma_i = 1d0
+				gamma_f = 1d0
+				beta_i = 0d0
+				beta_f = 0d0
+			endif 
+			
+			a = a + 1d0 - x * beta
+			da = da     - 1d0  * beta - x * dbeta
+			
+			a_i = a_i + 1d0 - x_i * beta_i
+			a_f = a_f + 1d0 - x_f * beta_f
+			
+			if (cec_pH_depend(isps)) then 
+				do ispa=1,nsp_aq_all
+					selectcase(trim(adjustl(chraq_all(ispa))))
+						case('na','k','mg','ca','al')
+							a = a - keqiex_all(isps,ispa)* maqf_loc(ispa,:)*(x/prox)**base_charge(ispa)*gamma**base_charge(ispa)
+							da = da - keqiex_all(isps,ispa)* maqf_loc(ispa,:)*(1d0/prox)**base_charge(ispa) &
+								&   *base_charge(ispa)*x**(base_charge(ispa)-1d0)*gamma**base_charge(ispa) &
+								& - keqiex_all(isps,ispa)* maqf_loc(ispa,:)*(x/prox)**base_charge(ispa) &
+								&   *base_charge(ispa)*gamma**(base_charge(ispa)-1d0)*dgamma
+							da_dmaqf(ispa,:) = da_dmaqf(ispa,:) &
+								& - keqiex_all(isps,ispa)*1d0*(x/prox)**base_charge(ispa)*gamma**base_charge(ispa)
+							da_dpro = da_dpro - keqiex_all(isps,ispa)*maqf_loc(ispa,:)*x**base_charge(ispa)*gamma**base_charge(ispa) &
+								& *(-base_charge(ispa))*(1d0/prox)**(base_charge(ispa)+1d0)
+								
+							a_i = a_i - keqiex_all(isps,ispa)* maqf_loc(ispa,:)*(x_i/prox)**base_charge(ispa)*gamma_i**base_charge(ispa)
+							a_f = a_f - keqiex_all(isps,ispa)* maqf_loc(ispa,:)*(x_f/prox)**base_charge(ispa)*gamma_f**base_charge(ispa)
+						case default 
+					endselect
+				enddo
+			else 
+				do ispa=1,nsp_aq_all
+					selectcase(trim(adjustl(chraq_all(ispa))))
+						case('na','k','mg','ca','al')
+							a = a - fact*keqiex_all(isps,ispa)* maqf_loc(ispa,:)*x**base_charge(ispa)
+							da = da - fact*keqiex_all(isps,ispa)* maqf_loc(ispa,:)*base_charge(ispa)*x**(base_charge(ispa)-1d0)
+							da_dmaqf(ispa,:) = da_dmaqf(ispa,:) - fact*keqiex_all(isps,ispa)*1d0*x**base_charge(ispa)
+							
+							a_i = a_i - fact*keqiex_all(isps,ispa)* maqf_loc(ispa,:)*x_i**base_charge(ispa)
+							a_f = a_f - fact*keqiex_all(isps,ispa)* maqf_loc(ispa,:)*x_f**base_charge(ispa)
+						case default 
+					endselect
+				enddo
+			endif 
+			
+			if (all(abs(a)<tol_dum)) exit 
+			
+			! print*, 'x',x
+			! print*, 'a',a
+			
+			if (any(a_i * a_f > 0d0)) then
+				print *, 'bisection is not going to work'
+				print*,a_i
+				print*,a
+				print*,a_f
+				! where (a_i * a_f > 0d0)
+					! x_f = x_f/1.1d0
+				! endwhere
+				! cycle
+				stop
+			endif 
+			
+			where (a_i * a > 0d0) 
+				x_i = x
+			elsewhere
+				x_f = x
+			endwhere 
+			
+			error = maxval( abs(x_f - x_i) /x_f )
+			
+			iter = iter + 1
+			
+			print *, iter, error
+		
+		enddo 
+		print*, 'bisection successful?'
+		stop
+		
+		!!! end of bisection method 
+		
+        print *,'x',x
+        print *,'a',a
+        print *,'prox',prox
+		do ispa=1,nsp_aq_all
+			selectcase(trim(adjustl(chraq_all(ispa))))
+				case('na','k','mg','ca','al')
+					print*,chraq_all(ispa), maqf_loc(ispa,:)
+				case default 
+			endselect
+		enddo
         ads_error = .true.
         exit
         stop
@@ -17913,7 +18102,8 @@ do isp=1,nsp_sld
     ! probh = 2d0 ! strong mixing
     ! probh = 5d0 ! strong mixing
     ! probh = 10d0 ! strong mixing
-    probh = 20d0 ! strong mixing
+    probh = 20d0 ! strong mixing !!! **** used for cation lag paper ****
+    ! probh = 40d0 ! strong mixing ! 
     ! probh = 100d0 ! strong mixing ! added/tested 6-22-2023 
     ! probh = 0.0005d0 ! just testing smaller mixing (used for tuning)
     ! probh = 0.0001d0 ! just testing smaller mixing for PSDs
@@ -18267,8 +18457,8 @@ logical::aq_diff_close = .true.
 ! logical::gas_close = .true.
 logical::gas_close = .false.
 
-! logical::cap_omega = .true.
-logical::cap_omega = .false.
+logical::cap_omega = .true.
+! logical::cap_omega = .false.
 
 ! logical::sld_enforce = .false.
 logical,intent(in)::sld_enforce != .true.
@@ -21385,6 +21575,17 @@ if (any(isnan(ksld)) .or. any(ksld>infinity)) then
     do isps=1,nsp_sld
         do iz=1,nz
             if (isnan(ksld(isps,iz)) .or. ksld(isps,iz)>infinity) print*,chrsld(isps),iz,ksld(isps,iz)
+        enddo
+    enddo 
+    stop
+endif 
+
+! *** sanity check
+if (any(isnan(omega)) .or. any(omega>infinity)) then 
+    print *,' *** found insanity in ksld (in sld_rxn): listing below -- '
+    do isps=1,nsp_sld
+        do iz=1,nz
+            if (isnan(omega(isps,iz)) .or. omega(isps,iz)>infinity) print*,chrsld(isps),iz,omega(isps,iz)
         enddo
     enddo 
     stop
@@ -25289,7 +25490,7 @@ do iz=1,nz
             dwn(iz) = 1
         else   !  where burial sign changes  
             if (.not.(w(iz)*w(iz+1) <=0d0)) then 
-                print*,'error'
+                print*,'error: calcupwindscheme: pt1'
                 stop
             endif
             cnr(iz) = 1
@@ -25301,7 +25502,7 @@ do iz=1,nz
             dwn(iz) = 1
         else 
             if (.not.(w(iz)*w(iz-1) <=0d0)) then 
-                print*,'error'
+                print*,'error: calcupwindscheme: pt2'
                 stop
             endif
             cnr(iz) = 1
@@ -25326,7 +25527,7 @@ do iz=1,nz
 enddo        
 
 if (sum(up(:)+dwn(:)+cnr(:))/=nz) then
-    print*,'error',sum(up),sum(dwn),sum(cnr)
+    print*,'error: calcupwindscheme: pt3',sum(up),sum(dwn),sum(cnr)
     stop
 endif
 
