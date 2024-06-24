@@ -99,6 +99,7 @@ def get_ac_int_site(outdir,runname,dep_sample):
 def get_ac_int_site_v2(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
+    simple_average      = kwargs.get('simple_average',   False)
 
     infile  = outdir+runname+'/prof/prof_aq(ads%cec)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
@@ -112,8 +113,9 @@ def get_ac_int_site_v2(outdir,runname,dep_sample,i,**kwargs):
     
     dep = data[:,0]
     
+    idep = np.argmin(np.abs(dep-dep_sample))
+    
     if no_depth_integral:
-        idep = np.argmin(np.abs(dep-dep_sample))
         pH_dep = 0
         for sp in sps:
             try:
@@ -134,7 +136,10 @@ def get_ac_int_site_v2(outdir,runname,dep_sample,i,**kwargs):
             
             pH_dep  += data[:,isp]
                 
-        phintval    =  linave(dep,pH_dep, dep_sample)
+        if simple_average:
+            phintval = np.average( pH_dep[:idep+1] )  
+        else:
+            phintval    =  linave(dep,pH_dep, dep_sample)
 
     if debug_printout: print(phintval)
     
@@ -316,7 +321,7 @@ def get_sldwt_int_site(outdir,runname,dep_sample,sps,i,**kwargs):
                 continue
             
             pH_dep  += data[:,isp]
-                
+        
         phintval =  linave(dep,pH_dep, dep_sample)
 
     if debug_printout: print(phintval)
@@ -895,6 +900,154 @@ def get_waterave_site(outdir,runname,dep_sample):
     
     return sps,btmconcs,dep
 
+def get_waterave_site_v2(outdir,runname,dep_sample,i,sp):
+
+    infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
+    data    = np.loadtxt(infile,skiprows=1)
+    if debug_printout: print('using prof_aq-{:03d}'.format(i))
+    
+    infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
+    data2    = np.loadtxt(infile2,skiprows=1)
+    if debug_printout: print('using bsd-{:03d}'.format(i))
+    
+    deps = data[:,0]
+    deps_list = [dep for dep in deps]
+    idep = 0
+    for dep in deps:
+        if dep_sample>=dep:
+            idep = deps_list.index(dep)
+    dep = deps[idep]
+    
+    with open(infile) as f:
+        first_line  = f.readline() 
+        sp_list     = first_line.split()
+    
+    isp = sp_list.index(sp)
+        
+    with open(infile2) as f:
+        first_line  = f.readline() 
+        prop_list     = first_line.split()
+        
+    sat = data2[:,prop_list.index('sat')]
+    poro = data2[:,prop_list.index('poro')]
+    
+    # print(data2.shape)
+    # print(prop_list,prop_list.index('sat'),prop_list.index('poro'),sat,poro)
+        
+    sps = copy.copy(sp_list)
+    
+    del sps[0]
+    del sps[-1]
+    del sps[-1]
+    
+    btmconcs =(
+        np.average( data[:idep+1,isp]*poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ soil m3
+        /np.average( poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ aq L
+        )
+    
+    return btmconcs
+
+def get_waterave_site_v3(outdir,runname,dep_sample,i,sp):
+
+    infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
+    data    = np.loadtxt(infile,skiprows=1)
+    if debug_printout: print('using prof_aq-{:03d}'.format(i))
+    
+    infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
+    data2    = np.loadtxt(infile2,skiprows=1)
+    if debug_printout: print('using bsd-{:03d}'.format(i))
+    
+    deps = data[:,0]
+    deps_list = [dep for dep in deps]
+    idep = 0
+    for dep in deps:
+        if dep_sample>=dep:
+            idep = deps_list.index(dep)
+    dep = deps[idep]
+    
+    with open(infile) as f:
+        first_line  = f.readline() 
+        sp_list     = first_line.split()
+    
+    isp = sp_list.index(sp)
+        
+    with open(infile2) as f:
+        first_line  = f.readline() 
+        prop_list     = first_line.split()
+        
+    sat = data2[:,prop_list.index('sat')]
+    poro = data2[:,prop_list.index('poro')]
+    
+    # print(data2.shape)
+    # print(prop_list,prop_list.index('sat'),prop_list.index('poro'),sat,poro)
+        
+    sps = copy.copy(sp_list)
+    
+    del sps[0]
+    del sps[-1]
+    del sps[-1]
+    
+    if sp=='ph':
+        btmconcs = -np.log10( np.average( 10**-data[:idep+1,isp] ) ) # mol/ aq L
+    else:
+        btmconcs = np.average( data[:idep+1,isp] )  # mol/ aq L
+        
+    
+    return btmconcs
+
+def get_aqratio_site(outdir,runname,dep_sample,i,sp):
+
+    infile  = outdir+runname+'/prof/prof_aq-{:03d}.txt'.format(i)
+    data    = np.loadtxt(infile,skiprows=1)
+    if debug_printout: print('using prof_aq-{:03d}'.format(i))
+    
+    infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
+    data2    = np.loadtxt(infile2,skiprows=1)
+    if debug_printout: print('using bsd-{:03d}'.format(i))
+    
+    deps = data[:,0]
+    deps_list = [dep for dep in deps]
+    idep = 0
+    for dep in deps:
+        if dep_sample>=dep:
+            idep = deps_list.index(dep)
+    dep = deps[idep]
+    
+    with open(infile) as f:
+        first_line  = f.readline() 
+        sp_list     = first_line.split()
+    
+    isp = sp_list.index(sp)
+        
+    with open(infile2) as f:
+        first_line  = f.readline() 
+        prop_list     = first_line.split()
+        
+    sat = data2[:,prop_list.index('sat')]
+    poro = data2[:,prop_list.index('poro')]
+    
+    # print(data2.shape)
+    # print(prop_list,prop_list.index('sat'),prop_list.index('poro'),sat,poro)
+        
+    sps = copy.copy(sp_list)
+    
+    del sps[0]
+    del sps[-1]
+    del sps[-1]
+    
+    if sp=='ca' or 'mg':
+        btmconcs =(
+            np.average( data[:idep+1,isp]/data[:idep+1,-2]**2  *poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ soil m3
+            /np.average( poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ aq L
+            )
+    else:
+        btmconcs =(
+            np.average( data[:idep+1,isp]/data[:idep+1,-2]  *poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ soil m3
+            /np.average( poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ aq L
+            )
+    
+    return btmconcs
+
 def get_totsave_site(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
@@ -1090,6 +1243,24 @@ def get_dis_frac(outdir,runname,sp):
         
     rain = data[-1,flx_list.index('rain')]
     time = data[-1,flx_list.index('time')]
+    dis = data[-1,flx_list.index(sp)]
+    
+    frac = abs(dis/rain)*100.
+    
+    return frac,time
+
+def get_adv_frac(outdir,runname,aqsp,sldsp):
+    
+    infile  = outdir+runname+'/flx/int_flx_aq-'+aqsp+'.txt'
+    data    = np.loadtxt(infile,skiprows=1)
+    
+    with open(infile) as f:
+        first_line  = f.readline() 
+        flx_list     = first_line.split()
+        
+    rain = data[-1,flx_list.index('rain')]
+    time = data[-1,flx_list.index('time')]
+    adv = data[-1,flx_list.index('adv')]
     dis = data[-1,flx_list.index(sp)]
     
     frac = abs(dis/rain)*100.
