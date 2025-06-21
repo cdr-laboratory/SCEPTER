@@ -80,10 +80,15 @@ def get_input_tracers(outdir,runname):
     except:
         print(gas_list.shape)
         gas_list = [str(gas_list)]
+        
+    # print(exrxn_list,exrxn_list.shape,type(exrxn_list))
     try:
         exrxn_list = list(exrxn_list)
     except:
-        exrxn_list = [exrxn_list[0]]
+        try:
+            exrxn_list = [exrxn_list[0]]
+        except:
+            exrxn_list = [str(exrxn_list)]
     
     return sld_list,aq_list,gas_list,exrxn_list
 
@@ -180,7 +185,7 @@ def main():
     # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
     outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
     # runname = 'US_cropland_311_sph_N_spintuneup_field'
-    runname = 'test_Pot7'
+    runname = 'JCU/test'
     
     ztot,nz,ttot,temp,fdust,fdust2,taudust,omrain,zom,poro,moistsrf,zwater,zdust,w,q,p,nstep,rstrt,runid = get_input_frame(outdir,runname)
     print(

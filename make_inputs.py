@@ -456,6 +456,42 @@ def get_input_climate_temp(**kwargs):
             file.write(input_text)
         
         if disply_glbl: print(input_text)
+    
+    
+    
+def get_input_dust_temp(**kwargs):
+    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
+    runname     = kwargs.get('runname',     'test_input')
+    time_temp   = kwargs.get('time_temp',   list(1./np.linspace(12,1,12))  )
+    dust_sp     = kwargs.get('dust_sp',     [ 'cao' ])
+    dust_temp   = kwargs.get('dust_temp',   [ [10]*12 ]*len(dust_sp) )
+    
+    filename = 'Dust_temp.in'
+    
+    
+    if not os.path.exists(outdir + runname): os.makedirs(outdir + runname)
+    
+    N = len(time_temp)
+    
+    # print(dust_temp[0])
+    # print(dust_temp[1])
+    # print(len(dust_sp))
+    
+    input_text = '\t'.join(['time'] + dust_sp)
+    input_text += '\n'
+    for i in range(N):
+        input_text += '{:f}\t'.format(float(time_temp[i]))
+        for k in range(len(dust_sp)):
+            # print(k,i)
+            input_text += '{:f}\t'.format(float(dust_temp[k][i]))
+        input_text += '\n'
+    
+    input_file = outdir + runname + '/' + filename
+    
+    with open(input_file, 'w') as file:
+        file.write(input_text)
+    
+    if disply_glbl: print(input_text)
         
         
 def make_sincurve(ave,amp,tau,order,**kwargs):
@@ -693,6 +729,14 @@ def main():
         moist_temp = moist_temp,
         q_temp = q_temp,
         dust_temp = dust_temp,
+        )
+    
+    get_input_dust_temp(
+        outdir=outdir,
+        runname=runname,
+        time_temp = timeline,
+        dust_sp = ['cao','amnt'],
+        dust_temp = [[10,10,0,0],[1,5,1,5]],
         )
    
 if __name__ == '__main__':

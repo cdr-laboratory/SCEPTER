@@ -87,18 +87,20 @@ def run_a_scepter_run(
     use_local_storage   = kwargs.get('use_local_storage',   True)
     lim_calc_time       = kwargs.get('lim_calc_time',       False)
     sub_as_a_job        = kwargs.get('sub_as_a_job',        False)
+    show_runtime_res    = kwargs.get('show_runtime_res',    False)
     max_calc_time       = kwargs.get('max_calc_time',       20)
+    exename_src         = kwargs.get('exename_src',         'scepter_test')
     
     outdir = outdir_src
     if use_local_storage:  outdir = os.environ['TMPDIR'] + '/scepter_output/'
     
     # compile 
     exename = 'scepter'
-    exename_src = 'scepter_DEV'
+    # exename_src = 'scepter_DEV'
     # exename_src = 'scepter_test'
     to = ' '
     where = '/'
-    os.system('make')
+    # os.system('make')
     # os.system('make --file=makefile_test')
     if not os.path.exists( outdir + runname) : os.system('mkdir -p ' + outdir + runname)
     os.system('cp ' + exename_src + to + outdir + runname + where + exename)
@@ -217,8 +219,12 @@ def run_a_scepter_run(
     
     if not sub_as_a_job: 
         if not lim_calc_time:
-            os.system(outdir+runname+where+exename + ' > ' + outdir+runname+'/logfile.txt' + ' 2> ' + outdir+runname+'/err.txt')
-            run_success = True
+            if not show_runtime_res:
+                os.system(outdir+runname+where+exename + ' > ' + outdir+runname+'/logfile.txt' + ' 2> ' + outdir+runname+'/err.txt')
+                run_success = True
+            else:
+                os.system( outdir+runname+where+exename )
+                run_success = True
         else:
             logf = open(outdir+runname+'/logfile.txt', 'w')
             logerrf = open(outdir+runname+'/err.txt', 'w')
@@ -234,9 +240,9 @@ def run_a_scepter_run(
                 proc.kill()
                 print('run UNfinished within {:f} min'.format(int(my_timeout/60.)))
         
-        if run_success:
-            os.remove(outdir+runname+'/logfile.txt')
-            os.remove(outdir+runname+'/err.txt')
+        if run_success and os.path.exists(outdir+runname+'/logfile.txt'):   os.remove(outdir+runname+'/logfile.txt')
+        if run_success and os.path.exists(outdir+runname+'/err.txt'):       os.remove(outdir+runname+'/err.txt')
+        
     else:
         if os.path.exists(outdir+runname+'/run_complete.txt'): os.remove(outdir+runname+'/run_complete.txt')
         slurm_cmd = 'sbatch  --time=0-24:00 --account=gts-creinhard3 --nodes=1 --ntasks=1  -qinferno  --mem-per-cpu=4G run_a_shell.sbatch '

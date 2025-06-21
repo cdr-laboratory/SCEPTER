@@ -782,6 +782,99 @@ def get_ave_DIC_save_v2(outdir,runname,dep_sample):
     
     return DIC_ave
 
+def get_ave_DIC_save_v3(outdir,runname,dep_sample,i,**kwargs):
+
+    no_depth_integral   = kwargs.get('no_depth_integral',   False)
+
+    infile  = outdir+runname+'/prof/charge_balance-{:03d}.txt'.format(i)
+    data    = np.loadtxt(infile,skiprows=1)
+    if debug_printout: print('using charge_balance-{:03d}'.format(i))
+    
+    
+    infile2  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
+    data2    = np.loadtxt(infile2,skiprows=1)
+    if debug_printout: print('using bsd-{:03d}'.format(i))
+    
+    deps = data[:,0]
+    deps_list = [dep for dep in deps]
+    idep = 0
+    for dep in deps:
+        if dep_sample>=dep:
+            idep = deps_list.index(dep)
+    
+    if no_depth_integral: idep = np.argmin(np.abs(deps-dep_sample))
+    
+    dep = deps[idep]
+    
+    with open(infile) as f:
+        first_line  = f.readline() 
+        sp_list     = first_line.split()
+        
+    with open(infile2) as f:
+        first_line  = f.readline() 
+        prop_list     = first_line.split()
+        
+    sat = data2[:,prop_list.index('sat')]
+    poro = data2[:,prop_list.index('poro')]
+    
+        
+    # sps = copy.copy(sp_list)
+    
+    # del sps[0]
+    # del sps[-1]
+    # del sps[-1]
+    
+    btmconcs = []
+    
+    co2sp_list = [
+        'hco3','co3','mg(co3)','mg(hco3)','na(co3)','na(hco3)','ca(co3)','ca(hco3)','fe2(co3)','fe2(hco3)'
+        ]
+    
+    hco3 = data[:,sp_list.index('hco3')]
+    co3 = data[:,sp_list.index('co3')]
+    h = data[:,sp_list.index('h')]
+    k2 = h*co3/hco3
+    Rg = 8.3e-3
+    tempk_0 = 273
+    k2_ref = 10**(-10.43)
+    H_k2 = 17.00089
+    temp_ref = 15
+    # k2 = k2_ref*exp(-H_k2/Rg*(1/(temp + tempk_0)-1/(temp_ref + tempk_0)))
+    # k2/k2_ref = exp(-H_k2/Rg*(1/(temp + tempk_0)-1/(temp_ref + tempk_0)))
+    # log(k2/k2_ref) = -H_k2/Rg*(1/(temp + tempk_0)-1/(temp_ref + tempk_0))
+    # log(k2/k2_ref)*(-Rg/H_k2) = 1/(temp + tempk_0)-1/(temp_ref + tempk_0)
+    # log(k2/k2_ref)*(-Rg/H_k2)+1/(temp_ref + tempk_0) = 1/(temp + tempk_0)
+    # 1/[log(k2/k2_ref)*(-Rg/H_k2)+1/(temp_ref + tempk_0)] = temp + tempk_0
+    # 1/[log(k2/k2_ref)*(-Rg/H_k2)+1/(temp_ref + tempk_0)] - tempk_0 = temp
+    temp =  1./(np.log(k2/k2_ref)*(-Rg/H_k2)+1./(temp_ref + tempk_0)) - tempk_0 
+    
+    k1_ref = 10**(-6.42)
+    H_k1 = 11.94453
+    k1 = k1_ref*np.exp(-H_k1/Rg*(1./(temp + tempk_0)-1./(temp_ref + tempk_0)))
+    
+    co2 = hco3*h/k1
+    
+    DIC = co2
+    
+    for co2sp in co2sp_list:
+        isp     = sp_list.index(co2sp)
+        DIC += data[:,isp]
+        
+    if no_depth_integral:
+        DIC_btm = (
+            DIC[idep]*poro[idep]*sat[idep]*1e3   # mol/ soil m3
+            /(poro[idep]*sat[idep])   # mol/ aq m3
+            )
+    else:
+        DIC_btm = (
+            np.average( DIC[:idep+1]*poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ soil m3
+            /np.average( poro[:idep+1]*sat[:idep+1] )  # mol/ aq m3
+            )
+    
+    np.savetxt(outdir+runname+'/prof/prof_aq-DIC-{:03d}.txt'.format(i),np.transpose(np.array([list(deps),list(DIC)])))
+    
+    return DIC_btm,dep
+
 def get_ave_IS(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
@@ -880,6 +973,9 @@ def get_waterave_site(outdir,runname,dep_sample):
     sat = data2[:,prop_list.index('sat')]
     poro = data2[:,prop_list.index('poro')]
     
+    sat_ave = np.average( sat[:idep+1] )
+    poro_ave = np.average( poro[:idep+1] )
+    
     # print(data2.shape)
     # print(prop_list,prop_list.index('sat'),prop_list.index('poro'),sat,poro)
         
@@ -898,7 +994,7 @@ def get_waterave_site(outdir,runname,dep_sample):
             /np.average( poro[:idep+1]*sat[:idep+1] )  # mol/ aq m3
             )
     
-    return sps,btmconcs,dep
+    return sps,btmconcs,dep,poro_ave,sat_ave
 
 def get_waterave_site_v2(outdir,runname,dep_sample,i,sp):
 
