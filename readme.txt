@@ -1,3 +1,5 @@
+NOTE: Outside joint collaborative agreements, there is absolutely no support with respect to model download, setup, development, or application.
+
 scepter
 
 scepter.f90             - source code  
