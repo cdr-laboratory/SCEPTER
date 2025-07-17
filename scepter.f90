@@ -615,9 +615,11 @@ logical :: aq_close = .false.
 
 logical :: act_ON = .false.
 ! logical :: act_ON = .true.
-
+#ifdef solve_richards
+logical :: h2odyn_ON = .true.
+#else
 logical :: h2odyn_ON = .false.
-! logical :: h2odyn_ON = .true.
+#endif 
 
 logical :: lim_mingas = .false.
 ! logical :: lim_mingas = .true.
@@ -3082,6 +3084,9 @@ disp = c_disp * abs(v)
 
 if (disp_FULL_ON) disp = disp_FULL
 
+! #ifdef disp_cnst
+! disp = disp_cnst
+! #endif 
 
 ! ------------ determine calculation scheme for advection (from IMP code)
 call calcupwindscheme(  &
@@ -3622,6 +3627,10 @@ if (read_data) then
 		disp = c_disp * abs(v)
 
 		if (disp_FULL_ON) disp = disp_FULL
+		
+! #ifdef disp_cnst
+		! disp = disp_cnst
+! #endif 
 		
 		! counting sld species whose values are to be specificed in kinspc.save and not so yet when reading from kinspc.in
 		nsld_kinspc_add = 0
@@ -4416,6 +4425,9 @@ do while (it<nt)
 
         if (disp_FULL_ON) disp = disp_FULL
         
+! #ifdef disp_cnst
+		! disp = disp_cnst
+! #endif 
         
         
     endif 
@@ -5041,6 +5053,10 @@ do while (it<nt)
 
         if (disp_FULL_ON) disp = disp_FULL
 		
+! #ifdef disp_cnst
+		! disp = disp_cnst
+! #endif 
+		
 		print*,'theta',theta
 		print*,'sat_RE',sat_RE
 		print*,'hp',hp
@@ -5370,6 +5386,10 @@ do while (it<nt)
         disp = c_disp * abs(v)
 
         if (disp_FULL_ON) disp = disp_FULL
+		
+! #ifdef disp_cnst
+		! disp = disp_cnst
+! #endif 
         
 #ifndef calcw_full
         w(:) = w0 
@@ -5467,6 +5487,10 @@ do while (it<nt)
 		c_disp = 5d-4
 #endif 
         disp = c_disp * abs(v)
+		
+! #ifdef disp_cnst
+		! disp = disp_cnst
+! #endif 
 	
     endif  
     
@@ -8757,7 +8781,7 @@ endif
 #endif 
 
 do iz=1,nz  ! depth is defined at the middle of individual layers 
-    if (iz==1) z(iz)=dz(iz)*0.5d0  
+    if (iz==1) z(iz) = dz(iz)*0.5d0  
     if (iz/=1) z(iz) = z(iz-1)+dz(iz-1)*0.5d0 + 0.5d0*dz(iz)
 enddo
 
@@ -8922,10 +8946,6 @@ daq_all(findloc(chraq_all,'glp',dim=1)) = 0.93d-5 * sec2yr *1d-4 ! sec2yr*1d-4 c
 ! other species that does not have any diffusion coefficient in the literature: so it is assumed 
 daq_all(findloc(chraq_all,'ti',dim=1)) = 1d-2 !  m2/yr
 
-#ifdef disp_cnst
-daq_all=disp_cnst
-#endif 
-
 #ifdef AMD_benchmark
 daq_all=2.4d-9*sec2yr ! sec2yr converting m2/s to m2/yr
 #endif 
@@ -8951,13 +8971,16 @@ dgasg_all(findloc(chrgas_all,'pnh3',dim=1)) = 0.1978d0*((tc+tempk_0)/(0d0+tempk_
 dgasa_all(findloc(chrgas_all,'pn2o',dim=1)) = k_arrhenius(4.89d-02    , 15d0+tempk_0, tc+tempk_0, 20.33417d0, rg)
 dgasg_all(findloc(chrgas_all,'pn2o',dim=1)) = k_arrhenius(441.504d0   , 15d0+tempk_0, tc+tempk_0, 4.18d0    , rg)
 
-#ifdef disp_cnst
-dgasa_all=disp_cnst
-#endif 
 
 #ifdef AMD_benchmark
 dgasa_all=2.4d-9*sec2yr ! sec2yr converting m2/s to m2/yr
 dgasg_all=2.1d-5*sec2yr ! sec2yr converting m2/s to m2/yr
+#endif 
+
+#ifdef disp_cnst
+dgasa_all=disp_cnst
+dgasg_all=disp_cnst
+daq_all=disp_cnst
 #endif 
 
 kw = -14.93d0+0.04188d0*tc-0.0001974d0*tc**2d0+0.000000555d0*tc**3d0-0.0000000007581d0*tc**4d0  ! Murakami et al. 2011
@@ -14729,11 +14752,11 @@ do ispa = 1, nsp_aq_all
 			endif 
 		
 		endif 
-	endif 
-	
-enddo     
+	endif    
 
 #endif 
+	
+enddo  
 
 ios_new = f2 + 2d0*iosx*prox**(ss_add)*f_o2
 ios_new = 0.5d0*ios_new/prox**(ss_add)/f_o2
@@ -19718,6 +19741,7 @@ logical,intent(out)::ads_error
 
 ! local
 integer isps,ispa,ispa2,iter
+integer :: max_iter = 300
 
 real(kind=8),dimension(nsp_sld_all,nz)::dmsldf_dmsld,dmsldf_dpro
 real(kind=8),dimension(nsp_sld_all,nz)::gamma_loc,dgamma_dmsld,dgamma_dmsldf,dgamma_dpro  
@@ -19904,6 +19928,15 @@ do isps = 1, nsp_sld_all
         iter = iter + 1
         
         ! print *, iter,error,maxval(abs(a))
+		
+		if ( iter > max_iter ) then 
+			print*, 'iter > max_iter: gonna exit subroutine '
+			print*,'x',x
+			print*,'prox',prox
+			ads_error = .true.
+			exit
+			stop
+		endif 
     
     enddo 
     
@@ -20031,6 +20064,8 @@ do isps = 1, nsp_sld_all
 					! x_f = x_f/1.1d0
 				! endwhere
 				! cycle
+				ads_error = .true.
+				exit
 				stop
 			endif 
 			
@@ -20044,27 +20079,27 @@ do isps = 1, nsp_sld_all
 			
 			iter = iter + 1
 			
-			print *, iter, error
+			print *, iter, error, all(abs(a)<tol_dum)
 		
 		enddo 
 		print*, 'bisection successful?'
-		stop
+		! stop
 		
 		!!! end of bisection method 
 		
-        print *,'x',x
-        print *,'a',a
-        print *,'prox',prox
-		do ispa=1,nsp_aq_all
-			selectcase(trim(adjustl(chraq_all(ispa))))
-				case('na','k','mg','ca','al')
-					print*,chraq_all(ispa), maqf_loc(ispa,:)
-				case default 
-			endselect
-		enddo
-        ads_error = .true.
-        exit
-        stop
+        ! print *,'x',x
+        ! print *,'a',a
+        ! print *,'prox',prox
+		! do ispa=1,nsp_aq_all
+			! selectcase(trim(adjustl(chraq_all(ispa))))
+				! case('na','k','mg','ca','al')
+					! print*,chraq_all(ispa), maqf_loc(ispa,:)
+				! case default 
+			! endselect
+		! enddo
+        ! ads_error = .true.
+        ! exit
+        ! stop
     endif 
     
     msldf_loc(isps,:) = x
@@ -22249,11 +22284,11 @@ real(kind=8) d_tmp,caq_tmp,caq_tmp_p,caq_tmp_n,caqth_tmp,caqi_tmp,rxn_tmp,caq_tm
 real(kind=8),parameter::infinity = huge(0d0)
 real(kind=8),parameter::fact = 1d-3
 real(kind=8),parameter::dconc = 1d-14
-real(kind=8),parameter::maxfact = 1d300
+! real(kind=8),parameter::maxfact = 1d300
 ! real(kind=8),parameter::maxfact = 1d200
 ! real(kind=8),parameter::maxfact = 1d20
 ! real(kind=8),parameter::maxfact = 1.5d0
-! real(kind=8),parameter::maxfact = 100d0
+real(kind=8),parameter::maxfact = 100d0
 real(kind=8),parameter::threshold = log(maxfact)
 ! real(kind=8),parameter::threshold = 10d0
 ! real(kind=8),parameter::threshold = 3d0
@@ -22321,12 +22356,15 @@ logical,intent(in)::act_ON,IS_independent
 character(10),dimension(nsp_sld),intent(in):: precstyle 
 real(kind=8),dimension(nsp_sld,nz),intent(in):: solmod,fkin ! factor to modify solubility used only to implement rxn rate law as defined by Emmanuel and Ague, 2011
 real(kind=8) msld_seed ,fact2, fact2_save(nsp3*nz), err_2, cb_err
-real(kind=8):: cb_tol = 1d-16
+! real(kind=8):: cb_tol = 1d-16
+! real(kind=8):: cb_tol = 1d-14
+! real(kind=8):: cb_tol = 1d-10
+real(kind=8):: cb_tol = 1d-6
 ! real(kind=8):: fact_tol = 1d-2
 ! real(kind=8):: fact_tol = 1d-3
-! real(kind=8):: fact_tol = 1d-4
+real(kind=8):: fact_tol = 1d-4
 ! real(kind=8):: fact_tol = 1d-5
-real(kind=8):: fact_tol = 1d-6
+! real(kind=8):: fact_tol = 1d-6
 ! real(kind=8):: fact_tol = 1d-7
 real(kind=8):: tol_max = 1d-9
 ! real(kind=8):: fact_tol = 1d-6
@@ -23142,7 +23180,7 @@ do while (.true.)
 	if ( any(isnan(dmaqft_dmaqf)) .or. any(isnan(dmaqft_dmgas)) .or. any(isnan(dmaqft_dpro)) &
 		& .or. any(isnan(dmaqft_dios)) ) then 
 		print*, 'nan in dmaqft_dmaqf or dmaqft_dmgas or dmaqft_dpro or dmaqft_dios', &
-			& any(isnan(dmaqft_dmaqf)), any(isnan(dmaqft_dmgas)), any(isnan(dprodmgas)), any(isnan(dmaqft_dios))
+			& any(isnan(dmaqft_dmaqf)), any(isnan(dmaqft_dmgas)), any(isnan(dmaqft_dpro)), any(isnan(dmaqft_dios))
 		if ( any(isnan(dmaqft_dmaqf)) ) then 
 			print*, 'iz ','chraq_all(ispa) ','chraq_all(ispa2) '
 			do ispa=1,nsp_aq
@@ -24162,6 +24200,13 @@ do while (.true.)
             
             ! attempt to include adsorption 
             if (ads_ON) then 
+				
+				izp = iz+1
+				izn = iz-1
+				
+				if (iz==1)  izn=iz
+				if (iz==nz) izp=iz
+			
                 ! assuming sold conc. is given in mol per bul m3 
                 m_tmp       = maqx(ispa,iz) * maqfads(ispa,iz)
                 mprev_tmp   = maq(ispa,iz) * maqfads_prev(ispa,iz)
@@ -24178,14 +24223,14 @@ do while (.true.)
                 endif 
 
                 amx3(row,row) = amx3(row,row) + ( &
-                    & + 1d0*maqfads(ispa,iz) * rdt_nrm     &
-                    & + maqx(ispa,iz)*dmaqfads_dmaqf(ispa,ispa,iz) * rdt_nrm     &
+                    & + 1d0*maqfads(ispa,iz) /dt     &
+                    & + maqx(ispa,iz)*dmaqfads_dmaqf(ispa,ispa,iz) /dt     &
                     & + w_tmp *1d0*maqfads(ispa,iz) /dz(iz)    &
                     & + w_tmp *maqx(ispa,iz)*dmaqfads_dmaqf(ispa,ispa,iz) /dz(iz)    &
                     & ) 
                 
                 ymx3(row) = ymx3(row) + ( &
-                    & + ( m_tmp - mprev_tmp )* rdt_nrm &
+                    & + ( m_tmp - mprev_tmp ) /dt &
                     & - ( wp_tmp*mp_tmp - w_tmp* m_tmp)/dz(iz)  &
                     & ) 
 
@@ -24214,7 +24259,7 @@ do while (.true.)
                     if (ispa2 == ispa) cycle
 
                     amx3(row,col) = amx3(row,col) + ( &
-                        & + maqx(ispa,iz)*dmaqfads_dmaqf(ispa,ispa2,iz) * rdt_nrm     &
+                        & + maqx(ispa,iz)*dmaqfads_dmaqf(ispa,ispa2,iz) /dt     &
                         & + w_tmp *maqx(ispa,iz)*dmaqfads_dmaqf(ispa,ispa2,iz) /dz(iz)    &
                         & ) 
                     
@@ -24232,7 +24277,7 @@ do while (.true.)
                     col = nsp3*(iz-1) + nsp_sld*solve_sld + nsp_aq + ispg
 
                     amx3(row,col) = amx3(row,col) + ( &
-                        & + maqx(ispa,iz)*dmaqfads_dmgas(ispa,ispg,iz) * rdt_nrm     &
+                        & + maqx(ispa,iz)*dmaqfads_dmgas(ispa,ispg,iz) /dt     &
                         & + w_tmp *maqx(ispa,iz)*dmaqfads_dmgas(ispa,ispg,iz) /dz(iz)    &
                         & ) 
                     
@@ -24251,7 +24296,7 @@ do while (.true.)
 				col =  nsp3*(iz-1) + nsp_sld*solve_sld + nsp_aq + nsp_gas + 1
 
 				amx3(row,col) = amx3(row,col) + ( &
-					& + maqx(ispa,iz)*dmaqfads_dpro(ispa,iz) * rdt_nrm     &
+					& + maqx(ispa,iz)*dmaqfads_dpro(ispa,iz) /dt     &
 					& + w_tmp *maqx(ispa,iz)*dmaqfads_dpro(ispa,iz) /dz(iz)    &
 					& ) 
 				
@@ -24266,22 +24311,24 @@ do while (.true.)
 					
 				! IS dependence 
 				
-				col =  nsp3*(iz-1) + nsp_sld*solve_sld + nsp_aq + nsp_gas + 2
+				if (act_ON.and.IS_independent) then
+					
+					col =  nsp3*(iz-1) + nsp_sld*solve_sld + nsp_aq + nsp_gas + 2
 
-				amx3(row,col) = amx3(row,col) + ( &
-					& + maqx(ispa,iz)*dmaqfads_dios(ispa,iz) * rdt_nrm     &
-					& + w_tmp *maqx(ispa,iz)*dmaqfads_dios(ispa,iz) /dz(iz)    &
-					& ) 
+					amx3(row,col) = amx3(row,col) + ( &
+						& + maqx(ispa,iz)*dmaqfads_dios(ispa,iz) /dt     &
+						& + w_tmp *maqx(ispa,iz)*dmaqfads_dios(ispa,iz) /dz(iz)    &
+						& ) 
+					
+					if (iz/=nz) amx3(row,col+nsp3) = amx3(row,col+nsp3) + ( &
+						& + (- maqx(ispa,izp)*dmaqfads_dios(ispa,izp)*wp_tmp/dz(iz)) &
+						&    &
+						& ) 
 				
-				if (iz/=nz) amx3(row,col+nsp3) = amx3(row,col+nsp3) + ( &
-					& + (- maqx(ispa,izp)*dmaqfads_dios(ispa,izp)*wp_tmp/dz(iz)) &
-					&    &
-					& ) 
-			
-				if (iz==nz) amx3(row,col) = amx3(row,col) + ( &
-					& + (- maqx(ispa,nz)*dmaqfads_dios(ispa,nz)*wp_tmp/dz(iz)) &
-					& ) 
-				
+					if (iz==nz) amx3(row,col) = amx3(row,col) + ( &
+						& + (- maqx(ispa,nz)*dmaqfads_dios(ispa,nz)*wp_tmp/dz(iz)) &
+						& ) 
+				endif 
                 
                 if (.not.sld_enforce) then 
                     do isps = 1,nsp_sld 
@@ -24291,7 +24338,7 @@ do while (.true.)
                         col = nsp3*(iz-1)+ isps
 
                         amx3(row,col) = amx3(row,col) + ( &
-                            & + maqx(ispa,iz)*dmaqfads_dmsld(ispa,isps,iz) * rdt_nrm     &
+                            & + maqx(ispa,iz)*dmaqfads_dmsld(ispa,isps,iz) /dt     &
                             & + w_tmp *maqx(ispa,iz)*dmaqfads_dmsld(ispa,isps,iz) /dz(iz)    &
                             & ) 
                         
@@ -24352,10 +24399,12 @@ do while (.true.)
 							
 							! IS dependence 
 							
-							col = nsp3*(iz-1) + nsp_sld*solve_sld + nsp_aq + nsp_gas + 2
-                            
-                            amx3(row,col) = amx3(row,col) &
-                                & - trans(iiz,iz,isps)*maqx(ispa,iiz)*dmaqfads_sld_dios(ispa,isps,iiz) 
+							if (act_ON.and.IS_independent) then
+								col = nsp3*(iz-1) + nsp_sld*solve_sld + nsp_aq + nsp_gas + 2
+								
+								amx3(row,col) = amx3(row,col) &
+									& - trans(iiz,iz,isps)*maqx(ispa,iiz)*dmaqfads_sld_dios(ispa,isps,iiz) 
+							endif 
                             
                         enddo
                     enddo 
@@ -27281,6 +27330,11 @@ real(kind=8),dimension(nz)::caq_tmp,caq_tmp_p,caq_tmp_n
 integer i_c,i_p,i_n ! 1 -- iz, 2 -- iz + 1, 3 -- iz - 1
 data i_c,i_p,i_n/1,2,3/
 
+logical ghost_node 
+
+ghost_node = .false.
+! ghost_node = .true.
+
 faq_adv = 0d0
 dfaqadv_dmaq = 0d0
 dfaqadv_dmgas = 0d0
@@ -27299,6 +27353,7 @@ do ispa=1,nsp_aq
 	
 	caq_tmp_p(nz) = maqft(ispa,nz) ! making the flux at the bottom 0 
 	caq_tmp_n(1) = maqi(ispa) ! fixing the conc at the top  
+	if (ghost_node) caq_tmp_n(1) = 2d0*maqi(ispa) - maqft(ispa,1) ! fixing the conc at the top (using ghost grid) 
 	
 	if (aq_close) caq_tmp_n(1) = maqft(ispa,1) ! making the flux at the top 0
 	
@@ -27314,6 +27369,11 @@ do ispa=1,nsp_aq
 	dfaqadv_dios(ispa,2:nz,i_n) = dfaqadv_dios(ispa,2:nz,i_n) &
 		& + poro(2:nz)*sat(2:nz)*1d3*vn(2:nz)*( - dmaqft_dios(ispa,1:nz-1) )/dz(2:nz)
 	
+	if (ghost_node) then 
+		dfaqadv_dpro(ispa,1,i_c) = dfaqadv_dpro(ispa,1,i_c) + poro(1)*sat(1)*1d3*vn(1)*( dmaqft_dpro(ispa,1) )/dz(1)
+		dfaqadv_dios(ispa,1,i_c) = dfaqadv_dios(ispa,1,i_c) + poro(1)*sat(1)*1d3*vn(1)*( dmaqft_dios(ispa,1) )/dz(1)  
+	endif 
+	
 	if (aq_close) then 
 		! dfaqadv_dpro(ispa,1,i_c) = dfaqadv_dpro(ispa,1,i_c) - poro(1)*sat(1)*1d3*vn(1)*( dmaqft_dpro(ispa,1) )/dz(1) ! making flux 0 
 		! dfaqadv_dios(ispa,1,i_c) = dfaqadv_dios(ispa,1,i_c) - poro(1)*sat(1)*1d3*vn(1)*( dmaqft_dios(ispa,1) )/dz(1) ! making flux 0 
@@ -27326,6 +27386,10 @@ do ispa=1,nsp_aq
 		dfaqadv_dmaq(ispa,ispa2,2:nz,i_n) = dfaqadv_dmaq(ispa,ispa2,2:nz,i_n) & 
 			& + poro(2:nz)*sat(2:nz)*1d3*vn(2:nz)*( - dmaqft_dmaqf(ispa,ispa2,1:nz-1) )/dz(2:nz)
 		
+		if (ghost_node) then 
+			dfaqadv_dmaq(ispa,ispa2,1,i_c) = dfaqadv_dmaq(ispa,ispa2,1,i_c) + poro(1)*sat(1)*1d3*vn(1)*( dmaqft_dmaqf(ispa,ispa2,1) )/dz(1)  
+		endif 
+		
 		if (aq_close) then 
 			! dfaqadv_dmaq(ispa,ispa2,1,i_c) = dfaqadv_dmaq(ispa,ispa2,1,i_c) - poro(1)*sat(1)*1d3*vn(1)*( dmaqft_dmaqf(ispa,ispa2,1) )/dz(1) ! making flux 0 
 			dfaqadv_dmaq(ispa,ispa2,1,i_c) = 0d0 ! making flux 0 
@@ -27336,6 +27400,10 @@ do ispa=1,nsp_aq
 		dfaqadv_dmgas(ispa,ispg,:,i_c) = dfaqadv_dmgas(ispa,ispg,:,i_c) + poro*sat*1d3*vn*( dmaqft_dmgas(ispa,ispg,:) )/dz
 		dfaqadv_dmgas(ispa,ispg,2:nz,i_n) = dfaqadv_dmgas(ispa,ispg,2:nz,i_n) & 
 			& + poro(2:nz)*sat(2:nz)*1d3*vn(2:nz)*( - dmaqft_dmgas(ispa,ispg,1:nz-1) )/dz(2:nz)
+		
+		if (ghost_node) then 
+			dfaqadv_dmgas(ispa,ispg,1,i_c) = dfaqadv_dmgas(ispa,ispg,1,i_c) + poro(1)*sat(1)*1d3*vn(1)*( dmaqft_dmgas(ispa,ispg,1) )/dz(1) 
+		endif 
 		
 		if (aq_close) then 
 			! dfaqadv_dmgas(ispa,ispg,1,i_c) = dfaqadv_dmgas(ispa,ispg,1,i_c) - poro(1)*sat(1)*1d3*vn(1)*( dmaqft_dmgas(ispa,ispg,1) )/dz(1) ! making flux 0 
@@ -27407,6 +27475,11 @@ real(kind=8),dimension(nz)::caq_tmp,caq_tmp_p,caq_tmp_n,dz_p,dz_n,edif_p,edif_n,
 integer i_c,i_p,i_n ! 1 -- iz, 2 -- iz + 1, 3 -- iz - 1
 data i_c,i_p,i_n/1,2,3/
 
+logical ghost_node
+
+! ghost_node = .true.
+ghost_node = .false.
+
 faq_dif = 0d0
 dfaqdif_dmaq = 0d0
 dfaqdif_dmgas = 0d0
@@ -27449,6 +27522,8 @@ do ispa=1,nsp_aq
 	caq_tmp_p(nz) = maqft(ispa,nz) ! making the flux at the bottom 0 
 	caq_tmp_n(1) = maqi(ispa) ! fixing the conc at the top  
 	
+	if (ghost_node) caq_tmp_n(1) = 2d0*maqi(ispa) - maqft(ispa,1)
+	
 	if (aq_diff_close) caq_tmp_n(1) = maqft(ispa,1) ! making the flux at the top 0
 	
 	! --- first consider only flux coming down 
@@ -27462,6 +27537,11 @@ do ispa=1,nsp_aq
 	dfaqdif_dios(ispa,:,i_c) = dfaqdif_dios(ispa,:,i_c) + edif_n*( dmaqft_dios(ispa,:) )/dz
 	dfaqdif_dios(ispa,2:nz,i_n) = dfaqdif_dios(ispa,2:nz,i_n) + edif_n(2:nz)*( - dmaqft_dios(ispa,1:nz-1) )/dz(2:nz)
 	
+	if (ghost_node) then 
+		dfaqdif_dpro(ispa,1,i_c) = dfaqdif_dpro(ispa,1,i_c) + edif_n(1)*( dmaqft_dpro(ispa,1) )/dz(1)  
+		dfaqdif_dios(ispa,1,i_c) = dfaqdif_dios(ispa,1,i_c) + edif_n(1)*( dmaqft_dios(ispa,1) )/dz(1)  
+	endif 
+	
 	if (aq_diff_close) then 
 		! dfaqdif_dpro(ispa,1,i_c) = dfaqdif_dpro(ispa,1,i_c) - edif_n(1)*( dmaqft_dpro(ispa,1) )/dz(1) ! making flux 0 
 		! dfaqdif_dios(ispa,1,i_c) = dfaqdif_dios(ispa,1,i_c) - edif_n(1)*( dmaqft_dios(ispa,1) )/dz(1) ! making flux 0 
@@ -27474,6 +27554,10 @@ do ispa=1,nsp_aq
 		dfaqdif_dmaq(ispa,ispa2,2:nz,i_n) = dfaqdif_dmaq(ispa,ispa2,2:nz,i_n) &
 			& + edif_n(2:nz)*( - dmaqft_dmaqf(ispa,ispa2,1:nz-1) )/dz(2:nz)
 		
+		if (ghost_node) then 
+			dfaqdif_dmaq(ispa,ispa2,1,i_c) = dfaqdif_dmaq(ispa,ispa2,1,i_c) + edif_n(1)*( dmaqft_dmaqf(ispa,ispa2,1) )/dz(1)  
+		endif 
+		
 		if (aq_diff_close) then 
 			! dfaqdif_dmaq(ispa,ispa2,1,i_c) = dfaqdif_dmaq(ispa,ispa2,1,i_c) - edif_n(1)*( dmaqft_dmaqf(ispa,ispa2,1) )/dz(1) ! making flux 0 
 			dfaqdif_dmaq(ispa,ispa2,1,i_c) = 0d0 ! making flux 0 
@@ -27484,6 +27568,10 @@ do ispa=1,nsp_aq
 		dfaqdif_dmgas(ispa,ispg,:,i_c) = dfaqdif_dmgas(ispa,ispg,:,i_c) + edif_n*( dmaqft_dmgas(ispa,ispg,:) )/dz
 		dfaqdif_dmgas(ispa,ispg,2:nz,i_n) = dfaqdif_dmgas(ispa,ispg,2:nz,i_n) &
 			& + edif_n(2:nz)*( - dmaqft_dmgas(ispa,ispg,1:nz-1) )/dz(2:nz)
+			
+		if (ghost_node) then 
+			dfaqdif_dmgas(ispa,ispg,1,i_c) = dfaqdif_dmgas(ispa,ispg,1,i_c) + edif_n(1)*( dmaqft_dmgas(ispa,ispg,1) )/dz(1) 
+		endif 
 		
 		if (aq_diff_close) then 
 			! dfaqdif_dmgas(ispa,ispg,1,i_c) = dfaqdif_dmgas(ispa,ispg,1,i_c) - edif_n(1)*( dmaqft_dmgas(ispa,ispg,1) )/dz(1) ! making flux 0 
@@ -27605,11 +27693,16 @@ real(kind=8),dimension(nz)::caq_tmp,caq_tmp_p,caq_tmp_n,dcaq_dpro,dcaq_dios,dcaq
 integer i_c,i_p,i_n ! 1 -- iz, 2 -- iz + 1, 3 -- iz - 1
 data i_c,i_p,i_n/1,2,3/
 
+logical ghost_node
+
 fgas_adv = 0d0
 dfgasadv_dmaq = 0d0
 dfgasadv_dmgas = 0d0
 dfgasadv_dpro = 0d0
 dfgasadv_dios = 0d0
+
+ghost_node = .false.
+! ghost_node = .true.
 
 ! & +poro(iz)*sat(iz)*vn(iz)*1d3*(khgasx(ispg,iz)*mgasx(ispg,iz)-khco2n_tmp*pco2n_tmp)/dz(iz)*dt_nrm &
 ! & +poro(iz)*sat(iz)*vp(iz)*1d3 &
@@ -27636,6 +27729,7 @@ do ispg=1,nsp_gas
 	
 	caq_tmp_p(nz) = caq_tmp(nz) ! making the flux at the bottom 0 
 	caq_tmp_n(1) = mgasfti(ispg) ! fixing the conc at the top  
+	if (ghost_node) caq_tmp_n(1) = 2d0*mgasfti(ispg) - caq_tmp(1)
 	
 	if (gas_close) caq_tmp_n(1) = caq_tmp(1) ! making the flux at the top 0
 	
@@ -27654,6 +27748,11 @@ do ispg=1,nsp_gas
 	dfgasadv_dios(ispg,2:nz,i_n) = dfgasadv_dios(ispg,2:nz,i_n) &
 		& + poro(2:nz)*sat(2:nz)*1d3*vn(2:nz)*( - dcaq_dios(1:nz-1) )/dz(2:nz)
 	
+	if (ghost_node) then 
+		dfgasadv_dpro(ispg,1,i_c) = dfgasadv_dpro(ispg,1,i_c) + poro(1)*sat(1)*1d3*vn(1)*( dcaq_dpro(1) )/dz(1)  
+		dfgasadv_dios(ispg,1,i_c) = dfgasadv_dios(ispg,1,i_c) + poro(1)*sat(1)*1d3*vn(1)*( dcaq_dios(1) )/dz(1) 
+	endif 
+	
 	if (gas_close) then 
 		! dfgasadv_dpro(ispg,1,i_c) = dfgasadv_dpro(ispg,1,i_c) - poro(1)*sat(1)*1d3*vn(1)*( dcaq_dpro(1) )/dz(1) ! making flux 0 
 		! dfgasadv_dios(ispg,1,i_c) = dfgasadv_dios(ispg,1,i_c) - poro(1)*sat(1)*1d3*vn(1)*( dcaq_dios(1) )/dz(1) ! making flux 0 
@@ -27667,6 +27766,10 @@ do ispg=1,nsp_gas
 		dfgasadv_dmaq(ispg,ispa,2:nz,i_n) = dfgasadv_dmaq(ispg,ispa,2:nz,i_n) & 
 			& + poro(2:nz)*sat(2:nz)*1d3*vn(2:nz)*( - dcaq_dmaq(1:nz-1) )/dz(2:nz)
 		
+		if (ghost_node) then 
+			dfgasadv_dmaq(ispg,ispa,1,i_c) = dfgasadv_dmaq(ispg,ispa,1,i_c) + poro(1)*sat(1)*1d3*vn(1)*( dcaq_dmaq(1) )/dz(1) 
+		endif 
+		
 		if (gas_close) then 
 			! dfgasadv_dmaq(ispg,ispa,1,i_c) = dfgasadv_dmaq(ispg,ispa,1,i_c) - poro(1)*sat(1)*1d3*vn(1)*( dcaq_dmaq(1) )/dz(1) ! making flux 0 
 			dfgasadv_dmaq(ispg,ispa,1,i_c) = 0d0 ! making flux 0 
@@ -27678,6 +27781,10 @@ do ispg=1,nsp_gas
 		dfgasadv_dmgas(ispg,ispg2,:,i_c) = dfgasadv_dmgas(ispg,ispg2,:,i_c) + poro*sat*1d3*vn*( dcaq_dmgas(:) )/dz
 		dfgasadv_dmgas(ispg,ispg2,2:nz,i_n) = dfgasadv_dmgas(ispg,ispg2,2:nz,i_n) & 
 			& + poro(2:nz)*sat(2:nz)*1d3*vn(2:nz)*( - dcaq_dmgas(1:nz-1) )/dz(2:nz)
+		
+		if (ghost_node) then 
+			dfgasadv_dmgas(ispg,ispg2,1,i_c) = dfgasadv_dmgas(ispg,ispg2,1,i_c) + poro(1)*sat(1)*1d3*vn(1)*( dcaq_dmgas(1) )/dz(1) 
+		endif 
 		
 		if (gas_close) then 
 			! dfgasadv_dmgas(ispg,ispg2,1,i_c) = dfgasadv_dmgas(ispg,ispg2,1,i_c) - poro(1)*sat(1)*1d3*vn(1)*( dcaq_dmgas(1) )/dz(1) ! making flux 0 
@@ -27751,6 +27858,10 @@ real(kind=8),dimension(nz)::caq_tmp,caq_tmp_p,caq_tmp_n,dz_p,dz_n,edif_p,edif_n,
 integer i_c,i_p,i_n ! 1 -- iz, 2 -- iz + 1, 3 -- iz - 1
 data i_c,i_p,i_n/1,2,3/
 
+logical ghost_node
+
+! ghost_node = .true.
+ghost_node = .false.
 
 ! dgas(ispg,:)	= ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*(tora*dgasa(ispg)+disp)  !! effective gas + aq diffusion
 ! dgasi(ispg)		= ucv*1d3*dgasg(ispg)   !! gas diffusion alone in air 
@@ -27829,6 +27940,8 @@ do ispg=1,nsp_gas
 	caq_tmp_p(nz) = caq_tmp(nz) ! making the flux at the bottom 0 
 	caq_tmp_n(1) = mgasfti(ispg) ! fixing the conc at the top  
 	
+	if (ghost_node) caq_tmp_n(1) = 2d0*mgasfti(ispg) - mgasft(ispg,1)
+	
 	if (aq_diff_close) caq_tmp_n(1) = caq_tmp(1) ! making the flux at the top 0
 	
 	dcaq_dpro = dmgasft_dpro(ispg,:)
@@ -27845,6 +27958,11 @@ do ispg=1,nsp_gas
 	dfgasadif_dios(ispg,:,i_c) = dfgasadif_dios(ispg,:,i_c) + edif_n*( dcaq_dios(:) )/dz
 	dfgasadif_dios(ispg,2:nz,i_n) = dfgasadif_dios(ispg,2:nz,i_n) + edif_n(2:nz)*( - dcaq_dios(1:nz-1) )/dz(2:nz)
 	
+	if (ghost_node) then 
+		dfgasadif_dpro(ispg,1,i_c) = dfgasadif_dpro(ispg,1,i_c) + edif_n(1)*( dcaq_dpro(1) )/dz(1)  
+		dfgasadif_dios(ispg,1,i_c) = dfgasadif_dios(ispg,1,i_c) + edif_n(1)*( dcaq_dios(1) )/dz(1)  
+	endif 
+	
 	if (aq_diff_close) then 
 		! dfgasadif_dpro(ispg,1,i_c) = dfgasadif_dpro(ispg,1,i_c) - edif_n(1)*( dcaq_dpro(1) )/dz(1) ! making flux 0 
 		! dfgasadif_dios(ispg,1,i_c) = dfgasadif_dios(ispg,1,i_c) - edif_n(1)*( dcaq_dios(1) )/dz(1) ! making flux 0 
@@ -27858,6 +27976,10 @@ do ispg=1,nsp_gas
 		dfgasadif_dmaq(ispg,ispa,2:nz,i_n) = dfgasadif_dmaq(ispg,ispa,2:nz,i_n) &
 			& + edif_n(2:nz)*( - dcaq_dmaq(1:nz-1) )/dz(2:nz)
 		
+		if (ghost_node) then 
+			dfgasadif_dmaq(ispg,ispa,1,i_c) = dfgasadif_dmaq(ispg,ispa,1,i_c) + edif_n(1)*( dcaq_dmaq(1) )/dz(1) 
+		endif 
+		
 		if (aq_diff_close) then 
 			! dfgasadif_dmaq(ispg,ispa,1,i_c) = dfgasadif_dmaq(ispg,ispa,1,i_c) - edif_n(1)*( dcaq_dmaq(1) )/dz(1) ! making flux 0 
 			dfgasadif_dmaq(ispg,ispa,1,i_c) = 0d0 ! making flux 0 
@@ -27869,6 +27991,10 @@ do ispg=1,nsp_gas
 		dfgasadif_dmgas(ispg,ispg2,:,i_c) = dfgasadif_dmgas(ispg,ispg2,:,i_c) + edif_n*( dcaq_dmgas(:) )/dz
 		dfgasadif_dmgas(ispg,ispg2,2:nz,i_n) = dfgasadif_dmgas(ispg,ispg2,2:nz,i_n) &
 			& + edif_n(2:nz)*( - dcaq_dmgas(1:nz-1) )/dz(2:nz)
+		
+		if (ghost_node) then 
+			dfgasadif_dmgas(ispg,ispg2,1,i_c) = dfgasadif_dmgas(ispg,ispg2,1,i_c) + edif_n(1)*( dcaq_dmgas(1) )/dz(1) 
+		endif 
 		
 		if (aq_diff_close) then 
 			! dfgasadif_dmgas(ispg,ispg2,1,i_c) = dfgasadif_dmgas(ispg,ispg2,1,i_c) - edif_n(1)*( dcaq_dmgas(1) )/dz(1) ! making flux 0 
@@ -27937,6 +28063,10 @@ real(kind=8),dimension(nz)::pgas_tmp,pgas_tmp_p,pgas_tmp_n,dz_p,dz_n,edif_p,edif
 integer i_c,i_p,i_n ! 1 -- iz, 2 -- iz + 1, 3 -- iz - 1
 data i_c,i_p,i_n/1,2,3/
 
+logical ghost_node
+
+! ghost_node = .true.
+ghost_node = .false.
 
 ! dgas(ispg,:)	= ucv*poro*(1.0d0-sat)*1d3*torg*dgasg(ispg)+poro*sat*khgasx(ispg,:)*1d3*(tora*dgasa(ispg)+disp)  !! effective gas + aq diffusion
 ! dgasi(ispg)		= ucv*1d3*dgasg(ispg)   !! gas diffusion alone in air 
@@ -28015,6 +28145,8 @@ do ispg=1,nsp_gas
 	pgas_tmp_p(nz) = pgas_tmp(nz) ! making the flux at the bottom 0 
 	pgas_tmp_n(1) = mgasi(ispg) ! fixing the conc at the top  
 	
+	if (ghost_node) pgas_tmp_n(1) = 2d0*mgasi(ispg) - pgas_tmp(1)
+	
 	if (gas_close) pgas_tmp_n(1) = pgas_tmp(1) ! making the flux at the top 0
 	
 	dpgas_dpro = 0d0
@@ -28030,6 +28162,10 @@ do ispg=1,nsp_gas
 	dfgasgdif_dmgas(ispg,ispg,:,i_c) = dfgasgdif_dmgas(ispg,ispg,:,i_c) + edif_n*( dpgas_dmgas(:) )/dz
 	dfgasgdif_dmgas(ispg,ispg,2:nz,i_n) = dfgasgdif_dmgas(ispg,ispg,2:nz,i_n) &
 		& + edif_n(2:nz)*( - dpgas_dmgas(1:nz-1) )/dz(2:nz)
+	
+	if (ghost_node) then 
+		dfgasgdif_dmgas(ispg,ispg,1,i_c) = dfgasgdif_dmgas(ispg,ispg,1,i_c) + edif_n(1)*( dpgas_dmgas(1) )/dz(1) 
+	endif 
 	
 	if (gas_close) then 
 		! dfgasgdif_dmgas(ispg,ispg,1,i_c) = dfgasgdif_dmgas(ispg,ispg,1,i_c) - edif_n(1)*( dpgas_dmgas(1) )/dz(1) ! making flux 0 
@@ -32260,7 +32396,7 @@ character(10),intent(in)::scheme
 
 real(kind=8),intent(out)::gamma(nz),dgamma_dis(nz)
 
-real(kind=8) epsiron,A,B,iosx_dum(nz),a_i,b_i,charge,d
+real(kind=8) epsiron,A,B,iosx_dum(nz),a_i,b_i,charge,d,rho
 logical cap_ios
 
 charge = real(charge_int,kind=8)
@@ -32277,8 +32413,12 @@ if (cap_ios) then
 endif 
 
 epsiron = 87.74d0 - 0.40008d0*tc+0.0009398d0*tc**2d0 - 0.00000141d0*tc**3d0 ! dielectric constant  Malmberg & Maryott 1956
-A = 1.824d6*( epsiron*(tc + 273.15d0 ) )**(-3d0/2d0) ! (parameter A) 
-B = 50.3d0*( epsiron*(tc + 273.15d0 ) )**(-1d0/2d0)  ! (parameter B)
+rho = rho_lqd_water(tc)
+! A = 1.824d6*( epsiron*(tc + 273.15d0 ) )**(-3d0/2d0) ! (parameter A) 
+! B = 50.3d0*( epsiron*(tc + 273.15d0 ) )**(-1d0/2d0)  ! (parameter B)
+! from Truesdell and Jones 1976
+A = 1.82483d6*rho**(1d0/2d0)*( epsiron*(tc + 273.15d0 ) )**(-3d0/2d0) ! (parameter A) 
+B = 50.2916d0*rho**(1d0/2d0)*( epsiron*(tc + 273.15d0 ) )**(-1d0/2d0) ! (parameter B)
 ! the above 2 equations need to be checked.. 
 ! they seems to be okay giving 0.511331034, and 0.329200453 of A and B, respectively with epsiron = 78.30334375 at 25 oC 
 
@@ -33254,6 +33394,46 @@ hp_dummy = -( 1d0/sat_dummy**(1d0/emm_dummy) - 1d0 ) ** (1d0/enn_dummy) / alpha_
 theta2hp = hp_dummy
 
 endfunction theta2hp
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+!ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+function rho_lqd_water(tc)
+implicit none 
+
+real(kind=8) rho_lqd_water,tc
+real(kind=8) b(6),e(6),rho_c,T_c,T,theta,rho_r
+
+! from Wagnera and Pruß (2001) Eq. (2.6)
+    
+b(1)  = 1.99274064d0
+b(2)  = 1.09965342d0
+b(3)  = -0.510839303d0
+b(4)  = -1.75493479d0
+b(5)  = -45.5170352d0
+b(6)  = -6.74694450d5 
+
+e(1)  = 1d0/3d0
+e(2)  = 2d0/3d0
+e(3)  = 5d0/3d0
+e(4)  = 16d0/3d0
+e(5)  = 43d0/3d0
+e(6)  = 110d0/3d0
+
+rho_c   = 322d0 ! kg/m3
+T_c     = 647.096d0 ! K 
+
+T   = 273.15d0 + tc ! K
+
+theta   = 1d0 - T/T_c
+
+rho_r = 1d0 + sum( b*theta**e )
+
+rho_lqd_water = rho_c*rho_r ! kg/m3
+
+rho_lqd_water = rho_lqd_water/1d3 ! g/cm3
+
+
+endfunction rho_lqd_water
 !ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 #ifdef no_intr_findloc
