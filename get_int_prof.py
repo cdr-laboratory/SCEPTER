@@ -11,25 +11,40 @@ import print_control
 # debug_printout = True
 debug_printout = print_control.get_global_display()
  
-def phint(dep,phdep,ztot):
+def phint(dep,phdep,ztot,**kwargs):
+    
+    dep_sample_top      = kwargs.get('dep_sample_top',      0)
+    
     if ztot>dep[-1]: ztot=dep[-1]
-    func = interpolate.interp1d(dep,10.0**-phdep)
-    result = integrate.quad(lambda x: func(x), dep[0], ztot)
-    a = -np.log10( result[0]/(ztot-dep[0]))
+    func = interpolate.interp1d(dep,10.0**-phdep, fill_value="extrapolate")
+    if dep_sample_top==0:
+        result = integrate.quad(lambda x: func(x), dep[0], ztot)
+        a = -np.log10( result[0]/(ztot-dep[0]))
+    else:
+        result = integrate.quad(lambda x: func(x), dep_sample_top, ztot)
+        a = -np.log10( result[0]/(ztot-dep_sample_top))
     
     return a
 
-def linave(dep,var,ztrgt):
+def linave(dep,var,ztrgt,**kwargs):
+    
+    dep_sample_top      = kwargs.get('dep_sample_top',      0)
+    
     if ztrgt>dep[-1]: ztrgt=dep[-1]
-    func = interpolate.interp1d(dep,var)
-    result = integrate.quad(lambda x: func(x), dep[0], ztrgt)
-    a = ( result[0]/(ztrgt-dep[0]))
+    func = interpolate.interp1d(dep,var, fill_value="extrapolate")
+    if dep_sample_top==0:
+        result = integrate.quad(lambda x: func(x), dep[0], ztrgt)
+        a = ( result[0]/(ztrgt-dep[0]))
+    else:
+        result = integrate.quad(lambda x: func(x), dep_sample_top, ztrgt)
+        a = ( result[0]/(ztrgt-dep_sample_top))
     
     return a
 
 def get_ph_int_site(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
+    dep_sample_top      = kwargs.get('dep_sample_top',      0)
 
     infile = outdir+runname+'/prof/prof_aq(tot)-{:03d}.txt'.format(i)
     data = np.loadtxt(infile,skiprows=1)
@@ -42,7 +57,7 @@ def get_ph_int_site(outdir,runname,dep_sample,i,**kwargs):
         idep = np.argmin(np.abs(dep-dep_sample))
         phintval = pH_dep[idep]
     else:
-        phintval =  phint(dep,pH_dep, dep_sample)
+        phintval =  phint(dep,pH_dep, dep_sample, dep_sample_top = dep_sample_top)
 
     if debug_printout: print(phintval)
     
@@ -100,6 +115,7 @@ def get_ac_int_site_v2(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
     simple_average      = kwargs.get('simple_average',   False)
+    dep_sample_top      = kwargs.get('dep_sample_top',   0)
 
     infile  = outdir+runname+'/prof/prof_aq(ads%cec)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
@@ -114,6 +130,7 @@ def get_ac_int_site_v2(outdir,runname,dep_sample,i,**kwargs):
     dep = data[:,0]
     
     idep = np.argmin(np.abs(dep-dep_sample))
+    idep_top = np.argmin(np.abs(dep-dep_sample_top))
     
     if no_depth_integral:
         pH_dep = 0
@@ -137,9 +154,9 @@ def get_ac_int_site_v2(outdir,runname,dep_sample,i,**kwargs):
             pH_dep  += data[:,isp]
                 
         if simple_average:
-            phintval = np.average( pH_dep[:idep+1] )  
+            phintval = np.average( pH_dep[idep_top:idep+1] )  
         else:
-            phintval    =  linave(dep,pH_dep, dep_sample)
+            phintval    =  linave(dep,pH_dep, dep_sample, dep_sample_top=dep_sample_top)
 
     if debug_printout: print(phintval)
     
@@ -250,6 +267,7 @@ def get_spex_int_site(outdir,runname,dep_sample,sp):
 def get_rhobulk_int_site(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
+    dep_sample_top      = kwargs.get('dep_sample_top',      0)
 
     infile  = outdir+runname+'/prof/bsd-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
@@ -276,7 +294,7 @@ def get_rhobulk_int_site(outdir,runname,dep_sample,i,**kwargs):
         try:
             isp     = sp_list.index('dens[g/cm3]') 
             pH_dep  += data[:,isp]
-            phintval =  linave(dep,pH_dep, dep_sample)
+            phintval =  linave(dep,pH_dep, dep_sample, dep_sample_top=dep_sample_top, )
         except:
             print('not exist dens[g/cm3]')
             phintval = 0
@@ -288,6 +306,7 @@ def get_rhobulk_int_site(outdir,runname,dep_sample,i,**kwargs):
 def get_sldwt_int_site(outdir,runname,dep_sample,sps,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
+    dep_sample_top      = kwargs.get('dep_sample_top',      0)
 
     infile  = outdir+runname+'/prof/prof_sld(wt%)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
@@ -322,7 +341,7 @@ def get_sldwt_int_site(outdir,runname,dep_sample,sps,i,**kwargs):
             
             pH_dep  += data[:,isp]
         
-        phintval =  linave(dep,pH_dep, dep_sample)
+        phintval =  linave(dep,pH_dep, dep_sample, dep_sample_top=dep_sample_top)
 
     if debug_printout: print(phintval)
     
@@ -612,6 +631,7 @@ def get_DIC_save_get_site_NEW(outdir,runname,dep_sample,i_save):
 def get_ave_DIC_save(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
+    dep_sample_top      = kwargs.get('dep_sample_top',      0)
 
     infile  = outdir+runname+'/prof/charge_balance-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
@@ -631,6 +651,11 @@ def get_ave_DIC_save(outdir,runname,dep_sample,i,**kwargs):
     
     if no_depth_integral: idep = np.argmin(np.abs(deps-dep_sample))
     
+    idep_top = 0 
+    if dep_sample_top!=0:
+        idep_top = np.argmin(np.abs(deps-dep_sample))
+        
+        
     dep = deps[idep]
     
     with open(infile) as f:
@@ -655,6 +680,10 @@ def get_ave_DIC_save(outdir,runname,dep_sample,i,**kwargs):
     
     co2sp_list = [
         'hco3','co3','mg(co3)','mg(hco3)','na(co3)','na(hco3)','ca(co3)','ca(hco3)','fe2(co3)','fe2(hco3)'
+        ]
+        
+    co2sp_list = [
+        'hco3','co3','mgco3','mghco3','naco3','nahco3','caco3','cahco3','fe2co3','fe2hco3'
         ]
     
     hco3 = data[:,sp_list.index('hco3')]
@@ -694,8 +723,8 @@ def get_ave_DIC_save(outdir,runname,dep_sample,i,**kwargs):
             )
     else:
         DIC_btm = (
-            np.average( DIC[:idep+1]*poro[:idep+1]*sat[:idep+1]*1e3 )  # mol/ soil m3
-            /np.average( (1 - poro[:idep+1]) )  # mol/ solid m3
+            np.average( DIC[idep_top:idep+1]*poro[idep_top:idep+1]*sat[idep_top:idep+1]*1e3 )  # mol/ soil m3
+            /np.average( (1 - poro[idep_top:idep+1]) )  # mol/ solid m3
             )
     
     np.savetxt(outdir+runname+'/prof/prof_aq-DIC-{:03d}.txt'.format(i),np.transpose(np.array([list(deps),list(DIC)])))
@@ -1147,6 +1176,7 @@ def get_aqratio_site(outdir,runname,dep_sample,i,sp):
 def get_totsave_site(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
+    dep_sample_top      = kwargs.get('dep_sample_top',      0)
     
     infile  = outdir+runname+'/prof/prof_ex(tot)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
@@ -1164,6 +1194,10 @@ def get_totsave_site(outdir,runname,dep_sample,i,**kwargs):
     for dep in deps:
         if dep_sample>=dep:
             idep = deps_list.index(dep)
+    
+    idep_top = 0 
+    if dep_sample_top!=0:
+        idep_top = np.argmin(np.abs(deps-dep_sample_top))
     
     if no_depth_integral: idep = np.argmin(np.abs(deps-dep_sample))
     
@@ -1200,7 +1234,7 @@ def get_totsave_site(outdir,runname,dep_sample,i,**kwargs):
                 )  
         else:
             btmconcs.append( 
-                np.average( data[:idep+1,isp] ) # mol/ soil m3
+                np.average( data[idep_top:idep+1,isp] ) # mol/ soil m3
                 /np.average( (1 - poro[:idep+1]) )   # mol/ solid m3
                 )  
     
@@ -1263,6 +1297,7 @@ def get_totsave_site_v2(outdir,runname,dep_sample):
 def get_adssave_site(outdir,runname,dep_sample,i,**kwargs):
 
     no_depth_integral   = kwargs.get('no_depth_integral',   False)
+    dep_sample_top      = kwargs.get('dep_sample_top',      0)
     
     infile  = outdir+runname+'/prof/prof_aq(ads)-{:03d}.txt'.format(i)
     data    = np.loadtxt(infile,skiprows=1)
@@ -1283,6 +1318,10 @@ def get_adssave_site(outdir,runname,dep_sample,i,**kwargs):
     
     if no_depth_integral: idep = np.argmin(np.abs(deps-dep_sample))
     
+    idep_top = 0 
+    if dep_sample_top!=0:
+        idep_top = np.argmin(np.abs(deps-dep_sample_top))
+        
     dep = deps[idep]
     
     with open(infile) as f:
@@ -1319,9 +1358,9 @@ def get_adssave_site(outdir,runname,dep_sample,i,**kwargs):
         else:
             btmconcs.append( 
                 np.average( 
-                    data[:idep+1,isp]  # cmol/kg(solid)
+                    data[idep_top:idep+1,isp]  # cmol/kg(solid)
                     * 1e-2/1e3  # now mok/g(solid)
-                    * dense[:idep+1]    # mol/ solid cm3
+                    * dense[idep_top:idep+1]    # mol/ solid cm3
                     * 1./1e-6
                     )  
                 )  
