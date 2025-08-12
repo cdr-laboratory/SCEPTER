@@ -19,7 +19,7 @@ mpl = multiprocessing.log_to_stderr()
 # mpl.setLevel(logging.INFO)
 mpl.setLevel(multiprocessing.SUBDEBUG)
 
-def get_input(outdir,runtype,nz,src_code_id,act_ON_in,allow_prec,scheme_act,dt_nonfix_on,ver): 
+def get_input(outdir,runtype,nz,scheme_act,ver): 
     
     true = 'true'
     false = 'false'
@@ -42,10 +42,7 @@ def get_input(outdir,runtype,nz,src_code_id,act_ON_in,allow_prec,scheme_act,dt_n
     
     # frame.in 
     ztot=5
-    # nz=100
-    # nz=30
     ttot=10
-    # ttot=1
     temp=25
     fdust=0
     fdust2=0
@@ -57,17 +54,11 @@ def get_input(outdir,runtype,nz,src_code_id,act_ON_in,allow_prec,scheme_act,dt_n
     zwater=2.5
     zdust=0.25
     w=0
-    # q=0.3*0.5
-    # q=0.3*0.739109821
-    # q=0.003
     q=0.3 # restart 
     # q=0 # initial/boundary condition test
     p=1e-5
-    # p=1e-4
     nstep=10
-    # runname_restart='self'
-    runname_restart='/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/AMD/test_init_100_SAVE_v2'
-    # runname_restart='/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/AMD/test_init_100_SAVE'
+    runname_restart='self'
     
     # switches.in 
     w_scheme=0
@@ -81,8 +72,7 @@ def get_input(outdir,runtype,nz,src_code_id,act_ON_in,allow_prec,scheme_act,dt_n
     restart=false 
     # restart=true # restart exp
     rough=true
-    act_ON=false 
-    if act_ON_in: act_ON=true 
+    act_ON=true 
     # dt_fix=false
     dt_fix=true
     # cec_on=true
@@ -102,25 +92,9 @@ def get_input(outdir,runtype,nz,src_code_id,act_ON_in,allow_prec,scheme_act,dt_n
     season=false
     
     # tracers 
-    # sld_list= ['inrt','py',]
-    # sld_list= ['inrt','py','gps']
-    # sld_list= ['inrt','py','gps','jrs']
-    # sld_list= ['inrt','py','gps','jrs','amfe3']
-    # sld_list= ['inrt','py','gps','jrs','amfe3','cc','gb']
     sld_list= ['inrt','py','cc','gb','gps','amfe3','jrs']
-    # sld_list= ['inrt','py','cc','gb','gps',]
-    # sld_list= ['inrt','py','cc','gps',]
-    # sld_list= ['inrt','py','cc','gb',]
-    # sld_list= ['inrt','py','cc']
-    # sld_list= ['inrt','py','cc','gb']
-    # aq_list= ['fe2','fe3','so4','ca','k','al','cl','si',]
-    # aq_list= ['fe2','fe3','so4',]
-    # aq_list= ['fe2','so4',]
     aq_list= ['fe2','so4','ca','k','al','cl','si',]
-    # aq_list= ['fe2','hs',]
-    # gas_list= ['po2']
     gas_list= ['po2','pco2']
-    # exrxn_list= ['fe2o2']
     exrxn_list= []
     
     # boundary values for tracers
@@ -154,116 +128,50 @@ def get_input(outdir,runtype,nz,src_code_id,act_ON_in,allow_prec,scheme_act,dt_n
     cc_wt_frc = cc_mol_m3_0*mwt_cc/sum_sld_wt
     
     wt_frc_2nds = 0
-    # wt_frc_2nds = 1e-10
     
-    # pr_list=[('inrt',0.998*2.59407E+00/(0.002*5.01115E+00+0.998*2.59407E+00)),('py',0.002*5.01115E+00/(0.002*5.01115E+00+0.998*2.59407E+00))]
-    # pr_list=[('inrt',inrt_wt_frc),('py',py_wt_frc)]
-    # pr_list=[('inrt',inrt_wt_frc),('py',py_wt_frc),('gps',0),('jrs',0),('amfe3',0),('cc',cc_wt_frc),('gb',gb_wt_frc)]
-    # pr_list=[('inrt',inrt_wt_frc),('py',py_wt_frc),('gps',1e-20),('jrs',1e-20),('amfe3',1e-20),('cc',cc_wt_frc),('gb',gb_wt_frc)]
-    # pr_list=[('inrt',inrt_wt_frc),('py',py_wt_frc),('gps',1e-10),('jrs',1e-10),('amfe3',1e-10),('cc',cc_wt_frc),('gb',gb_wt_frc)]
     pr_list=[
         ('inrt',inrt_wt_frc),('py',py_wt_frc),('cc',cc_wt_frc),('gb',gb_wt_frc),
         ('gps',wt_frc_2nds),('jrs',wt_frc_2nds),('amfe3',wt_frc_2nds),
     ]
     
     
-    rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('fe3',5e-7),('so4',6.2e-3),]
-    rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('so4',6.2e-3),]
-    rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('so4',6.2e-3),('fe2',1e-20),]
-    rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('so4',6.2e-3),('fe2',1e-40),]
-    # rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('so4',.2e-3),('fe2',1e-20),]
-    # rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('so4',6.2e-3),('fe2',1e-10),]
-    # rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('so4',6.2e-2),('fe2',5.0E-07),] # boundary condition
     rain_list=[('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),('si',1.99e-4),('so4',5.436592e-03),('fe2',8.453e-14),] # boundary condition obtained by phreeqc
-    # rain_list=[('ca',1.43e-2),('k',9e-3),('al',2.59e-8),('cl',1.14e-4),('si',1.93e-4),('so4',1.6e-2),('fe2',1.45E-04),] # initial condition
-    # rain_list=[('ca',9.626e-03),('k',8.660e-03),('al',3.798e-13),('cl',1.140e-03),('si',1.926e-03),('so4',1.260395e-02),('fe2',9.115e-05),] # initial condition obtained by phreeqc
-    # rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('fe3',5e-7),('so4',6.2e-3),('hs',1e-300),]
-    # rain_list=[('ca',1.9e-3),('k',8.7e-3),('al',1.28e-8),('cl',1.14e-4),('si',1.99e-4),('fe3',5e-7),('hs',1e-300),]
-    # rain_list=[]
-    rain_list_bnd_bdot=[
-        ('ca',1.3605117072790210E-003),('k',8.5101618593205978E-003),('al',1.9631309897300844E-009),('cl',1.1400000000000001E-004),
-        ('si',1.9899662924434806E-004),('so4',5.4674936179247274E-003),('fe2',8.4743613380706646E-014),
-    ] 
-    rain_list_bnd_bdot_v2_concs=[
-         8.4745338285902098E-014,   5.4674930474829988E-003,   1.3605095032712066E-003,   8.5101618691996259E-003,   1.9631391147867282E-009,   1.1400000000000001E-004,   1.9899662931525982E-004,
-     ]
+    
     rain_list_bnd_bdot_v2_names=[
          'fe2',   'so4',   'ca',    'k',     'al',    'cl',    'si',
      ]
-    rain_list_bnd_bdot_v2 = [ (nm,conc) for nm, conc in zip(rain_list_bnd_bdot_v2_names,rain_list_bnd_bdot_v2_concs) ]
-    
-    
-    rain_list_bnd_bdot_v3_concs=[
-        8.4595051832856866E-014,   5.4674932223555588E-003,   1.3605095012717235E-003,   8.5101618661686442E-003,   1.9631169274200017E-009,   1.1400000000000001E-004,   1.9899662912215428E-004,
-     ]
-    rain_list_bnd_bdot_v3 = [ (nm,conc) for nm, conc in zip(rain_list_bnd_bdot_v2_names,rain_list_bnd_bdot_v3_concs) ]
-    
+     
     rain_list_bnd_bdot_v4_concs=[
         8.4777990879914060E-014,   5.4675092162629665E-003,   1.3605088849070975E-003,   8.5101614181632614E-003,   1.9639800852907899E-009,   1.1400000000000001E-004,   1.9899663665549360E-004,
      ]
     rain_list_bnd_bdot_v4 = [ (nm,conc) for nm, conc in zip(rain_list_bnd_bdot_v2_names,rain_list_bnd_bdot_v4_concs) ]
-    
-    
-    
-    
-    rain_list_init_bdot=[
-        ('ca',9.2826540170040262E-003),('k',8.6810294623506715E-003),('al',4.0291153578108660E-013),('cl',1.1400000000000000E-003),
-        ('si',1.9265157003896770E-003),('so4',1.1979140490022539E-002),('fe2',9.9269505129143321E-005),
-    ] 
-    rain_list_init_bdot_v2_concs=[
-        9.9205291214462073E-005,   1.1991658723157593E-002,   9.2246521942484384E-003,   8.6805234683569842E-003,  4.0293116653847301E-013,   1.1400000000000000E-003,   1.9265167988136822E-003,
-    ]
-    rain_list_init_bdot_v2 = [ (nm,conc) for nm, conc in zip(rain_list_bnd_bdot_v2_names,rain_list_init_bdot_v2_concs) ]
-    
-    
-    rain_list_init_bdot_v3_concs=[
-        9.9205291214318064E-005,   1.1991658723157623E-002,   9.2246521942484332E-003,   8.6805234683569842E-003,   4.0293116653812500E-013,   1.1400000000000000E-003,   1.9265167988136815E-003,
-    ]
-    rain_list_init_bdot_v3 = [ (nm,conc) for nm, conc in zip(rain_list_bnd_bdot_v2_names,rain_list_init_bdot_v3_concs) ]
-    
+     
     rain_list_init_bdot_v4_concs=[
         9.9203528766392195E-005,   1.1992520311594751E-002,   9.2252065676718051E-003,   8.6805043211892231E-003,   4.0251554217574911E-013,   1.1400000000000000E-003,   1.9265158561408754E-003, 
     ]
     rain_list_init_bdot_v4 = [ (nm,conc) for nm, conc in zip(rain_list_bnd_bdot_v2_names,rain_list_init_bdot_v4_concs) ]
     
     
-    # atm_list=[('pco2',3.17e-4),('po2',0.21),('pnh3',0),('pn2o',0)]
-    # atm_list=[('pco2',2.49e-3),('po2',1e-65),('pnh3',0),('pn2o',0)]
     atm_list=[('pco2',3.17e-4),('po2',0.21),('pnh3',0),('pn2o',0)] # bounary conditions 
-    # atm_list=[('pco2',7.3e-3),('po2',1e-65),('pnh3',0),('pn2o',0)] # initial conditions 
     
-    atm_list_init_bdot = [('pco2',1.1241006093342163E-002),('po2',7.9969554948625034E-066),('pnh3',0),('pn2o',0)]
-    atm_list_init_bdot_v2 = [('pco2',1.0880328520272049E-002),('po2',7.9974979817302193E-066),('pnh3',0),('pn2o',0)]
-    atm_list_init_bdot_v3 = [('pco2',1.0880328520269973E-002),('po2',7.9974978308789350E-066),('pnh3',0),('pn2o',0)]
     atm_list_init_bdot_v4 = [('pco2',1.1192392171660575E-002),('po2',7.9974341617857271E-066),('pnh3',0),('pn2o',0)]
     
     # cec
     sld_cec_list=[
         ('inrt',cec, logkhna, logkhk, logkhca, logkhmg, logkhal, alpha) ,
-        # ('g2',cec, logkhna, logkhk, logkhca, logkhmg, logkhal, alpha) ,  
-        # ('cc',cec, logkhna, logkhk, logkhca, logkhmg, logkhal, alpha) ,
         ]
     
     # OM rain 
     sld_omrain_list=[('g2',1)]
     
     # 2ndary phases
-    srcfile_2ndslds='./data/2ndslds_def.in'
-    if allow_prec: srcfile_2ndslds='./data/2ndslds_incl_py.in'
+    srcfile_2ndslds='./data/2ndslds_incl_py.in'
     
     # psd rain
     srcfile_psdrain='./data/psdrain_320um.in'
     
     # kinspc
-    # sld_kinspc_list=[('cc',1e-5)]
-    # sld_kinspc_list=[('gb',0)]
-    # sld_kinspc_list=[('gpb',0),('jrs',0),('amfe3',0)]
-    sld_kinspc_list=[('py',py_kin),('cc',cnst_kin),('gb',cnst_kin),('jrs',0),('amfe3',0),('gps',cnst_kin)]
-    # sld_kinspc_list=[('py',py_kin),('cc',cnst_kin),('gb',cnst_kin),('gpb',cnst_kin),('jrs',cnst_kin),('amfe3',0),('gps',0)]
-    # sld_kinspc_list=[('py',py_kin),('cc',cnst_kin),('gb',cnst_kin),('gpb',cnst_kin),('jrs',cnst_kin),('amfe3',0),('gps',0)]
     sld_kinspc_list=[('py',py_kin),('cc',cnst_kin),('gb',cnst_kin),('jrs',cnst_kin),('amfe3',cnst_kin),('gps',cnst_kin)] # full kinetics
-    # sld_kinspc_list=[('py',0),('cc',0),('gb',0),('gpb',0),('jrs',0),('amfe3',0)]
-    # sld_kinspc_list=[('py',0)] # initial condition 
     
     sld_keqspc_list = []
     
@@ -276,26 +184,16 @@ def get_input(outdir,runtype,nz,src_code_id,act_ON_in,allow_prec,scheme_act,dt_n
         close_aq=true # initial/boundary condition test
         restart=false 
         rain_list=[('ca',9.626e-03),('k',8.660e-03),('al',3.798e-13),('cl',1.140e-03),('si',1.926e-03),('so4',1.0e-02),('fe2',9.115e-05),] # initial condition obtained by phreeqc
-        if act_ON_in: 
-            if scheme_act == 'davies':
-                rain_list=[
-                    ('ca',9.626e-03),('k',8.660e-03),('al',3.798e-13),('cl',1.140e-03),
-                    ('si',1.926e-03),('so4',1.263405e-02),('fe2',9.115e-05),
-                    ] # initial condition obtained by phreeqc
-            elif scheme_act == 'bdot':
-                rain_list=rain_list_init_bdot
-                atm_list=atm_list_init_bdot
-            elif scheme_act == 'bdot_v2':
-                rain_list=rain_list_init_bdot_v2
-                atm_list=atm_list_init_bdot_v2
-            elif scheme_act == 'bdot_v3':
-                rain_list=rain_list_init_bdot_v3
-                atm_list=atm_list_init_bdot_v3
-            elif scheme_act == 'bdot_v4':
-                rain_list=rain_list_init_bdot_v4
-                atm_list=atm_list_init_bdot_v4
-        # atm_list=[('pco2',7.3e-3),('po2',1e-65),('pnh3',0),('pn2o',0)] # initial conditions 
-        # atm_list=[('pco2',1.0626830370328001E-002),('po2',8.0042515609987722E-066),('pnh3',0),('pn2o',0)] # initial conditions 
+        
+        if scheme_act == 'davies':
+            rain_list=[
+                ('ca',9.626e-03),('k',8.660e-03),('al',3.798e-13),('cl',1.140e-03),
+                ('si',1.926e-03),('so4',1.263405e-02),('fe2',9.115e-05),
+                ] # initial condition obtained by phreeqc
+        elif scheme_act == 'bdot':
+            rain_list=rain_list_init_bdot_v4
+            atm_list=atm_list_init_bdot_v4
+            
     elif runtype == 'bnd':
         q=0 # initial/boundary condition test
         dt_fix=false
@@ -305,103 +203,76 @@ def get_input(outdir,runtype,nz,src_code_id,act_ON_in,allow_prec,scheme_act,dt_n
         close_aq=true # initial/boundary condition test
         restart=false 
         rain_list=[('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),('si',1.99e-4),('so4',5.436592e-03),('fe2',8.453e-14),] # boundary condition obtained by phreeqc
-        if act_ON_in: 
-            if scheme_act == 'davies':
-                rain_list=[
-                    ('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),
-                    ('si',1.99e-4),('so4',5.5029e-03),('fe2',8.453e-14),
-                    ] # boundary condition obtained by phreeqc
-            elif scheme_act == 'bdot':
-                rain_list=rain_list_bnd_bdot
-            elif scheme_act == 'bdot_v2':
-                rain_list=rain_list_bnd_bdot_v2
-            elif scheme_act == 'bdot_v3':
-                rain_list=rain_list_bnd_bdot_v3
-            elif scheme_act == 'bdot_v4':
-                rain_list=rain_list_bnd_bdot_v4
+        
+        if scheme_act == 'davies':
+            rain_list=[
+                ('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),
+                ('si',1.99e-4),('so4',5.5029e-03),('fe2',8.453e-14),
+                ] 
+        elif scheme_act == 'bdot':
+            rain_list=rain_list_bnd_bdot_v4
+        
         atm_list=[('pco2',3.17e-4),('po2',0.21),('pnh3',0),('pn2o',0)] # bounary conditions 
+    
     elif runtype == 'rstrt_norxn':
         # q=0.3 
         # q=0.3 * 0.5
-        dt_fix=true
-        if dt_nonfix_on: dt_fix=false
+        dt_fix=false
         close_aq=false # initial/boundary condition test
         # sld_kinspc_list=[('py',0)] # initial condition 
         sld_kinspc_list=[('py',0),('cc',0),('gb',0),('gpb',0),('jrs',0),('amfe3',0),('gps',0)]
         rain_list=[('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),('si',1.99e-4),('so4',5.436592e-03),('fe2',8.453e-14),] # boundary condition obtained by phreeqc
-        if act_ON_in: 
-            if scheme_act == 'davies':
-                rain_list=[
-                    ('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),
-                    ('si',1.99e-4),('so4',5.5029e-03),('fe2',8.453e-14),
-                    ] # boundary condition obtained by phreeqc
-            elif scheme_act == 'bdot':
-                rain_list=rain_list_bnd_bdot
-            elif scheme_act == 'bdot_v2':
-                rain_list=rain_list_bnd_bdot_v2
-            elif scheme_act == 'bdot_v3':
-                rain_list=rain_list_bnd_bdot_v3
-            elif scheme_act == 'bdot_v4':
-                rain_list=rain_list_bnd_bdot_v4
+        
+        if scheme_act == 'davies':
+            rain_list=[
+                ('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),
+                ('si',1.99e-4),('so4',5.5029e-03),('fe2',8.453e-14),
+                ] 
+        elif scheme_act == 'bdot':
+            rain_list=rain_list_bnd_bdot_v4
+        
         atm_list=[('pco2',3.17e-4),('po2',0.21),('pnh3',0),('pn2o',0)] # bounary conditions 
         restart=true 
-        runname_restart=f'{outdir}AMD2/test{src_code_id}_init_{nz:d}{ver}'
-        if act_ON_in: runname_restart += f'_ACT_{scheme_act}'
-        if allow_prec: runname_restart += '_pyprec'
+        runname_restart=f'{outdir}AMD2/test_init_{nz:d}{ver}'
+        
     elif runtype == 'nonrstrt':
         # q=0.3 * 0.5
-        dt_fix=true
-        if dt_nonfix_on: dt_fix=false
+        dt_fix=false
         # nstep=1000
         close_aq=false # initial/boundary condition test
         rain_list=[('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),('si',1.99e-4),('so4',5.436592e-03),('fe2',8.453e-14),] # boundary condition obtained by phreeqc
-        if act_ON_in: 
             
-            if scheme_act == 'davies':
-                rain_list=[
-                    ('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),
-                    ('si',1.99e-4),('so4',5.5029e-03),('fe2',8.453e-14),
-                    ] # boundary condition obtained by phreeqc
-            elif scheme_act == 'bdot':
-                rain_list=rain_list_bnd_bdot
-            elif scheme_act == 'bdot_v2':
-                rain_list=rain_list_bnd_bdot_v2
-            elif scheme_act == 'bdot_v3':
-                rain_list=rain_list_bnd_bdot_v3
-            elif scheme_act == 'bdot_v4':
-                rain_list=rain_list_bnd_bdot_v4
+        if scheme_act == 'davies':
+            rain_list=[
+                ('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),
+                ('si',1.99e-4),('so4',5.5029e-03),('fe2',8.453e-14),
+                ] 
+        elif scheme_act == 'bdot':
+            rain_list=rain_list_bnd_bdot_v4
                     
         atm_list=[('pco2',3.17e-4),('po2',0.21),('pnh3',0),('pn2o',0)] # bounary conditions 
         restart=false 
+        
     elif runtype == 'rstrt':
         # q=0.3 
         # q=0.3 * 0.5
-        dt_fix=true
-        if dt_nonfix_on: dt_fix=false
+        dt_fix=false
         # nstep=1000
         close_aq=false # initial/boundary condition test
         rain_list=[('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),('si',1.99e-4),('so4',5.436592e-03),('fe2',8.453e-14),] # boundary condition obtained by phreeqc
-        if act_ON_in: 
+        
             
-            if scheme_act == 'davies':
-                rain_list=[
-                    ('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),
-                    ('si',1.99e-4),('so4',5.5029e-03),('fe2',8.453e-14),
-                    ] # boundary condition obtained by phreeqc
-            elif scheme_act == 'bdot':
-                rain_list=rain_list_bnd_bdot
-            elif scheme_act == 'bdot_v2':
-                rain_list=rain_list_bnd_bdot_v2
-            elif scheme_act == 'bdot_v3':
-                rain_list=rain_list_bnd_bdot_v3
-            elif scheme_act == 'bdot_v4':
-                rain_list=rain_list_bnd_bdot_v4
+        if scheme_act == 'davies':
+            rain_list=[
+                ('ca',1.390e-03),('k',8.525e-03),('al',2.078e-09),('cl',1.14e-4),
+                ('si',1.99e-4),('so4',5.5029e-03),('fe2',8.453e-14),
+                ] 
+        elif scheme_act == 'bdot':
+            rain_list=rain_list_bnd_bdot_v4
                     
         atm_list=[('pco2',3.17e-4),('po2',0.21),('pnh3',0),('pn2o',0)] # bounary conditions 
         restart=true 
-        runname_restart=f'{outdir}AMD2/test{src_code_id}_init_{nz:d}{ver}'
-        if act_ON_in: runname_restart += f'_ACT_{scheme_act}'
-        if allow_prec: runname_restart += '_pyprec'
+        runname_restart=f'{outdir}AMD2/test_init_{nz:d}{ver}'
         
         
     # no psd phases 
@@ -729,147 +600,22 @@ def save_a_list_2(dst,res_all):
 def main():
     
     runtype = 'init'
-    # runtype = 'bnd'
-    # runtype = 'rstrt_norxn'
-    # runtype = 'nonrstrt'
     runtype = 'rstrt'
     
-    # nz = 5
-    # nz = 10
-    # nz = 30
-    # nz = 50
-    # nz = 100
-    
-    # nz = 31
-    # nz = 51
     nz = 101
     
-    act_ON = True
-    # act_ON = False
     
-    # scheme_act = 'davies'
-    # scheme_act = 'bdot'
-    # scheme_act = 'bdot_v2'
-    # scheme_act = 'bdot_v3'
-    scheme_act = 'bdot_v4'
-    # scheme_act = 'e-d-h'
-    # scheme_act = 'd-h'
+    scheme_act = 'bdot'
     
-    # src_code_id = '_H_part'
-    # src_code_id = '_H_part_MOD'
-    src_code_id = '_H_part_SAVE_ATTEMPT_IS_CLEAN'
-    # src_code_id = '_H_petsc'
-    # src_code_id = 'H'
-    # src_code_id = ''
     
-    allow_prec = True
-    # allow_prec = False
+    ver = '_v_1'
     
-    dt_nonfix_on = True
-    # dt_nonfix_on = False
+    outdir = '/storage/project/r-creinhard3-0/ykanzaki3/scepter_output/'
     
-    # ver = ''
-    # ver = '_v_dtkin'
-    # ver = '_v_test'
-    # ver = '_v_caprate'
-    # ver = '_v_caprate_modact'
-    # ver = '_v_caprate_modact_2'
-    ver = '_v_caprate_modact_mygrid'
-    # ver = '_v_err_correct'
-    # ver = '_v_grid'
-    # ver = '_v_grid_maxdt_max'
-    # ver = '_v_grid_fix_poro'
-    # ver = '_v_grid_fix_poro_mvwt'
-    # ver = '_v_grid_fix_poro_mvwt_v2'
-    # ver = '_v_grid_maxdt_max_fix_poro'
-    # ver = '_maxdt_max'
-    # ver = '_v3'
-    # ver = '_v4'
-    
-    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
-    # outdir = '/home/ykanz/scepter_output/'
-    
-    runname = 'AMD/test'
-    runname = 'AMD/test_v2'
-    runname = 'AMD/test_v3'
-    runname = 'AMD/test_v4'
-    runname = 'AMD/test_v5'
-    runname = 'AMD/test_v6'
-    runname = 'AMD/test_v7'
-    runname = 'AMD/test_v8'
-    runname = 'AMD/test_v9'
-    runname = 'AMD/test_v10'
-    runname = 'AMD/test_v11'
-    runname = 'AMD/test_v12'
-    runname = 'AMD/test_v13'
-    runname = 'AMD/test_v14chk'
-    runname = 'AMD/test_v15'
-    runname = 'AMD/test_v16'
-    runname = 'AMD/test_v17'
-    runname = 'AMD/test_v18'
-    runname = 'AMD/test_v19'
-    runname = 'AMD/test_v20'
-    runname = 'AMD/test_v21'
-    runname = 'AMD/test_v22chk'
-    runname = 'AMD/test_v23'
-    runname = 'AMD/test_v23_100'
-    runname = 'AMD/test_v24'
-    runname = 'AMD/test_v24_dt_nofix'
-    runname = 'AMD/test_v25_dt_fix_test'
-    # runname = 'AMD/test_v25_dt_fix_test_chk_sol_div3'
-    # runname = 'AMD/test_v25_dt_fix_test_v2'
-    # runname = 'AMD/test_v25_dt_fix_test_v3'
-    runname = 'AMD/test_v25_dt_fix_test_v4'
-    runname = 'AMD/test_v25_dt_fix_test_v4_div_2'
-    # runname = 'AMD/test_v25_dt_fix_test_lm_div_2'
-    # runname = 'AMD/test_v25_dt_fix_test_lm-50_div_2'
-    # runname = 'AMD/test_v25_dt_fix_test_old_div_3'
-    runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3'
-    runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3_aqdif'
-    runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3_aqdif_chk'
-    runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3_aqdif_intrp'
-    runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3_aqdif_intrp_2'
-    runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3_aqdif_dzeq'
-    runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_aqdif_dzeq'
-    runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_bcflx_test'
-    runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_bcflx_precalc_off_fe_1e-20'
-    runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_bcflx_precalc_off_fe_1e-20_noaqdif'
-    runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_bcflx_precalc_on_fe_1e-20_noaqdif'
-    runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_bcflx_precalc_on_fe_5e-7_noaqdif'
-    runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_bcflx_precalc_on_fe_5e-7_noaqdif_phchk'
-    runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_bcflx_precalc_on_fe_5e-7_noaqdif_petsc'
-    runname = f'AMD2/test{src_code_id}_{runtype}_{nz:d}'
-    runname = f'AMD2/test{src_code_id}_{runtype}_{nz:d}{ver}'
-    # runname = 'AMD/test_bnd_100'
-    # runname = 'AMD/test_rstrt_100'
-    # runname = 'AMD/test_norstrt_100'
-    # runname = 'AMD/test_v25_dt_fix_test_old_adv_div_3_bcflx_precalc_off_fe_1e-20_ghost'
-    # runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3_aqdif_intrp_petsc'
-    # runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3_aqdif_chkjacobian'
-    # runname = 'AMD/test_v25_dt_fix_test_old_noadv_div_3_nz100'
-    # runname = 'AMD/test_v25_dt_fix_test_old_cb_update_div_2'
-    # runname = 'AMD/test_v25_dt_fix_test_v3_iter'
-    # runname = 'AMD/test_v25_dt_fix_test_v3_iter2'
-    # runname = 'AMD/test_v25_dt_fix_test_iter'
-    # runname = 'AMD/test_v25_dt_unfix_test_iter'
-    # runname = 'AMD/test_v25_dt_unfix_test_iter_phi'
-    # runname = 'AMD/test_v25_dt_unfix_test_iter_phi_v2'
-    # runname = 'AMD/test_v25_dt_unfix_test_noiter'
-    # runname = 'AMD/test_v25_100_dt_fix_test'
-    # runname = 'AMD/test_v25_dt_fix_DEV'
-    # runname = 'AMD/test_v24_dt_nofix'
-    # runname = 'AMD/test_v18_100'
-    # runname = 'AMD/test_100_v11'
-    # runname = 'AMD/test_100_v12'
-    # runname = 'AMD/test_100'
-    # runname = 'AMD/test_100_v2'
-    
-    if act_ON: runname += f'_ACT_{scheme_act}'
-    if allow_prec: runname += '_pyprec'
-    if 'rstrt' in runtype and dt_nonfix_on: runname += '_dt_nonfix'
+    runname = f'AMD2/test_{runtype}_{nz:d}{ver}'
     
     # ---- getting default inputs 
-    input_dict = get_input(outdir,runtype,nz,src_code_id,act_ON,allow_prec,scheme_act,dt_nonfix_on,ver)
+    input_dict = get_input(outdir,runtype,nz,scheme_act,ver)
     
     
     # ---- modify input before starting run 
@@ -880,10 +626,9 @@ def main():
     setup_run(input_dict)
     
     input_dict['update_code'] = True
-    # input_dict['src_code'] = 'scepter_DEV'
-    input_dict['src_code'] = f'scepter_AMD{src_code_id}'
+    input_dict['src_code'] = 'scepter_AMD'
     
-    src_code = f'scepter_AMD{src_code_id}'
+    src_code = 'scepter_AMD'
     
     # input_dict['sub_as_a_job'] = True
     input_dict['sub_as_a_job'] = False
