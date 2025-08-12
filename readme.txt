@@ -1,16 +1,45 @@
 scepter
 
-scepter.f90                         - source code  
-makefile                            - compile (data dir needs to be specified)
+scepter.f90 	- source code  
+
+makefile_RE     - compile the source code to run soil hydrology benchmark
+makefile_ex11   - compile the source code to run cation exchange benchmark
+makefile_AMD    - compile the source code to run acid rock drainage (ARD) benchmark
+
+spinup.py       		- run soil hydrology benchmark
+test_phreeqc_ex11.py	- run cation exchange benchmark
+spinup_AMD.py			- run cation ARD benchmark-1
+spinup_AMD2.py			- run cation ARD benchmark-2
+spinup_AMD3.py			- run cation ARD benchmark-3
 
 
-scripts:
-get_int_prof.py                     - contain functions to get output data 
-make_inputs.py                      - contain functions to make input data
-tunespin_3_newton_inert_buff.py     - run 3 variable iterations (output dir needs to be specified)
-tunespin_3_newton_inert_buff_v2.py  - same as above but with an option to use soil pH with CaCl2
-water_amb.py                        - sample porewater and leave it in the beaker in lab (output dir needs to be specified; no use for pipeline?)
-basalt_buff_tunespin_bisec.py       - run basalt application for a target pH etc. (output dir needs to be specified)
-basalt_buff_tunespin_bisec_v2.py    - same as above but with an option to use soil pH with CaCl2
-sub_jobs.py                         - submit multiple jobs (for spinup and basalt exp)
-run_a_shell.sbatch                  - submit a single job (for GT cluster)
+$$ running benchmark simulations in GMD paper $$
+
+*** correct the "outdir" parameter for all Python scripts
+
+[A] soil hydrology 
+*** one need openRE repository installed parallel to SCEPTER directory as it contains input 
+
+(1) $ make --file=makefile_RE clean
+(2) $ make --file=makefile_RE 
+(3) $ python3 spinup.py
+
+
+[B] cation exchange 
+
+(1) $ make --file=makefile_ex11 clean
+(2) $ make --file=makefile_ex11 
+(3) make sure " runtype = 'init' " in test_phreeqc_ex11.py
+(4) $ python3 test_phreeqc_ex11.py
+(5) make sure " runtype = 'rstrt' " in test_phreeqc_ex11.py
+(6) $ python3 test_phreeqc_ex11.py
+
+[C] ARD 
+
+(1) $ make --file=makefile_AMD clean
+(2) $ make --file=makefile_AMD 
+(3) make sure " runtype = 'init' " in spinup_AMD.py
+(4) $ python3 spinup_AMD.py
+(5) make sure " runtype = 'rstrt' " in spinup_AMD.py
+(6) $ python3 spinup_AMD.py
+(7) repeat (3)-(6) with spinup_AMD2.py and spinup_AMD3.py
