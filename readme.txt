@@ -10,9 +10,9 @@ makefile_AMD    - compile the source code to run acid rock drainage (ARD) benchm
 
 spinup.py       		- run soil hydrology benchmark
 test_phreeqc_ex11.py	- run cation exchange benchmark
-spinup_AMD.py			- run cation ARD benchmark-1
-spinup_AMD2.py			- run cation ARD benchmark-2
-spinup_AMD3.py			- run cation ARD benchmark-3
+spinup_AMD.py			- run ARD benchmark-1
+spinup_AMD2.py			- run ARD benchmark-2
+spinup_AMD3.py			- run ARD benchmark-3
 
 
 $$ running benchmark simulations in GMD paper $$

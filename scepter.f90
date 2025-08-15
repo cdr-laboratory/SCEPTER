@@ -725,7 +725,6 @@ logical lim_minsld_in !  true if minimum sld conc. is enforced  (input from inpu
 real(kind=8) rectime_prof_def(20)
 data rectime_prof_def /1d1,3d1,1d2,3d2,1d3,3d3,1d4,3d4 &
     & ,1d5,2d5,3d5,4d5,5d5,6d5,7d5,8d5,9d5,1d6,1.1d6,1.2d6/
-#endif 
 ! data rectime_prof /-1d6,0d6,1d6,2d6,3d6,4d6,5d6,6d6,7d6,8d6
 ! &,9d6,10d6,11d6,12d6,13d6,14d6,15d6,16d6,17d6,18d6,19d6,20d6/
 ! data rectime_prof /21d6,22d6,23d6,24d6,25d6,26d6,27d6,28d6,29d6,30d6
@@ -34776,9 +34775,7 @@ real(8), dimension(n),intent(out) :: z, sat
 integer :: i, ios
 character(len=500) :: fname
 
-! fname = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath_AMD/data/ard_saturation-crunchflow.dat'
-fname = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath_AMD/data/sat_amd.dat'
-! fname = '/home/ykanz/PyWeath_AMD/data/sat_amd.dat'
+fname = '/storage/project/r-creinhard3-0/ykanzaki3/SCEPTER/data/sat_amd.dat'
 
 ! Open the data file for reading
 open(unit=10, file=fname, status='old', action='read', iostat=ios)
