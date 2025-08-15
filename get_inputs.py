@@ -41,8 +41,8 @@ def get_input_switches(outdir,runname):
     mix_scheme = int(lines[2].split()[0])
     poro_iter = (lines[3].split()[0])
     sldmin_lim = (lines[4].split()[0])
-    display = (lines[5].split()[0])
-    disp_lim = (lines[6].split()[0])
+    display = int(lines[5].split()[0])
+    report = int(lines[6].split()[0])
     restart = (lines[7].split()[0])
     rough = (lines[8].split()[0])
     act_ON = (lines[9].split()[0])
@@ -57,7 +57,7 @@ def get_input_switches(outdir,runname):
     psd_full = (lines[18].split()[0])
     season = (lines[19].split()[0])
     
-    return w_scheme,mix_scheme,poro_iter,sldmin_lim,display,disp_lim,restart,rough,act_ON,dt_fix \
+    return w_scheme,mix_scheme,poro_iter,sldmin_lim,display,report,restart,rough,act_ON,dt_fix \
         ,cec_on,dz_fix,close_aq,poro_evol,sa_evol_1,sa_evol_2,psd_bulk,psd_full,season
 
 def get_input_tracers(outdir,runname):
@@ -80,15 +80,20 @@ def get_input_tracers(outdir,runname):
     except:
         print(gas_list.shape)
         gas_list = [str(gas_list)]
+        
+    # print(exrxn_list,exrxn_list.shape,type(exrxn_list))
     try:
         exrxn_list = list(exrxn_list)
     except:
-        exrxn_list = [exrxn_list[0]]
+        try:
+            exrxn_list = [exrxn_list[0]]
+        except:
+            exrxn_list = [str(exrxn_list)]
     
     return sld_list,aq_list,gas_list,exrxn_list
 
 def get_input_tracer_bounds(**kwargs):
-    outdir      = kwargs.get('outdir',      '../scepter_output/')
+    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
     runname     = kwargs.get('runname',     'test_input')
     pr_list     = kwargs.get('pr_list',     [])
     rain_list   = kwargs.get('rain_list',   []) 
@@ -177,9 +182,10 @@ def get_input_sld_properties(outdir,runname,filename):
     
 def main():
 
-    outdir = '../scepter_output/'
+    # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
+    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
     # runname = 'US_cropland_311_sph_N_spintuneup_field'
-    runname = 'test_Pot7'
+    runname = 'JCU/test'
     
     ztot,nz,ttot,temp,fdust,fdust2,taudust,omrain,zom,poro,moistsrf,zwater,zdust,w,q,p,nstep,rstrt,runid = get_input_frame(outdir,runname)
     print(
@@ -204,6 +210,12 @@ def main():
         sld_data_list,
         sld_data_list[0][1]
         )
+        
+    for filename in ['rain.in', 'atm.in', 'parentrock.in']:
+        sld_data_list = get_input_sld_properties(outdir,runname,filename)
+        print(
+            sld_data_list,
+            )
     
     sld_data_list = get_input_sld_properties('./','data','dust_gbasalt.in')
     print(

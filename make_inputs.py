@@ -2,6 +2,9 @@ import os
 import numpy as np
 from shutil import copyfile
 import time
+import print_control
+
+disply_glbl = print_control.get_global_display()
 
 def get_input_frame(**kwargs):
     outdir      = kwargs.get('outdir',  '../scepter_output/')
@@ -87,7 +90,10 @@ def get_input_frame(**kwargs):
         if values[i]=='':
             input_text += notes[i] + '\n'
         else:
-            input_text += str(values[i]) + '\t' + notes[i] + '\n'
+            if notes[i]=='':
+                input_text += str(values[i]) + '\n'
+            else:
+                input_text += str(values[i]) + '\t' + notes[i] + '\n'
     
     if not os.path.exists(outdir + runname): os.makedirs(outdir + runname)
     
@@ -96,7 +102,7 @@ def get_input_frame(**kwargs):
     with open(input_file, 'w') as file:
         file.write(input_text)
     
-    print(input_text)
+    if disply_glbl: print(input_text)
 
 def get_input_switches(**kwargs):
     outdir      = kwargs.get('outdir',      '../scepter_output/')
@@ -105,8 +111,8 @@ def get_input_switches(**kwargs):
     mix_scheme  = kwargs.get('mix_scheme',  1) 
     poro_iter   = kwargs.get('poro_iter',   'false') 
     sldmin_lim  = kwargs.get('sldmin_lim',  'true') 
-    display     = kwargs.get('display',     'true')
-    disp_lim    = kwargs.get('disp_lim',    'true')
+    display     = kwargs.get('display',     1)
+    report      = kwargs.get('report',      0)
     restart     = kwargs.get('restart',     'false') 
     rough       = kwargs.get('rough',       'true')      
     act_ON      = kwargs.get('act_ON',      'false') 
@@ -127,8 +133,8 @@ def get_input_switches(**kwargs):
         ,'bio-mixing style: 0-- no mixing, 1-- fickian mixing, 2-- homogeneous mixng, 3--- tilling, 4--- LABS mixing, if not defined 0 is taken'
         ,'porosity  iteration'
         ,'limiting mineral lowest conc.'
-        ,'display results at runtime'
-        ,'limited results display'
+        ,'display results at runtime: 0-- none, 1-- only reporting time, 2-- every time iteration, if not defined 1 is taken'
+        ,'report files: 0-- basics, 1-- +saturation time series'
         ,'restart from a previous run'
         ,'include roughness in mineral surface area'
         ,'enabling activity coefficients'
@@ -151,7 +157,7 @@ def get_input_switches(**kwargs):
         ,poro_iter 
         ,sldmin_lim 
         ,display
-        ,disp_lim
+        ,report
         ,restart 
         ,rough      
         ,act_ON 
@@ -186,7 +192,7 @@ def get_input_switches(**kwargs):
     with open(input_file, 'w') as file:
         file.write(input_text)
     
-    print(input_text)
+    if disply_glbl: print(input_text)
 
 def get_input_tracers(**kwargs):
     outdir      = kwargs.get('outdir',      '../scepter_output/')
@@ -242,7 +248,7 @@ def get_input_tracers(**kwargs):
         with open(input_file, 'w') as file:
             file.write(input_text)
         
-        print(input_text)
+        if disply_glbl: print(input_text)
         
     del sld_list[0]
     del aq_list[0]
@@ -294,7 +300,7 @@ def get_input_tracer_bounds(**kwargs):
                 try:
                     input_text += values[i][0] + '\t' + str(values[i][1]) + '\n'
                 except:
-                    print(n,i,values)
+                    if disply_glbl: print(n,i,values)
                     time.sleep(100)
         
         input_file = outdir + runname + '/' + filename
@@ -302,7 +308,7 @@ def get_input_tracer_bounds(**kwargs):
         with open(input_file, 'w') as file:
             file.write(input_text)
         
-        print(input_text)
+        if disply_glbl: print(input_text)
     
     
     del pr_list[0]
@@ -318,6 +324,8 @@ def get_input_sld_properties(**kwargs):
     
     if filename == 'kinspc.in':
         note = '** specify rate const in [mol/m2/yr] except for OMs which should be presented as turnover year [yr] (e.g., g2   1.0)'
+    elif filename == 'keqspc.in':
+        note = '** specify thermodynamic const in log10 (e.g., by   21.018)'
     elif filename == 'sa.in':
         note = '** parent rock particle radii in meter (e.g., "ab      1e-5") (if not specified value in frame.in is used for all sld sp.)'
     elif filename == 'OM_rain.in':
@@ -327,11 +335,15 @@ def get_input_sld_properties(**kwargs):
     elif filename == 'cec.in':
         note = '** cec [cmol/kg], log10(KH-X) [-] (X=Na,K,Ca,Mg,Al) and beta specified by users (e.g., "g2   90   5.9   4.8   10.47   10.786   16.47   3.4") (if not specified assumed code default values)'
     elif filename == 'nopsd.in':
-        note = '** list of minerals whose PSDs are not tracked for some reason'
+        note = '** list of minerals whose PSDs are not tracked for some reason (e.g., "g2   true/false" where true means no PSD and false means PSD implementation)'
     elif filename == '2ndslds.in':
         note = '** list of minerals whose precipitation is allowed'
     elif filename == 'psdrain.in':
         note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define dust psd (e.g., 1e-5    0.2    1)'
+    elif filename == 'psdpr.in':
+        note = '** mean radius [m], standard deviation in log10 [-], weight [-], gaussian parameters to define parentrock psd (e.g., 1e-5    0.2    1)'
+    elif filename == 'h2odynpars.in':
+        note = '** list parameters (ksat,L,n,m,alpha,tres,tsat) and their values with length and time units of m and yr, respectively (e.g., ksat     100)'
     else:
         print('{} is not supposed to be input file'.format(filename))
     
@@ -351,7 +363,11 @@ def get_input_sld_properties(**kwargs):
                 input_text += note + '\n'
             else:
                 if filename == 'nopsd.in' or filename == '2ndslds.in':
-                    input_text += sld_varlist[i][0] + '\n'
+                    for j in range(len(sld_varlist[i])):
+                        if j==0:
+                            input_text += sld_varlist[i][j] + '\t' 
+                        else:
+                            input_text += sld_varlist[i][j] + '\n'
                 elif filename == 'cec.in':
                     for j in range(len(sld_varlist[i])):
                         if j==0:
@@ -360,7 +376,7 @@ def get_input_sld_properties(**kwargs):
                             input_text += str(sld_varlist[i][j]) + '\n' 
                         else:
                             input_text += str(sld_varlist[i][j]) + '\t'
-                elif filename == 'psdrain.in':
+                elif filename == 'psdrain.in' or filename == 'psdpr.in':
                     for j in range(len(sld_varlist[i])):
                         if j==len(sld_varlist[i])-1:
                             input_text += str(sld_varlist[i][j]) + '\n' 
@@ -374,7 +390,7 @@ def get_input_sld_properties(**kwargs):
         with open(input_file, 'w') as file:
             file.write(input_text)
         
-        print(input_text)
+        if disply_glbl: print(input_text)
     
     
     del sld_varlist[0]
@@ -384,46 +400,42 @@ def get_input_sld_properties(**kwargs):
 def get_input_climate_temp(**kwargs):
     outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
     runname     = kwargs.get('runname',     'test_input')
-    T_ave       = kwargs.get('T_ave',       15)
-    T_amp       = kwargs.get('T_amp',       0.3)
-    moist_ave   = kwargs.get('moist_ave',   0.5)
-    moist_amp   = kwargs.get('moist_amp',   0.3)
-    q_ave       = kwargs.get('q_ave',       0.5)
-    q_amp       = kwargs.get('q_amp',       0.3)
-    tau         = kwargs.get('tau',         1.)
-    timeline    = kwargs.get('timeline',    np.linspace(0,1,12,endpoint=False))
-
-    N = timeline.shape[0]
-    T = T_ave + T_ave * T_amp * np.sin(timeline/tau*2.*np.pi)
-    q = q_ave + q_ave * q_amp * np.sin(timeline/tau*2.*np.pi)
-    moist = moist_ave + moist_ave * moist_amp * np.sin(timeline/tau*2.*np.pi)
+    T_temp      = kwargs.get('T_temp',      [ list(1./np.linspace(12,1,12)),[15]*12 ] )
+    moist_temp  = kwargs.get('moist_temp',  [ list(1./np.linspace(12,1,12)),[0.3]*12 ] )
+    q_temp      = kwargs.get('q_temp',      [ list(1./np.linspace(12,1,12)),[0.5]*12 ])
+    dust_temp   = kwargs.get('dust_temp',   [ list(1./np.linspace(12,1,12)),[10]*12 ])
+    
     
 
     notes = [
         '# time(yr) / runoff(mm/month)',
         '# time(yr) / T(oC)',
         '# time(yr) / moisture(mm/m)',
+        '# time(yr) / dust(g/m2/yr)',
         ]
         
     filenames = [
         'q_temp.in',
         'T_temp.in',
         'Wet_temp.in',
+        'Dust_temp.in',
         ]
         
     values_lists = [
-        q,
-        T,
-        moist,
+        q_temp,
+        T_temp,
+        moist_temp,
+        dust_temp,
         ]
         
     factors = [
         1e3/12.,  # converting m/y to mm/month
         1,
         1e3,  # converting m/m to mm/m
+        1,
         ]
     
-    nn = 3
+    nn = 4
     
     if not os.path.exists(outdir + runname): os.makedirs(outdir + runname)
     
@@ -431,25 +443,77 @@ def get_input_climate_temp(**kwargs):
         values = values_lists[k]
         filename = filenames[k]
         factor = factors[k]
+        # print(values)
+        N = len(values[0])
         input_text = ''
         input_text += '{}\n'.format(notes[k])
         for i in range(N):
-            input_text += '{:f}\t{:f}\n'.format(timeline[i], values[i]*factor) 
+            input_text += '{:f}\t{:f}\n'.format(float(values[0][i]), float(values[1][i])*factor) 
         
         input_file = outdir + runname + '/' + filename
         
         with open(input_file, 'w') as file:
             file.write(input_text)
         
-        print(input_text)
+        if disply_glbl: print(input_text)
+    
+    
+    
+def get_input_dust_temp(**kwargs):
+    outdir      = kwargs.get('outdir',      '/storage/scratch1/0/ykanzaki3/scepter_output/')
+    runname     = kwargs.get('runname',     'test_input')
+    time_temp   = kwargs.get('time_temp',   list(1./np.linspace(12,1,12))  )
+    dust_sp     = kwargs.get('dust_sp',     [ 'cao' ])
+    dust_temp   = kwargs.get('dust_temp',   [ [10]*12 ]*len(dust_sp) )
+    
+    filename = 'Dust_temp.in'
+    
+    
+    if not os.path.exists(outdir + runname): os.makedirs(outdir + runname)
+    
+    N = len(time_temp)
+    
+    # print(dust_temp[0])
+    # print(dust_temp[1])
+    # print(len(dust_sp))
+    
+    input_text = '\t'.join(['time'] + dust_sp)
+    input_text += '\n'
+    for i in range(N):
+        input_text += '{:f}\t'.format(float(time_temp[i]))
+        for k in range(len(dust_sp)):
+            # print(k,i)
+            input_text += '{:f}\t'.format(float(dust_temp[k][i]))
+        input_text += '\n'
+    
+    input_file = outdir + runname + '/' + filename
+    
+    with open(input_file, 'w') as file:
+        file.write(input_text)
+    
+    if disply_glbl: print(input_text)
         
         
+def make_sincurve(ave,amp,tau,order,**kwargs):
+    timeline    = kwargs.get('timeline',    np.linspace(0,1,12,endpoint=False))
+
+    # N = timeline.shape[0]
+    var = ave + ave * amp * np.sin(timeline/tau*2.*np.pi)**order
+    
+    return [ list(timeline), list(var) ]
         
         
 def main():
 
-    outdir = '../scepter_output/'
+    # outdir = '/storage/scratch1/0/ykanzaki3/scepter_output/'
+    outdir = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/tests/'
     runname = 'test_input'
+    
+    # exename_src = 'scepter_test'
+    exename_src = 'scepter_DEV'
+    exename = 'scepter'
+    
+    os.system('cp ' + exename_src + ' ' + outdir + runname + '/' + exename)
     
     ztot=0.5
     nz=30
@@ -499,13 +563,15 @@ def main():
     mix_scheme=1 
     poro_iter='false' 
     sldmin_lim ='true'
-    display='true'
-    disp_lim='true'
+    # display='true'
+    display=1
+    # disp_lim='true'
+    report=0
     restart ='false'
     rough      ='true'
     act_ON ='false'
     dt_fix='false'
-    precalc='false'
+    cec_on='false'
     dz_fix='true'
     sld_fix='false'
     poro_evol='true'
@@ -514,6 +580,7 @@ def main():
     psd_bulk='true'
     psd_full='true'
     season='false'
+    # season='true'
         
     get_input_switches(
         outdir=outdir
@@ -523,12 +590,12 @@ def main():
         ,poro_iter=poro_iter 
         ,sldmin_lim=sldmin_lim 
         ,display=display
-        ,disp_lim=disp_lim
+        ,report=report
         ,restart=restart 
         ,rough=rough      
         ,act_ON=act_ON 
         ,dt_fix=dt_fix
-        ,precalc=precalc
+        ,cec_on=cec_on
         ,dz_fix=dz_fix
         ,sld_fix=sld_fix
         ,poro_evol=poro_evol
@@ -540,6 +607,7 @@ def main():
         )
     
     sld_list=['inrt','g2']
+    # sld_list=['inrt','g2','gbas']
     aq_list = ['ca','k','mg','na']
     gas_list = ['pco2']
     exrxn_list = []
@@ -568,8 +636,8 @@ def main():
         outdir=outdir
         ,runname=runname
         ,filename = filename
-        # ,srcfile = srcfile
-        ,sld_varlist=sld_varlist
+        ,srcfile = srcfile
+        # ,sld_varlist=sld_varlist
         )
     filename = 'cec.in'
     sld_varlist = [('inrt',4,  5.9, 4.8, 10.47, 10.786, 16.47,  3.4) ,('g2',4,  5.9, 4.8, 10.47, 10.786, 16.47,  3.4) ] 
@@ -588,8 +656,8 @@ def main():
         ,sld_varlist=sld_varlist
         )
     filename = '2ndslds.in'
-    srcfile = './data/2ndslds_def.in'
-    srcfile = './data/2ndslds_rm_al2o3.in'
+    srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_def.in'
+    # srcfile = '/storage/coda1/p-creinhard3/0/ykanzaki3/PyWeath/data/2ndslds_rm_al2o3.in'
     sld_varlist =[]
     get_input_sld_properties(
         outdir=outdir
@@ -608,13 +676,67 @@ def main():
         ,sld_varlist=sld_varlist
         # ,srcfile = srcfile
         )
+        
+    filename = 'psdpr.in'
+    srcfile = './data/psdpr_mip_ex1c.in'
+    sld_varlist = [ (5e-6,0.2,1), (20e-6,0.2,1), (50e-6,0.2,1), (70e-6,0.2,1) ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        # ,srcfile = srcfile
+        )
+        
+    filename = 'nopsd.in'
+    sld_varlist = [ ('g2','true'), ('inrt','false') ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        )
+        
+    filename = 'keqspc.in'
+    sld_varlist = [ ('an',24.5295), ('by',21.018) ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        )
+        
+    filename = 'h2odynpars.in'
+    sld_varlist = [ ('ksat',100), ('L',0.5) ] 
+    get_input_sld_properties(
+        outdir=outdir
+        ,runname=runname
+        ,filename = filename
+        ,sld_varlist=sld_varlist
+        )
+    
+    timeline = [0, 5e-3-1e-6, 5e-3, 1.-1e-6]
+    N = len(timeline)
+    T_temp = [timeline,[15.]*N]
+    moist_temp = [timeline,[0.5]*N]
+    q_temp = [timeline,[0.6]*N]
+    dust_temp = [timeline,[10,10,0,0]]
     
     get_input_climate_temp(
         outdir=outdir,
         runname=runname,
-        tau = 1,
-        T_amp = 0,
-        moist_amp = 0,
+        T_temp = T_temp,
+        moist_temp = moist_temp,
+        q_temp = q_temp,
+        dust_temp = dust_temp,
+        )
+    
+    get_input_dust_temp(
+        outdir=outdir,
+        runname=runname,
+        time_temp = timeline,
+        dust_sp = ['cao','amnt'],
+        dust_temp = [[10,10,0,0],[1,5,1,5]],
         )
    
 if __name__ == '__main__':

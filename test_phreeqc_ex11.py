@@ -13,10 +13,12 @@ def spin_inert(outdir_src,runname,rstrt,ttot,
     sld_varlist_omrain,
     sld_varlist_cec,
     act_ON,
+    close_aq,
     use_local_storage,
+    exename_src,
     ):
 
-    # outdir_src = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    # outdir_src = '/storage/project/r-creinhard3-0/ykanzaki3/scepter_output/'
     # runname = 'test'
     
     # cec     = 10.0
@@ -64,8 +66,8 @@ def spin_inert(outdir_src,runname,rstrt,ttot,
     mix_scheme          = 0 # 1 --Fickian, 2 --Homogeneous
     poro_iter           = 'true' 
     sldmin_lim          = 'true'
-    display             = 'true'
-    disp_lim            = 'true'
+    display             = 1
+    report              = 1
     restart             = 'false' if rstrt == 'self' else 'true'
     rough               = 'true'
     # act_ON              = 'true'
@@ -73,7 +75,7 @@ def spin_inert(outdir_src,runname,rstrt,ttot,
     dt_fix              = 'false'
     cec_on              = 'true'
     dz_fix              = 'true'
-    close_aq            = 'false'
+    # close_aq            = 'false'
     poro_evol           = 'true'
     sa_evol_1           = 'true'
     sa_evol_2           = 'false'
@@ -103,6 +105,7 @@ def spin_inert(outdir_src,runname,rstrt,ttot,
     srcfile_2ndslds     = './data/2ndslds_def.in'
     # ---- python stuff ----
     # use_local_storage   = True
+    show_runtime_res    = True
     
     spinup.run_a_scepter_run(
         runname,outdir_src,
@@ -132,7 +135,7 @@ def spin_inert(outdir_src,runname,rstrt,ttot,
         poro_iter           = poro_iter,
         sldmin_lim          = sldmin_lim,
         display             = display,
-        disp_lim            = disp_lim,
+        report              = report,
         restart             = restart,
         rough               = rough,
         act_ON              = act_ON,
@@ -168,12 +171,15 @@ def spin_inert(outdir_src,runname,rstrt,ttot,
         srcfile_2ndslds     = srcfile_2ndslds,
         # ---- python stuff ----
         use_local_storage   = use_local_storage,
+        exename_src         = exename_src,
+        show_runtime_res    = show_runtime_res,
         )
         
         
         
 def ex_11_series():
-    outdir_src = '/storage/coda1/p-creinhard3/0/ykanzaki3/scepter_output/'
+    
+    outdir_src = '/storage/project/r-creinhard3-0/ykanzaki3/scepter_output/'
     
     
     use_local_storage   = True
@@ -265,19 +271,27 @@ def ex_11_series():
     sld_varlist_omrain = [('g2',1.0),('amnt',no3rain)]
     
     
-    act_ON = 'true'
+    # act_ON = 'true'
     act_ON = 'false'
     
-    rstrt = 'self'
-    runname = 'ex11_init_nofh_disp_n100_alpha0'
-    ttot = 1.
-    rain_list = [('na',na_pw), ('k',k_pw), ('no3',no3_pw)]
     
+    # runtype = 'init'
+    runtype = 'rstrt'
     
-    # rstrt = 'ex11_init_nofh_disp_n100_alpha0'
-    # runname = 'ex11_replace_nofh_disp_n100_alpha0_noact_q1p0'
-    # ttot = 0.63
-    # rain_list = [('ca',ca_pw), ('cl',cl_pw)]
+    exename_src = 'scepter_ex11'
+    runname = f'phreeqc_ex/ex11_test_{runtype}'
+    
+    if runtype == 'init':
+        rstrt = 'self'
+        ttot = 1.0
+        close_aq = 'true'
+        rain_list = [('na',na_pw), ('k',k_pw), ('no3',no3_pw)]
+    
+    elif runtype == 'rstrt':
+        rstrt = f'{outdir_src}phreeqc_ex/ex11_test_init'
+        ttot = 0.63
+        close_aq = 'false'
+        rain_list = [('ca',ca_pw), ('cl',cl_pw)]
     
     sld_varlist_cec = [
         ('inrt',cec,logkhna,logkhk,logkhca,logkhmg,logkhal,alpha),
@@ -293,7 +307,9 @@ def ex_11_series():
         sld_varlist_omrain,
         sld_varlist_cec,
         act_ON,
+        close_aq,
         use_local_storage,
+        exename_src,
         )
    
 def main():

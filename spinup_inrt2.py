@@ -39,6 +39,7 @@ def spin_inert(outdir_src,runname,
     zdust               = 0.25
     w                   = 1e-3
     q                   = 0.55
+    # q                   = 0.0
     p                   = 1e-5
     nstep               = 10
     rstrt               = 'self'
@@ -48,8 +49,10 @@ def spin_inert(outdir_src,runname,
     mix_scheme          = 1 # 1 --Fickian, 2 --Homogeneous
     poro_iter           = 'false' 
     sldmin_lim          = 'true'
-    display             = 'true'
-    disp_lim            = 'true'
+    # display             = 'true'
+    # disp_lim            = 'true'
+    display             = 1
+    report              = 0
     restart             = 'false'
     rough               = 'true'
     # act_ON              = 'true'
@@ -85,7 +88,10 @@ def spin_inert(outdir_src,runname,
     srcfile_kinspc      = None
     srcfile_2ndslds     = './data/2ndslds_def.in'
     # ---- python stuff ----
-    use_local_storage   = True
+    # use_local_storage   = True
+    use_local_storage   = False
+    exename_src         = 'scepter_gmd24'
+    show_runtime_res    = True
     
     spinup.run_a_scepter_run(
         runname,outdir_src,
@@ -115,7 +121,8 @@ def spin_inert(outdir_src,runname,
         poro_iter           = poro_iter,
         sldmin_lim          = sldmin_lim,
         display             = display,
-        disp_lim            = disp_lim,
+        # disp_lim            = disp_lim,
+        report            = report,
         restart             = restart,
         rough               = rough,
         act_ON              = act_ON,
@@ -151,6 +158,8 @@ def spin_inert(outdir_src,runname,
         srcfile_2ndslds     = srcfile_2ndslds,
         # ---- python stuff ----
         use_local_storage   = use_local_storage,
+        exename_src         = exename_src,
+        show_runtime_res    = show_runtime_res,
         )
         
         
@@ -220,6 +229,8 @@ def main():
     gas_list = ['pco2']
     pr_list = [('inrt',1.0)]
     rain_list = [('na',na_pw),('k',k_pw),('ca',ca_pw),('mg',mg_pw),('cl',cl_tmp)]
+    rain_list = [('na',na_pw),('k',k_pw),('ca',ca_pw),('mg',mg_pw),('cl',cl_tmp),('no3',1e-20)]
+    # rain_list = [('na',1e-20),('k',1e-20),('ca',1e-20),('mg',1e-20),('cl',1e-20),('no3',1e-20)]
     
     omrain = 480 # 15C
     omrain = 1338 # 25C
@@ -279,9 +290,11 @@ def main():
     name_base  = 'test_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
     name_base  = 'chk_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
     name_base  = 'chk2_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
+    name_base  = 'GMD24/bnch_Pot7_25C_v2_act_2CEC{:.1f}-{:.1f}_pH{:.1f}_alpha'.format(cec_1,cec_2,ph_pw).replace('.','p')
     # name_base  = 'test_Pot7_25C_v3_noact_alpha'
     
     act_ON = 'true'
+    # act_ON = 'false'
     
     alpha_list = list(np.linspace(0.1,5.5,19))
     alpha_list = [3.4]
@@ -355,19 +368,19 @@ def main():
 
         dep_sample = 0.15
         # (1) get porewater pH 
-        phint = get_int_prof.get_ph_int_site(outdir_src,runname,dep_sample)
+        phint = get_int_prof.get_ph_int_site(outdir_src,runname,dep_sample,20)
         
         # (2) get acidity in %
-        acint = get_int_prof.get_ac_int_site_v2(outdir_src,runname,dep_sample)
+        acint = get_int_prof.get_ac_int_site_v2(outdir_src,runname,dep_sample,20)
         
         # (3) get bulk density
-        dense = get_int_prof.get_rhobulk_int_site(outdir_src,runname,dep_sample)
+        dense = get_int_prof.get_rhobulk_int_site(outdir_src,runname,dep_sample,20)
         
         # (4) get field solid wt%
         sps = ['g2','inrt']
         sldwt_list = []
         for sp in sps:
-            sldwt = get_int_prof.get_sldwt_int_site(outdir_src,runname,dep_sample,[sp])
+            sldwt = get_int_prof.get_sldwt_int_site(outdir_src,runname,dep_sample,[sp],20)
             sldwt_list.append(sldwt)
         
         # (5) get SOM wt%
